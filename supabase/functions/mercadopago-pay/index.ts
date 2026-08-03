@@ -78,6 +78,7 @@ Deno.serve(async (req: Request) => {
         payment_method_id: 'pix',
         payer: { email: user.email },
         external_reference: externalRef,
+        notification_url: "https://mntyanfhxiqspdedmddb.supabase.co/functions/v1/mercadopago-webhook",
         metadata: { user_id: user.id, plan_code: plan.id, payment_ref: externalRef },
       }),
     });
@@ -131,4 +132,5 @@ Deno.serve(async (req: Request) => {
     });
   }
 });
+
 
