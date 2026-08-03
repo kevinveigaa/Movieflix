@@ -2,26 +2,26 @@ import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { ArrowLeft } from "lucide-react";
 import { supabase } from "@/lib/supabase";
+import { Plyr } from "plyr-react";
+import "plyr-react/plyr.css";
 
 export function PlayerPage() {
   const { id } = useParams();
   const navigate = useNavigate();
 
-  const [videoUrl, setVideoUrl] = useState<string | null>(null);
+  const [videoUrl, setVideoUrl] = useState("");
 
   useEffect(() => {
     async function loadMovie() {
       if (!id) return;
 
-      const { data, error } = await supabase
+      const { data } = await supabase
         .from("movies")
         .select("video_url")
         .eq("id", id)
         .single();
 
-      console.log("PLAYER BUSCA:", data, error);
-
-      if (!error && data?.video_url) {
+      if (data?.video_url) {
         setVideoUrl(data.video_url);
       }
     }
@@ -29,30 +29,51 @@ export function PlayerPage() {
     loadMovie();
   }, [id]);
 
-  const embed = videoUrl?.replace("watch?v=", "embed/");
+  const videoId =
+    videoUrl.match(/(?:v=|youtu\.be\/|embed\/)([^&?/]+)/)?.[1] ?? "";
 
   return (
     <div className="min-h-screen bg-black text-white p-4">
-      <button onClick={() => navigate(-1)} className="flex items-center gap-2">
-        <ArrowLeft size={18} /> Voltar
+
+      <button
+        onClick={() => navigate(-1)}
+        className="flex items-center gap-2 mb-5"
+      >
+        <ArrowLeft size={18} />
+        Voltar
       </button>
 
-      {embed ? (
-        <iframe
-          src={embed}
-          className="w-full aspect-video mt-5 rounded-xl"
-          allowFullScreen
-          loading="lazy"
-        />
+      {videoId ? (
+        <div className="max-w-6xl mx-auto rounded-2xl overflow-hidden">
+          <Plyr
+            source={{
+              type: "video",
+              sources: [
+                {
+                  src: videoId,
+                  provider: "youtube",
+                },
+              ],
+            }}
+            options={{
+              controls: [
+                "play-large",
+                "play",
+                "progress",
+                "current-time",
+                "mute",
+                "volume",
+                "settings",
+                "pip",
+                "fullscreen",
+              ],
+            }}
+          />
+        </div>
       ) : (
-        <p className="mt-5 text-gray-400">
-          Vídeo não encontrado.
-        </p>
+        <p>Vídeo não encontrado.</p>
       )}
     </div>
   );
 }
-
-
-
 
