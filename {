@@ -1,0 +1,7 @@
+O padr∆o de express∆o regular const detail = useQuery\\([\\s\\S]*?enabled: !!movieId,\\s*\\}\); n∆o Ç v†lido.
+No linha:1 caractere:59
++ ... ent $p -Raw;$c=$c -replace "const detail = useQuery\\([\\s\\S]*?enabl ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (const detail = ...ieId,\\s*\\}\);:String) [], RuntimeException
+    + FullyQualifiedErrorId : InvalidRegularExpression
+ 
