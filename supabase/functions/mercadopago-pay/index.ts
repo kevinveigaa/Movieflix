@@ -1,4 +1,4 @@
-import { createClient } from 'npm:@supabase/supabase-js@2.57.4';
+﻿import { createClient } from 'npm:@supabase/supabase-js@2.57.4';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -29,7 +29,7 @@ Deno.serve(async (req: Request) => {
       error: userErr,
     } = await supabase.auth.getUser();
     if (userErr || !user) {
-      return new Response(JSON.stringify({ error: 'Não autorizado' }), {
+      return new Response(JSON.stringify({ error: 'NÃ£o autorizado' }), {
         status: 401,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
@@ -37,7 +37,7 @@ Deno.serve(async (req: Request) => {
 
     const body = (await req.json()) as PayBody;
     if (!body.planId || !body.amount) {
-      return new Response(JSON.stringify({ error: 'Dados inválidos' }), {
+      return new Response(JSON.stringify({ error: 'Dados invÃ¡lidos' }), {
         status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
@@ -50,7 +50,7 @@ Deno.serve(async (req: Request) => {
 
     const { data: plan } = await admin.from('plans').select('*').eq('id', body.planId).maybeSingle();
     if (!plan) {
-      return new Response(JSON.stringify({ error: 'Plano não encontrado' }), {
+      return new Response(JSON.stringify({ error: 'Plano nÃ£o encontrado' }), {
         status: 404,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
@@ -58,7 +58,7 @@ Deno.serve(async (req: Request) => {
 
     const accessToken = Deno.env.get('MERCADO_PAGO_ACCESS_TOKEN');
     if (!accessToken) {
-      return new Response(JSON.stringify({ error: 'Mercado Pago não configurado' }), {
+      return new Response(JSON.stringify({ error: 'Mercado Pago nÃ£o configurado' }), {
         status: 500,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
@@ -131,3 +131,4 @@ Deno.serve(async (req: Request) => {
     });
   }
 });
+
