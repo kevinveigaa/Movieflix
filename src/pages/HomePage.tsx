@@ -10,6 +10,20 @@ const {subscription}=useAuth();
 
 const movies = useMovies("movie");
 
+const getMainCategory = (movie:any) => {
+  const categories = movie.category
+    ?.split(",")
+    .map((c:string)=>c.trim()) || [];
+
+  if (categories.includes("Ação")) return "Ação";
+  if (categories.includes("Terror")) return "Terror";
+  if (categories.includes("Comédia")) return "Comédia";
+  if (categories.includes("Drama")) return "Drama";
+  if (categories.includes("Ficção Científica")) return "Ficção Científica";
+
+  return categories[0] || "Outros";
+};
+
 
 const categorias = [
 {
@@ -18,23 +32,23 @@ lista: movies.data?.slice(0,10)
 },
 {
 nome:"Ação",
-lista: movies.data?.filter(m=>m.category==="Ação").slice(0,10)
+lista: movies.data?.filter(m=>getMainCategory(m)==="Ação").slice(0,10)
 },
 {
 nome:"Aventura",
-lista: movies.data?.filter(m=>m.category==="Aventura").slice(0,10)
+lista: movies.data?.filter(m=>getMainCategory(m)==="Aventura").slice(0,10)
 },
 {
 nome:"Ficção Científica",
-lista: movies.data?.filter(m=>m.category==="Ficção Científica").slice(0,10)
+lista: movies.data?.filter(m=>getMainCategory(m)==="Ficção Científica").slice(0,10)
 },
 {
 nome:"Terror",
-lista: movies.data?.filter(m=>m.category==="Terror").slice(0,10)
+lista: movies.data?.filter(m=>getMainCategory(m)==="Terror").slice(0,10)
 },
 {
 nome:"Comédia",
-lista: movies.data?.filter(m=>m.category==="Comédia").slice(0,10)
+lista: movies.data?.filter(m=>getMainCategory(m)==="Comédia").slice(0,10)
 }
 ];
 
@@ -172,6 +186,9 @@ Assine e assista sem limites
 )
 
 }
+
+
+
 
 
 
