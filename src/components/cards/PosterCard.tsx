@@ -24,7 +24,7 @@ export function PosterCard({
         className="aspect-[2/3] w-full object-cover transition duration-300 lg:group-hover:scale-105"
       />
 
-      <div className="absolute inset-0 flex items-end bg-gradient-to-t from-black/90 via-transparent opacity-0 transition lg:group-hover:opacity-100">
+      <div className="absolute inset-0 flex items-end bg-gradient-to-t from-black/90 via-transparent opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition">
         <div className="flex w-full justify-between p-2 sm:p-3">
 
           <Link
@@ -65,4 +65,5 @@ export function PosterCardSkeleton() {
     </div>
   );
 }
+
 

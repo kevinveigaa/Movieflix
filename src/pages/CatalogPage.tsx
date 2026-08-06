@@ -30,9 +30,9 @@ export function CatalogPage({ kind }: { kind: CatalogKind }) {
   ) ?? [];
 
   return (
-    <div className="container-app py-8">
+    <div className="container-app pt-24 pb-16">
 
-      <h1 className="font-display text-3xl text-white mb-6">
+      <h1 className="font-display text-2xl sm:text-3xl lg:text-4xl text-white mb-6">
         {TITLES[kind]}
       </h1>
 
@@ -40,13 +40,13 @@ export function CatalogPage({ kind }: { kind: CatalogKind }) {
         placeholder="Buscar filmes..."
         value={search}
         onChange={(e) => setSearch(e.target.value)}
-        className="mb-8 rounded-xl bg-white/10 px-4 py-2 text-white"
+        className="mb-8 w-full max-w-xl rounded-xl border border-white/10 bg-white/10 px-4 py-3 text-white placeholder:text-zinc-400 outline-none focus:border-purple-500"
       />
 
       {movies.isLoading ? (
         <FullScreenLoader label="Carregando cat?logo..." />
       ) : (
-        <div className="grid grid-cols-2 gap-5 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
+        <div className="grid grid-cols-3 gap-3 sm:grid-cols-4 sm:gap-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-7">
           {results.map((movie) => (
             <PosterCard key={movie.id} title={movie} className="w-full" />
           ))}
@@ -56,6 +56,7 @@ export function CatalogPage({ kind }: { kind: CatalogKind }) {
     </div>
   );
 }
+
 
 
 
