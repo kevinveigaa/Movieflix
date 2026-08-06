@@ -14,22 +14,28 @@ const movies = useMovies("movie");
 const categorias = [
 {
 nome:"Filmes em destaque",
-lista: movies.data?.sort((a,b)=>Number(b.year)-Number(a.year)).slice(0,10)
+lista: movies.data?.slice(0,10)
 },
-...(Array.from(
-new Set(
-movies.data
-?.map(m=>m.category)
-.filter(Boolean)
-)
-)
-.map(cat=>({
-nome:cat,
-lista:movies.data
-?.filter(m=>m.category===cat)
-.slice(0,10)
-}))
-)
+{
+nome:"Ação",
+lista: movies.data?.filter(m=>m.category==="Ação").slice(0,10)
+},
+{
+nome:"Aventura",
+lista: movies.data?.filter(m=>m.category==="Aventura").slice(0,10)
+},
+{
+nome:"Ficção Científica",
+lista: movies.data?.filter(m=>m.category==="Ficção Científica").slice(0,10)
+},
+{
+nome:"Terror",
+lista: movies.data?.filter(m=>m.category==="Terror").slice(0,10)
+},
+{
+nome:"Comédia",
+lista: movies.data?.filter(m=>m.category==="Comédia").slice(0,10)
+}
 ];
 
 
@@ -166,6 +172,7 @@ Assine e assista sem limites
 )
 
 }
+
 
 
 
