@@ -9,7 +9,7 @@ const TITLES = {
   filmes: 'Filmes',
   series: 'Séries',
   animes: 'Animes',
-  documentarios: 'Document?rios',
+  documentarios: 'Documentários',
   infantil: 'Infantil',
 };
 
@@ -56,6 +56,7 @@ export function CatalogPage({ kind }: { kind: CatalogKind }) {
     </div>
   );
 }
+
 
 
 
