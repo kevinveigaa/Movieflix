@@ -20,8 +20,8 @@ export function Carousel({ title, children, className }: CarouselProps) {
 
   return (
     <section className={cn('group/row relative', className)}>
-      <div className="mb-3 flex items-center justify-between">
-        <h2 className="text-lg font-semibold text-white sm:text-xl">{title}</h2>
+      <div className="mb-4 flex items-center justify-between">
+        <h2 className="text-base font-semibold text-white sm:text-xl lg:text-2xl">{title}</h2>
         <div className="hidden gap-2 sm:flex">
           <button
             onClick={() => scroll('left')}
@@ -41,13 +41,14 @@ export function Carousel({ title, children, className }: CarouselProps) {
       </div>
       <div
         ref={ref}
-        className="scrollbar-none flex gap-3 overflow-x-auto scroll-smooth pb-2 sm:gap-4"
+        className="scrollbar-none flex gap-3 overflow-x-auto scroll-smooth pb-4 sm:gap-4 lg:gap-5 xl:gap-6"
       >
         {children}
       </div>
     </section>
   );
 }
+
 
 
 
