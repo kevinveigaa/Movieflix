@@ -47,18 +47,22 @@ return (
 
 <section key={cat.nome}>
 
-<h2 className="text-xl font-bold text-white mb-5">
+<h2 className="text-lg sm:text-xl lg:text-2xl font-bold text-white mb-4 sm:mb-5">
 {cat.nome}
 </h2>
 
 
 <div className="
 grid
-grid-cols-2
-sm:grid-cols-3
-md:grid-cols-4
-lg:grid-cols-5
-gap-5
+grid-cols-3
+xs:grid-cols-3
+sm:grid-cols-4
+md:grid-cols-5
+lg:grid-cols-6
+xl:grid-cols-7
+gap-3
+sm:gap-4
+lg:gap-5
 ">
 
 {movies.isLoading ? (
@@ -162,6 +166,7 @@ Assine e assista sem limites
 )
 
 }
+
 
 
 
