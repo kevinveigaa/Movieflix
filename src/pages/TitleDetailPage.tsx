@@ -53,7 +53,7 @@ export function TitleDetailPage() {
     <div className="min-h-screen bg-black text-white pt-16 md:pt-20">
 
       <div
-        className="relative h-[500px] bg-cover bg-center"
+        className="relative min-h-[600px] md:h-[500px] bg-cover bg-center"
         style={{
           backgroundImage: `url(${movie.backdrop_url || movie.poster_url})`
         }}
@@ -70,9 +70,9 @@ export function TitleDetailPage() {
         </button>
 
 
-        <div className="absolute bottom-10 left-10 max-w-2xl">
+        <div className="absolute bottom-0 left-0 w-full p-5 sm:p-8 md:left-10 md:bottom-10 md:w-auto md:max-w-2xl">
 
-          <h1 className="text-5xl font-bold">
+          <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold leading-tight">
             {movie.title}
           </h1>
 
@@ -88,14 +88,14 @@ export function TitleDetailPage() {
           </div>
 
 
-          <p className="mt-5 text-lg text-zinc-300">
+          <p className="mt-4 text-sm sm:text-base md:text-lg text-zinc-300 line-clamp-4">
             {movie.description || "Sinopse não disponível."}
           </p>
 
 
           <button
             onClick={() => navigate(`/assistir/${movie.id}`)}
-            className="mt-6 flex items-center gap-2 rounded-lg bg-white px-6 py-3 font-bold text-black"
+            className="mt-5 flex w-fit items-center gap-2 rounded-lg bg-white px-5 py-3 font-bold text-black"
           >
             <Play fill="black" />
             Assistir agora
@@ -108,4 +108,5 @@ export function TitleDetailPage() {
     </div>
   );
 }
+
 
