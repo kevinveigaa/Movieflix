@@ -1,4 +1,4 @@
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+﻿import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from '@/context/AuthContext';
 import { AppLayout } from '@/components/layout/AppLayout';
@@ -49,7 +49,8 @@ function AppRoutes() {
         <Route path="/documentarios" element={<CatalogPage kind="documentarios" />} />
         <Route path="/infantil" element={<CatalogPage kind="infantil" />} />
         <Route path="/pesquisa" element={<SearchPage />} />
-        <Route path="/titulo/:type/:id" element={<TitleDetailPage />} /> <Route path="/assistir/:id" element={<PlayerPage />} />
+        <Route path="/titulo/:type/:id" element={<TitleDetailPage />} />
+        <Route path="/assistir/:id" element={<PlayerPage />} />
         <Route path="/favoritos" element={<RequireAuth><FavoritesPage /></RequireAuth>} />
         <Route path="/continuar" element={<RequireAuth><ContinueWatchingPage /></RequireAuth>} />
         <Route path="/historico" element={<RequireAuth><HistoryPage /></RequireAuth>} />
@@ -78,6 +79,10 @@ export default function App() {
     </QueryClientProvider>
   );
 }
+
+
+
+
 
 
 
