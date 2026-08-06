@@ -49,12 +49,12 @@ export function Navbar() {
         scrolled ? 'bg-ink-950/95 backdrop-blur shadow-lg shadow-black/40' : 'bg-gradient-to-b from-black/80 to-transparent',
       )}
     >
-      <div className="container-app flex h-16 items-center gap-4">
+      <div className="container-app flex h-14 sm:h-16 lg:h-20 items-center gap-2 sm:gap-4">
         <Link to="/" className="flex items-center gap-2">
-          <span className="flex h-8 w-8 items-center justify-center rounded-md bg-brand-600 text-white">
+          <span className="flex h-7 w-7 sm:h-8 sm:w-8 lg:h-10 lg:w-10 items-center justify-center rounded-md bg-brand-600 text-white">
             <Film className="h-5 w-5" />
           </span>
-          <span className="font-display text-xl tracking-wide text-white">MOVIEFLIX</span>
+          <span className="font-display text-lg sm:text-xl lg:text-2xl tracking-wide text-white">MOVIEFLIX</span>
         </Link>
 
         <nav className="hidden items-center gap-1 lg:flex">
@@ -131,7 +131,7 @@ export function Navbar() {
           )}
 
           <button
-            className="rounded-full p-2 text-ink-200 hover:bg-white/10 lg:hidden"
+            className="rounded-full p-3 text-ink-200 hover:bg-white/10 lg:hidden"
             onClick={() => setMobileOpen((v) => !v)}
             aria-label="Menu"
           >
@@ -184,6 +184,8 @@ function MenuLink({ to, icon, children }: { to: string; icon: React.ReactNode; c
     </Link>
   );
 }
+
+
 
 
 
