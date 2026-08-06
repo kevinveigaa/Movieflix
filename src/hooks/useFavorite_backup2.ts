@@ -1,4 +1,4 @@
-﻿import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/context/AuthContext';
 import { img, titleName } from '@/lib/tmdb';
@@ -33,7 +33,7 @@ export function useFavorite(tmdbId: number, mediaType: MediaType) {
 
   const toggle = useMutation({
     mutationFn: async () => {
-      if (!user) throw new Error('FaÃ§a login para favoritar.');
+      if (!user) throw new Error('Faça login para favoritar.');
       if (row) {
         await supabase.from('favorites').delete().eq('id', row.id);
       } else {
@@ -41,10 +41,6 @@ export function useFavorite(tmdbId: number, mediaType: MediaType) {
           user_id: user.id,
           tmdb_id: tmdbId,
           media_type: mediaType,
-          title: "",
-          poster_path: "",
-          backdrop_path: "",
-          vote_average: 0,
         });
       }
     },
@@ -59,7 +55,7 @@ export function useToggleFavoriteByTitle() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (t: TmdbTitle) => {
-      if (!user) throw new Error('FaÃ§a login para favoritar.');
+      if (!user) throw new Error('Faça login para favoritar.');
       const type: MediaType = t.media_type === 'tv' || t.first_air_date || t.name ? 'tv' : 'movie';
       const { data: existing } = await supabase
         .from('favorites')
@@ -87,4 +83,3 @@ export function useToggleFavoriteByTitle() {
 }
 
 export { img };
-

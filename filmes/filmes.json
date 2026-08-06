@@ -1,0 +1,10 @@
+[
+  {
+    "title": "Homem Aranha",
+    "description": "Filme teste",
+    "poster_url": "https://image.tmdb.org/t/p/w500/teste.jpg",
+    "video_url": "https://teste.com/video.mp4",
+    "type": "movie",
+    "quality": "HD"
+  }
+]

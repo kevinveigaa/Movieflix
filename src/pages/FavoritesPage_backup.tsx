@@ -4,11 +4,9 @@ import { useFavorites } from '@/hooks/useFavorite';
 import { useAuth } from '@/context/AuthContext';
 import { PosterCard, PosterCardSkeleton } from '@/components/cards/PosterCard';
 
-
 export function FavoritesPage() {
   const { user } = useAuth();
   const favs = useFavorites();
-
 
   if (!user) {
     return <EmptyState message="Faa login para ver seus favoritos." cta="Entrar" to="/login" />;
@@ -31,7 +29,7 @@ export function FavoritesPage() {
                 key={f.id}
                 title={{
                   id: f.tmdb_id,
-                  title: f.title,
+                  title: f.media_type === 'movie' ? f.title : undefined,
                   name: f.media_type === 'tv' ? f.title : undefined,
                   poster_path: f.poster_path,
                   backdrop_path: f.backdrop_path,
@@ -61,16 +59,6 @@ function EmptyState({ message, cta, to }: { message: string; cta: string; to: st
     </div>
   );
 }
-
-
-
-
-
-
-
-
-
-
 
 
 

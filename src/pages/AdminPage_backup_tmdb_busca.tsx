@@ -1,4 +1,4 @@
-Ôªøimport { useState } from "react";
+import { useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/context/AuthContext";
 import { tmdb, img } from "@/lib/tmdb";
@@ -45,7 +45,7 @@ const filme = resultado.results?.find(
 );
 
 if(!filme){
-alert("Filme n√£o encontrado");
+alert("Filme n„o encontrado");
 return;
 }
 
@@ -58,7 +58,7 @@ setForm({
 ...form,
 title: detalhes.title,
 description: detalhes.overview,
-poster_url: img(detalhes.poster_path,"w500"),
+thumbnail_url: img(detalhes.poster_path),
 backdrop_url: img(detalhes.backdrop_path,"w1280"),
 category: detalhes.genres?.map((g:any)=>g.name).join(","),
 year: detalhes.release_date?.slice(0,4),
@@ -138,11 +138,11 @@ Painel Admin MovieFlix ??
 </h1>
 
 
-{input("title","T√≠tulo")}
+{input("title","TÌtulo")}
 
 <textarea
 className="input mb-3 w-full"
-placeholder="Descri√ß√£o"
+placeholder="DescriÁ„o"
 value={form.description}
 onChange={e=>setForm({...form,description:e.target.value})}
 />
@@ -152,13 +152,13 @@ onChange={e=>setForm({...form,description:e.target.value})}
 
 {input("backdrop_url","URL do banner")}
 
-{input("video_url","URL do v√≠deo")}
+{input("video_url","URL do vÌdeo")}
 
 {input("language","Idioma")}
 
 {input("quality","Qualidade")}
 
-{input("required_plan","Plano necess√°rio")}
+{input("required_plan","Plano necess·rio")}
 
 
 <select
@@ -172,7 +172,7 @@ Filme
 </option>
 
 <option value="series">
-S√©rie
+SÈrie
 </option>
 
 </select>
@@ -183,15 +183,15 @@ value={form.category}
 onChange={e=>setForm({...form,category:e.target.value})}
 >
 <option value="">Categoria</option>
-<option value="A√ß√£o">A√ß√£o</option>
+<option value="AÁ„o">AÁ„o</option>
 <option value="Aventura">Aventura</option>
-<option value="Com√©dia">Com√©dia</option>
+<option value="ComÈdia">ComÈdia</option>
 <option value="Terror">Terror</option>
-<option value="Fic√ß√£o Cient√≠fica">Fic√ß√£o Cient√≠fica</option>
+<option value="FicÁ„o CientÌfica">FicÁ„o CientÌfica</option>
 <option value="Drama">Drama</option>
 <option value="Romance">Romance</option>
 <option value="Infantil">Infantil</option>
-<option value="Document√°rio">Document√°rio</option>
+<option value="Document·rio">Document·rio</option>
 <option value="Anime">Anime</option>
 </select>
 
@@ -208,8 +208,6 @@ Salvar Filme
 )
 
 }
-
-
 
 
 

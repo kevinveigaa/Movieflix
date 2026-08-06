@@ -16,9 +16,6 @@ export function PosterCard({
   forceType,
   mediaType = "movie",
 }: MovieCardProps) {
-
-
-
   return (
     <div className={cn("group relative overflow-hidden rounded-xl bg-zinc-900", className)}>
       <img
@@ -32,16 +29,12 @@ export function PosterCard({
 
           <Link
             to={`/titulo/${forceType || mediaType}/${title.id}`}
-            className="flex h-10 w-10 items-center justify-center rounded-full bg-white text-black"
+            className="flex h-10 w-10 items-center justify-center rounded-full bg-white text-black shadow-lg transition hover:scale-110"
           >
             <Play size={20} fill="currentColor" />
           </Link>
 
-          <button
-            
-            className="flex h-10 w-10 items-center justify-center rounded-full bg-black/70 text-white"
-          >
-            
+          <button className="flex h-10 w-10 items-center justify-center rounded-full bg-black/70 text-white">
           </button>
 
         </div>
@@ -72,12 +65,3 @@ export function PosterCardSkeleton() {
     </div>
   );
 }
-
-
-
-
-
-
-
-
-

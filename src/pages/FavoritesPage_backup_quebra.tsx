@@ -2,13 +2,11 @@
 import { Heart } from 'lucide-react';
 import { useFavorites } from '@/hooks/useFavorite';
 import { useAuth } from '@/context/AuthContext';
-import { PosterCard, PosterCardSkeleton } from '@/components/cards/PosterCard';
-
+import { PosterCard, PosterCardSkeleton } from '@/components/cards/PosterCard';`nimport { useMovies } from "@/hooks/useMovies";
 
 export function FavoritesPage() {
   const { user } = useAuth();
-  const favs = useFavorites();
-
+  const favs = useFavorites();`n  const movies = useMovies("movie");
 
   if (!user) {
     return <EmptyState message="Faa login para ver seus favoritos." cta="Entrar" to="/login" />;
@@ -30,11 +28,11 @@ export function FavoritesPage() {
               <PosterCard
                 key={f.id}
                 title={{
-                  id: f.tmdb_id,
-                  title: f.title,
+                  id: movies.data?.find(m=>m.tmdb_id===f.tmdb_id)?.id,
+                  title: movies.data?.find(m=>m.tmdb_id===f.tmdb_id)?.title,
                   name: f.media_type === 'tv' ? f.title : undefined,
-                  poster_path: f.poster_path,
-                  backdrop_path: f.backdrop_path,
+                  poster_url: movies.data?.find(m=>m.tmdb_id===f.tmdb_id)?.poster_url,
+                  backdrop_url: movies.data?.find(m=>m.tmdb_id===f.tmdb_id)?.backdrop_url,
                   vote_average: Number(f.vote_average ?? 0),
                   overview: '',
                   media_type: f.media_type,
@@ -61,14 +59,6 @@ function EmptyState({ message, cta, to }: { message: string; cta: string; to: st
     </div>
   );
 }
-
-
-
-
-
-
-
-
 
 
 

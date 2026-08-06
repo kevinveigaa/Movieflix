@@ -1,4 +1,4 @@
-﻿import { useState } from "react";
+import { useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/context/AuthContext";
 import { tmdb, img } from "@/lib/tmdb";
@@ -19,8 +19,7 @@ video_url:"",
 language:"Dublado",
 quality:"HD",
 type:"movie",
-required_plan:"premium",
-  category:""
+required_plan:"premium"
 });
 
 
@@ -45,7 +44,7 @@ const filme = resultado.results?.find(
 );
 
 if(!filme){
-alert("Filme não encontrado");
+alert("Filme n�o encontrado");
 return;
 }
 
@@ -58,7 +57,7 @@ setForm({
 ...form,
 title: detalhes.title,
 description: detalhes.overview,
-poster_url: img(detalhes.poster_path,"w500"),
+thumbnail_url: img(detalhes.poster_path),
 backdrop_url: img(detalhes.backdrop_path,"w1280"),
 category: detalhes.genres?.map((g:any)=>g.name).join(","),
 year: detalhes.release_date?.slice(0,4),
@@ -92,8 +91,7 @@ video_url:"",
 language:"Dublado",
 quality:"HD",
 type:"movie",
-required_plan:"premium",
-  category:""
+required_plan:"premium"
 });
 
 }
@@ -138,11 +136,11 @@ Painel Admin MovieFlix ??
 </h1>
 
 
-{input("title","Título")}
+{input("title","T�tulo")}
 
 <textarea
 className="input mb-3 w-full"
-placeholder="Descrição"
+placeholder="Descri��o"
 value={form.description}
 onChange={e=>setForm({...form,description:e.target.value})}
 />
@@ -152,13 +150,13 @@ onChange={e=>setForm({...form,description:e.target.value})}
 
 {input("backdrop_url","URL do banner")}
 
-{input("video_url","URL do vídeo")}
+{input("video_url","URL do v�deo")}
 
 {input("language","Idioma")}
 
 {input("quality","Qualidade")}
 
-{input("required_plan","Plano necessário")}
+{input("required_plan","Plano necess�rio")}
 
 
 <select
@@ -172,28 +170,11 @@ Filme
 </option>
 
 <option value="series">
-Série
+S�rie
 </option>
 
 </select>
 
-<select
-className="input mb-3 w-full"
-value={form.category}
-onChange={e=>setForm({...form,category:e.target.value})}
->
-<option value="">Categoria</option>
-<option value="Ação">Ação</option>
-<option value="Aventura">Aventura</option>
-<option value="Comédia">Comédia</option>
-<option value="Terror">Terror</option>
-<option value="Ficção Científica">Ficção Científica</option>
-<option value="Drama">Drama</option>
-<option value="Romance">Romance</option>
-<option value="Infantil">Infantil</option>
-<option value="Documentário">Documentário</option>
-<option value="Anime">Anime</option>
-</select>
 
 <button
 onClick={save}
@@ -208,24 +189,6 @@ Salvar Filme
 )
 
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 

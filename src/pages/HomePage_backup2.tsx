@@ -1,4 +1,5 @@
-ï»¿import { Carousel } from '@/components/Carousel';
+import { Carousel } from '@/components/Carousel';
+import { PosterCard, PosterCardSkeleton } from '@/components/cards/PosterCard';
 import { useMovies } from '@/hooks/useMovies';
 import { useAuth, hasActiveSubscription } from '@/context/AuthContext';
 import { useWatchHistory } from '@/hooks/useWatchHistory';
@@ -6,75 +7,69 @@ import { Link } from 'react-router-dom';
 import { Crown, Sparkles } from 'lucide-react';
 
 export function HomePage() {
-  const { user } = useAuth();
-  const movies = useMovies();
+  const { user, subscription } = useAuth();
+  const movies = useMovies('movie');
   const history = useWatchHistory();
 
   return (
     <div>
-      <div className="container-app space-y-10 pb-16">
+      <div className="container-app pt-8 space-y-10 pb-16">
 
-        {user && (history.data?.length ?? 0) > 0 && (
-          <Carousel title="Continuar assistindo">
-            {history.data?.filter((h) => h.title && h.poster_path).slice(0,10).map((h) => (
-              <Link key={h.id} to={`/titulo/movie/${h.id}`} className="w-40">
-                <img src={h.poster_path ?? ''} className="rounded-xl" />
-                <p className="text-white text-sm mt-2">{h.title}</p>
-              </Link>
-            ))}
-          </Carousel>
-        )}
-
-        {!hasActiveSubscription(useAuth().subscription) && (
+        {!hasActiveSubscription(subscription) && (
           <UpgradeBanner />
         )}
 
-        <Carousel title="Filmes MovieFlix">
-          {movies.isLoading ? (
-            <p className="text-white">Carregando filmes...</p>
-          ) : (
-            movies.data?.filter((movie) => movie.title && movie.poster_url && movie.backdrop_url && movie.video_url && movie.description).map((movie) => (
-              <Link 
-                key={movie.id}
-                to={`/titulo/movie/${movie.id}`}
-                className="w-40"
-              >
-                <img 
-                  src={movie.poster_url ?? ""}
-                  className="rounded-xl"
-                />
-                <p className="text-white text-sm mt-2">
-                  {movie.title}
-                </p>
-              </Link>
-            ))
-          )}
-        </Carousel>
+        {user && history.data && history.data.length > 0 && (
+          <Carousel title="Continuar assistindo">
+            {history.data.slice(0, 10).map((h) => (
+              <PosterCard
+                key={h.id}
+                title={{
+                  id: h.tmdb_id,
+                  title: h.title,
+                  overview: "",
+                  poster_url: h.poster_url,
+                    poster_path: h.poster_path,
+                  backdrop_path: h.backdrop_path,
+                  vote_average: h.vote_average ?? 0,
+                  media_type: h.media_type,
+                    type: h.media_type,
+                    quality: 'HD'
+                }}
+              />
+            ))}
+          </Carousel>        )}
 
       </div>
     </div>
   );
 }
 
-
 function UpgradeBanner() {
   return (
     <Link
       to="/minha-assinatura"
-      className="flex items-center gap-4 rounded-2xl bg-black p-5"
+      className="group relative flex items-center gap-4 overflow-hidden rounded-2xl border border-brand-600/30 bg-gradient-to-r from-brand-900/40 via-ink-900 to-ink-900 p-5"
     >
-      <Crown className="text-white"/>
-      <div>
-        <p className="text-white font-bold">
-          <Sparkles className="inline"/> Desbloqueie todo o conte?do
+      <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-brand-600 text-white">
+        <Crown className="h-6 w-6" />
+      </div>
+
+      <div className="flex-1">
+        <p className="flex items-center gap-2 font-semibold text-white">
+          <Sparkles className="h-4 w-4 text-brand-400" />
+          Desbloqueie todo o conteúdo
         </p>
-        <p className="text-gray-400">
+
+        <p className="text-sm text-ink-300">
           Assine e assista sem limites.
         </p>
       </div>
     </Link>
   );
 }
+
+
 
 
 

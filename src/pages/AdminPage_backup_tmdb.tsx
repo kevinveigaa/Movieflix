@@ -1,12 +1,10 @@
 ﻿import { useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/context/AuthContext";
-import { tmdb, img } from "@/lib/tmdb";
 
 export function AdminPage(){
 
 const {user}=useAuth();
-const [tmdbSearch,setTmdbSearch]=useState("");
 
 const ADMIN_EMAIL="veigakevin71@gmail.com";
 
@@ -19,8 +17,7 @@ video_url:"",
 language:"Dublado",
 quality:"HD",
 type:"movie",
-required_plan:"premium",
-  category:""
+required_plan:"premium"
 });
 
 
@@ -28,46 +25,13 @@ if(user?.email !== ADMIN_EMAIL){
 return(
 <div className="min-h-screen bg-black text-white flex items-center justify-center">
 <h1 className="text-3xl font-bold">
-Acesso negado ??
+Acesso negado 🔒
 </h1>
 </div>
 )
 }
 
 
-
-async function buscarTMDB(){
-
-const resultado = await tmdb.search(tmdbSearch);
-
-const filme = resultado.results?.find(
-(item:any)=>item.media_type==="movie"
-);
-
-if(!filme){
-alert("Filme não encontrado");
-return;
-}
-
-const detalhes:any = await tmdb.details(
-"movie",
-filme.id
-);
-
-setForm({
-...form,
-title: detalhes.title,
-description: detalhes.overview,
-poster_url: img(detalhes.poster_path,"w500"),
-backdrop_url: img(detalhes.backdrop_path,"w1280"),
-category: detalhes.genres?.map((g:any)=>g.name).join(","),
-year: detalhes.release_date?.slice(0,4),
-duration: detalhes.runtime?.toString(),
-quality:"HD",
-type:"movie"
-});
-
-}
 async function save(){
 
 const {error}=await supabase
@@ -81,7 +45,7 @@ alert(error.message);
 
 }else{
 
-alert("Filme cadastrado ??");
+alert("Filme cadastrado 🎬");
 
 setForm({
 title:"",
@@ -92,8 +56,7 @@ video_url:"",
 language:"Dublado",
 quality:"HD",
 type:"movie",
-required_plan:"premium",
-  category:""
+required_plan:"premium"
 });
 
 }
@@ -119,22 +82,8 @@ return(
 
 <div className="min-h-screen bg-black text-white p-10">
 
-
-<input
-className="input mb-3"
-placeholder="Buscar filme no TMDB"
-value={tmdbSearch}
-onChange={e=>setTmdbSearch(e.target.value)}
-/>
-
-<button
-onClick={buscarTMDB}
-className="bg-purple-600 px-6 py-3 rounded-lg mb-5"
->
-Buscar no TMDB ??
-</button>
 <h1 className="text-3xl font-bold mb-8">
-Painel Admin MovieFlix ??
+Painel Admin MovieFlix 🎬
 </h1>
 
 
@@ -177,23 +126,6 @@ Série
 
 </select>
 
-<select
-className="input mb-3 w-full"
-value={form.category}
-onChange={e=>setForm({...form,category:e.target.value})}
->
-<option value="">Categoria</option>
-<option value="Ação">Ação</option>
-<option value="Aventura">Aventura</option>
-<option value="Comédia">Comédia</option>
-<option value="Terror">Terror</option>
-<option value="Ficção Científica">Ficção Científica</option>
-<option value="Drama">Drama</option>
-<option value="Romance">Romance</option>
-<option value="Infantil">Infantil</option>
-<option value="Documentário">Documentário</option>
-<option value="Anime">Anime</option>
-</select>
 
 <button
 onClick={save}
@@ -208,28 +140,3 @@ Salvar Filme
 )
 
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
