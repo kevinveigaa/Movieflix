@@ -46,7 +46,7 @@ export function PlayerPage() {
 
   if (!hasActiveSubscription(subscription)) {
     return (
-      <div className="min-h-screen bg-black text-white flex flex-col items-center justify-center">
+      <div className="min-h-screen bg-black text-white flex flex-col items-center justify-center px-5 text-center">
         <h1 className="text-3xl font-bold">
           Conteúdo exclusivo 🔒
         </h1>
@@ -62,11 +62,11 @@ export function PlayerPage() {
   }
 
   return (
-    <div className="min-h-screen bg-black text-white p-5">
+    <div className="relative min-h-screen bg-black text-white flex items-center justify-center">
 
       <button
         onClick={() => navigate(-1)}
-        className="flex items-center gap-2 mb-5"
+        className="absolute top-4 left-4 z-20 flex items-center gap-2 rounded-full bg-black/60 px-4 py-2 backdrop-blur transition hover:bg-black/80 sm:top-6 sm:left-6"
       >
         <ArrowLeft size={18}/>
         Voltar
@@ -76,7 +76,7 @@ export function PlayerPage() {
         <video
           controls
           autoPlay
-          className="w-full max-w-6xl mx-auto rounded-xl"
+          className="w-full aspect-video object-contain sm:max-w-5xl lg:max-w-7xl xl:max-w-[1400px] rounded-none sm:rounded-xl shadow-2xl"
         >
           <source src={videoUrl} type="video/mp4" />
         </video>
