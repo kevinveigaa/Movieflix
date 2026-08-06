@@ -46,7 +46,7 @@ export function CatalogPage({ kind }: { kind: CatalogKind }) {
       {movies.isLoading ? (
         <FullScreenLoader label="Carregando cat?logo..." />
       ) : (
-        <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-5">
+        <div className="grid grid-cols-2 gap-5 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
           {results.map((movie) => (
             <PosterCard key={movie.id} title={movie} className="w-full" />
           ))}

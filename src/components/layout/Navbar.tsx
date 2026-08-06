@@ -7,7 +7,6 @@ import { cn } from '@/lib/cn';
 const navLinks = [
   { to: '/', label: 'Início' },
   { to: '/filmes', label: 'Filmes' },
-  { to: '/series', label: 'Séries' },
   { to: '/animes', label: 'Animes' },
   { to: '/documentarios', label: 'Documentários' },
   { to: '/infantil', label: 'Infantil' },
@@ -185,6 +184,7 @@ function MenuLink({ to, icon, children }: { to: string; icon: React.ReactNode; c
     </Link>
   );
 }
+
 
 
 

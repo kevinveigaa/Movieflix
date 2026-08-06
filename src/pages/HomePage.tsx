@@ -1,101 +1,167 @@
-import { Carousel } from '@/components/Carousel';
-import { PosterCard, PosterCardSkeleton } from '@/components/cards/PosterCard';
-import { useMovies } from '@/hooks/useMovies';
-import { useAuth, hasActiveSubscription } from '@/context/AuthContext';
-import { useWatchHistory } from '@/hooks/useWatchHistory';
-import { Link } from 'react-router-dom';
-import { Crown, Sparkles } from 'lucide-react';
+﻿import { PosterCard, PosterCardSkeleton } from "@/components/cards/PosterCard";
+import { useMovies } from "@/hooks/useMovies";
+import { useAuth, hasActiveSubscription } from "@/context/AuthContext";
+import { Link } from "react-router-dom";
+import { Crown, Sparkles } from "lucide-react";
 
-export function HomePage() {
-  const { user, subscription } = useAuth();
-  const movies = useMovies('movie');
-  const history = useWatchHistory();
+export function HomePage(){
 
-  return (
-    <div>
-      <div className="container-app pt-8 space-y-10 pb-16">
+const {subscription}=useAuth();
 
-        {!hasActiveSubscription(subscription) && (
-          <UpgradeBanner />
-        )}
+const movies = useMovies("movie");
 
-        {user && history.data && history.data.length > 0 && (
-          <Carousel title="Continuar assistindo">
-            {history.data.slice(0, 10).map((h) => (
-              <PosterCard
-                key={h.id}
-                title={{
-                  id: h.tmdb_id,
-                  title: h.title,
-                  overview: "",
-                  poster_url: h.poster_url,
-                    poster_path: h.poster_path,
-                  backdrop_path: h.backdrop_path,
-                  vote_average: h.vote_average ?? 0,
-                  media_type: h.media_type,
-                    type: h.media_type,
-                    quality: 'HD'
-                }}
-              />
-            ))}
-          </Carousel>        )}
 
-        <Carousel title="Filmes MovieFlix">
-          {movies.isLoading ? (
-            Array.from({ length: 8 }).map((_, i) => (
-              <PosterCardSkeleton key={i} />
-            ))
-          ) : (
-            movies.data?.map((movie) => (
-              <PosterCard
-                key={movie.id}
-                title={{
-                  id: movie.id,
-                  title: movie.title,
-                  overview: movie.description ?? '',
-                  poster_url: movie.poster_url,
-                  poster_path: movie.poster_path,
-                  backdrop_path: movie.backdrop_url,
-                  vote_average: 0,
-                  media_type: 'movie'
-                }}
-              />
-            ))
-          )}
-        </Carousel>
+const categorias = [
+{
+nome:"Filmes em destaque",
+lista: movies.data?.sort((a,b)=>Number(b.year)-Number(a.year)).slice(0,10)
+},
+...(Array.from(
+new Set(
+movies.data
+?.map(m=>m.category)
+.filter(Boolean)
+)
+)
+.map(cat=>({
+nome:cat,
+lista:movies.data
+?.filter(m=>m.category===cat)
+.slice(0,10)
+}))
+)
+];
 
-      </div>
-    </div>
-  );
+
+return (
+
+<div className="container-app pt-8 pb-16 space-y-10">
+
+
+{!hasActiveSubscription(subscription) && (
+<UpgradeBanner/>
+)}
+
+
+{categorias.filter(cat=>cat.lista?.length).map((cat)=>(
+
+<section key={cat.nome}>
+
+<h2 className="text-xl font-bold text-white mb-5">
+{cat.nome}
+</h2>
+
+
+<div className="
+grid
+grid-cols-2
+sm:grid-cols-3
+md:grid-cols-4
+lg:grid-cols-5
+gap-5
+">
+
+{movies.isLoading ? (
+
+<>
+<PosterCardSkeleton/>
+<PosterCardSkeleton/>
+<PosterCardSkeleton/>
+<PosterCardSkeleton/>
+<PosterCardSkeleton/>
+</>
+
+):(
+
+
+cat.lista?.map(movie=>(
+
+<PosterCard
+
+key={movie.id}
+
+title={{
+id:movie.id,
+title:movie.title,
+description:movie.description,
+poster_url:movie.poster_url,
+quality:movie.quality ?? "HD",
+type:movie.type ?? "movie"
+
+}}
+
+/>
+
+))
+
+
+)}
+
+
+</div>
+
+
+</section>
+
+))}
+
+
+</div>
+
+)
+
 }
 
-function UpgradeBanner() {
-  return (
-    <Link
-      to="/minha-assinatura"
-      className="group relative flex items-center gap-4 overflow-hidden rounded-2xl border border-brand-600/30 bg-gradient-to-r from-brand-900/40 via-ink-900 to-ink-900 p-5"
-    >
-      <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-brand-600 text-white">
-        <Crown className="h-6 w-6" />
-      </div>
 
-      <div className="flex-1">
-        <p className="flex items-center gap-2 font-semibold text-white">
-          <Sparkles className="h-4 w-4 text-brand-400" />
-          Desbloqueie todo o conte�do
-        </p>
 
-        <p className="text-sm text-ink-300">
-          Assine e assista sem limites.
-        </p>
-      </div>
-    </Link>
-  );
+function UpgradeBanner(){
+
+return(
+
+<Link
+to="/minha-assinatura"
+className="
+flex items-center gap-4
+rounded-2xl
+bg-gradient-to-r
+from-purple-900
+to-black
+p-5
+border
+border-purple-600/30
+"
+>
+
+<div className="
+bg-purple-600
+rounded-xl
+p-3
+">
+
+<Crown/>
+
+</div>
+
+
+<div>
+
+<h3 className="text-white font-bold flex gap-2">
+<Sparkles/>
+Desbloqueie todo conteúdo
+</h3>
+
+<p className="text-gray-400">
+Assine e assista sem limites
+</p>
+
+</div>
+
+
+</Link>
+
+)
+
 }
-
-
-
-
 
 
 
