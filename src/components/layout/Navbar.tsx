@@ -10,7 +10,6 @@ const navLinks = [
   { to: '/animes', label: 'Animes' },
   { to: '/documentarios', label: 'Documentários' },
   { to: '/infantil', label: 'Infantil' },
-  { to: '/continuar', label: 'Continuar' },
 ];
 
 export function Navbar() {
@@ -183,6 +182,7 @@ function MenuLink({ to, icon, children }: { to: string; icon: React.ReactNode; c
     </Link>
   );
 }
+
 
 
 
