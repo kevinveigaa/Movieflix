@@ -1,4 +1,4 @@
-﻿import { Link } from "react-router-dom";
+import { Link } from "react-router-dom";
 import { Play } from "lucide-react";
 
 import { cn } from "@/lib/cn";
@@ -17,35 +17,31 @@ export function PosterCard({
   mediaType = "movie",
 }: MovieCardProps) {
   return (
-    <div className={cn("group relative w-[130px] sm:w-[160px] md:w-[180px] lg:w-[200px] xl:w-[220px] overflow-hidden rounded-xl bg-zinc-900", className)}>
-      <img
-        src={title?.poster_url}
-        alt={title?.title}
-        className="aspect-[2/3] w-full object-cover transition duration-300 lg:group-hover:scale-105"
-      />
+    <div className={cn("group flex w-full flex-col", className)}>
+      <div className="relative aspect-[2/3] w-full overflow-hidden rounded-xl bg-zinc-900">
+        <img
+          src={title?.poster_url}
+          alt={title?.title}
+          loading="lazy"
+          className="h-full w-full object-cover transition duration-300 lg:group-hover:scale-105"
+        />
 
-      <div className="absolute inset-0 flex items-end bg-gradient-to-t from-black/90 via-transparent opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition">
-        <div className="flex w-full justify-between p-2 sm:p-3">
-
+        <div className="pointer-events-none absolute inset-0 flex items-end justify-start bg-gradient-to-t from-black/70 via-black/5 to-transparent p-1.5 opacity-100 transition duration-300 sm:p-2 lg:opacity-0 lg:group-hover:opacity-100">
           <Link
             to={`/titulo/${forceType || mediaType}/${title.id}`}
-            className="flex h-9 w-9 sm:h-10 sm:w-10 items-center justify-center rounded-full bg-white text-black shadow-lg transition hover:scale-110"
+            className="pointer-events-auto flex h-7 w-7 items-center justify-center rounded-full bg-white/95 text-black shadow-lg transition hover:scale-110 sm:h-8 sm:w-8"
+            aria-label="Assistir"
           >
-            <Play size={20} fill="currentColor" />
+            <Play className="h-3.5 w-3.5 sm:h-4 sm:w-4" fill="currentColor" />
           </Link>
-
-          <button className="flex h-9 w-9 sm:h-10 sm:w-10 items-center justify-center rounded-full bg-black/70 text-white">
-          </button>
-
         </div>
       </div>
 
-      <div className="p-2 sm:p-3">
-        <h3 className="truncate text-sm font-semibold text-white">
+      <div className="pt-2">
+        <h3 className="line-clamp-2 text-xs font-semibold leading-snug text-white sm:text-sm">
           {title?.title}
         </h3>
-
-        <p className="text-xs text-zinc-400">
+        <p className="mt-0.5 text-[11px] text-zinc-400 sm:text-xs">
           {title?.year}
         </p>
       </div>
@@ -55,16 +51,13 @@ export function PosterCard({
 
 export function PosterCardSkeleton() {
   return (
-    <div className="animate-pulse overflow-hidden rounded-xl bg-zinc-900">
-      <div className="aspect-[2/3] w-full bg-zinc-800" />
+    <div className="flex w-full animate-pulse flex-col">
+      <div className="aspect-[2/3] w-full overflow-hidden rounded-xl bg-zinc-800" />
 
-      <div className="space-y-2 p-2 sm:p-3">
-        <div className="h-4 w-3/4 rounded bg-zinc-800" />
+      <div className="space-y-2 pt-2">
+        <div className="h-3.5 w-3/4 rounded bg-zinc-800" />
         <div className="h-3 w-1/2 rounded bg-zinc-800" />
       </div>
     </div>
   );
 }
-
-
-

@@ -74,15 +74,17 @@ return (
 
 <div className="
 grid
-grid-cols-3
+grid-cols-2
 xs:grid-cols-3
 sm:grid-cols-4
 md:grid-cols-5
 lg:grid-cols-6
 xl:grid-cols-7
-gap-3
-sm:gap-4
-lg:gap-5
+gap-x-3
+gap-y-5
+sm:gap-x-4
+sm:gap-y-6
+lg:gap-x-5
 ">
 
 {movies.isLoading ? (
