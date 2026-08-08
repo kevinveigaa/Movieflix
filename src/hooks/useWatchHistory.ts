@@ -1,4 +1,4 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+﻿import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/context/AuthContext';
 import { titleName } from '@/lib/tmdb';
@@ -57,7 +57,7 @@ export function useUpsertHistory() {
           tmdb_id: args.title.id,
           media_type: type,
           title: titleName(args.title),
-          poster_url: args.title.poster_url,
+          poster_url: args.title.poster_path,
           poster_path: args.title.poster_path,
           backdrop_path: args.title.backdrop_path,
           vote_average: args.title.vote_average,
@@ -81,4 +81,5 @@ export function useRemoveHistory() {
     onSuccess: () => qc.invalidateQueries({ queryKey: [KEY, user?.id] }),
   });
 }
+
 

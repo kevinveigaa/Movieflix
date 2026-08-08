@@ -4,7 +4,7 @@ import { img, titleName, titleMediaType } from '@/lib/tmdb';
 import type { TmdbTitle } from '@/types';
 
 export function Hero({ title }: { title: TmdbTitle }) {
-  const backdrop = img(title.backdrop_url ?? title.backdrop_path, 'original') || img(title.poster_url ?? title.poster_path, 'original');
+  const backdrop = img(title.backdrop_path, 'original') || img(title.poster_path, 'original');
   const type = titleMediaType(title);
 
   return (
@@ -31,8 +31,8 @@ export function Hero({ title }: { title: TmdbTitle }) {
           <h1 className="font-display text-3xl leading-tight tracking-wide text-white sm:text-5xl lg:text-7xl xl:text-8xl">
             {titleName(title)}
           </h1>
-          {title.description ?? title.overview && (
-            <p className="mt-3 line-clamp-3 max-w-xl text-xs text-ink-200 sm:text-base lg:text-lg">{title.description ?? title.overview}</p>
+          {title.overview && (
+            <p className="mt-3 line-clamp-3 max-w-xl text-xs text-ink-200 sm:text-base lg:text-lg">{title.overview}</p>
           )}
           <div className="mt-6 flex flex-wrap items-center gap-3">
             <Link to={`/assistir/${title.id}`} className="btn-primary">
@@ -47,6 +47,7 @@ export function Hero({ title }: { title: TmdbTitle }) {
     </section>
   );
 }
+
 
 
 

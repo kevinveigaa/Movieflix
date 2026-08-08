@@ -61,8 +61,6 @@ description: detalhes.overview,
 poster_url: img(detalhes.poster_path,"w500"),
 backdrop_url: img(detalhes.backdrop_path,"w1280"),
 category: detalhes.genres?.map((g:any)=>g.name).join(","),
-year: detalhes.release_date?.slice(0,4),
-duration: detalhes.runtime?.toString(),
 quality:"HD",
 type:"movie"
 });
@@ -208,6 +206,8 @@ Salvar Filme
 )
 
 }
+
+
 
 
 

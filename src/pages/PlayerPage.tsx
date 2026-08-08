@@ -3,17 +3,25 @@ import { useParams, useNavigate } from "react-router-dom";
 import { ArrowLeft } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { useAuth, hasActiveSubscription } from "@/context/AuthContext";
+import { UniversalVideoPlayer } from "@/components/player/UniversalVideoPlayer";
 
 export function PlayerPage() {
   const { id } = useParams();
   const navigate = useNavigate();
+
   const { user, subscription, loading } = useAuth();
 
   const [videoUrl, setVideoUrl] = useState("");
+  const [loadingVideo, setLoadingVideo] = useState(true);
 
   useEffect(() => {
     async function loadMovie() {
-      if (!id) return;
+      if (!id) {
+        setLoadingVideo(false);
+        return;
+      }
+
+      setLoadingVideo(true);
 
       const { data, error } = await supabase
         .from("movies")
@@ -26,6 +34,8 @@ export function PlayerPage() {
       if (data?.video_url) {
         setVideoUrl(data.video_url);
       }
+
+      setLoadingVideo(false);
     }
 
     loadMovie();
@@ -33,7 +43,7 @@ export function PlayerPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-black text-white flex items-center justify-center">
+      <div className="flex min-h-screen items-center justify-center bg-black text-white">
         Carregando...
       </div>
     );
@@ -46,44 +56,69 @@ export function PlayerPage() {
 
   if (!hasActiveSubscription(subscription)) {
     return (
-      <div className="min-h-screen bg-black text-white flex flex-col items-center justify-center px-5 text-center">
-        <h1 className="text-3xl font-bold">
-          Conteúdo exclusivo 🔒
-        </h1>
+      <div className="flex min-h-screen items-center justify-center bg-black px-4 text-white">
+        <div className="text-center">
+          <h1 className="text-2xl font-bold">
+            Conteúdo exclusivo 🔒
+          </h1>
 
-        <button
-          onClick={() => navigate("/minha-assinatura")}
-          className="mt-5 px-5 py-3 bg-purple-600 rounded-lg"
-        >
-          Ver planos
-        </button>
+          <p className="mt-2 text-zinc-400">
+            Você precisa de uma assinatura ativa para assistir.
+          </p>
+
+          <button
+            onClick={() => navigate("/minha-assinatura")}
+            className="mt-5 rounded-lg bg-purple-600 px-5 py-3 font-semibold transition hover:bg-purple-700"
+          >
+            Ver planos
+          </button>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="relative min-h-screen bg-black text-white flex items-center justify-center">
-
+    <div className="relative flex min-h-screen items-center justify-center bg-black">
       <button
         onClick={() => navigate(-1)}
-        className="absolute top-4 left-4 z-20 flex items-center gap-2 rounded-full bg-black/60 px-4 py-2 backdrop-blur transition hover:bg-black/80 sm:top-6 sm:left-6"
+        className="absolute left-4 top-4 z-30 flex items-center gap-2 rounded-full bg-black/70 px-4 py-2 text-white backdrop-blur transition hover:bg-black/90 sm:left-6 sm:top-6"
       >
-        <ArrowLeft size={18}/>
+        <ArrowLeft size={18} />
         Voltar
       </button>
 
-      {videoUrl ? (
-        <video
-          controls
-          autoPlay
-          className="w-full aspect-video object-contain sm:max-w-5xl lg:max-w-7xl xl:max-w-[1400px] rounded-none sm:rounded-xl shadow-2xl"
-        >
-          <source src={videoUrl} type="video/mp4" />
-        </video>
-      ) : (
-        <p>Vídeo não encontrado.</p>
-      )}
+      <div className="w-full">
+        {loadingVideo ? (
+          <div className="flex aspect-video w-full items-center justify-center text-white">
+            <div className="text-center">
+              <div className="mx-auto h-10 w-10 animate-spin rounded-full border-4 border-zinc-700 border-t-purple-500" />
 
+              <p className="mt-3 text-sm text-zinc-400">
+                Carregando vídeo...
+              </p>
+            </div>
+          </div>
+        ) : videoUrl ? (
+          <UniversalVideoPlayer
+            src={videoUrl}
+            autoPlay
+            controls
+            className="mx-auto max-w-[1600px]"
+          />
+        ) : (
+          <div className="flex aspect-video items-center justify-center text-center text-white">
+            <div>
+              <h2 className="text-xl font-semibold">
+                Vídeo não encontrado
+              </h2>
+
+              <p className="mt-2 text-sm text-zinc-400">
+                Este filme ainda não possui uma URL de vídeo cadastrada.
+              </p>
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
