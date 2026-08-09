@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
-import { Check, Crown, CreditCard, Loader2, Clock, XCircle, CheckCircle2 } from 'lucide-react';
+import { Check, Crown, CreditCard, Loader2, Clock, CheckCircle2, ArrowUpCircle, ArrowDownCircle } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useAuth, hasActiveSubscription } from '@/context/AuthContext';
 import { createPixPayment, pollPaymentStatus } from '@/lib/mercadopago';
@@ -27,6 +27,21 @@ export function SubscriptionPage() {
   const [error, setError] = useState('');
 
   const active = hasActiveSubscription(subscription);
+  const currentPlan = active
+    ? subscription?.plan ?? plans.data?.find((p) => p.code === subscription?.plan_code)
+    : undefined;
+  const currentPrice = currentPlan?.price_cents ?? 0;
+
+  function planAction(plan: Plan) {
+    if (!active) return { label: 'Assinar', disabled: false, kind: 'new' as const };
+    if (currentPlan && plan.id === currentPlan.id) {
+      return { label: 'Plano atual', disabled: true, kind: 'current' as const };
+    }
+    if (plan.price_cents > currentPrice) {
+      return { label: 'Fazer upgrade', disabled: false, kind: 'upgrade' as const };
+    }
+    return { label: 'Trocar para este plano', disabled: false, kind: 'downgrade' as const };
+  }
 
   async function subscribe(plan: Plan) {
     setError('');
@@ -43,7 +58,7 @@ export function SubscriptionPage() {
       setPixOpen(true);
       startPolling(res.payment.id);
     } catch (err) {
-      setError((err as Error).message ?? 'No foi possível gerar o pagamento.');
+      setError((err as Error).message ?? 'Não foi possível gerar o pagamento.');
     } finally {
       setBusy(false);
     }
@@ -91,6 +106,9 @@ export function SubscriptionPage() {
             Plano: <span className="font-semibold text-white">{subscription.plan?.name ?? 'Ativo'}</span>
             {subscription.expires_at && ` • Válido até ${new Date(subscription.expires_at).toLocaleDateString('pt-BR')}`}
           </p>
+          <p className="mt-2 text-xs text-ink-400">
+            Quer mais qualidade e telas? Escolha um plano superior abaixo para fazer upgrade quando quiser.
+          </p>
         </div>
       )}
 
@@ -107,6 +125,7 @@ export function SubscriptionPage() {
             ))
           : plans.data?.map((plan) => {
               const featured = plan.code === 'standard';
+              const isCurrent = !!currentPlan && plan.id === currentPlan.id;
               return (
                 <div
                   key={plan.id}
@@ -114,8 +133,13 @@ export function SubscriptionPage() {
                     featured
                       ? 'border-brand-600/50 bg-gradient-to-b from-brand-900/30 to-ink-900 shadow-xl shadow-brand-900/20'
                       : 'border-white/10 bg-ink-900/70'
-                  }`}
+                  } ${isCurrent ? 'ring-2 ring-emerald-500/60' : ''}`}
                 >
+                  {isCurrent && (
+                    <span className="absolute -top-3 right-4 rounded-full bg-emerald-500 px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-white">
+                      Seu plano
+                    </span>
+                  )}
                   {featured && (
                     <span className="absolute -top-3 left-1/2 -translate-x-1/2 rounded-full bg-brand-600 px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-white">
                       Mais popular
@@ -134,14 +158,36 @@ export function SubscriptionPage() {
                       </li>
                     ))}
                   </ul>
-                  <button
-                    onClick={() => subscribe(plan)}
-                    disabled={busy || active}
-                    className={featured ? 'btn-primary mt-6 w-full' : 'btn-outline mt-6 w-full'}
-                  >
-                    {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <CreditCard className="h-4 w-4" />}
-                    {active ? 'Plano ativo' : 'Assinar'}
-                  </button>
+                  {(() => {
+                    const action = planAction(plan);
+                    return (
+                      <>
+                        {action.kind === 'upgrade' && (
+                          <p className="mt-5 text-xs text-brand-300">
+                            Você paga apenas a diferença na próxima cobrança e o upgrade vale na hora.
+                          </p>
+                        )}
+                        <button
+                          onClick={() => subscribe(plan)}
+                          disabled={busy || action.disabled}
+                          className={
+                            (action.kind === 'upgrade' || featured ? 'btn-primary' : 'btn-outline') + ' mt-6 w-full'
+                          }
+                        >
+                          {busy ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : action.kind === 'upgrade' ? (
+                            <ArrowUpCircle className="h-4 w-4" />
+                          ) : action.kind === 'downgrade' ? (
+                            <ArrowDownCircle className="h-4 w-4" />
+                          ) : (
+                            <CreditCard className="h-4 w-4" />
+                          )}
+                          {action.label}
+                        </button>
+                      </>
+                    );
+                  })()}
                 </div>
               );
             })}
@@ -156,6 +202,7 @@ export function SubscriptionPage() {
           <li>2. Geramos um pagamento Pix com QR Code e o código Copia e Cola.</li>
           <li>3. Pague no app do seu banco e a confirmação é automática.</li>
           <li>4. Sua assinatura é liberada na hora.</li>
+          <li>5. Já é assinante? Você pode trocar de plano (upgrade ou downgrade) a qualquer momento.</li>
         </ol>
       </div>
 
