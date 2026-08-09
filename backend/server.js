@@ -10,7 +10,7 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-const PORT = 5000;
+const PORT = process.env.PORT || 5000;
 
 // Chave da TMDb fica no servidor (nunca no bundle do frontend).
 // Defina TMDB_API_KEY (ou VITE_TMDB_TOKEN) no ambiente do backend.
@@ -56,8 +56,8 @@ const client = new MercadoPagoConfig({
 
 const preference = new Preference(client);
 
-app.get("/", (req,res)=>{
-  res.send("MovieFlix Backend funcionando");
+app.get("/", (req, res) => {
+  res.sendFile(path.join(DIST_DIR, "index.html"));
 });
 
 app.post("/assinatura", async (req,res)=>{
