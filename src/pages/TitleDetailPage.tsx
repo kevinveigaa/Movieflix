@@ -1,7 +1,15 @@
 ﻿import { useParams, useNavigate } from "react-router-dom";
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
-import { Play, ArrowLeft } from "lucide-react";
+import { Play, ArrowLeft, Download, Lock, CheckCircle2 } from "lucide-react";
+import { useAuth } from "@/context/AuthContext";
+import { useEntitlements } from "@/hooks/useEntitlements";
+import {
+  alreadyDownloaded,
+  downloadsUsed,
+  registerDownload,
+  startFileDownload,
+} from "@/lib/downloads";
 
 interface Movie {
   id: string;
@@ -9,6 +17,7 @@ interface Movie {
   description?: string;
   year?: string;
   poster_url?: string;
+  video_url?: string;
   backdrop_url?: string;
   vote_average?: number;
 }
@@ -18,6 +27,46 @@ export function TitleDetailPage() {
   const navigate = useNavigate();
 
   const [movie, setMovie] = useState<Movie | null>(null);
+  const [downloadMsg, setDownloadMsg] = useState("");
+  const [downloadCount, setDownloadCount] = useState(0);
+
+  const { user } = useAuth();
+  const { entitlements } = useEntitlements();
+
+  useEffect(() => {
+    if (user?.id) setDownloadCount(downloadsUsed(user.id));
+  }, [user?.id]);
+
+  function handleDownload() {
+    if (!user) {
+      navigate("/login");
+      return;
+    }
+
+    if (entitlements.downloads <= 0) {
+      setDownloadMsg("Seu plano atual não inclui downloads. Faça upgrade para baixar filmes.");
+      return;
+    }
+
+    if (!movie?.video_url) {
+      setDownloadMsg("Este título ainda não tem arquivo disponível para download.");
+      return;
+    }
+
+    const isRepeat = alreadyDownloaded(user.id, movie.id);
+
+    if (!isRepeat && downloadCount >= entitlements.downloads) {
+      setDownloadMsg(
+        `Você já usou seus ${entitlements.downloads} downloads deste mês. Faça upgrade para baixar mais.`,
+      );
+      return;
+    }
+
+    startFileDownload(movie.video_url, `${movie.title}.mp4`);
+    registerDownload(user.id, movie.id);
+    setDownloadCount(downloadsUsed(user.id));
+    setDownloadMsg("Download iniciado. O arquivo ficará disponível offline no seu dispositivo.");
+  }
 
   useEffect(() => {
     async function loadMovie() {
@@ -100,6 +149,33 @@ export function TitleDetailPage() {
             <Play fill="black" />
             Assistir agora
           </button>
+
+          <div className="mt-4 flex flex-wrap items-center gap-3">
+            <button
+              onClick={handleDownload}
+              className={`flex w-fit items-center gap-2 rounded-lg px-5 py-3 font-semibold transition ${
+                entitlements.downloads > 0
+                  ? "bg-purple-600 text-white hover:bg-purple-700"
+                  : "bg-zinc-800 text-zinc-300 hover:bg-zinc-700"
+              }`}
+            >
+              {entitlements.downloads > 0 ? <Download size={18} /> : <Lock size={18} />}
+              Baixar filme
+            </button>
+
+            <span className="text-xs text-zinc-400">
+              {entitlements.downloads > 0
+                ? `${downloadCount}/${entitlements.downloads} downloads usados neste mês • Qualidade até ${entitlements.qualityLabel}`
+                : "Downloads disponíveis nos planos Padrão e Premium"}
+            </span>
+          </div>
+
+          {downloadMsg && (
+            <p className="mt-3 flex items-center gap-2 text-sm text-zinc-300">
+              <CheckCircle2 size={16} className="text-purple-400" />
+              {downloadMsg}
+            </p>
+          )}
 
         </div>
 

@@ -7,6 +7,7 @@ import { useAuth, hasActiveSubscription } from '@/context/AuthContext';
 import { createPixPayment, pollPaymentStatus } from '@/lib/mercadopago';
 import { PixModal } from '@/components/PixModal';
 import type { Plan, Payment } from '@/types';
+import { entitlementHighlights } from '@/lib/plans';
 
 export function SubscriptionPage() {
   const { user, subscription, refreshSubscription } = useAuth();
@@ -152,7 +153,7 @@ export function SubscriptionPage() {
                     <span className="text-sm text-ink-400">/ms</span>
                   </div>
                   <ul className="mt-5 flex-1 space-y-2.5">
-                    {plan.features.map((f) => (
+                    {[...entitlementHighlights(plan), ...(plan.features ?? [])].map((f) => (
                       <li key={f} className="flex items-start gap-2 text-sm text-ink-200">
                         <Check className="mt-0.5 h-4 w-4 flex-shrink-0 text-brand-500" /> {f}
                       </li>

@@ -4,12 +4,21 @@ import { ArrowLeft } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { useAuth, hasActiveSubscription } from "@/context/AuthContext";
 import { UniversalVideoPlayer } from "@/components/player/UniversalVideoPlayer";
+import { useEntitlements } from "@/hooks/useEntitlements";
+import { usePlaybackSession } from "@/hooks/usePlaybackSession";
 
 export function PlayerPage() {
   const { id } = useParams();
   const navigate = useNavigate();
 
   const { user, subscription, loading } = useAuth();
+  const { entitlements } = useEntitlements();
+  const subscriptionActive = hasActiveSubscription(subscription);
+  const { blocked, activeScreens } = usePlaybackSession(
+    user?.id,
+    entitlements.screens,
+    subscriptionActive,
+  );
 
   const [videoUrl, setVideoUrl] = useState("");
   const [loadingVideo, setLoadingVideo] = useState(true);
@@ -77,6 +86,29 @@ export function PlayerPage() {
     );
   }
 
+  if (blocked) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-black px-4 text-white">
+        <div className="max-w-md text-center">
+          <h1 className="text-2xl font-bold">Limite de telas atingido</h1>
+
+          <p className="mt-2 text-zinc-400">
+            Seu plano permite {entitlements.screens}{" "}
+            {entitlements.screens === 1 ? "tela simultânea" : "telas simultâneas"} e no momento
+            há {activeScreens} em uso. Pause em outro dispositivo ou faça upgrade do plano.
+          </p>
+
+          <button
+            onClick={() => navigate("/minha-assinatura")}
+            className="mt-5 rounded-lg bg-purple-600 px-5 py-3 font-semibold transition hover:bg-purple-700"
+          >
+            Fazer upgrade
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="relative flex min-h-screen items-center justify-center bg-black">
       <button
@@ -103,6 +135,8 @@ export function PlayerPage() {
             src={videoUrl}
             autoPlay
             controls
+            maxHeight={entitlements.maxHeight}
+            qualityLabel={entitlements.qualityLabel}
             className="mx-auto max-w-[1600px]"
           />
         ) : (

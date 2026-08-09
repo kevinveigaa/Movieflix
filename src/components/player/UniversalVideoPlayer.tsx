@@ -6,6 +6,9 @@ interface UniversalVideoPlayerProps {
   autoPlay?: boolean;
   controls?: boolean;
   className?: string;
+  /** Altura maxima permitida pelo plano (ex.: 720, 1080, 2160) */
+  maxHeight?: number;
+  qualityLabel?: string;
 }
 
 function getGoogleDriveId(url: string): string | null {
@@ -69,6 +72,8 @@ export function UniversalVideoPlayer({
   autoPlay = true,
   controls = true,
   className = "",
+  maxHeight = 0,
+  qualityLabel = "",
 }: UniversalVideoPlayerProps) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -305,6 +310,16 @@ export function UniversalVideoPlayer({
         hls.on(Hls.Events.MANIFEST_PARSED, () => {
           setLoading(false);
 
+          if (maxHeight > 0) {
+            const allowed = hls.levels
+              .map((level, index) => ({ index, height: level.height ?? 0 }))
+              .filter((level) => level.height === 0 || level.height <= maxHeight);
+
+            if (allowed.length > 0 && allowed.length < hls.levels.length) {
+              hls.autoLevelCapping = allowed[allowed.length - 1]!.index;
+            }
+          }
+
           if (autoPlay) {
             video.play().catch(() => {});
           }
@@ -344,7 +359,7 @@ export function UniversalVideoPlayer({
         clearTimeout(hideControlsTimer.current);
       }
     };
-  }, [src, autoPlay, isDrive]);
+  }, [src, autoPlay, isDrive, maxHeight]);
 
   useEffect(() => {
     const handleFullscreenChange = () => {
@@ -415,6 +430,12 @@ export function UniversalVideoPlayer({
         className="h-full w-full bg-black object-contain"
         onClick={togglePlay}
       />
+
+      {qualityLabel && showControls && (
+        <span className="absolute right-4 top-4 z-20 rounded-full bg-black/70 px-3 py-1 text-xs font-semibold text-white backdrop-blur">
+          {qualityLabel}
+        </span>
+      )}
 
       {loading && (
         <div className="absolute inset-0 z-20 flex items-center justify-center bg-black/60">
