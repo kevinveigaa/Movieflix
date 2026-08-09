@@ -101,7 +101,6 @@ Deno.serve(async (req: Request) => {
       .insert({
         user_id: user.id,
         plan_code: plan.code,
-        plan_id: plan.id,
         amount: plan.price_cents,
         status: 'pending',
         payment_id: String(mpData.id),

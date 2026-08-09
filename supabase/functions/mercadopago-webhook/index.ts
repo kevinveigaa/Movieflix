@@ -74,12 +74,20 @@ Deno.serve(async (req: Request) => {
       const expires = new Date();
       expires.setDate(expires.getDate() + 30);
 
+      // plan_code agora guarda o codigo string do plano; resolve o id para manter
+      // plan_id consistente mesmo quando o pagamento nao possui essa coluna
+      const { data: plan } = await supabase
+        .from('plans')
+        .select('id')
+        .eq('code', payment.plan_code)
+        .maybeSingle();
+
       await supabase
         .from('subscriptions')
         .upsert({
           user_id: payment.user_id,
           plan_code: payment.plan_code,
-          plan_id: payment.plan_id,
+          plan_id: plan?.id ?? null,
           payment_id: payment.id,
           status: 'active',
           starts_at: new Date().toISOString(),
