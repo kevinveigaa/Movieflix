@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: movieflix
+    name: movieflix-api
     env: node
     plan: free
     buildCommand: npm run build
