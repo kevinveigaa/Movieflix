@@ -1,4 +1,4 @@
-﻿import { useRef, type ReactNode } from 'react';
+import { useRef, type ReactNode } from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { cn } from '@/lib/cn';
 
@@ -33,7 +33,7 @@ export function Carousel({ title, children, className }: CarouselProps) {
           <button
             onClick={() => scroll('right')}
             className="flex h-8 w-8 items-center justify-center rounded-full border border-white/10 bg-white/5 text-ink-200 transition hover:bg-white/15 hover:text-white"
-            aria-label="Prximo"
+            aria-label="Próximo"
           >
             <ChevronRight className="h-4 w-4" />
           </button>

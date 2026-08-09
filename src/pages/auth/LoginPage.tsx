@@ -1,4 +1,4 @@
-﻿import { useState } from 'react';
+import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Mail, Lock, Eye, EyeOff, Film, AlertCircle } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
@@ -20,7 +20,7 @@ export function LoginPage() {
       await signIn(email, password);
       navigate('/selecionar-perfil');
     } catch (err) {
-      setError((err as Error).message ?? 'No foi possvel entrar.');
+      setError((err as Error).message ?? 'No foi possível entrar.');
     } finally {
       setLoading(false);
     }
@@ -36,7 +36,7 @@ export function LoginPage() {
             required
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            placeholder="voce@email.com"
+            placeholder="você@email.com"
             className="input pl-10"
           />
         </Field>

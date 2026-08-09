@@ -1,4 +1,4 @@
-﻿import { Link } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { Lock, Crown } from 'lucide-react';
 import { Modal } from '@/components/ui/Modal';
 
@@ -17,9 +17,9 @@ export function SubscriptionGate({
         <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-brand-600/15 text-brand-500">
           <Lock className="h-8 w-8" />
         </div>
-        <h3 className="mt-4 text-xl font-bold text-white">{title ?? 'Contedo exclusivo'}</h3>
+        <h3 className="mt-4 text-xl font-bold text-white">{title ?? 'Conteúdo exclusivo'}</h3>
         <p className="mt-2 text-sm text-ink-300">
-          Para assistir a este ttulo, voc precisa de uma assinatura ativa do MovieFlix. Escolha um plano e comece a assistir agora mesmo.
+          Para assistir a este título, você precisa de uma assinatura ativa do MovieFlix. Escolha um plano e comece a assistir agora mesmo.
         </p>
         <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:justify-center">
           <Link to="/minha-assinatura" className="btn-primary">

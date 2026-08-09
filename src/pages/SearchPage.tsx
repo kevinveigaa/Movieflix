@@ -1,4 +1,4 @@
-﻿import { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { Search as SearchIcon, X } from 'lucide-react';
@@ -34,7 +34,7 @@ export function SearchPage() {
             autoFocus
             value={q}
             onChange={(e) => setQ(e.target.value)}
-            placeholder="Busque por filmes, s?ries, animes..."
+            placeholder="Busque por filmes, séries, animes..."
             className="w-full rounded-full border border-white/10 bg-ink-800/70 py-3.5 pl-12 pr-12 text-base text-white placeholder:text-ink-400 focus:border-brand-500 focus:outline-none"
           />
           {q && (
@@ -53,7 +53,7 @@ export function SearchPage() {
         {!initial.trim() ? (
           <div className="flex min-h-[40vh] flex-col items-center justify-center gap-2 text-ink-400">
             <SearchIcon className="h-10 w-10 opacity-50" />
-            <p>Digite para buscar em todo o catlogo.</p>
+            <p>Digite para buscar em todo o catálogo.</p>
           </div>
         ) : query.isLoading ? (
           <div className="grid grid-cols-2 gap-x-3 gap-y-5 xs:grid-cols-3 sm:grid-cols-4 sm:gap-x-4 sm:gap-y-6 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-7">

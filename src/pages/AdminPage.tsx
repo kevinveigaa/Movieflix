@@ -28,7 +28,7 @@ if(user?.email !== ADMIN_EMAIL){
 return(
 <div className="min-h-screen bg-black text-white flex items-center justify-center">
 <h1 className="text-3xl font-bold">
-Acesso negado ??
+Acesso negado
 </h1>
 </div>
 )
@@ -79,7 +79,7 @@ alert(error.message);
 
 }else{
 
-alert("Filme cadastrado ??");
+alert("Filme cadastrado com sucesso!");
 
 setForm({
 title:"",
@@ -129,10 +129,10 @@ onChange={e=>setTmdbSearch(e.target.value)}
 onClick={buscarTMDB}
 className="bg-purple-600 px-6 py-3 rounded-lg mb-5"
 >
-Buscar no TMDB ??
+Buscar no TMDB
 </button>
 <h1 className="text-3xl font-bold mb-8">
-Painel Admin MovieFlix ??
+Painel Admin MovieFlix
 </h1>
 
 

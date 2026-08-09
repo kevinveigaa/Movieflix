@@ -1,4 +1,4 @@
-﻿import { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link, NavLink, useNavigate, useLocation } from 'react-router-dom';
 import { Search, Menu, X, Bell, User, LogOut, Settings, CreditCard, Shield, Film } from 'lucide-react';
 import { useAuth, hasActiveSubscription } from '@/context/AuthContext';
@@ -96,7 +96,7 @@ export function Navbar() {
                   {profile?.email?.[0]?.toUpperCase() ?? 'U'}
                 </span>
                 <span className={cn('hidden text-xs sm:block', active ? 'text-emerald-400' : 'text-ink-400')}>
-                  {active ? 'Assinante' : 'Grtis'}
+                  {active ? 'Assinante' : 'Grátis'}
                 </span>
               </button>
               {menuOpen && (

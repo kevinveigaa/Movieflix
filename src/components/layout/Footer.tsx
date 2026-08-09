@@ -44,7 +44,7 @@ export function Footer() {
               <span className="font-display text-xl tracking-wide text-white">MOVIEFLIX</span>
             </Link>
             <p className="mt-3 max-w-xs text-sm text-ink-400">
-              Filmes, Séries, animes, documentários e conteúdo infantil em um s lugar. Assista onde e quando quiser.
+              Filmes, Séries, animes, documentários e conteúdo infantil em um só lugar. Assista onde e quando quiser.
             </p>
             <div className="mt-4 flex gap-3">
               <SocialIcon><Instagram className="h-4 w-4" /></SocialIcon>
@@ -68,8 +68,8 @@ export function Footer() {
           ))}
         </div>
         <div className="mt-10 flex flex-col items-center justify-between gap-3 border-t border-white/10 pt-6 text-xs text-ink-500 sm:flex-row">
-          <p> {new Date().getFullYear()} MovieFlix. Todos os direitos reservados.</p>
-          <p>Dados de filmes fornecidos por TMDb. Este projeto no  afiliado  TMDb.</p>
+          <p>© {new Date().getFullYear()} MovieFlix. Todos os direitos reservados.</p>
+          <p>Dados de filmes fornecidos por TMDb. Este projeto não é afiliado à TMDb.</p>
         </div>
       </div>
     </footer>

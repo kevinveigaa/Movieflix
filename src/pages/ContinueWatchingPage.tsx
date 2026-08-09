@@ -1,4 +1,4 @@
-﻿import { Link } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { Play, Trash2, History as HistoryIcon } from 'lucide-react';
 import { useWatchHistory, useRemoveHistory } from '@/hooks/useWatchHistory';
 import { useAuth } from '@/context/AuthContext';
@@ -13,7 +13,7 @@ export function ContinueWatchingPage() {
   if (!user) {
     return (
       <div className="container-app flex min-h-[50vh] flex-col items-center justify-center gap-4 text-center">
-        <p className="text-ink-400">Faa login para retomar de onde parou.</p>
+        <p className="text-ink-400">Faça login para retomar de onde parou.</p>
         <Link to="/login" className="btn-primary">Entrar</Link>
       </div>
     );
@@ -27,8 +27,8 @@ export function ContinueWatchingPage() {
     return (
       <div className="container-app flex min-h-[50vh] flex-col items-center justify-center gap-4 text-center">
         <HistoryIcon className="h-12 w-12 text-ink-600" />
-        <p className="text-ink-400">Voc ainda no comeou a assistir nada.</p>
-        <Link to="/" className="btn-primary">Explorar catlogo</Link>
+        <p className="text-ink-400">Você ainda não começou a assistir nada.</p>
+        <Link to="/" className="btn-primary">Explorar catálogo</Link>
       </div>
     );
   }
@@ -36,7 +36,7 @@ export function ContinueWatchingPage() {
   return (
     <div className="container-app py-8">
       <h1 className="font-display text-3xl tracking-wide text-white sm:text-4xl">Continuar assistindo</h1>
-      <p className="mt-1 text-sm text-ink-400">Retome de onde voc parou.</p>
+      <p className="mt-1 text-sm text-ink-400">Retome de onde você parou.</p>
 
       <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {items.map((h) => {
@@ -57,7 +57,7 @@ export function ContinueWatchingPage() {
                 </div>
                 <div className="p-3">
                   <p className="truncate font-semibold text-white">{h.title}</p>
-                  <p className="mt-0.5 text-xs text-ink-400">{h.media_type === 'tv' ? 'Srie' : 'Filme'}</p>
+                  <p className="mt-0.5 text-xs text-ink-400">{h.media_type === 'tv' ? 'Série' : 'Filme'}</p>
                   <div className="mt-2 h-1 w-full overflow-hidden rounded-full bg-ink-700">
                     <div className="h-full rounded-full bg-brand-600" style={{ width: `${pct}%` }} />
                   </div>

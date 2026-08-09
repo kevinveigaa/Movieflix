@@ -1,4 +1,4 @@
-﻿import { useState } from 'react';
+import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Mail, Lock, User as UserIcon } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
@@ -21,7 +21,7 @@ export function SignupPage() {
       return;
     }
     if (password !== confirm) {
-      setError('As senhas no coincidem.');
+      setError('As senhas não coincidem.');
       return;
     }
     setLoading(true);
@@ -29,14 +29,14 @@ export function SignupPage() {
       await signUp(email, password);
       navigate('/selecionar-perfil');
     } catch (err) {
-      setError((err as Error).message ?? 'No foi possvel cadastrar.');
+      setError((err as Error).message ?? 'No foi possível cadastrar.');
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <AuthShell title="Criar conta" subtitle="Comece a assistir em segundos. Sem carto de crdito.">
+    <AuthShell title="Criar conta" subtitle="Comece a assistir em segundos. Sem cartão de crédito.">
       <form onSubmit={onSubmit} className="space-y-4">
         {error && <ErrorBanner message={error} />}
         <label className="block">
@@ -50,7 +50,7 @@ export function SignupPage() {
           <span className="mb-1.5 block text-sm font-medium text-ink-200">E-mail</span>
           <span className="relative block">
             <Mail className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-400" />
-            <input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} placeholder="voce@email.com" className="input pl-10" />
+            <input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} placeholder="você@email.com" className="input pl-10" />
           </span>
         </label>
         <label className="block">

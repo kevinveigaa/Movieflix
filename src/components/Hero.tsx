@@ -1,4 +1,4 @@
-﻿import { Link } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { Play, Info, Star } from 'lucide-react';
 import { img, titleName, titleMediaType } from '@/lib/tmdb';
 import type { TmdbTitle } from '@/types';
@@ -39,7 +39,7 @@ export function Hero({ title }: { title: TmdbTitle }) {
               <Play className="h-4 w-4 fill-white" /> Assistir
             </Link>
             <Link to={`/assistir/${title.id}`} className="btn-ghost">
-              <Info className="h-4 w-4" /> Mais informaes
+              <Info className="h-4 w-4" /> Mais informações
             </Link>
           </div>
         </div>

@@ -1,4 +1,4 @@
-﻿import { Link } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { Heart } from 'lucide-react';
 import { useFavorites } from '@/hooks/useFavorite';
 import { useAuth } from '@/context/AuthContext';
@@ -11,13 +11,13 @@ export function FavoritesPage() {
 
 
   if (!user) {
-    return <EmptyState message="Faa login para ver seus favoritos." cta="Entrar" to="/login" />;
+    return <EmptyState message="Faça login para ver seus favoritos." cta="Entrar" to="/login" />;
   }
 
   return (
     <div className="container-app py-8">
       <h1 className="font-display text-3xl tracking-wide text-white sm:text-4xl">Favoritos</h1>
-      <p className="mt-1 text-sm text-ink-400">Os títulos que voc salvou para assistir depois.</p>
+      <p className="mt-1 text-sm text-ink-400">Os títulos que você salvou para assistir depois.</p>
 
       <div className="mt-8">
         {favs.isLoading ? (
@@ -45,7 +45,7 @@ export function FavoritesPage() {
             ))}
           </div>
         ) : (
-          <EmptyState message="Voc ainda no favoritou nenhum ttulo." cta="Explorar catlogo" to="/" />
+          <EmptyState message="Você ainda não favoritou nenhum título." cta="Explorar catálogo" to="/" />
         )}
       </div>
     </div>

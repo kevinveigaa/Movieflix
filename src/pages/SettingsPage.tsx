@@ -1,4 +1,4 @@
-﻿import { useState } from 'react';
+import { useState } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { supabase } from '@/lib/supabase';
 import { Lock, Loader2, Check, Bell, Globe, Moon, Trash2 } from 'lucide-react';
@@ -36,7 +36,7 @@ export function SettingsPage() {
   };
 
   const cancelSubscription = async () => {
-    if (!user || !confirm('Deseja realmente cancelar sua assinatura? O acesso ser bloqueado ao fim do perodo.')) return;
+    if (!user || !confirm('Deseja realmente cancelar sua assinatura? O acesso será bloqueado ao fim do período.')) return;
     const { data: sub } = await supabase
       .from('subscriptions')
       .select('*')
@@ -56,7 +56,7 @@ export function SettingsPage() {
   return (
     <div className="container-app py-10">
       <h1 className="font-display text-3xl tracking-wide text-white sm:text-4xl">Configurações</h1>
-      <p className="mt-1 text-sm text-ink-400">Segurana e preferncias da sua conta.</p>
+      <p className="mt-1 text-sm text-ink-400">Segurança e preferências da sua conta.</p>
 
       <div className="mt-8 grid gap-6 lg:grid-cols-2">
         <div className="card-surface p-6">
@@ -71,7 +71,7 @@ export function SettingsPage() {
               </div>
             )}
             <label className="block">
-              <span className="mb-1.5 block text-sm font-medium text-ink-200">Senha atual (confirmao)</span>
+              <span className="mb-1.5 block text-sm font-medium text-ink-200">Senha atual (confirmação)</span>
               <input type="password" value={oldPwd} onChange={(e) => setOldPwd(e.target.value)} className="input" placeholder="" />
             </label>
             <label className="block">
@@ -86,10 +86,10 @@ export function SettingsPage() {
 
         <div className="space-y-6">
           <div className="card-surface p-6">
-            <h2 className="font-semibold text-white">Preferncias</h2>
+            <h2 className="font-semibold text-white">Preferências</h2>
             <div className="mt-4 space-y-3">
-              <Toggle icon={<Bell className="h-4 w-4" />} label="Notificaes por e-mail" defaultOn />
-              <Toggle icon={<Globe className="h-4 w-4" />} label="Contedo em portugus" defaultOn />
+              <Toggle icon={<Bell className="h-4 w-4" />} label="Notificações por e-mail" defaultOn />
+              <Toggle icon={<Globe className="h-4 w-4" />} label="Conteúdo em português" defaultOn />
               <Toggle icon={<Moon className="h-4 w-4" />} label="Tema escuro" defaultOn />
             </div>
           </div>
@@ -104,7 +104,7 @@ export function SettingsPage() {
 
           <div className="card-surface p-6">
             <h2 className="font-semibold text-white">Sair da conta</h2>
-            <p className="mt-2 text-sm text-ink-300">Encerre sua sesso neste dispositivo.</p>
+            <p className="mt-2 text-sm text-ink-300">Encerre sua sessão neste dispositivo.</p>
             <button onClick={() => signOut()} className="btn-outline mt-4 w-full">
               Sair
             </button>

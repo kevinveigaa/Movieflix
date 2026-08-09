@@ -1,4 +1,4 @@
-﻿import { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Plus, Pencil, Trash2, Check, X, Film, Baby } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
@@ -103,7 +103,7 @@ export function ProfileSelectPage() {
       </Link>
 
       <h1 className="text-center text-3xl font-bold text-white sm:text-4xl">
-        {editing ? 'Gerenciar perfis' : 'Quem est assistindo?'}
+        {editing ? 'Gerenciar perfis' : 'Quem está assistindo?'}
       </h1>
 
       <div className="mt-10 grid grid-cols-2 gap-6 sm:grid-cols-3 lg:grid-cols-4">
@@ -163,7 +163,7 @@ export function ProfileSelectPage() {
           <div className="mt-5 space-y-4">
             <div>
               <span className="mb-1.5 block text-sm font-medium text-ink-200">Nome</span>
-              <input value={name} onChange={(e) => setName(e.target.value)} maxLength={20} placeholder="Ex.: Joo" className="input" />
+              <input value={name} onChange={(e) => setName(e.target.value)} maxLength={20} placeholder="Ex.: João" className="input" />
             </div>
             <div>
               <span className="mb-2 block text-sm font-medium text-ink-200">Avatar</span>

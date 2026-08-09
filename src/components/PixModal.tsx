@@ -1,4 +1,4 @@
-﻿import { Copy, Check, QrCode, Loader2, CheckCircle2, XCircle } from 'lucide-react';
+import { Copy, Check, QrCode, Loader2, CheckCircle2, XCircle } from 'lucide-react';
 import { useState } from 'react';
 import { Modal } from '@/components/ui/Modal';
 import type { Payment } from '@/types';
@@ -60,7 +60,7 @@ export function PixModal({
                 )}
               </div>
               <p className="flex items-center gap-2 text-sm text-ink-300">
-                <Loader2 className="h-4 w-4 animate-spin text-brand-500" /> Aguardando confirmao do pagamento
+                <Loader2 className="h-4 w-4 animate-spin text-brand-500" /> Aguardando confirmação do pagamento
               </p>
             </div>
 

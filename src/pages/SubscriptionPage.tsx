@@ -1,4 +1,4 @@
-﻿import { useState } from 'react';
+import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { Check, Crown, CreditCard, Loader2, Clock, XCircle, CheckCircle2 } from 'lucide-react';
@@ -43,7 +43,7 @@ export function SubscriptionPage() {
       setPixOpen(true);
       startPolling(res.payment.id);
     } catch (err) {
-      setError((err as Error).message ?? 'No foi possvel gerar o pagamento.');
+      setError((err as Error).message ?? 'No foi possível gerar o pagamento.');
     } finally {
       setBusy(false);
     }
@@ -79,17 +79,17 @@ export function SubscriptionPage() {
         </span>
         <h1 className="mt-4 font-display text-4xl tracking-wide text-white sm:text-5xl">Escolha o seu plano</h1>
         <p className="mx-auto mt-3 max-w-xl text-sm text-ink-300">
-          Assinatura mensal. Cancele quando quiser. Pagamento via Pix com confirmao automtica.
+          Assinatura mensal. Cancele quando quiser. Pagamento via Pix com confirmação automática.
         </p>
       </div>
 
       {active && subscription && (
         <div className="mx-auto mt-8 max-w-2xl rounded-2xl border border-emerald-500/30 bg-emerald-500/10 p-5 text-center">
           <CheckCircle2 className="mx-auto h-8 w-8 text-emerald-400" />
-          <p className="mt-2 font-semibold text-white">Sua assinatura est ativa</p>
+          <p className="mt-2 font-semibold text-white">Sua assinatura está ativa</p>
           <p className="mt-1 text-sm text-ink-300">
             Plano: <span className="font-semibold text-white">{subscription.plan?.name ?? 'Ativo'}</span>
-            {subscription.expires_at && `  Vlido at ${new Date(subscription.expires_at).toLocaleDateString('pt-BR')}`}
+            {subscription.expires_at && ` • Válido até ${new Date(subscription.expires_at).toLocaleDateString('pt-BR')}`}
           </p>
         </div>
       )}
@@ -153,9 +153,9 @@ export function SubscriptionPage() {
         </h3>
         <ol className="mt-3 space-y-2 text-sm text-ink-300">
           <li>1. Escolha um plano e clique em Assinar.</li>
-          <li>2. Geramos um pagamento Pix com QR Code e o cdigo Copia e Cola.</li>
-          <li>3. Pague no app do seu banco e a confirmao  automtica.</li>
-          <li>4. Sua assinatura  liberada na hora.</li>
+          <li>2. Geramos um pagamento Pix com QR Code e o código Copia e Cola.</li>
+          <li>3. Pague no app do seu banco e a confirmação é automática.</li>
+          <li>4. Sua assinatura é liberada na hora.</li>
         </ol>
       </div>
 

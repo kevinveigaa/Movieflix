@@ -1,4 +1,4 @@
-﻿import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Hls from "hls.js";
 
 interface UniversalVideoPlayerProps {
@@ -228,7 +228,7 @@ export function UniversalVideoPlayer({
     if (type === "mkv") {
       setLoading(false);
       setError(
-        "Este navegador nao reproduz MKV diretamente. Use MP4 ou HLS (M3U8)."
+        "Este navegador não reproduz MKV diretamente. Use MP4 ou HLS (M3U8)."
       );
       return;
     }
@@ -276,7 +276,7 @@ export function UniversalVideoPlayer({
     const handleError = () => {
       setLoading(false);
       setError(
-        "Nao foi possivel reproduzir este video. Verifique se a URL aponta diretamente para o video."
+        "Não foi possível reproduzir este vídeo. Verifique se a URL aponta diretamente para o vídeo."
       );
     };
 
@@ -314,13 +314,13 @@ export function UniversalVideoPlayer({
           if (data.fatal) {
             setLoading(false);
             setError(
-              "Nao foi possivel carregar o video HLS. Verifique se a URL M3U8 esta publica."
+              "Não foi possível carregar o vídeo HLS. Verifique se a URL M3U8 está pública."
             );
           }
         });
       } else {
         setLoading(false);
-        setError("Este navegador nao suporta reproducao HLS.");
+        setError("Este navegador não suporta reprodução HLS.");
       }
     } else {
       video.src = cleanUrl;
@@ -387,7 +387,7 @@ export function UniversalVideoPlayer({
           <div className="mb-4 text-4xl">!</div>
 
           <p className="text-lg font-semibold text-white">
-            Nao foi possivel reproduzir
+            Não foi possível reproduzir
           </p>
 
           <p className="mt-2 text-sm text-zinc-400">{error}</p>
@@ -454,7 +454,7 @@ export function UniversalVideoPlayer({
               value={Math.min(currentTime, duration || 0)}
               onChange={(event) => changeTime(Number(event.target.value))}
               className="h-1.5 w-full cursor-pointer appearance-none rounded-full accent-purple-500"
-              aria-label="Progresso do video"
+              aria-label="Progresso do vídeo"
             />
           </div>
 
@@ -481,7 +481,7 @@ export function UniversalVideoPlayer({
               type="button"
               onClick={() => skip(10)}
               className="text-sm font-medium transition hover:text-purple-400"
-              aria-label="Avancar 10 segundos"
+              aria-label="Avançar 10 segundos"
             >
               10 ↷
             </button>
@@ -521,7 +521,7 @@ export function UniversalVideoPlayer({
                 type="button"
                 onClick={() => setShowSettings((value) => !value)}
                 className="text-lg transition hover:text-purple-400"
-                aria-label="Configuracoes"
+                aria-label="Configurações"
               >
                 ⚙
               </button>

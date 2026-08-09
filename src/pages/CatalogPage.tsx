@@ -1,4 +1,4 @@
-﻿import { useState } from 'react';
+import { useState } from 'react';
 import { PosterCard } from '@/components/cards/PosterCard';
 import { FullScreenLoader } from '@/components/ui/Feedback';
 import { useMovies } from '@/hooks/useMovies';
@@ -44,7 +44,7 @@ export function CatalogPage({ kind }: { kind: CatalogKind }) {
       />
 
       {movies.isLoading ? (
-        <FullScreenLoader label="Carregando cat?logo..." />
+        <FullScreenLoader label="Carregando catálogo..." />
       ) : (
         <div className="grid grid-cols-2 gap-x-3 gap-y-5 xs:grid-cols-3 sm:grid-cols-4 sm:gap-x-4 sm:gap-y-6 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-7">
           {results.map((movie) => (
