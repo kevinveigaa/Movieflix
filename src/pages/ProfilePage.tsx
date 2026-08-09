@@ -1,5 +1,6 @@
 ﻿import { useState } from 'react';
 import { useAuth } from '@/context/AuthContext';
+import { useEntitlements } from '@/hooks/useEntitlements';
 import { supabase } from '@/lib/supabase';
 import {
   User as UserIcon,
@@ -15,6 +16,7 @@ import { ErrorBanner } from '@/pages/auth/LoginPage';
 
 export function ProfilePage() {
   const { user, profile, subscription, refreshProfile } = useAuth();
+  const { planName } = useEntitlements();
 
   const [name, setName] = useState(profile?.email ?? '');
   const [saving, setSaving] = useState(false);
@@ -141,7 +143,7 @@ export function ProfilePage() {
                   <p className="text-ink-300">
                     Plano:{' '}
                     <span className="font-semibold text-white">
-                      {subscription.plan?.name}
+                      {planName ?? 'Ativo'}
                     </span>
                   </p>
 

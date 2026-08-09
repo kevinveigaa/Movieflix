@@ -7,7 +7,7 @@ import { useAuth, hasActiveSubscription } from '@/context/AuthContext';
 import { createPixPayment, pollPaymentStatus } from '@/lib/mercadopago';
 import { PixModal } from '@/components/PixModal';
 import type { Plan, Payment } from '@/types';
-import { entitlementHighlights } from '@/lib/plans';
+import { entitlementHighlights, resolveSubscriptionPlan } from '@/lib/plans';
 
 export function SubscriptionPage() {
   const { user, subscription, refreshSubscription } = useAuth();
@@ -28,9 +28,7 @@ export function SubscriptionPage() {
   const [error, setError] = useState('');
 
   const active = hasActiveSubscription(subscription);
-  const currentPlan = active
-    ? subscription?.plan ?? plans.data?.find((p) => p.code === subscription?.plan_code)
-    : undefined;
+  const currentPlan = active ? resolveSubscriptionPlan(subscription, plans.data) : undefined;
   const currentPrice = currentPlan?.price_cents ?? 0;
 
   function planAction(plan: Plan) {
@@ -104,7 +102,7 @@ export function SubscriptionPage() {
           <CheckCircle2 className="mx-auto h-8 w-8 text-emerald-400" />
           <p className="mt-2 font-semibold text-white">Sua assinatura está ativa</p>
           <p className="mt-1 text-sm text-ink-300">
-            Plano: <span className="font-semibold text-white">{subscription.plan?.name ?? 'Ativo'}</span>
+            Plano: <span className="font-semibold text-white">{currentPlan?.name ?? 'Ativo'}</span>
             {subscription.expires_at && ` • Válido até ${new Date(subscription.expires_at).toLocaleDateString('pt-BR')}`}
           </p>
           <p className="mt-2 text-xs text-ink-400">

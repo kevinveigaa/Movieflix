@@ -4,6 +4,7 @@ import { supabase } from "@/lib/supabase";
 import { Play, ArrowLeft, Download, Lock, CheckCircle2 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { useEntitlements } from "@/hooks/useEntitlements";
+import { hasUnlimitedDownloads } from "@/lib/plans";
 import {
   alreadyDownloaded,
   downloadsUsed,
@@ -54,8 +55,9 @@ export function TitleDetailPage() {
     }
 
     const isRepeat = alreadyDownloaded(user.id, movie.id);
+    const unlimited = hasUnlimitedDownloads(entitlements.downloads);
 
-    if (!isRepeat && downloadCount >= entitlements.downloads) {
+    if (!isRepeat && !unlimited && downloadCount >= entitlements.downloads) {
       setDownloadMsg(
         `Você já usou seus ${entitlements.downloads} downloads deste mês. Faça upgrade para baixar mais.`,
       );
@@ -165,8 +167,10 @@ export function TitleDetailPage() {
 
             <span className="text-xs text-zinc-400">
               {entitlements.downloads > 0
-                ? `${downloadCount}/${entitlements.downloads} downloads usados neste mês • Qualidade até ${entitlements.qualityLabel}`
-                : "Downloads disponíveis nos planos Padrão e Premium"}
+                ? hasUnlimitedDownloads(entitlements.downloads)
+                  ? `${downloadCount} download${downloadCount === 1 ? "" : "s"} neste mês • Downloads ilimitados • Qualidade até ${entitlements.qualityLabel}`
+                  : `${downloadCount}/${entitlements.downloads} downloads usados neste mês • Qualidade até ${entitlements.qualityLabel}`
+                : "Downloads disponíveis nos planos Standard e Premium"}
             </span>
           </div>
 

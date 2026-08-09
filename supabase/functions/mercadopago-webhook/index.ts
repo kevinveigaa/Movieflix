@@ -79,6 +79,7 @@ Deno.serve(async (req: Request) => {
         .upsert({
           user_id: payment.user_id,
           plan_code: payment.plan_code,
+          plan_id: payment.plan_id,
           payment_id: payment.id,
           status: 'active',
           starts_at: new Date().toISOString(),

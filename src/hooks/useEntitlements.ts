@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { useAuth, hasActiveSubscription } from '@/context/AuthContext';
-import { entitlementsForSubscription } from '@/lib/plans';
+import { entitlementsForSubscription, resolveSubscriptionPlan } from '@/lib/plans';
 import type { Plan } from '@/types';
 
 /** Retorna os limites (qualidade, telas, downloads) do plano atual do usuário. */
@@ -19,7 +19,8 @@ export function useEntitlements() {
     },
   });
 
+  const plan = resolveSubscriptionPlan(subscription, plans.data);
   const entitlements = entitlementsForSubscription(subscription, active, plans.data);
 
-  return { entitlements, active, subscription, planName: subscription?.plan?.name ?? null };
+  return { entitlements, active, subscription, plan, planName: plan?.name ?? null };
 }

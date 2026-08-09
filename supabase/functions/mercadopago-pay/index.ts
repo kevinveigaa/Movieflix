@@ -79,7 +79,7 @@ Deno.serve(async (req: Request) => {
         payer: { email: user.email },
         external_reference: externalRef,
         notification_url: "https://mntyanfhxiqspdedmddb.supabase.co/functions/v1/mercadopago-webhook",
-        metadata: { user_id: user.id, plan_code: plan.id, payment_ref: externalRef },
+        metadata: { user_id: user.id, plan_code: plan.code, plan_id: plan.id, payment_ref: externalRef },
       }),
     });
 
@@ -100,7 +100,8 @@ Deno.serve(async (req: Request) => {
       .from('payments')
       .insert({
         user_id: user.id,
-        plan_code: plan.id,
+        plan_code: plan.code,
+        plan_id: plan.id,
         amount: plan.price_cents,
         status: 'pending',
         payment_id: String(mpData.id),

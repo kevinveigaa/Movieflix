@@ -6,16 +6,20 @@ export interface PlanEntitlements {
   qualityLabel: string;
   /** Telas simultâneas permitidas */
   screens: number;
-  /** Quantos downloads o assinante pode manter por mês (0 = não permitido) */
+  /** Quantos downloads o assinante pode manter por mês (0 = não permitido, Infinity = ilimitado) */
   downloads: number;
 }
 
+/** Limite usado pelos planos com downloads ilimitados. */
+const UNLIMITED_DOWNLOADS = Number.POSITIVE_INFINITY;
+
 const DEFAULT_BY_CODE: Record<string, PlanEntitlements> = {
-  basic: { maxHeight: 720, qualityLabel: 'HD (720p)', screens: 1, downloads: 0 },
+  simple: { maxHeight: 720, qualityLabel: 'HD (720p)', screens: 1, downloads: 0 },
   basico: { maxHeight: 720, qualityLabel: 'HD (720p)', screens: 1, downloads: 0 },
-  standard: { maxHeight: 1080, qualityLabel: 'Full HD (1080p)', screens: 2, downloads: 10 },
-  padrao: { maxHeight: 1080, qualityLabel: 'Full HD (1080p)', screens: 2, downloads: 10 },
-  premium: { maxHeight: 2160, qualityLabel: '4K + HDR', screens: 4, downloads: 30 },
+  basic: { maxHeight: 720, qualityLabel: 'HD (720p)', screens: 1, downloads: 0 },
+  standard: { maxHeight: 1080, qualityLabel: 'Full HD (1080p)', screens: 2, downloads: 5 },
+  padrao: { maxHeight: 1080, qualityLabel: 'Full HD (1080p)', screens: 2, downloads: 5 },
+  premium: { maxHeight: 2160, qualityLabel: '4K + HDR', screens: 4, downloads: UNLIMITED_DOWNLOADS },
 };
 
 export const FREE_ENTITLEMENTS: PlanEntitlements = {
@@ -25,11 +29,41 @@ export const FREE_ENTITLEMENTS: PlanEntitlements = {
   downloads: 0,
 };
 
+/** Normaliza um valor para comparação case-insensitive. */
+function normalize(value: string | null | undefined): string {
+  return (value ?? '').trim().toLowerCase();
+}
+
+/**
+ * Resolve o plano associado a uma assinatura, tolerando dados inconsistentes:
+ * `plan_code` pode vir como código ('standard'), como UUID do plano ou nulo;
+ * `plan_id` pode conter o UUID do plano. Compara sempre de forma case-insensitive.
+ */
+export function resolveSubscriptionPlan(
+  sub: Subscription | null | undefined,
+  plans?: Plan[] | null,
+): Plan | null {
+  if (!sub) return null;
+  if (sub.plan) return sub.plan;
+  if (!plans?.length) return null;
+
+  const code = normalize(sub.plan_code);
+  const planId = normalize(sub.plan_id);
+
+  return (
+    plans.find((p) => planId !== '' && normalize(p.id) === planId) ??
+    plans.find((p) => code !== '' && normalize(p.code) === code) ??
+    plans.find((p) => code !== '' && normalize(p.id) === code) ??
+    plans.find((p) => planId !== '' && normalize(p.code) === planId) ??
+    null
+  );
+}
+
 /** Entitlements de um plano — usa o código do plano, com fallback por preço. */
 export function entitlementsForPlan(plan?: Plan | null): PlanEntitlements {
   if (!plan) return FREE_ENTITLEMENTS;
 
-  const byCode = DEFAULT_BY_CODE[(plan.code ?? '').toLowerCase()];
+  const byCode = DEFAULT_BY_CODE[normalize(plan.code)];
   if (byCode) return byCode;
 
   // Fallback: define pelo preço do plano
@@ -45,8 +79,19 @@ export function entitlementsForSubscription(
   plans?: Plan[] | null,
 ): PlanEntitlements {
   if (!active || !sub) return FREE_ENTITLEMENTS;
-  const plan = sub.plan ?? plans?.find((p) => p.code === sub.plan_code) ?? null;
-  return entitlementsForPlan(plan);
+  return entitlementsForPlan(resolveSubscriptionPlan(sub, plans));
+}
+
+/** true quando o limite de downloads é ilimitado (Infinity). */
+export function hasUnlimitedDownloads(downloads: number): boolean {
+  return !Number.isFinite(downloads);
+}
+
+/** Rótulo legível do limite de downloads (ex.: '5 downloads por mês'). */
+export function downloadsLimitLabel(downloads: number): string {
+  if (downloads <= 0) return 'Sem downloads offline';
+  if (hasUnlimitedDownloads(downloads)) return 'Downloads ilimitados';
+  return `${downloads} downloads por mês`;
 }
 
 /** Lista de benefícios legível para exibir nos cards de plano. */
@@ -55,7 +100,7 @@ export function entitlementHighlights(plan: Plan): string[] {
   return [
     `Qualidade até ${e.qualityLabel}`,
     `${e.screens} ${e.screens === 1 ? 'tela simultânea' : 'telas simultâneas'}`,
-    e.downloads > 0 ? `${e.downloads} downloads por mês` : 'Sem downloads offline',
+    downloadsLimitLabel(e.downloads),
     'Catálogo completo liberado',
   ];
 }

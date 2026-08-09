@@ -60,8 +60,11 @@ export interface Subscription {
   plan?: Plan;
   id: string;
   user_id: string;
-  plan_code: string;
-  
+  /** Código do plano ('simple', 'standard', 'premium'). Pode vir nulo ou conter o UUID do plano em registros antigos. */
+  plan_code: string | null;
+  /** UUID do plano na tabela plans. Pode vir nulo em registros antigos. */
+  plan_id?: string | null;
+
   status: SubscriptionStatus;
   starts_at: string | null;
   expires_at: string | null;
