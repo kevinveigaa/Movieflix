@@ -1,15 +1,15 @@
 ﻿import { useParams, useNavigate } from "react-router-dom";
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
-import { Play, ArrowLeft, Download, Lock, CheckCircle2 } from "lucide-react";
+import { Play, ArrowLeft, Download, Lock, CheckCircle2, XCircle, Loader2 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { useEntitlements } from "@/hooks/useEntitlements";
 import { hasUnlimitedDownloads } from "@/lib/plans";
+import { downloadVideo } from "@/lib/hlsDownload";
 import {
   alreadyDownloaded,
   downloadsUsed,
   registerDownload,
-  startFileDownload,
 } from "@/lib/downloads";
 
 interface Movie {
@@ -29,6 +29,9 @@ export function TitleDetailPage() {
 
   const [movie, setMovie] = useState<Movie | null>(null);
   const [downloadMsg, setDownloadMsg] = useState("");
+  const [downloadError, setDownloadError] = useState("");
+  const [downloading, setDownloading] = useState(false);
+  const [progress, setProgress] = useState(0);
   const [downloadCount, setDownloadCount] = useState(0);
 
   const { user } = useAuth();
@@ -38,7 +41,7 @@ export function TitleDetailPage() {
     if (user?.id) setDownloadCount(downloadsUsed(user.id));
   }, [user?.id]);
 
-  function handleDownload() {
+  async function handleDownload() {
     if (!user) {
       navigate("/login");
       return;
@@ -64,10 +67,35 @@ export function TitleDetailPage() {
       return;
     }
 
-    startFileDownload(movie.video_url, `${movie.title}.mp4`);
-    registerDownload(user.id, movie.id);
-    setDownloadCount(downloadsUsed(user.id));
-    setDownloadMsg("Download iniciado. O arquivo ficará disponível offline no seu dispositivo.");
+    setDownloading(true);
+    setProgress(0);
+    setDownloadMsg("");
+    setDownloadError("");
+
+    try {
+      await downloadVideo({
+        url: movie.video_url,
+        title: movie.title,
+        maxHeight: entitlements.maxHeight,
+        onProgress: (percent) => setProgress(percent),
+        onStarted: () => {
+          registerDownload(user.id, movie.id);
+          setDownloadCount(downloadsUsed(user.id));
+          setDownloadMsg("Download iniciado. O arquivo ficará disponível offline no seu dispositivo.");
+        },
+      });
+    } catch (err) {
+      if (err instanceof DOMException && err.name === "AbortError") {
+        // Usuário cancelou o diálogo de salvar arquivo — não é um erro.
+        setDownloadMsg("");
+      } else {
+        setDownloadError(
+          (err as Error).message || "Não foi possível baixar o vídeo. Tente novamente.",
+        );
+      }
+    } finally {
+      setDownloading(false);
+    }
   }
 
   useEffect(() => {
@@ -155,14 +183,29 @@ export function TitleDetailPage() {
           <div className="mt-4 flex flex-wrap items-center gap-3">
             <button
               onClick={handleDownload}
+              disabled={downloading}
               className={`flex w-fit items-center gap-2 rounded-lg px-5 py-3 font-semibold transition ${
                 entitlements.downloads > 0
                   ? "bg-purple-600 text-white hover:bg-purple-700"
                   : "bg-zinc-800 text-zinc-300 hover:bg-zinc-700"
-              }`}
+              } ${downloading ? "cursor-not-allowed opacity-70" : ""}`}
             >
-              {entitlements.downloads > 0 ? <Download size={18} /> : <Lock size={18} />}
-              Baixar filme
+              {downloading ? (
+                <>
+                  <Loader2 size={18} className="animate-spin" />
+                  Preparando download… {progress}%
+                </>
+              ) : entitlements.downloads > 0 ? (
+                <>
+                  <Download size={18} />
+                  Baixar filme
+                </>
+              ) : (
+                <>
+                  <Lock size={18} />
+                  Baixar filme
+                </>
+              )}
             </button>
 
             <span className="text-xs text-zinc-400">
@@ -178,6 +221,13 @@ export function TitleDetailPage() {
             <p className="mt-3 flex items-center gap-2 text-sm text-zinc-300">
               <CheckCircle2 size={16} className="text-purple-400" />
               {downloadMsg}
+            </p>
+          )}
+
+          {downloadError && (
+            <p className="mt-3 flex items-center gap-2 text-sm text-red-400">
+              <XCircle size={16} className="shrink-0 text-red-400" />
+              {downloadError}
             </p>
           )}
 
