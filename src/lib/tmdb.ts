@@ -1,10 +1,11 @@
 import type { MediaType, TmdbPage, TmdbTitle, TmdbVideo } from '@/types';
 
-const API_BASE = 'https://api.themoviedb.org/3';
 const IMG_BASE = 'https://image.tmdb.org/t/p';
 
-// Public read-only token embedded for demo purposes. TMDb API is read-only for these endpoints.
-const TMDB_API_KEY = import.meta.env.VITE_TMDB_TOKEN;
+// A chave da TMDb vive no servidor (backend/server.js) e é acessada pelo
+// frontend via proxy /api/tmdb. Em produção, defina VITE_API_URL apontando
+// para o backend; vazio = mesma origem (Vite dev proxy cuida de /api no dev).
+const API_URL = (import.meta.env.VITE_API_URL as string) ?? '';
 
 export const img = (path: string | null, size: 'w300' | 'w500' | 'w780' | 'w1280' | 'original' = 'w500') =>
   path ? `${IMG_BASE}/${size}${path}` : '';
@@ -20,11 +21,13 @@ export const titleMediaType = (t: TmdbTitle): MediaType =>
   t.media_type === 'tv' || t.media_type === 'movie' ? t.media_type : t.first_air_date || t.name ? 'tv' : 'movie';
 
 async function tmdbFetch<T>(path: string, params: Record<string, string | number | boolean> = {}): Promise<T> {
-  const url = new URL(`${API_BASE}${path}`);
+  const search = new URLSearchParams();
+  search.set('language', 'pt-BR');
+  Object.entries(params).forEach(([k, v]) => search.set(k, String(v)));
 
-  url.searchParams.set('language', 'pt-BR');
-  Object.entries(params).forEach(([k, v]) => url.searchParams.set(k, String(v)));
-  const res = await fetch(url.toString(), { headers: { Authorization: 'Bearer ' + TMDB_API_KEY, accept: 'application/json' } });
+  const query = search.toString();
+  const res = await fetch(`${API_URL}/api/tmdb${path}${query ? `?${query}` : ''}`);
+
   if (!res.ok) throw new Error(`TMDb ${res.status}`);
   return res.json() as Promise<T>;
 }
@@ -77,4 +80,3 @@ export function pickTrailer(videos?: TmdbVideo[]): TmdbVideo | null {
     null
   );
 }
-

@@ -1,10 +1,13 @@
-﻿services:
+services:
   - type: web
     name: movieflix
-    env: static
+    env: node
+    plan: free
     buildCommand: npm run build
-    staticPublishPath: ./dist
-    routes:
-      - type: rewrite
-        source: /*
-        destination: /index.html
+    startCommand: node backend/server.js
+    healthCheckPath: /
+    envVars:
+      - key: NODE_VERSION
+        value: 20.19.4
+      - key: TMDB_API_KEY
+        sync: false

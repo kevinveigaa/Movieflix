@@ -1,5 +1,6 @@
 require("dotenv").config();
 
+const path = require("path");
 const express = require("express");
 const cors = require("cors");
 const { MercadoPagoConfig, Preference } = require("mercadopago");
@@ -10,6 +11,44 @@ app.use(cors());
 app.use(express.json());
 
 const PORT = 5000;
+
+// Chave da TMDb fica no servidor (nunca no bundle do frontend).
+// Defina TMDB_API_KEY (ou VITE_TMDB_TOKEN) no ambiente do backend.
+const TMDB_API_KEY = process.env.TMDB_API_KEY || process.env.VITE_TMDB_TOKEN;
+const TMDB_API_BASE = "https://api.themoviedb.org/3";
+
+// Proxy da API TMDb: o frontend chama /api/tmdb/* e o servidor repassa a
+// chamada com a chave de acesso, mantendo-a fora do navegador.
+app.use("/api/tmdb", async (req, res) => {
+  try {
+    if (!TMDB_API_KEY) {
+      return res.status(500).json({ erro: "Chave da TMDb (TMDB_API_KEY) não configurada no servidor." });
+    }
+
+    const path = req.url.replace(/^\/+/, "");
+    if (!path) {
+      return res.status(400).json({ erro: "Caminho da API TMDb ausente." });
+    }
+
+    const url = new URL(`${TMDB_API_BASE}/${path}`);
+    if (!req.query.language) url.searchParams.set("language", "pt-BR");
+    Object.entries(req.query).forEach(([k, v]) => {
+      url.searchParams.set(k, Array.isArray(v) ? v.join(",") : String(v));
+    });
+
+    const upstream = await fetch(url.toString(), {
+      headers: { Authorization: `Bearer ${TMDB_API_KEY}`, accept: "application/json" },
+    });
+
+    const body = await upstream.text();
+    res.status(upstream.status);
+    res.set("Content-Type", upstream.headers.get("content-type") || "application/json");
+    res.send(body);
+  } catch (error) {
+    console.log("ERRO TMDB PROXY:", error);
+    res.status(502).json({ erro: "Falha ao consultar a TMDb.", detalhe: error.message });
+  }
+});
 
 const client = new MercadoPagoConfig({
   accessToken: process.env.MP_ACCESS_TOKEN
@@ -67,6 +106,15 @@ app.post("/assinatura", async (req,res)=>{
 
   }
 
+});
+
+
+// Serve o build estático do frontend (SPA) na mesma porta do backend.
+const DIST_DIR = path.join(__dirname, "..", "dist");
+app.use(express.static(DIST_DIR));
+app.use((req, res, next) => {
+  if (req.path.startsWith("/api/")) return next();
+  res.sendFile(path.join(DIST_DIR, "index.html"));
 });
 
 app.listen(PORT,()=>{

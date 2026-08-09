@@ -1,0 +1,15 @@
+User-agent: *
+Allow: /
+
+# Áreas autenticadas ou pessoais — não indexar.
+Disallow: /admin
+Disallow: /perfil
+Disallow: /configuracoes
+Disallow: /minha-assinatura
+Disallow: /favoritos
+Disallow: /historico
+Disallow: /continuar
+Disallow: /selecionar-perfil
+
+# Substitua movieflix.com.br pelo domínio real do site em produção.
+Sitemap: https://movieflix-bszf.onrender.com/sitemap.xml
