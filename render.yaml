@@ -3,8 +3,7 @@ services:
     name: movieflix-api
     env: node
     plan: free
-    installCommand: npm install
-    buildCommand: npm run build && npm --prefix backend install
+    buildCommand: npm install && npm run build && npm --prefix backend install
     startCommand: node backend/server.js
     healthCheckPath: /
     envVars:
