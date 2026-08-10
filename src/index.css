@@ -94,19 +94,16 @@
 .tv-nav [tabindex]:focus,
 .tv-nav [data-tv-focusable]:focus,
 .tv-nav .tv-focus {
-  outline: 4px solid #fff !important;
-  outline-offset: 3px;
-  border-radius: 0.75rem;
-  box-shadow: 0 0 0 8px rgba(0, 0, 0, 0.6), 0 0 24px rgba(255, 255, 255, 0.35);
-  transform: scale(1.04);
-  transition: transform 0.15s ease-out;
+  outline: 2px solid rgba(255, 255, 255, 0.45) !important;
+  outline-offset: 2px;
+  border-radius: 0.5rem;
   z-index: 30;
   position: relative;
 }
 
 /* Em TV nao existe cursor do mouse: o foco nunca deve ficar invisivel */
 .tv-nav *:focus {
-  outline-color: #fff;
+  outline-color: rgba(255, 255, 255, 0.45);
 }
 
 /* Painel de diagnostico do controle (?tvdebug=1) */
