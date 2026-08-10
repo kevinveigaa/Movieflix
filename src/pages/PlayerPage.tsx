@@ -2,92 +2,41 @@ import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
 import { supabase } from '@/lib/supabase';
-import { ChevronLeft, Play, RotateCcw, Star, Calendar, Clock, Film, AlertCircle } from 'lucide-react';
+import { ChevronLeft, Film } from 'lucide-react';
 
 export function PlayerPage() {
   const { id } = useParams();
   const navigate = useNavigate();
   const { user, loading: authLoading } = useAuth();
-
   const [movie, setMovie] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
-  const [resumePos, setResumePos] = useState(0);
-  const [showResume, setShowResume] = useState(false);
 
   useEffect(() => {
     async function load() {
       if (!id) { setLoading(false); return; }
-      try {
-        const { data } = await supabase.from('movies').select('*').eq('id', id).single();
-        if (data) {
-          setMovie(data);
-          if (user) {
-            const { data: history } = await supabase
-              .from('watch_history').select('position_seconds, duration_seconds')
-              .eq('user_id', user.id).eq('movie_id', data.id).maybeSingle();
-            if (history && history.position_seconds > 10) {
-              const pct = history.duration_seconds > 0 ? history.position_seconds / history.duration_seconds : 0;
-              if (pct < 0.95) { setResumePos(history.position_seconds); setShowResume(true); }
-            }
-          }
-        } else {
-          setError("Filme nao encontrado.");
-        }
-      } catch { setError("Erro ao carregar."); }
+      const { data } = await supabase.from('movies').select('*').eq('id', id).single();
+      setMovie(data);
       setLoading(false);
     }
     load();
-  }, [id, user?.id]);
-
-  function fmt(s: number) {
-    const m = Math.floor(s / 60);
-    const sec = Math.floor(s % 60);
-    return m + ':' + String(sec).padStart(2, '0');
-  }
-
-  function isBunny(url: string) {
-    return url.includes('bunnycdn') || url.includes('b-cdn.net') || url.includes('mediadelivery');
-  }
-
-  function bunnyEmbed(url: string) {
-    const m = url.match(/([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})/i);
-    if (m) return 'https://iframe.mediadelivery.net/embed/723294/' + m[1] + '?autoplay=true&preload=true';
-    return url;
-  }
+  }, [id]);
 
   if (authLoading || loading) {
-    return (
-      <div className="flex h-screen items-center justify-center bg-black">
-        <div className="h-12 w-12 animate-spin rounded-full border-4 border-red-600 border-t-transparent" />
-      </div>
-    );
+    return <div className="flex h-screen items-center justify-center bg-black"><div className="h-12 w-12 animate-spin rounded-full border-4 border-red-600 border-t-transparent"/></div>;
   }
 
   if (!user) {
-    return (
-      <div className="flex h-screen flex-col items-center justify-center bg-black text-white gap-4">
-        <Film className="h-16 w-16 text-red-600" />
-        <h2 className="text-2xl font-bold">Faca login para assistir</h2>
-        <button onClick={() => navigate('/login')} className="rounded-xl bg-red-600 px-8 py-3 font-semibold hover:bg-red-700 transition">Entrar</button>
-      </div>
-    );
+    return <div className="flex h-screen flex-col items-center justify-center bg-black text-white gap-4"><Film className="h-16 w-16 text-red-600"/><h2 className="text-2xl font-bold">Login necessario</h2><button onClick={() => navigate('/login')} className="rounded-xl bg-red-600 px-8 py-3 font-semibold">Entrar</button></div>;
   }
 
-  if (error) {
-    return (
-      <div className="flex h-screen flex-col items-center justify-center bg-black text-white gap-4">
-        <AlertCircle className="h-16 w-16 text-red-600" />
-        <h2 className="text-2xl font-bold">{error}</h2>
-        <button onClick={() => navigate(-1)} className="rounded-xl bg-zinc-800 px-6 py-3 font-semibold hover:bg-zinc-700 transition flex items-center gap-2">
-          <ChevronLeft className="h-5 w-5" /> Voltar
-        </button>
-      </div>
-    );
-  }
+  const videoUrl = movie?.video_url || '';
+  const isBunny = videoUrl.includes('bunnycdn') || videoUrl.includes('b-cdn.net') || videoUrl.includes('mediadelivery');
 
-  const isBunnyVideo = movie?.video_url ? isBunny(movie.video_url) : false;
-  const embedUrl = movie?.video_url ? bunnyEmbed(movie.video_url) : '';
+  function getEmbed(url: string) {
+    const m = url.match(/([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})/i);
+    if (m) return 'https://iframe.mediadelivery.net/embed/723294/' + m[1] + '?autoplay=true';
+    return url;
+  }
 
   return (
     <div className="min-h-screen bg-black text-white">
@@ -95,65 +44,24 @@ export function PlayerPage() {
         <button onClick={() => navigate(-1)} className="flex items-center gap-2 rounded-full bg-black/50 p-2.5 backdrop-blur transition hover:bg-white/20">
           <ChevronLeft className="h-5 w-5" />
         </button>
-        <div className="min-w-0">
-          <h1 className="truncate text-base font-semibold">{movie?.title || 'Carregando...'}</h1>
-          {movie && (
-            <div className="flex items-center gap-2 text-xs text-zinc-400">
-              {movie.year && <span className="flex items-center gap-1"><Calendar className="h-3 w-3" /> {movie.year}</span>}
-              {movie.vote_average && <span className="flex items-center gap-1"><Star className="h-3 w-3 text-yellow-500" /> {movie.vote_average}</span>}
-            </div>
-          )}
-        </div>
+        <h1 className="truncate text-base font-semibold">{movie?.title || 'Player'}</h1>
       </div>
 
       <div className="relative w-full bg-black pt-16">
-        {!movie?.video_url ? (
+        {isBunny ? (
+          <div className="relative w-full bg-black" style={{ aspectRatio: '16/9' }}>
+            <iframe src={getEmbed(videoUrl)} className="absolute inset-0 w-full h-full border-0" allow="autoplay; fullscreen" allowFullScreen title={movie?.title || 'Video'} />
+          </div>
+        ) : videoUrl ? (
+          <div className="relative w-full bg-black" style={{ aspectRatio: '16/9' }}>
+            <video controls playsInline preload="auto" className="w-full h-full" style={{ backgroundColor: '#000', maxHeight: '80vh' }} poster={movie?.backdrop_url || movie?.poster_url}>
+              <source src={videoUrl} type="video/mp4" />
+            </video>
+          </div>
+        ) : (
           <div className="flex h-[60vh] flex-col items-center justify-center text-center gap-4">
             <Film className="h-16 w-16 text-zinc-600" />
             <h2 className="text-xl font-bold">Video nao disponivel</h2>
-          </div>
-        ) : isBunnyVideo ? (
-          <div className="relative w-full bg-black" style={{ aspectRatio: '16/9' }}>
-            <iframe
-              src={embedUrl}
-              className="absolute inset-0 w-full h-full border-0"
-              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-              allowFullScreen
-              title={movie.title}
-            />
-          </div>
-        ) : (
-          <div className="relative w-full bg-black" style={{ aspectRatio: '16/9' }}>
-            <video
-              controls
-              playsInline
-              preload="auto"
-              className="w-full h-full"
-              style={{ backgroundColor: '#000', maxHeight: '80vh' }}
-              poster={movie.backdrop_url || movie.poster_url}
-            >
-              <source src={movie.video_url} type="video/mp4" />
-            </video>
-          </div>
-        )}
-
-        {showResume && movie && (
-          <div className="absolute inset-0 z-40 flex items-center justify-center bg-black/85 backdrop-blur-md">
-            <div className="mx-4 w-full max-w-sm rounded-2xl bg-zinc-900 p-6 text-center shadow-2xl border border-zinc-800">
-              <RotateCcw className="mx-auto mb-4 h-12 w-12 text-red-600" />
-              <h3 className="mb-1 text-xl font-bold">Continuar assistindo?</h3>
-              <p className="mb-6 text-zinc-400 text-sm">
-                Voce parou em <span className="text-white font-semibold">{fmt(resumePos)}</span>
-              </p>
-              <div className="flex flex-col gap-3">
-                <button onClick={() => setShowResume(false)} className="flex items-center justify-center gap-2 rounded-xl bg-red-600 px-6 py-3 font-semibold text-white hover:bg-red-700 transition">
-                  <Play className="h-5 w-5" fill="white" /> Continuar de {fmt(resumePos)}
-                </button>
-                <button onClick={() => { setShowResume(false); setResumePos(0); }} className="flex items-center justify-center gap-2 rounded-xl bg-zinc-800 px-6 py-3 font-semibold text-white hover:bg-zinc-700 transition">
-                  <RotateCcw className="h-4 w-4" /> Assistir do inicio
-                </button>
-              </div>
-            </div>
           </div>
         )}
       </div>
@@ -161,21 +69,7 @@ export function PlayerPage() {
       {movie && (
         <div className="px-4 py-6 max-w-5xl mx-auto">
           <h2 className="text-2xl font-bold mb-2">{movie.title}</h2>
-          <div className="flex flex-wrap items-center gap-3 text-sm text-zinc-400 mb-4">
-            {movie.year && <span className="flex items-center gap-1"><Calendar className="h-4 w-4" /> {movie.year}</span>}
-            {movie.vote_average && <span className="flex items-center gap-1"><Star className="h-4 w-4 text-yellow-500" /> {movie.vote_average}</span>}
-            {movie.quality && <span className="rounded bg-zinc-800 px-2 py-0.5 text-xs">{movie.quality}</span>}
-            {movie.language && <span className="rounded bg-zinc-800 px-2 py-0.5 text-xs">{movie.language}</span>}
-            {movie.duration && <span className="flex items-center gap-1"><Clock className="h-4 w-4" /> {Math.floor(movie.duration / 60)} min</span>}
-          </div>
-          {movie.category && (
-            <div className="flex flex-wrap gap-2 mb-4">
-              {movie.category.split(',').map((c: string) => c.trim()).filter(Boolean).map((c: string) => (
-                <span key={c} className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-zinc-300">{c}</span>
-              ))}
-            </div>
-          )}
-          <p className="text-zinc-300 leading-relaxed">{movie.description || "Sinopse nao disponivel."}</p>
+          <p className="text-zinc-300 leading-relaxed">{movie.description || 'Sem sinopse.'}</p>
         </div>
       )}
     </div>
