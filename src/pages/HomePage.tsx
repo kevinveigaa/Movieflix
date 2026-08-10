@@ -89,7 +89,7 @@ export function HomePage() {
           <>
             {recentes.length > 0 && <CategoryRow title="Adicionados recentemente" items={recentes} />}
             {categorias.map((cat) => (
-              <CategoryRow key={cat.nome} title={cat.nome} items={cat.lista} />
+              <CategoryRow key={cat.nome} title={cat.nome} items={cat.lista} category={cat.nome} />
             ))}
           </>
         )}
@@ -100,10 +100,14 @@ export function HomePage() {
 
 /* ---------- Linha de categoria com setas ---------- */
 
-function CategoryRow({ title, items }: { title: string; items: any[] }) {
+function CategoryRow({ title, items, category }: { title: string; items: any[]; category?: string }) {
   const ref = useRef<HTMLDivElement>(null);
   const [canLeft, setCanLeft] = useState(false);
   const [canRight, setCanRight] = useState(false);
+
+  // "Ver mais" de uma categoria leva à página de catálogo filtrando por ela;
+  // uma obra aparece em todas as categorias a que foi atribuída.
+  const verMaisTo = category ? `/filmes?categoria=${encodeURIComponent(category)}` : "/filmes";
 
   const update = () => {
     const el = ref.current;
@@ -138,7 +142,7 @@ function CategoryRow({ title, items }: { title: string; items: any[] }) {
 
         <div className="flex shrink-0 items-center gap-2">
           <Link
-            to="/filmes"
+            to={verMaisTo}
             className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-gray-300 transition hover:bg-white/15 hover:text-white sm:text-sm"
           >
             Ver mais

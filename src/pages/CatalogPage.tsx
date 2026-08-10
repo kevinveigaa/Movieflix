@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { PosterCard } from '@/components/cards/PosterCard';
 import { FullScreenLoader } from '@/components/ui/Feedback';
 import { useMovies } from '@/hooks/useMovies';
@@ -24,16 +25,29 @@ const TYPES = {
 export function CatalogPage({ kind }: { kind: CatalogKind }) {
   const movies = useMovies(TYPES[kind]);
   const [search, setSearch] = useState('');
+  const [searchParams] = useSearchParams();
+  const categoria = searchParams.get('categoria');
 
-  const results = movies.data?.filter((movie) =>
-    movie.title?.toLowerCase().includes(search.toLowerCase())
-  ) ?? [];
+  // Uma obra pode ter várias categorias separadas por vírgula (ex.: "Ação, Aventura").
+  // Ao filtrar por categoria, ela deve aparecer em TODAS as categorias a que pertence.
+  const results = (movies.data ?? []).filter((movie) => {
+    const termo = search.trim().toLowerCase();
+    const tituloOk = !termo || movie.title?.toLowerCase().includes(termo);
+    if (!categoria) return tituloOk;
+
+    const categorias = String(movie.category ?? "")
+      .split(",")
+      .map((c: string) => c.trim().toLowerCase())
+      .filter(Boolean);
+
+    return tituloOk && categorias.includes(categoria.toLowerCase());
+  });
 
   return (
     <div className="container-app pt-24 pb-16">
 
       <h1 className="font-display text-2xl sm:text-3xl lg:text-4xl text-white mb-6">
-        {TITLES[kind]}
+        {categoria || TITLES[kind]}
       </h1>
 
       <input
