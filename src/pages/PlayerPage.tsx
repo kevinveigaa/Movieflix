@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
 import { supabase } from '@/lib/supabase';
@@ -10,6 +10,7 @@ export function PlayerPage() {
   const { user, loading: authLoading } = useAuth();
   const [movie, setMovie] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const videoRef = useRef<HTMLVideoElement>(null);
 
   useEffect(() => {
     async function load() {
@@ -20,6 +21,13 @@ export function PlayerPage() {
     }
     load();
   }, [id]);
+
+  // Aumenta o volume para máximo quando o vídeo carrega
+  useEffect(() => {
+    if (videoRef.current) {
+      videoRef.current.volume = 1;
+    }
+  }, [movie]);
 
   if (authLoading || loading) {
     return <div className="flex h-screen items-center justify-center bg-black"><div className="h-12 w-12 animate-spin rounded-full border-4 border-red-600 border-t-transparent"/></div>;
@@ -34,7 +42,7 @@ export function PlayerPage() {
 
   function getEmbed(url: string) {
     const m = url.match(/([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})/i);
-    if (m) return 'https://iframe.mediadelivery.net/embed/723294/' + m[1] + '?autoplay=true';
+    if (m) return 'https://iframe.mediadelivery.net/embed/723294/' + m[1] + '?autoplay=true&volume=100';
     return url;
   }
 
@@ -47,14 +55,14 @@ export function PlayerPage() {
         <h1 className="truncate text-base font-semibold">{movie?.title || 'Player'}</h1>
       </div>
 
-      <div className="relative w-full bg-black pt-16">
+      <div className="relative w-full bg-black">
         {isBunny ? (
           <div className="relative w-full bg-black" style={{ aspectRatio: '16/9' }}>
             <iframe src={getEmbed(videoUrl)} className="absolute inset-0 w-full h-full border-0" allow="autoplay; fullscreen" allowFullScreen title={movie?.title || 'Video'} />
           </div>
         ) : videoUrl ? (
           <div className="relative w-full bg-black" style={{ aspectRatio: '16/9' }}>
-            <video controls playsInline preload="auto" className="w-full h-full" style={{ backgroundColor: '#000', maxHeight: '80vh' }} poster={movie?.backdrop_url || movie?.poster_url}>
+            <video ref={videoRef} controls playsInline preload="auto" className="w-full h-full" style={{ backgroundColor: '#000', maxHeight: '80vh' }} poster={movie?.backdrop_url || movie?.poster_url}>
               <source src={videoUrl} type="video/mp4" />
             </video>
           </div>
