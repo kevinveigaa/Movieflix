@@ -3,11 +3,9 @@ import {
   useCallback,
   useEffect,
   useImperativeHandle,
-  useMemo,
   useRef,
   useState,
 } from "react";
-import Hls from "hls.js";
 
 export interface UniversalVideoPlayerHandle {
   play: () => void;
@@ -20,12 +18,9 @@ interface UniversalVideoPlayerProps {
   autoPlay?: boolean;
   controls?: boolean;
   className?: string;
-  /** Imagem exibida atrás do vídeo enquanto ele não tem frame (nunca fica só preto). */
   backdrop?: string | null;
-  /** Altura maxima permitida pelo plano (ex.: 720, 1080, 2160) */
   maxHeight?: number;
   qualityLabel?: string;
-  /** Posição (segundos) para iniciar o vídeo ("retomar de onde parou"). */
   initialTime?: number;
   onTimeUpdate?: (time: number) => void;
   onReady?: (duration: number) => void;
@@ -33,95 +28,13 @@ interface UniversalVideoPlayerProps {
   onEnded?: () => void;
 }
 
-function getGoogleDriveId(url: string): string | null {
-  const patterns = [
-    /drive\.google\.com\/file\/d\/([^/]+)/i,
-    /drive\.google\.com\/open\?id=([^&]+)/i,
-    /drive\.google\.com\/uc\?.*id=([^&]+)/i,
-    /drive\.usercontent\.google\.com\/download\?.*id=([^&]+)/i,
-  ];
-
-  for (const pattern of patterns) {
-    const match = url.match(pattern);
-
-    if (match?.[1]) {
-      return match[1];
-    }
-  }
-
-  return null;
-}
-
-function isGoogleDriveUrl(url: string): boolean {
-  return /(^|\/\/)(drive\.google\.com|drive\.usercontent\.google\.com)\//i.test(
-    url
-  );
-}
-
-function isDrivePreviewUrl(url: string): boolean {
-  return /drive\.google\.com\/file\/d\/[^/]+\/preview/i.test(url);
-}
-
-function getVideoType(url: string): "hls" | "video" | "mkv" {
-  const cleanUrl = url.split("?")[0].split("#")[0].toLowerCase();
-
-  if (cleanUrl.endsWith(".m3u8")) {
-    return "hls";
-  }
-
-  if (cleanUrl.endsWith(".mkv")) {
-    return "mkv";
-  }
-
-  return "video";
-}
-
 function formatTime(seconds: number): string {
-  if (!Number.isFinite(seconds) || seconds < 0) {
-    return "00:00";
-  }
-
-  const hours = Math.floor(seconds / 3600);
-  const minutes = Math.floor((seconds % 3600) / 60);
-  const secs = Math.floor(seconds % 60);
-
-  if (hours > 0) {
-    return `${hours.toString().padStart(2, "0")}:${minutes
-      .toString()
-      .padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
-  }
-
-  return `${minutes.toString().padStart(2, "0")}:${secs
-    .toString()
-    .padStart(2, "0")}`;
-}
-
-/**
- * URLs de streaming direto do Google Drive (sem o player de preview, que
- * congela a tela preta após alguns segundos). A ordem importa:
- * 1) drive.usercontent (stream com suporte a Range, não trava),
- * 2) uc?export=download com confirm (sem página de verificação),
- * 3) uc?export=download simples.
- */
-function buildDriveCandidates(driveId: string, originalSrc: string): string[] {
-  const list: string[] = [];
-
-  // Se o admin já cadastrou um link de download direto, ele é a melhor opção.
-  if (
-    isGoogleDriveUrl(originalSrc) &&
-    !isDrivePreviewUrl(originalSrc) &&
-    !/\/file\/d\//i.test(originalSrc)
-  ) {
-    list.push(originalSrc);
-  }
-
-  list.push(
-    `https://drive.usercontent.google.com/download?id=${driveId}&export=download&authuser=0&confirm=t`,
-    `https://drive.google.com/uc?export=download&id=${driveId}&confirm=t`,
-    `https://drive.google.com/uc?export=download&id=${driveId}`
-  );
-
-  return Array.from(new Set(list));
+  if (!Number.isFinite(seconds) || seconds < 0) return "00:00";
+  const h = Math.floor(seconds / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  const s = Math.floor(seconds % 60);
+  if (h > 0) return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+  return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
 }
 
 export const UniversalVideoPlayer = forwardRef<
@@ -146,23 +59,13 @@ export const UniversalVideoPlayer = forwardRef<
 ) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
-  const hlsRef = useRef<Hls | null>(null);
   const hideControlsTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pendingSeekRef = useRef<number | null>(null);
   const callbacksRef = useRef({ onTimeUpdate, onReady, onPause, onEnded });
   callbacksRef.current = { onTimeUpdate, onReady, onPause, onEnded };
   const playingRef = useRef(false);
-  const isDriveRef = useRef(false);
-  const driveCandidatesLenRef = useRef(0);
   const initialTimeRef = useRef(initialTime);
   initialTimeRef.current = initialTime;
-  const nextSourceRef = useRef<() => void>(() => {});
-  const autoPlayRef = useRef(autoPlay);
-  autoPlayRef.current = autoPlay;
-  const maxHeightRef = useRef(maxHeight);
-  maxHeightRef.current = maxHeight;
-  /** Quantas trocas automáticas de fonte já foram feitas (evita loop de tela preta). */
-  const switchCountRef = useRef(0);
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -175,36 +78,7 @@ export const UniversalVideoPlayer = forwardRef<
   const [showSettings, setShowSettings] = useState(false);
   const [playbackRate, setPlaybackRate] = useState(1);
   const [fullscreen, setFullscreen] = useState(false);
-  /** True quando o vídeo está sem progresso (buffer/travado) — evita tela preta sem explicação. */
-  const [stalled, setStalled] = useState(false);
-
-  const driveId = getGoogleDriveId(src);
-  const isDrive = isGoogleDriveUrl(src);
-
-  const driveCandidates = useMemo(
-    () => (driveId ? buildDriveCandidates(driveId, src) : []),
-    [src, driveId]
-  );
-
-  // Índice da fonte do Drive atualmente em uso (0 = primeira).
-  const [driveSourceIdx, setDriveSourceIdx] = useState(0);
-  // Todas as tentativas nativas falharam -> cai para o iframe de preview.
-  const [driveUseIframe, setDriveUseIframe] = useState(false);
-
-  const useIframe =
-    isDrive && (driveUseIframe || driveCandidates.length === 0);
-
-  const activeUrl = isDrive
-    ? driveCandidates[Math.min(driveSourceIdx, driveCandidates.length - 1)] ??
-      src
-    : src;
-
-  isDriveRef.current = isDrive;
-  driveCandidatesLenRef.current = driveCandidates.length;
-
-  const stalledRef = useRef(false);
-  stalledRef.current = stalled;
-  playingRef.current = playing;
+  const [buffering, setBuffering] = useState(false);
 
   useImperativeHandle(ref, () => ({
     play() {
@@ -227,11 +101,7 @@ export const UniversalVideoPlayer = forwardRef<
 
   const resetControlsTimer = useCallback(() => {
     setShowControls(true);
-
-    if (hideControlsTimer.current) {
-      clearTimeout(hideControlsTimer.current);
-    }
-
+    if (hideControlsTimer.current) clearTimeout(hideControlsTimer.current);
     if (playingRef.current) {
       hideControlsTimer.current = setTimeout(() => {
         setShowControls(false);
@@ -240,127 +110,29 @@ export const UniversalVideoPlayer = forwardRef<
     }
   }, []);
 
-  /** Troca para a próxima fonte do Drive preservando a posição atual. */
-  const nextDriveSource = useCallback(() => {
-    const video = videoRef.current;
-
-    if (video && video.currentTime > 0 && Number.isFinite(video.currentTime)) {
-      pendingSeekRef.current = video.currentTime;
-    }
-
-    if (driveSourceIdx < driveCandidates.length - 1) {
-      setDriveSourceIdx((idx) => idx + 1);
-      setStalled(false);
-      setError("");
-    } else {
-      // Última tentativa nativa falhou: usa o iframe de preview do Drive.
-      setDriveUseIframe(true);
-      setStalled(false);
-      setError("");
-    }
-  }, [driveSourceIdx, driveCandidates.length]);
-
-  nextSourceRef.current = nextDriveSource;
-
-  /**
-   * Troca de fonte com limite: no máximo 3 tentativas automáticas. Depois disso
-   * mostramos um aviso com botão em vez de recarregar em loop (o que deixava a
-   * tela preta poucos segundos depois de começar o vídeo).
-   */
-  const tryNextSource = useCallback(() => {
-    if (switchCountRef.current >= 3) {
-      setStalled(false);
-      setError(
-        "A fonte deste vídeo parou de responder. Tente novamente ou use o player alternativo."
-      );
-      return;
-    }
-
-    switchCountRef.current += 1;
-    nextSourceRef.current();
-  }, []);
-
-  /** Recupera de travamento/tela preta: tenta tocar de novo ou troca de fonte. */
-  const recover = useCallback(() => {
-    const video = videoRef.current;
-
-    if (!video) {
-      return;
-    }
-
-    if (video.error || stalledRef.current) {
-      if (isDrive && driveCandidates.length > 0) {
-        tryNextSource();
-      } else {
-        video.load();
-        video
-          .play()
-          .then(() => {
-            setStalled(false);
-            setError("");
-          })
-          .catch(() => {
-            setStalled(false);
-            setError(
-              "Não foi possível reproduzir este vídeo. Tente novamente."
-            );
-          });
-      }
-      return;
-    }
-
-    if (video.paused) {
-      video.play().catch(() => {});
-    }
-  }, [isDrive, driveCandidates.length, tryNextSource]);
-
   const togglePlay = () => {
     const video = videoRef.current;
-
-    if (!video) {
-      return;
-    }
-
-    // Travado/erro: clicar não deve pausar para uma tela preta — recupera.
-    if (stalledRef.current || video.error) {
-      recover();
-      return;
-    }
-
+    if (!video) return;
     if (video.paused) {
       video.play().catch(() => {});
     } else {
       video.pause();
     }
-
     resetControlsTimer();
   };
 
   const skip = (seconds: number) => {
     const video = videoRef.current;
-
-    if (!video) {
-      return;
-    }
-
-    video.currentTime = Math.max(
-      0,
-      Math.min(video.duration || Infinity, video.currentTime + seconds)
-    );
-
+    if (!video) return;
+    video.currentTime = Math.max(0, Math.min(video.duration || Infinity, video.currentTime + seconds));
     resetControlsTimer();
   };
 
   const toggleMute = () => {
     const video = videoRef.current;
-
-    if (!video) {
-      return;
-    }
-
+    if (!video) return;
     video.muted = !video.muted;
     setMuted(video.muted);
-
     if (!video.muted && video.volume === 0) {
       video.volume = 1;
       setVolume(1);
@@ -369,36 +141,23 @@ export const UniversalVideoPlayer = forwardRef<
 
   const changeVolume = (value: number) => {
     const video = videoRef.current;
-
-    if (!video) {
-      return;
-    }
-
+    if (!video) return;
     video.volume = value;
     video.muted = value === 0;
-
     setVolume(value);
     setMuted(value === 0);
   };
 
   const changeTime = (value: number) => {
     const video = videoRef.current;
-
-    if (!video) {
-      return;
-    }
-
+    if (!video) return;
     video.currentTime = value;
     setCurrentTime(value);
   };
 
   const toggleFullscreen = async () => {
     const container = containerRef.current;
-
-    if (!container) {
-      return;
-    }
-
+    if (!container) return;
     try {
       if (!document.fullscreenElement) {
         await container.requestFullscreen();
@@ -414,48 +173,29 @@ export const UniversalVideoPlayer = forwardRef<
 
   const changePlaybackRate = (rate: number) => {
     const video = videoRef.current;
-
-    if (!video) {
-      return;
-    }
-
+    if (!video) return;
     video.playbackRate = rate;
     setPlaybackRate(rate);
     setShowSettings(false);
   };
 
-  /* ------------------- Carregamento da fonte ------------------- */
+  // Carregamento da fonte
   useEffect(() => {
     const video = videoRef.current;
-
-    if (!video || !src || useIframe) {
-      return;
-    }
+    if (!video || !src) return;
 
     setError("");
     setLoading(true);
     setPlaying(false);
-    setStalled(false);
+    setBuffering(false);
     setCurrentTime(0);
     setDuration(0);
 
-    const cleanUrl = activeUrl.trim();
-    const type = getVideoType(cleanUrl);
-
-    if (type === "mkv") {
-      setLoading(false);
-      setError(
-        "Este navegador não reproduz MKV diretamente. Use MP4 ou HLS (M3U8)."
-      );
-      return;
-    }
-
-    if (hlsRef.current) {
-      hlsRef.current.destroy();
-      hlsRef.current = null;
-    }
+    const cleanUrl = src.trim();
 
     video.removeAttribute("src");
+    video.load();
+    video.src = cleanUrl;
     video.load();
 
     const handleLoadedMetadata = () => {
@@ -463,7 +203,6 @@ export const UniversalVideoPlayer = forwardRef<
       setDuration(video.duration);
       callbacksRef.current.onReady?.(video.duration);
 
-      // Aplica a posição de retomada (inicial ou escolhida pelo usuário).
       const target = pendingSeekRef.current ?? initialTimeRef.current;
       pendingSeekRef.current = null;
       if (target > 0 && Number.isFinite(target) && target < video.duration) {
@@ -471,25 +210,24 @@ export const UniversalVideoPlayer = forwardRef<
         setCurrentTime(target);
       }
 
-      if (autoPlayRef.current) {
+      if (autoPlay) {
         video.play().catch(() => {});
       }
     };
 
     const handlePlay = () => {
       setPlaying(true);
-      setStalled(false);
+      setBuffering(false);
+      playingRef.current = true;
       resetControlsTimer();
     };
 
     const handlePause = () => {
       setPlaying(false);
       setShowControls(true);
+      playingRef.current = false;
       callbacksRef.current.onPause?.();
-
-      if (hideControlsTimer.current) {
-        clearTimeout(hideControlsTimer.current);
-      }
+      if (hideControlsTimer.current) clearTimeout(hideControlsTimer.current);
     };
 
     const handleTimeUpdate = () => {
@@ -503,27 +241,14 @@ export const UniversalVideoPlayer = forwardRef<
       callbacksRef.current.onEnded?.();
     };
 
-    const handleWaiting = () => {
-      setStalled(true);
-    };
-
-    const handlePlaying = () => {
-      setStalled(false);
-    };
+    const handleWaiting = () => setBuffering(true);
+    const handlePlaying = () => setBuffering(false);
+    const handleCanPlay = () => setBuffering(false);
 
     const handleError = () => {
       setLoading(false);
-      setStalled(false);
-
-      // Para Google Drive: tenta a próxima fonte automaticamente.
-      if (isDriveRef.current && driveCandidatesLenRef.current > 0) {
-        tryNextSource();
-        return;
-      }
-
-      setError(
-        "Não foi possível reproduzir este vídeo. Verifique se a URL aponta diretamente para o vídeo."
-      );
+      setBuffering(false);
+      setError("Não foi possível reproduzir este vídeo. Verifique se a URL está correta.");
     };
 
     video.addEventListener("loadedmetadata", handleLoadedMetadata);
@@ -533,80 +258,8 @@ export const UniversalVideoPlayer = forwardRef<
     video.addEventListener("ended", handleEnded);
     video.addEventListener("waiting", handleWaiting);
     video.addEventListener("playing", handlePlaying);
+    video.addEventListener("canplay", handleCanPlay);
     video.addEventListener("error", handleError);
-
-    if (type === "hls") {
-      if (video.canPlayType("application/vnd.apple.mpegurl")) {
-        video.src = cleanUrl;
-        video.load();
-      } else if (Hls.isSupported()) {
-        const hls = new Hls({
-          enableWorker: true,
-          lowLatencyMode: false,
-        });
-
-        hlsRef.current = hls;
-
-        hls.loadSource(cleanUrl);
-        hls.attachMedia(video);
-
-        hls.on(Hls.Events.MANIFEST_PARSED, () => {
-          setLoading(false);
-
-          if (maxHeightRef.current > 0) {
-            const allowed = hls.levels
-              .map((level, index) => ({ index, height: level.height ?? 0 }))
-              .filter(
-                (level) =>
-                  level.height === 0 || level.height <= maxHeightRef.current
-              );
-
-            if (allowed.length > 0 && allowed.length < hls.levels.length) {
-              hls.autoLevelCapping = allowed[allowed.length - 1]!.index;
-            }
-          }
-
-          if (autoPlayRef.current) {
-            video.play().catch(() => {});
-          }
-        });
-
-        // Erros de rede/mídia no HLS são recuperáveis: recuperar em vez de
-        // derrubar o player (era isso que deixava a tela preta no meio do vídeo).
-        let hlsRetries = 0;
-
-        hls.on(Hls.Events.ERROR, (_event, data) => {
-          if (!data.fatal) {
-            return;
-          }
-
-          if (hlsRetries < 3) {
-            hlsRetries += 1;
-            setStalled(true);
-
-            if (data.type === Hls.ErrorTypes.MEDIA_ERROR) {
-              hls.recoverMediaError();
-            } else {
-              hls.startLoad();
-            }
-
-            return;
-          }
-
-          setLoading(false);
-          setStalled(false);
-          setError(
-            "Não foi possível carregar o vídeo HLS. Verifique se a URL M3U8 está pública."
-          );
-        });
-      } else {
-        setLoading(false);
-        setError("Este navegador não suporta reprodução HLS.");
-      }
-    } else {
-      video.src = cleanUrl;
-      video.load();
-    }
 
     return () => {
       video.removeEventListener("loadedmetadata", handleLoadedMetadata);
@@ -616,167 +269,27 @@ export const UniversalVideoPlayer = forwardRef<
       video.removeEventListener("ended", handleEnded);
       video.removeEventListener("waiting", handleWaiting);
       video.removeEventListener("playing", handlePlaying);
+      video.removeEventListener("canplay", handleCanPlay);
       video.removeEventListener("error", handleError);
-
-      if (hlsRef.current) {
-        hlsRef.current.destroy();
-        hlsRef.current = null;
-      }
-
-      if (hideControlsTimer.current) {
-        clearTimeout(hideControlsTimer.current);
-      }
+      if (hideControlsTimer.current) clearTimeout(hideControlsTimer.current);
     };
-    // ATENÇÃO: dependa apenas da URL ativa. Incluir callbacks/props que mudam
-    // durante a reprodução (initialTime, maxHeight, nextDriveSource...) fazia o
-    // efeito rodar de novo, chamando video.load() e apagando a imagem.
-  }, [activeUrl, useIframe, src, resetControlsTimer, tryNextSource]);
-
-  /* --------------- Detecção de travamento (tela preta) --------------- */
-  useEffect(() => {
-    const video = videoRef.current;
-
-    if (!video || !src || useIframe || error) {
-      return;
-    }
-
-    let lastProgress = 0;
-    let lastProgressAt = Date.now();
-    let stalledAt: number | null = null;
-    let frozenAt: number | null = null;
-
-    const check = setInterval(() => {
-      if (!video || video.error || video.ended) {
-        return;
-      }
-
-      const now = Date.now();
-
-      // Esperando buffer há tempo demais -> troca de fonte automaticamente.
-      if (stalledAt && now - stalledAt > 15000) {
-        stalledAt = null;
-        if (isDrive && driveCandidates.length > 0) {
-          tryNextSource();
-        }
-        return;
-      }
-
-      // Tocando, mas o tempo não avança (congelou sem disparar eventos).
-      if (
-        !video.paused &&
-        video.readyState >= 2 &&
-        video.currentTime > 0 &&
-        video.duration > 1 &&
-        video.currentTime < video.duration - 1
-      ) {
-        if (Math.abs(video.currentTime - lastProgress) < 0.1) {
-          if (!frozenAt) {
-            frozenAt = now;
-          } else if (now - frozenAt > 12000) {
-            frozenAt = null;
-            setStalled(true);
-            if (isDrive && driveCandidates.length > 0) {
-              tryNextSource();
-            }
-          }
-        } else {
-          frozenAt = null;
-          lastProgress = video.currentTime;
-          lastProgressAt = now;
-        }
-      } else {
-        frozenAt = null;
-      }
-    }, 500);
-
-    const onWaiting = () => {
-      stalledAt = Date.now();
-      setStalled(true);
-    };
-    const onPlaying = () => {
-      stalledAt = null;
-      frozenAt = null;
-      switchCountRef.current = 0;
-      setStalled(false);
-    };
-
-    video.addEventListener("waiting", onWaiting);
-    video.addEventListener("playing", onPlaying);
-    video.addEventListener("seeking", onPlaying);
-
-    return () => {
-      clearInterval(check);
-      video.removeEventListener("waiting", onWaiting);
-      video.removeEventListener("playing", onPlaying);
-      video.removeEventListener("seeking", onPlaying);
-    };
-  }, [src, useIframe, error, isDrive, driveCandidates.length, tryNextSource]);
+  }, [src, autoPlay, resetControlsTimer]);
 
   useEffect(() => {
     const handleFullscreenChange = () => {
       setFullscreen(Boolean(document.fullscreenElement));
     };
-
     document.addEventListener("fullscreenchange", handleFullscreenChange);
-
-    return () => {
-      document.removeEventListener("fullscreenchange", handleFullscreenChange);
-    };
+    return () => document.removeEventListener("fullscreenchange", handleFullscreenChange);
   }, []);
-
-  /* ---------------- Fallback: iframe de preview do Drive ---------------- */
-  if (useIframe && driveId) {
-    return (
-      <div
-        ref={containerRef}
-        className={`relative aspect-video w-full overflow-hidden bg-black ${className}`}
-      >
-        {backdrop && (
-          <img
-            src={backdrop}
-            alt=""
-            className="absolute inset-0 h-full w-full object-cover opacity-40"
-            aria-hidden
-          />
-        )}
-
-        <iframe
-          src={`https://drive.google.com/file/d/${driveId}/preview`}
-          className="relative z-10 h-full w-full border-0"
-          allow="autoplay; fullscreen"
-          allowFullScreen
-          title="MovieFlix Player"
-        />
-      </div>
-    );
-  }
 
   if (error) {
     return (
-      <div
-        className={`flex aspect-video w-full items-center justify-center rounded-xl bg-black p-6 text-center ${className}`}
-      >
+      <div className={`flex aspect-video w-full items-center justify-center rounded-xl bg-black p-6 text-center ${className}`}>
         <div className="max-w-xl">
-          <div className="mb-4 text-4xl">!</div>
-
-          <p className="text-lg font-semibold text-white">
-            Não foi possível reproduzir
-          </p>
-
+          <div className="mb-4 text-4xl">⚠️</div>
+          <p className="text-lg font-semibold text-white">Não foi possível reproduzir</p>
           <p className="mt-2 text-sm text-zinc-400">{error}</p>
-
-          {isDrive && (
-            <button
-              type="button"
-              onClick={() => {
-                setDriveUseIframe(true);
-                setError("");
-              }}
-              className="mt-5 rounded-full bg-brand-600 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-brand-500"
-            >
-              Abrir no player alternativo
-            </button>
-          )}
         </div>
       </div>
     );
@@ -785,7 +298,7 @@ export const UniversalVideoPlayer = forwardRef<
   return (
     <div
       ref={containerRef}
-      className={`group relative aspect-video w-full overflow-hidden bg-black ${className}`}
+      className={`group relative aspect-video w-full overflow-hidden rounded-xl bg-black ${className}`}
       onMouseMove={resetControlsTimer}
       onMouseLeave={() => {
         if (playing) {
@@ -794,7 +307,6 @@ export const UniversalVideoPlayer = forwardRef<
         }
       }}
     >
-      {/* Fundo com a imagem do filme enquanto o vídeo não tem frame (nunca fica só preto). */}
       {backdrop && (
         <img
           src={backdrop}
@@ -819,50 +331,33 @@ export const UniversalVideoPlayer = forwardRef<
         </span>
       )}
 
-      {loading && !stalled && (
+      {loading && !buffering && (
         <div className="absolute inset-0 z-20 flex items-center justify-center bg-black/60">
           <div className="text-center">
-            <div className="mx-auto h-12 w-12 animate-spin rounded-full border-4 border-zinc-700 border-t-brand-500" />
-
-            <p className="mt-4 text-sm text-zinc-300">
-              Carregando video...
-            </p>
+            <div className="mx-auto h-12 w-12 animate-spin rounded-full border-4 border-zinc-700 border-t-red-600" />
+            <p className="mt-4 text-sm text-zinc-300">Carregando vídeo...</p>
           </div>
         </div>
       )}
 
-      {stalled && (
+      {buffering && (
         <div className="absolute inset-0 z-20 flex items-center justify-center bg-black/70">
           <div className="text-center">
-            <div className="mx-auto h-12 w-12 animate-spin rounded-full border-4 border-zinc-700 border-t-brand-500" />
-
-            <p className="mt-4 text-sm font-semibold text-white">
-              Recuperando vídeo...
-            </p>
-
-            <p className="mt-1 text-xs text-zinc-400">
-              A imagem parou — estamos tentando outra fonte.
-            </p>
-
-            <button
-              type="button"
-              onClick={recover}
-              className="mt-4 rounded-full bg-brand-600 px-5 py-2 text-sm font-semibold text-white transition hover:bg-brand-500"
-            >
-              Tentar de novo
-            </button>
+            <div className="mx-auto h-12 w-12 animate-spin rounded-full border-4 border-zinc-700 border-t-red-600" />
+            <p className="mt-4 text-sm font-semibold text-white">Recuperando vídeo...</p>
+            <p className="mt-1 text-xs text-zinc-400">A imagem parou — estamos tentando outra fonte.</p>
           </div>
         </div>
       )}
 
-      {!loading && !playing && !stalled && (
+      {!loading && !playing && !buffering && (
         <button
           type="button"
           onClick={togglePlay}
-          className="absolute left-1/2 top-1/2 z-20 flex h-20 w-20 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full bg-brand-600 text-3xl text-white shadow-2xl transition hover:scale-110 hover:bg-brand-500"
+          className="absolute left-1/2 top-1/2 z-20 flex h-20 w-20 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full bg-red-600 text-3xl text-white shadow-2xl transition hover:scale-110 hover:bg-red-500"
           aria-label="Reproduzir"
         >
-          ▶
+          <svg className="h-8 w-8 fill-white" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
         </button>
       )}
 
@@ -872,6 +367,7 @@ export const UniversalVideoPlayer = forwardRef<
             showControls ? "opacity-100" : "pointer-events-none opacity-0"
           }`}
         >
+          {/* Barra de progresso */}
           <div className="mb-3">
             <input
               type="range"
@@ -879,114 +375,123 @@ export const UniversalVideoPlayer = forwardRef<
               max={duration || 0}
               step="0.1"
               value={Math.min(currentTime, duration || 0)}
-              onChange={(event) => changeTime(Number(event.target.value))}
-              className="h-1.5 w-full cursor-pointer appearance-none rounded-full accent-brand-500"
+              onChange={(e) => changeTime(Number(e.target.value))}
+              className="h-1.5 w-full cursor-pointer appearance-none rounded-full accent-red-600"
+              style={{
+                background: `linear-gradient(to right, #dc2626 0%, #dc2626 ${(currentTime / (duration || 1)) * 100}%, #3f3f46 ${(currentTime / (duration || 1)) * 100}%, #3f3f46 100%)`
+              }}
               aria-label="Progresso do vídeo"
             />
           </div>
 
           <div className="flex items-center gap-3 text-white">
+            {/* Play/Pause */}
             <button
               type="button"
               onClick={togglePlay}
-              className="text-xl transition hover:text-brand-400"
+              className="text-xl transition hover:text-red-500"
               aria-label={playing ? "Pausar" : "Reproduzir"}
             >
-              {playing ? "❚❚" : "▶"}
+              {playing ? (
+                <svg className="h-6 w-6 fill-white" viewBox="0 0 24 24"><path d="M6 4h4v16H6zm8 0h4v16h-4z"/></svg>
+              ) : (
+                <svg className="h-6 w-6 fill-white" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+              )}
             </button>
 
+            {/* Voltar 10s */}
             <button
               type="button"
               onClick={() => skip(-10)}
-              className="text-sm font-medium transition hover:text-brand-400"
+              className="text-sm font-medium transition hover:text-red-500"
               aria-label="Voltar 10 segundos"
             >
-              ↶ 10
+              ⏪ 10
             </button>
 
+            {/* Avançar 10s */}
             <button
               type="button"
               onClick={() => skip(10)}
-              className="text-sm font-medium transition hover:text-brand-400"
+              className="text-sm font-medium transition hover:text-red-500"
               aria-label="Avançar 10 segundos"
             >
-              10 ↷
+              10 ⏩
             </button>
 
+            {/* Mute */}
             <button
               type="button"
               onClick={toggleMute}
-              className="text-lg transition hover:text-brand-400"
+              className="text-lg transition hover:text-red-500"
               aria-label={muted ? "Ativar som" : "Silenciar"}
             >
               {muted || volume === 0 ? "🔇" : "🔊"}
             </button>
 
+            {/* Volume */}
             <input
               type="range"
               min="0"
               max="1"
               step="0.05"
               value={muted ? 0 : volume}
-              onChange={(event) =>
-                changeVolume(Number(event.target.value))
-              }
-              className="hidden w-20 cursor-pointer accent-brand-500 sm:block"
+              onChange={(e) => changeVolume(Number(e.target.value))}
+              className="hidden w-20 cursor-pointer accent-red-600 sm:block"
               aria-label="Volume"
             />
 
+            {/* Tempo */}
             <span className="min-w-fit text-xs text-zinc-300">
               {formatTime(currentTime)} / {formatTime(duration)}
             </span>
 
             <div className="ml-auto flex items-center gap-3">
+              {/* HD badge */}
               <span className="hidden rounded bg-white/10 px-2 py-1 text-xs font-semibold text-white sm:inline">
                 HD
               </span>
 
+              {/* Configurações */}
               <button
                 type="button"
-                onClick={() => setShowSettings((value) => !value)}
-                className="text-lg transition hover:text-brand-400"
+                onClick={() => setShowSettings((v) => !v)}
+                className="text-lg transition hover:text-red-500"
                 aria-label="Configurações"
               >
-                ⚙
+                ⚙️
               </button>
 
+              {/* Fullscreen */}
               <button
                 type="button"
                 onClick={toggleFullscreen}
-                className="text-lg transition hover:text-brand-400"
+                className="text-lg transition hover:text-red-500"
                 aria-label="Tela cheia"
               >
-                ⛶
+                {fullscreen ? "⛶" : "⛶"}
               </button>
             </div>
           </div>
         </div>
       )}
 
-      {showSettings && (
+      {/* Painel de configurações */}
+      {showSettings && showControls && (
         <div className="absolute bottom-20 right-4 z-40 w-56 rounded-xl border border-white/10 bg-zinc-950/95 p-4 shadow-2xl backdrop-blur">
           <div className="mb-3">
-            <p className="text-sm font-semibold text-white">
-              Qualidade
-            </p>
-
+            <p className="text-sm font-semibold text-white">Qualidade</p>
             <button
               type="button"
-              className="mt-2 flex w-full items-center justify-between rounded-lg bg-brand-600/20 px-3 py-2 text-left text-sm text-white"
+              className="mt-2 flex w-full items-center justify-between rounded-lg bg-red-600/20 px-3 py-2 text-left text-sm text-white"
             >
               <span>HD</span>
-              <span className="text-xs text-brand-400">Atual</span>
+              <span className="text-xs text-red-400">Atual</span>
             </button>
           </div>
 
           <div className="border-t border-white/10 pt-3">
-            <p className="text-sm font-semibold text-white">
-              Velocidade
-            </p>
-
+            <p className="text-sm font-semibold text-white">Velocidade</p>
             <div className="mt-2 grid grid-cols-2 gap-2">
               {[0.75, 1, 1.25, 1.5, 2].map((rate) => (
                 <button
@@ -995,7 +500,7 @@ export const UniversalVideoPlayer = forwardRef<
                   onClick={() => changePlaybackRate(rate)}
                   className={`rounded-lg px-2 py-2 text-xs transition ${
                     playbackRate === rate
-                      ? "bg-brand-600 text-white"
+                      ? "bg-red-600 text-white"
                       : "bg-white/5 text-zinc-300 hover:bg-white/10"
                   }`}
                 >
@@ -1006,12 +511,9 @@ export const UniversalVideoPlayer = forwardRef<
           </div>
 
           <div className="mt-4 border-t border-white/10 pt-3">
-            <p className="text-sm font-semibold text-white">
-              Audio
-            </p>
-
-            <div className="mt-2 rounded-lg bg-brand-600/20 px-3 py-2 text-xs text-white">
-              Portugues (Brasil)
+            <p className="text-sm font-semibold text-white">Áudio</p>
+            <div className="mt-2 rounded-lg bg-red-600/20 px-3 py-2 text-xs text-white">
+              Português (Brasil)
             </div>
           </div>
         </div>
