@@ -3,9 +3,13 @@ import type { MediaType, TmdbPage, TmdbTitle, TmdbVideo } from '@/types';
 const IMG_BASE = 'https://image.tmdb.org/t/p';
 
 // A chave da TMDb vive no servidor (backend/server.js) e é acessada pelo
-// frontend via proxy /api/tmdb. Em produção, defina VITE_API_URL apontando
-// para o backend; vazio = mesma origem (Vite dev proxy cuida de /api no dev).
-const API_URL = (import.meta.env.VITE_API_URL as string) ?? '';
+// frontend via proxy /api/tmdb. Como o site pode ser publicado como Static
+// Site (sem backend — onde /api/* responde o HTML do SPA e a busca quebra),
+// o cliente usa nesta ordem:
+//   1. VITE_API_URL, se definida no build (ex.: proxy próprio);
+//   2. o backend público do MovieFlix, que tem CORS liberado (server.js).
+const PUBLIC_API_URL = 'https://movieflix-api-udsv.onrender.com';
+const API_URL = (import.meta.env.VITE_API_URL as string) || PUBLIC_API_URL;
 
 export const img = (path: string | null, size: 'w300' | 'w500' | 'w780' | 'w1280' | 'original' = 'w500') =>
   path ? `${IMG_BASE}/${size}${path}` : '';
@@ -26,7 +30,15 @@ async function tmdbFetch<T>(path: string, params: Record<string, string | number
   Object.entries(params).forEach(([k, v]) => search.set(k, String(v)));
 
   const query = search.toString();
-  const res = await fetch(`${API_URL}/api/tmdb${path}${query ? `?${query}` : ''}`);
+  const suffix = `${path}${query ? `?${query}` : ''}`;
+
+  let res = await fetch(`${API_URL}/api/tmdb${suffix}`);
+
+  // Static Site sem proxy responde o HTML do SPA (status 200) em /api/*:
+  // detecta e tenta de novo no backend público.
+  if (!res.headers.get('content-type')?.includes('application/json')) {
+    res = await fetch(`${PUBLIC_API_URL}/api/tmdb${suffix}`);
+  }
 
   if (!res.ok) throw new Error(`TMDb ${res.status}`);
   return res.json() as Promise<T>;
