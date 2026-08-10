@@ -1,6 +1,8 @@
-﻿import { useState } from 'react';
+import { useState } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { useEntitlements } from '@/hooks/useEntitlements';
+import { useViewerProfiles } from '@/hooks/useViewerProfiles';
+import { ProfileFormModal } from '@/components/profile/ProfileFormModal';
 import { supabase } from '@/lib/supabase';
 import {
   User as UserIcon,
@@ -10,18 +12,30 @@ import {
   Shield,
   Check,
   Loader2,
+  Users,
+  Pencil,
+  Trash2,
+  Plus,
+  Baby,
+  ArrowLeftRight,
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { ErrorBanner } from '@/pages/auth/LoginPage';
+import type { ViewerProfile } from '@/types';
 
 export function ProfilePage() {
-  const { user, profile, subscription, refreshProfile } = useAuth();
-  const { planName } = useEntitlements();
+  const { user, profile, subscription, refreshProfile, activeViewerProfile, setActiveViewerProfile } = useAuth();
+  const { planName, entitlements } = useEntitlements();
+  const { profiles, loading: loadingProfiles, create, update, remove } = useViewerProfiles();
 
   const [name, setName] = useState(profile?.email ?? '');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [ok, setOk] = useState(false);
+
+  const [modalOpen, setModalOpen] = useState(false);
+  const [editingProfile, setEditingProfile] = useState<ViewerProfile | null>(null);
+  const [profileMsg, setProfileMsg] = useState<{ tipo: 'ok' | 'erro'; texto: string } | null>(null);
 
   if (!user) {
     return (
@@ -32,6 +46,9 @@ export function ProfilePage() {
       </div>
     );
   }
+
+  const maxProfiles = entitlements.maxProfiles;
+  const remaining = Math.max(0, maxProfiles - profiles.length);
 
   const save = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -59,6 +76,41 @@ export function ProfilePage() {
     }
   };
 
+  function openCreate() {
+    if (profiles.length >= maxProfiles) return;
+    setEditingProfile(null);
+    setModalOpen(true);
+  }
+
+  function openEdit(p: ViewerProfile) {
+    setEditingProfile(p);
+    setModalOpen(true);
+  }
+
+  async function handleSubmit(input: { name: string; avatar: string; is_kid: boolean }) {
+    const res = editingProfile ? await update(editingProfile.id, input) : await create(input);
+    if (res.error) throw new Error(res.error);
+    setProfileMsg({ tipo: 'ok', texto: editingProfile ? 'Perfil atualizado.' : 'Perfil criado.' });
+  }
+
+  async function handleRemove(p: ViewerProfile) {
+    if (!window.confirm(`Excluir o perfil "${p.name}"? O histórico dele será apagado.`)) return;
+    const res = await remove(p.id);
+    if (res.error) {
+      setProfileMsg({ tipo: 'erro', texto: res.error });
+      return;
+    }
+    if (activeViewerProfile?.id === p.id) {
+      setActiveViewerProfile(null);
+    }
+    setProfileMsg({ tipo: 'ok', texto: 'Perfil excluído.' });
+  }
+
+  function switchProfile(p: ViewerProfile) {
+    setActiveViewerProfile(p);
+    setProfileMsg({ tipo: 'ok', texto: `Agora assistindo como ${p.name}.` });
+  }
+
   return (
     <div className="min-h-screen bg-ink-950 px-4 py-10 text-white">
       <div className="mx-auto max-w-6xl">
@@ -67,11 +119,126 @@ export function ProfilePage() {
         </h1>
 
         <p className="mt-2 text-ink-300">
-          Gerencie suas informações de conta.
+          Gerencie suas informações de conta e perfis de exibição.
         </p>
 
-        <div className="mt-8 grid gap-6 lg:grid-cols-3">
-          <div className="card-surface p-6 lg:col-span-2">
+        <div className="mt-8 space-y-6">
+          {/* ---- Perfis de exibição (troca de perfil + limite por plano) ---- */}
+          <div className="card-surface p-6">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <h2 className="flex items-center gap-2 font-semibold text-white">
+                <Users className="h-5 w-5 text-brand-400" />
+                Perfis de exibição
+              </h2>
+
+              <span className="chip">
+                {profiles.length}/{maxProfiles} perfis •{' '}
+                {remaining > 0 ? `${remaining} restante${remaining === 1 ? '' : 's'}` : 'limite do plano'}
+              </span>
+            </div>
+
+            <p className="mt-2 text-sm text-ink-300">
+              Cada perfil tem seu próprio histórico de "Continuar assistindo".{' '}
+              {remaining > 0
+                ? `Seu plano permite até ${maxProfiles} perfis (incluindo o infantil).`
+                : `Você atingiu o limite de ${maxProfiles} perfis do seu plano.`}
+            </p>
+
+            {profileMsg && (
+              <p
+                className={`mt-3 text-sm ${
+                  profileMsg.tipo === 'ok' ? 'text-emerald-300' : 'text-red-400'
+                }`}
+              >
+                {profileMsg.texto}
+              </p>
+            )}
+
+            {loadingProfiles ? (
+              <p className="mt-4 flex items-center gap-2 text-sm text-ink-400">
+                <Loader2 className="h-4 w-4 animate-spin" /> Carregando perfis…
+              </p>
+            ) : (
+              <div className="mt-5 flex flex-wrap gap-4">
+                {profiles.map((p) => {
+                  const isActive = activeViewerProfile?.id === p.id;
+                  return (
+                    <div
+                      key={p.id}
+                      className={`group relative w-32 rounded-2xl border p-3 text-center transition ${
+                        isActive
+                          ? 'border-brand-500 bg-brand-600/10'
+                          : 'border-white/10 bg-white/5 hover:border-white/25'
+                      }`}
+                    >
+                      <div className="relative mx-auto h-20 w-20 overflow-hidden rounded-xl bg-ink-800">
+                        <img src={p.avatar_url} alt={p.name} className="h-full w-full object-cover" />
+                        {p.is_kid && (
+                          <span className="absolute inset-x-0 bottom-0 flex justify-center pb-0.5">
+                            <span className="flex items-center gap-0.5 rounded-full bg-amber-400/90 px-1.5 py-0.5 text-[9px] font-bold text-black">
+                              <Baby className="h-2.5 w-2.5" /> Infantil
+                            </span>
+                          </span>
+                        )}
+                      </div>
+
+                      <p className="mt-2 truncate text-sm font-semibold text-white">{p.name}</p>
+                      <p className="text-[10px] text-ink-400">
+                        {isActive ? 'Perfil atual' : p.is_kid ? 'Apenas infantil' : 'Acesso total'}
+                      </p>
+
+                      <div className="mt-2 flex items-center justify-center gap-1">
+                        {!isActive && (
+                          <button
+                            onClick={() => switchProfile(p)}
+                            className="flex items-center gap-1 rounded-full bg-brand-600 px-2.5 py-1 text-[11px] font-semibold text-white transition hover:bg-brand-500"
+                            title="Trocar para este perfil"
+                          >
+                            <ArrowLeftRight className="h-3 w-3" /> Trocar
+                          </button>
+                        )}
+                        <button
+                          onClick={() => openEdit(p)}
+                          className="rounded-full bg-white/10 p-1.5 text-ink-200 transition hover:bg-white/20 hover:text-white"
+                          title="Editar perfil"
+                        >
+                          <Pencil className="h-3.5 w-3.5" />
+                        </button>
+                        <button
+                          onClick={() => handleRemove(p)}
+                          className="rounded-full bg-white/10 p-1.5 text-ink-200 transition hover:bg-red-600/80 hover:text-white"
+                          title="Excluir perfil"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+
+                {profiles.length < maxProfiles && (
+                  <button
+                    onClick={openCreate}
+                    className="flex w-32 flex-col items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-white/15 bg-ink-800/40 p-3 text-ink-400 transition hover:border-brand-500 hover:text-brand-400"
+                  >
+                    <Plus className="h-8 w-8" />
+                    <span className="text-xs font-medium">Adicionar perfil</span>
+                  </button>
+                )}
+              </div>
+            )}
+
+            <div className="mt-5 flex flex-wrap items-center gap-3 border-t border-white/10 pt-4 text-xs text-ink-400">
+              <span>
+                Limite do plano <strong className="text-white">{planName ?? 'sem assinatura'}</strong>: até{' '}
+                <strong className="text-white">{maxProfiles} perfis</strong> — o perfil infantil está disponível
+                em todos os planos.
+              </span>
+            </div>
+          </div>
+
+          {/* ---- Dados da conta ---- */}
+          <div className="card-surface p-6">
             <h2 className="flex items-center gap-2 font-semibold text-white">
               <UserIcon className="h-5 w-5 text-brand-400" />
               Dados da conta
@@ -131,7 +298,8 @@ export function ProfilePage() {
             </form>
           </div>
 
-          <div className="space-y-6">
+          {/* ---- Assinatura + Admin ---- */}
+          <div className="grid gap-6 lg:grid-cols-2">
             <div className="card-surface p-6">
               <h2 className="flex items-center gap-2 font-semibold text-white">
                 <Crown className="h-5 w-5 text-brand-400" />
@@ -187,27 +355,35 @@ export function ProfilePage() {
               )}
             </div>
 
-            <div className="card-surface p-6">
-              <h2 className="flex items-center gap-2 font-semibold text-white">
-                <Shield className="h-5 w-5 text-brand-400" />
-                Administrador
-              </h2>
+            {profile?.is_admin && (
+              <div className="card-surface p-6">
+                <h2 className="flex items-center gap-2 font-semibold text-white">
+                  <Shield className="h-5 w-5 text-brand-400" />
+                  Administrador
+                </h2>
 
-              <p className="mt-2 text-sm text-ink-300">
-                Você tem acesso ao painel administrativo.
-              </p>
+                <p className="mt-2 text-sm text-ink-300">
+                  Você tem acesso ao painel administrativo.
+                </p>
 
-              <Link
-                to="/admin"
-                className="btn-outline mt-3 w-full"
-              >
-                Abrir painel
-              </Link>
-            </div>
+                <Link
+                  to="/admin"
+                  className="btn-outline mt-3 w-full"
+                >
+                  Abrir painel
+                </Link>
+              </div>
+            )}
           </div>
         </div>
       </div>
+
+      <ProfileFormModal
+        open={modalOpen}
+        onClose={() => setModalOpen(false)}
+        editing={editingProfile}
+        onSubmit={handleSubmit}
+      />
     </div>
   );
 }
-

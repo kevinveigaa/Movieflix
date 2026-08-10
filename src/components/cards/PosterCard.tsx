@@ -8,6 +8,8 @@ interface MovieCardProps {
   className?: string;
   forceType?: "movie" | "tv";
   mediaType?: "movie" | "tv";
+  /** Progresso de reprodução (0-100) para exibir a barra de "Continuar assistindo". */
+  progress?: number;
 }
 
 export function PosterCard({
@@ -15,6 +17,7 @@ export function PosterCard({
   className,
   forceType,
   mediaType = "movie",
+  progress,
 }: MovieCardProps) {
   return (
     <Link
@@ -38,6 +41,15 @@ export function PosterCard({
             <Play className="h-3.5 w-3.5 sm:h-4 sm:w-4" fill="currentColor" />
           </span>
         </div>
+
+        {typeof progress === "number" && progress > 0 && progress < 100 && (
+          <div className="absolute inset-x-0 bottom-0 h-1 w-full bg-black/60">
+            <div
+              className="h-full bg-brand-500"
+              style={{ width: `${Math.min(100, Math.max(0, progress))}%` }}
+            />
+          </div>
+        )}
       </div>
 
       <div className="pt-2">

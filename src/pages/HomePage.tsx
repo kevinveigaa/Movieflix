@@ -2,6 +2,7 @@ import { useMemo, useRef, useState, useEffect } from "react";
 import { PosterCard, PosterCardSkeleton } from "@/components/cards/PosterCard";
 import { HeroBanner, HeroBannerSkeleton } from "@/components/home/HeroBanner";
 import { useMovies } from "@/hooks/useMovies";
+import { useWatchHistory } from "@/hooks/useWatchHistory";
 import { useAuth, hasActiveSubscription } from "@/context/AuthContext";
 import { Link } from "react-router-dom";
 import { Crown, Sparkles, ChevronLeft, ChevronRight } from "lucide-react";
@@ -11,6 +12,7 @@ export function HomePage() {
   const { subscription, activeViewerProfile } = useAuth();
   const isKid = activeViewerProfile?.is_kid ?? false;
   const movies = useMovies();
+  const history = useWatchHistory();
 
   const KIDS_CATS = ["Infantil", "Familia", "Animacao"];
   const isKidsContent = (movie: any) =>
@@ -23,6 +25,32 @@ export function HomePage() {
   );
 
   const destaques = useMemo(() => visibleMovies.slice(0, 5), [visibleMovies]);
+
+  // Mapa movie_id → % assistido para a barra de progresso nos cards.
+  const progressByMovie = useMemo(() => {
+    const map: Record<string, number> = {};
+    for (const h of history.data ?? []) {
+      if (!h.movie_id) continue;
+      const pct = h.duration_seconds ? Math.min(100, (h.position_seconds / h.duration_seconds) * 100) : 0;
+      map[h.movie_id] = pct;
+    }
+    return map;
+  }, [history.data]);
+
+  // "Continuar assistindo": apenas títulos visíveis (respeita modo infantil),
+  // com progresso relevante e que não chegaram ao fim.
+  const continueWatching = useMemo(() => {
+    const visivel = new Set(visibleMovies.map((m) => m.id));
+    return (history.data ?? [])
+      .filter((h) => {
+        if (!h.movie_id || !visivel.has(h.movie_id)) return false;
+        const pct = h.duration_seconds ? (h.position_seconds / h.duration_seconds) * 100 : 0;
+        return pct >= 2 && pct < 95;
+      })
+      .map((h) => movies.data?.find((m) => m.id === h.movie_id))
+      .filter((m): m is any => Boolean(m))
+      .slice(0, 20);
+  }, [history.data, visibleMovies, movies.data]);
 
   const categorias = useMemo(() => {
     const mapa = new Map<string, any[]>();
@@ -56,9 +84,25 @@ export function HomePage() {
 
         {!movies.isLoading && (
           <>
-            {recentes.length > 0 && <CategoryRow title="Adicionados recentemente" items={recentes} />}
+            {continueWatching.length > 0 && (
+              <CategoryRow
+                title="Continuar assistindo"
+                items={continueWatching}
+                progressMap={progressByMovie}
+                verMaisTo="/continuar"
+              />
+            )}
+            {recentes.length > 0 && (
+              <CategoryRow title="Adicionados recentemente" items={recentes} progressMap={progressByMovie} />
+            )}
             {categorias.map((cat) => (
-              <CategoryRow key={cat.nome} title={cat.nome} items={cat.lista} category={cat.nome} />
+              <CategoryRow
+                key={cat.nome}
+                title={cat.nome}
+                items={cat.lista}
+                category={cat.nome}
+                progressMap={progressByMovie}
+              />
             ))}
           </>
         )}
@@ -69,14 +113,28 @@ export function HomePage() {
 
 /* ---------- Linha de categoria com setas ---------- */
 
-function CategoryRow({ title, items, category }: { title: string; items: any[]; category?: string }) {
+function CategoryRow({
+  title,
+  items,
+  category,
+  progressMap,
+  verMaisTo: verMaisToProp,
+}: {
+  title: string;
+  items: any[];
+  category?: string;
+  /** Mapa movie_id → % assistido, para a barra de "Continuar assistindo". */
+  progressMap?: Record<string, number>;
+  /** Destino do botão "Ver mais" (ex.: /continuar). Default: catálogo da categoria. */
+  verMaisTo?: string;
+}) {
   const ref = useRef<HTMLDivElement>(null);
   const [canLeft, setCanLeft] = useState(false);
   const [canRight, setCanRight] = useState(false);
 
   // "Ver mais" de uma categoria leva à página de catálogo filtrando por ela;
   // uma obra aparece em todas as categorias a que foi atribuída.
-  const verMaisTo = category ? `/filmes?categoria=${encodeURIComponent(category)}` : "/filmes";
+  const verMaisTo = verMaisToProp ?? (category ? `/filmes?categoria=${encodeURIComponent(category)}` : "/filmes");
 
   const update = () => {
     const el = ref.current;
@@ -180,6 +238,7 @@ function CategoryRow({ title, items, category }: { title: string; items: any[]; 
                   quality: movie.quality ?? "HD",
                   type: movie.type ?? "movie",
                 }}
+                progress={progressMap?.[movie.id]}
               />
             </div>
           ))}

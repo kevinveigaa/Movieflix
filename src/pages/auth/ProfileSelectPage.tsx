@@ -1,48 +1,38 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Plus, Pencil, Trash2, Check, X, Film, Baby, User } from 'lucide-react';
+import { Plus, Pencil, Trash2, Check, Film, Baby, Users } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
-import { supabase } from '@/lib/supabase';
+import { useEntitlements } from '@/hooks/useEntitlements';
+import { useViewerProfiles } from '@/hooks/useViewerProfiles';
+import { ProfileFormModal } from '@/components/profile/ProfileFormModal';
+import { PROFILE_AVATARS } from '@/lib/avatars';
 import type { ViewerProfile } from '@/types';
-import { Modal } from '@/components/ui/Modal';
-
-const AVATARS = [
-  'https://api.dicebear.com/7.x/thumbs/svg?seed=1&backgroundColor=ff2d2d',
-  'https://api.dicebear.com/7.x/thumbs/svg?seed=2&backgroundColor=171717',
-  'https://api.dicebear.com/7.x/thumbs/svg?seed=3&backgroundColor=0ea5e9',
-  'https://api.dicebear.com/7.x/thumbs/svg?seed=4&backgroundColor=16a34a',
-  'https://api.dicebear.com/7.x/thumbs/svg?seed=5&backgroundColor=f59e0b',
-  'https://api.dicebear.com/7.x/thumbs/svg?seed=6&backgroundColor=a855f7',
-];
 
 export function ProfileSelectPage() {
-  const { user, loading, setActiveViewerProfile } = useAuth();
+  const { user, loading, setActiveViewerProfile, activeViewerProfile } = useAuth();
+  const { entitlements } = useEntitlements();
   const navigate = useNavigate();
-  const [profiles, setProfiles] = useState<ViewerProfile[]>([]);
-  const [loadingProfiles, setLoadingProfiles] = useState(true);
+  const { profiles, loading: loadingProfiles, create, update, remove } = useViewerProfiles();
   const [editing, setEditing] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
   const [editingProfile, setEditingProfile] = useState<ViewerProfile | null>(null);
-  const [name, setName] = useState('');
-  const [avatar, setAvatar] = useState(AVATARS[0]);
-  const [isKid, setIsKid] = useState(false);
+  const autoOpened = useRef(false);
+
+  const maxProfiles = entitlements.maxProfiles;
+  const remaining = Math.max(0, maxProfiles - profiles.length);
 
   useEffect(() => {
     if (!loading && !user) navigate('/login');
   }, [loading, user, navigate]);
 
   useEffect(() => {
-    if (user) loadProfiles();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user]);
-
-  async function loadProfiles() {
-    if (!user) return;
-    setLoadingProfiles(true);
-    const { data } = await supabase.from('viewer_profiles').select('*').eq('owner_id', user.id).order('created_at');
-    setProfiles((data as ViewerProfile[]) ?? []);
-    setLoadingProfiles(false);
-  }
+    // Usuário novo sem perfis: já abre o modal de criação do primeiro perfil
+    // (apenas uma vez por visita para não "prender" quem fecha o modal).
+    if (user && !loading && profiles.length === 0 && !loadingProfiles && !autoOpened.current) {
+      autoOpened.current = true;
+      setModalOpen(true);
+    }
+  }, [user, loading, profiles.length, loadingProfiles]);
 
   function selectProfile(p: ViewerProfile) {
     setActiveViewerProfile(p);
@@ -50,44 +40,34 @@ export function ProfileSelectPage() {
   }
 
   function openCreate() {
-    if (profiles.length >= 4) return;
+    if (profiles.length >= maxProfiles) return;
     setEditingProfile(null);
-    setName('');
-    setAvatar(AVATARS[profiles.length] ?? AVATARS[0]);
-    setIsKid(false);
     setModalOpen(true);
   }
 
   function openEdit(p: ViewerProfile) {
     setEditingProfile(p);
-    setName(p.name);
-    setAvatar(p.avatar_url || AVATARS[0]);
-    setIsKid(p.is_kid);
     setModalOpen(true);
   }
 
-  async function save() {
-    if (!user || !name.trim()) return;
+  async function handleSubmit(input: { name: string; avatar: string; is_kid: boolean }) {
     if (editingProfile) {
-      await supabase
-        .from('viewer_profiles')
-        .update({ name: name.trim(), avatar_url: avatar, is_kid: isKid })
-        .eq('id', editingProfile.id);
+      const res = await update(editingProfile.id, input);
+      if (res.error) throw new Error(res.error);
     } else {
-      await supabase.from('viewer_profiles').insert({
-        owner_id: user.id,
-        name: name.trim(),
-        avatar_url: avatar,
-        is_kid: isKid,
-      });
+      const res = await create(input);
+      if (res.error) throw new Error(res.error);
     }
-    setModalOpen(false);
-    loadProfiles();
   }
 
-  async function remove(id: string) {
-    await supabase.from('viewer_profiles').delete().eq('id', id);
-    loadProfiles();
+  async function handleRemove(p: ViewerProfile) {
+    if (!window.confirm(`Excluir o perfil "${p.name}"?`)) return;
+    const res = await remove(p.id);
+    if (res.error) {
+      alert(res.error);
+      return;
+    }
+    if (activeViewerProfile?.id === p.id) setActiveViewerProfile(null);
   }
 
   if (loading || loadingProfiles) {
@@ -110,6 +90,11 @@ export function ProfileSelectPage() {
       <h1 className="text-center text-3xl font-bold text-white sm:text-4xl">
         {editing ? 'Gerenciar perfis' : 'Quem está assistindo?'}
       </h1>
+
+      <p className="mt-2 flex items-center gap-1.5 text-sm text-ink-400">
+        <Users className="h-4 w-4" />
+        {profiles.length}/{maxProfiles} perfis {remaining > 0 ? `• ${remaining} restante${remaining === 1 ? '' : 's'}` : '• limite do plano atingido'}
+      </p>
 
       <div className="mt-10 grid grid-cols-2 gap-6 sm:grid-cols-3 lg:grid-cols-4">
         {profiles.map((p) => (
@@ -140,7 +125,7 @@ export function ProfileSelectPage() {
                   <button onClick={() => openEdit(p)} className="rounded-full bg-white/15 p-2 text-white hover:bg-white/25">
                     <Pencil className="h-4 w-4" />
                   </button>
-                  <button onClick={() => remove(p.id)} className="rounded-full bg-red-600/80 p-2 text-white hover:bg-red-500">
+                  <button onClick={() => handleRemove(p)} className="rounded-full bg-red-600/80 p-2 text-white hover:bg-red-500">
                     <Trash2 className="h-4 w-4" />
                   </button>
                 </div>
@@ -150,7 +135,7 @@ export function ProfileSelectPage() {
           </div>
         ))}
 
-        {profiles.length < 4 && !editing && (
+        {profiles.length < maxProfiles && !editing && (
           <button onClick={openCreate} className="group flex flex-col items-center gap-3">
             <div className="flex h-28 w-28 items-center justify-center rounded-2xl border-2 border-dashed border-white/15 bg-ink-800/40 text-ink-400 transition hover:border-brand-500 hover:text-brand-400 sm:h-32 sm:w-32">
               <Plus className="h-10 w-10" />
@@ -172,72 +157,17 @@ export function ProfileSelectPage() {
         )}
       </div>
 
-      <Modal open={modalOpen} onClose={() => setModalOpen(false)} size="md">
-        <div className="p-6">
-          <h3 className="text-lg font-bold text-white">{editingProfile ? 'Editar perfil' : 'Novo perfil'}</h3>
-          <div className="mt-5 space-y-5">
-            <div>
-              <span className="mb-1.5 block text-sm font-medium text-ink-200">Nome</span>
-              <input value={name} onChange={(e) => setName(e.target.value)} maxLength={20} placeholder="Ex.: João" className="input" />
-            </div>
+      <ProfileFormModal
+        open={modalOpen}
+        onClose={() => setModalOpen(false)}
+        editing={editingProfile}
+        onSubmit={handleSubmit}
+      />
 
-            <div>
-              <span className="mb-3 block text-sm font-medium text-ink-200">Tipo de perfil</span>
-              <div className="grid grid-cols-2 gap-3">
-                <button
-                  type="button"
-                  onClick={() => setIsKid(false)}
-                  className={`flex flex-col items-center gap-2 rounded-xl border-2 p-4 transition ${
-                    !isKid
-                      ? 'border-brand-500 bg-brand-600/10 shadow-md shadow-brand-600/20'
-                      : 'border-white/10 bg-white/5 hover:bg-white/10'
-                  }`}
-                >
-                  <User className={`h-8 w-8 ${!isKid ? 'text-brand-400' : 'text-ink-400'}`} />
-                  <span className="text-sm font-semibold text-white">Normal</span>
-                  <span className="text-center text-[11px] text-ink-400">Todo o conteudo</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setIsKid(true)}
-                  className={`flex flex-col items-center gap-2 rounded-xl border-2 p-4 transition ${
-                    isKid
-                      ? 'border-amber-400 bg-amber-400/10 shadow-md shadow-amber-400/20'
-                      : 'border-white/10 bg-white/5 hover:bg-white/10'
-                  }`}
-                >
-                  <Baby className={`h-8 w-8 ${isKid ? 'text-amber-400' : 'text-ink-400'}`} />
-                  <span className="text-sm font-semibold text-white">Infantil</span>
-                  <span className="text-center text-[11px] text-ink-400">So conteudo para criancas</span>
-                </button>
-              </div>
-            </div>
-
-            <div>
-              <span className="mb-2 block text-sm font-medium text-ink-200">Avatar</span>
-              <div className="flex flex-wrap gap-2">
-                {AVATARS.map((a) => (
-                  <button
-                    key={a}
-                    onClick={() => setAvatar(a)}
-                    className={`h-14 w-14 overflow-hidden rounded-xl border-2 transition ${avatar === a ? 'border-brand-500' : 'border-transparent opacity-70 hover:opacity-100'}`}
-                  >
-                    <img src={a} alt="" className="h-full w-full object-cover" />
-                  </button>
-                ))}
-              </div>
-            </div>
-          </div>
-          <div className="mt-6 flex justify-end gap-2">
-            <button onClick={() => setModalOpen(false)} className="btn-outline">
-              <X className="h-4 w-4" /> Cancelar
-            </button>
-            <button onClick={save} className="btn-primary">
-              <Check className="h-4 w-4" /> Salvar
-            </button>
-          </div>
-        </div>
-      </Modal>
+      {/* Pré-carrega os avatares para não piscar na seleção */}
+      <div className="hidden">
+        {PROFILE_AVATARS.map((a) => <img key={a} src={a} alt="" />)}
+      </div>
     </div>
   );
 }

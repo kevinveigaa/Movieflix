@@ -1,17 +1,37 @@
-﻿import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, Play } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { useAuth, hasActiveSubscription } from "@/context/AuthContext";
-import { UniversalVideoPlayer } from "@/components/player/UniversalVideoPlayer";
+import { UniversalVideoPlayer, type UniversalVideoPlayerHandle } from "@/components/player/UniversalVideoPlayer";
 import { useEntitlements } from "@/hooks/useEntitlements";
 import { usePlaybackSession } from "@/hooks/usePlaybackSession";
+import { useUpsertHistory, fetchHistoryForMovie } from "@/hooks/useWatchHistory";
+import type { MediaType } from "@/types";
+
+interface Movie {
+  id: string;
+  title: string;
+  type?: string | null;
+  poster_url?: string | null;
+  backdrop_url?: string | null;
+  video_url?: string | null;
+}
+
+function formatTime(seconds: number): string {
+  if (!Number.isFinite(seconds) || seconds < 0) return "00:00";
+  const h = Math.floor(seconds / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  const s = Math.floor(seconds % 60);
+  if (h > 0) return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+  return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+}
 
 export function PlayerPage() {
   const { id } = useParams();
   const navigate = useNavigate();
 
-  const { user, subscription, loading } = useAuth();
+  const { user, subscription, loading, activeViewerProfile } = useAuth();
   const { entitlements } = useEntitlements();
   const subscriptionActive = hasActiveSubscription(subscription);
   const { blocked, activeScreens } = usePlaybackSession(
@@ -20,8 +40,18 @@ export function PlayerPage() {
     subscriptionActive,
   );
 
+  const [movie, setMovie] = useState<Movie | null>(null);
   const [videoUrl, setVideoUrl] = useState("");
   const [loadingVideo, setLoadingVideo] = useState(true);
+  const [resumePos, setResumePos] = useState<number | null>(null);
+  const [choiceMade, setChoiceMade] = useState(false);
+
+  const playerRef = useRef<UniversalVideoPlayerHandle>(null);
+  const posRef = useRef(0);
+  const durRef = useRef(0);
+  const lastSavedRef = useRef(0);
+
+  const upsertHistory = useUpsertHistory();
 
   useEffect(() => {
     async function loadMovie() {
@@ -34,21 +64,109 @@ export function PlayerPage() {
 
       const { data, error } = await supabase
         .from("movies")
-        .select("video_url")
+        .select("*")
         .eq("id", id)
         .single();
-
-      console.log("VIDEO:", data, error);
 
       if (data?.video_url) {
         setVideoUrl(data.video_url);
       }
 
+      if (data) {
+        setMovie(data);
+
+        // Descobre onde o usuário parou (por perfil ativo + título do catálogo).
+        let saved = 0;
+        let historyDuration = 0;
+        if (user) {
+          const row = await fetchHistoryForMovie(user.id, activeViewerProfile?.id ?? null, data.id);
+          if (row) {
+            saved = row.position_seconds ?? 0;
+            historyDuration = row.duration_seconds ?? 0;
+          }
+        }
+
+        // Retoma se parou em ponto relevante e ainda não chegou ao fim.
+        const shouldResume = saved >= 10 && (historyDuration <= 0 || saved / historyDuration < 0.95);
+        if (shouldResume) {
+          setResumePos(saved);
+          setChoiceMade(false);
+        } else {
+          setResumePos(null);
+          setChoiceMade(true);
+        }
+      }
+
+      console.log("MOVIE:", data, error);
       setLoadingVideo(false);
     }
 
     loadMovie();
-  }, [id]);
+  }, [id, user, activeViewerProfile?.id]);
+
+  const saveHistory = useCallback(
+    (t: number) => {
+      if (!movie || !user || t <= 0) return;
+      if (durRef.current > 0 && t >= durRef.current) return;
+
+      lastSavedRef.current = t;
+      const type = String(movie.type ?? "").toLowerCase();
+      const mediaType: MediaType = ["series", "serie", "tv", "anime"].includes(type) ? "tv" : "movie";
+
+      upsertHistory.mutate({
+        movieId: movie.id,
+        mediaType,
+        title: movie.title,
+        posterPath: movie.poster_url,
+        backdropPath: movie.backdrop_url,
+        positionSeconds: durRef.current > 0 ? Math.min(t, durRef.current) : t,
+        durationSeconds: durRef.current || 0,
+      });
+    },
+    [movie, user, upsertHistory],
+  );
+
+  const handleTimeUpdate = useCallback(
+    (t: number) => {
+      posRef.current = t;
+      // Salva a cada ~10s (e também ao pausar/terminar).
+      if (Math.abs(t - lastSavedRef.current) >= 10) saveHistory(t);
+    },
+    [saveHistory],
+  );
+
+  const handlePause = useCallback(() => saveHistory(posRef.current), [saveHistory]);
+  const handleEnded = useCallback(() => saveHistory(durRef.current), [saveHistory]);
+  const handleReady = useCallback((dur: number) => {
+    durRef.current = dur;
+  }, []);
+
+  // Ao sair da página, grava a posição atual.
+  useEffect(() => {
+    return () => saveHistory(posRef.current);
+  }, [saveHistory]);
+
+  function resume() {
+    playerRef.current?.seek(resumePos ?? 0);
+    playerRef.current?.play();
+    posRef.current = resumePos ?? 0;
+    lastSavedRef.current = resumePos ?? 0;
+    setChoiceMade(true);
+  }
+
+  function startFromBeginning() {
+    playerRef.current?.seek(0);
+    playerRef.current?.play();
+    posRef.current = 0;
+    lastSavedRef.current = 0;
+    setChoiceMade(true);
+  }
+
+  // Vídeos do Google Drive rodam em iframe: não conseguimos controlar o tempo,
+  // então não mostramos o "retomar" nem gravamos posição.
+  const isDriveUrl = /(^|\/\/)drive\.google\.com\//i.test(videoUrl);
+
+  const showResumeOverlay = resumePos !== null && !choiceMade && !isDriveUrl;
 
   if (loading) {
     return (
@@ -119,7 +237,7 @@ export function PlayerPage() {
         Voltar
       </button>
 
-      <div className="w-full">
+      <div className="relative w-full">
         {loadingVideo ? (
           <div className="flex aspect-video w-full items-center justify-center text-white">
             <div className="text-center">
@@ -131,14 +249,45 @@ export function PlayerPage() {
             </div>
           </div>
         ) : videoUrl ? (
-          <UniversalVideoPlayer
-            src={videoUrl}
-            autoPlay
-            controls
-            maxHeight={entitlements.maxHeight}
-            qualityLabel={entitlements.qualityLabel}
-            className="mx-auto max-w-[1600px]"
-          />
+          <>
+            <UniversalVideoPlayer
+              ref={playerRef}
+              src={videoUrl}
+              autoPlay={!showResumeOverlay}
+              controls
+              maxHeight={entitlements.maxHeight}
+              qualityLabel={entitlements.qualityLabel}
+              onTimeUpdate={handleTimeUpdate}
+              onReady={handleReady}
+              onPause={handlePause}
+              onEnded={handleEnded}
+              className="mx-auto max-w-[1600px]"
+            />
+
+            {showResumeOverlay && (
+              <div className="absolute inset-0 z-40 flex flex-col items-center justify-center gap-4 bg-black/70 px-6 text-center backdrop-blur-sm">
+                <span className="flex h-16 w-16 items-center justify-center rounded-full bg-brand-600 text-white shadow-xl">
+                  <Play className="h-8 w-8 fill-white" />
+                </span>
+
+                <div>
+                  <h2 className="text-xl font-bold text-white">Retomar de onde parou?</h2>
+                  <p className="mt-1 text-sm text-zinc-300">
+                    Você parou em <strong className="text-white">{formatTime(resumePos ?? 0)}</strong>
+                  </p>
+                </div>
+
+                <div className="flex flex-wrap justify-center gap-3">
+                  <button onClick={resume} className="btn-primary">
+                    <Play className="h-4 w-4 fill-white" /> Retomar
+                  </button>
+                  <button onClick={startFromBeginning} className="btn-outline">
+                    Começar do início
+                  </button>
+                </div>
+              </div>
+            )}
+          </>
         ) : (
           <div className="flex aspect-video items-center justify-center text-center text-white">
             <div>

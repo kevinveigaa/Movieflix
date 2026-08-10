@@ -1,9 +1,10 @@
 ﻿import { useParams, useNavigate } from "react-router-dom";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { Play, ArrowLeft, Download, Lock, CheckCircle2, XCircle, Loader2 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { useEntitlements } from "@/hooks/useEntitlements";
+import { useWatchHistory } from "@/hooks/useWatchHistory";
 import { hasUnlimitedDownloads } from "@/lib/plans";
 import { downloadVideo } from "@/lib/hlsDownload";
 import {
@@ -11,6 +12,15 @@ import {
   downloadsUsed,
   registerDownload,
 } from "@/lib/downloads";
+
+function formatTime(seconds: number): string {
+  if (!Number.isFinite(seconds) || seconds < 0) return "00:00";
+  const h = Math.floor(seconds / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  const s = Math.floor(seconds % 60);
+  if (h > 0) return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+  return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+}
 
 interface Movie {
   id: string;
@@ -36,6 +46,17 @@ export function TitleDetailPage() {
 
   const { user } = useAuth();
   const { entitlements } = useEntitlements();
+  const history = useWatchHistory();
+
+  // Registro de reprodução deste título (para o botão "Continuar de ...").
+  const historyRow = useMemo(
+    () => history.data?.find((h) => h.movie_id === movie?.id),
+    [history.data, movie],
+  );
+  const watchPct = historyRow && historyRow.duration_seconds
+    ? historyRow.position_seconds / historyRow.duration_seconds
+    : 0;
+  const canResume = Boolean(historyRow) && watchPct >= 0.02 && watchPct < 0.95;
 
   useEffect(() => {
     if (user?.id) setDownloadCount(downloadsUsed(user.id));
@@ -177,7 +198,9 @@ export function TitleDetailPage() {
             className="mt-5 flex w-fit items-center gap-2 rounded-lg bg-white px-5 py-3 font-bold text-black"
           >
             <Play fill="black" />
-            Assistir agora
+            {canResume && historyRow
+              ? `Continuar de ${formatTime(historyRow.position_seconds)}`
+              : "Assistir agora"}
           </button>
 
           <div className="mt-4 flex flex-wrap items-center gap-3">

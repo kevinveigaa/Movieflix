@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, NavLink, useNavigate, useLocation } from 'react-router-dom';
-import { Search, Menu, X, Bell, User, LogOut, Settings, CreditCard, Shield, Film, Smartphone, ChevronDown, Baby } from 'lucide-react';
+import { Search, Menu, X, Bell, User, LogOut, Settings, CreditCard, Shield, Film, Smartphone, ChevronDown, Baby, Users } from 'lucide-react';
 import { useMovies } from '@/hooks/useMovies';
 import { categoriasDoFilme, ordenarCategorias } from '@/lib/categorias';
 import { useAuth, hasActiveSubscription } from '@/context/AuthContext';
@@ -155,19 +155,39 @@ export function Navbar() {
                 onClick={() => setMenuOpen((v) => !v)}
                 className="flex items-center gap-2 rounded-full border border-white/10 bg-white/5 p-1 pr-2 transition hover:bg-white/10"
               >
-                <span className="flex h-8 w-8 items-center justify-center rounded-full bg-brand-600 text-sm font-semibold text-white">
-                  {profile?.email?.[0]?.toUpperCase() ?? 'U'}
-                </span>
-                <span className={cn('hidden text-xs sm:block', active ? 'text-emerald-400' : 'text-ink-400')}>
-                  {active ? 'Assinante' : 'Grátis'}
+                {activeViewerProfile?.avatar_url ? (
+                  <span className="relative flex h-8 w-8 overflow-hidden rounded-full bg-ink-700">
+                    <img src={activeViewerProfile.avatar_url} alt="" className="h-full w-full object-cover" />
+                    {activeViewerProfile.is_kid && (
+                      <span className="absolute -bottom-0.5 -right-0.5 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-amber-400">
+                        <Baby className="h-2 w-2 text-black" />
+                      </span>
+                    )}
+                  </span>
+                ) : (
+                  <span className="flex h-8 w-8 items-center justify-center rounded-full bg-brand-600 text-sm font-semibold text-white">
+                    {profile?.email?.[0]?.toUpperCase() ?? 'U'}
+                  </span>
+                )}
+                <span className={cn('hidden max-w-[8rem] truncate text-xs sm:block', active ? 'text-emerald-400' : 'text-ink-400')}>
+                  {activeViewerProfile?.name ?? (active ? 'Assinante' : 'Grátis')}
                 </span>
               </button>
               {menuOpen && (
                 <div className="absolute right-0 mt-2 w-60 overflow-hidden rounded-xl border border-white/10 bg-ink-900 shadow-2xl animate-fade-in-fast">
                   <div className="border-b border-white/10 p-3">
-                    <p className="truncate text-sm font-semibold text-white">{profile?.email}</p>
-                    <p className="text-xs text-ink-400">{active ? 'Plano ativo' : 'Sem assinatura'}</p>
+                    <p className="truncate text-sm font-semibold text-white">
+                      {activeViewerProfile?.name ?? profile?.email}
+                    </p>
+                    <p className="truncate text-xs text-ink-400">
+                      {activeViewerProfile
+                        ? activeViewerProfile.is_kid
+                          ? 'Perfil infantil'
+                          : 'Perfil normal'
+                        : profile?.email}
+                    </p>
                   </div>
+                  <MenuLink to="/selecionar-perfil" icon={<Users className="h-4 w-4" />}>Trocar de perfil</MenuLink>
                   <MenuLink to="/perfil" icon={<User className="h-4 w-4" />}>Meu perfil</MenuLink>
                   <MenuLink to="/minha-assinatura" icon={<CreditCard className="h-4 w-4" />}>Minha assinatura</MenuLink>
                   <MenuLink to="/configuracoes" icon={<Settings className="h-4 w-4" />}>Configurações</MenuLink>

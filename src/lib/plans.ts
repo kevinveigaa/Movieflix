@@ -8,18 +8,21 @@ export interface PlanEntitlements {
   screens: number;
   /** Quantos downloads o assinante pode manter por mês (0 = não permitido, Infinity = ilimitado) */
   downloads: number;
+  /** Quantos perfis (assistir) o assinante pode criar. Sem plano = 1. */
+  maxProfiles: number;
 }
 
 /** Limite usado pelos planos com downloads ilimitados. */
 const UNLIMITED_DOWNLOADS = Number.POSITIVE_INFINITY;
 
 const DEFAULT_BY_CODE: Record<string, PlanEntitlements> = {
-  simple: { maxHeight: 720, qualityLabel: 'HD (720p)', screens: 1, downloads: 0 },
-  basico: { maxHeight: 720, qualityLabel: 'HD (720p)', screens: 1, downloads: 0 },
-  basic: { maxHeight: 720, qualityLabel: 'HD (720p)', screens: 1, downloads: 0 },
-  standard: { maxHeight: 1080, qualityLabel: 'Full HD (1080p)', screens: 2, downloads: 5 },
-  padrao: { maxHeight: 1080, qualityLabel: 'Full HD (1080p)', screens: 2, downloads: 5 },
-  premium: { maxHeight: 2160, qualityLabel: '4K + HDR', screens: 4, downloads: UNLIMITED_DOWNLOADS },
+  simple: { maxHeight: 720, qualityLabel: 'HD (720p)', screens: 1, downloads: 0, maxProfiles: 2 },
+  basico: { maxHeight: 720, qualityLabel: 'HD (720p)', screens: 1, downloads: 0, maxProfiles: 2 },
+  basic: { maxHeight: 720, qualityLabel: 'HD (720p)', screens: 1, downloads: 0, maxProfiles: 2 },
+  standard: { maxHeight: 1080, qualityLabel: 'Full HD (1080p)', screens: 2, downloads: 5, maxProfiles: 3 },
+  padrao: { maxHeight: 1080, qualityLabel: 'Full HD (1080p)', screens: 2, downloads: 5, maxProfiles: 3 },
+  medio: { maxHeight: 1080, qualityLabel: 'Full HD (1080p)', screens: 2, downloads: 5, maxProfiles: 3 },
+  premium: { maxHeight: 2160, qualityLabel: '4K + HDR', screens: 4, downloads: UNLIMITED_DOWNLOADS, maxProfiles: 5 },
 };
 
 export const FREE_ENTITLEMENTS: PlanEntitlements = {
@@ -27,6 +30,7 @@ export const FREE_ENTITLEMENTS: PlanEntitlements = {
   qualityLabel: 'Somente catálogo e trailers',
   screens: 0,
   downloads: 0,
+  maxProfiles: 1,
 };
 
 /** Normaliza um valor para comparação case-insensitive. */
@@ -101,6 +105,13 @@ export function entitlementHighlights(plan: Plan): string[] {
     `Qualidade até ${e.qualityLabel}`,
     `${e.screens} ${e.screens === 1 ? 'tela simultânea' : 'telas simultâneas'}`,
     downloadsLimitLabel(e.downloads),
+    `Até ${e.maxProfiles} ${e.maxProfiles === 1 ? 'perfil' : 'perfis'}`,
     'Catálogo completo liberado',
   ];
+}
+
+/** Rótulo legível do limite de perfis (ex.: 'Até 3 perfis'). */
+export function maxProfilesLabel(maxProfiles: number): string {
+  if (maxProfiles <= 1) return '1 perfil';
+  return `Até ${maxProfiles} perfis`;
 }

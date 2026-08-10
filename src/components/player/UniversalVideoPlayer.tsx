@@ -1,5 +1,11 @@
-import { useEffect, useRef, useState } from "react";
+import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "react";
 import Hls from "hls.js";
+
+export interface UniversalVideoPlayerHandle {
+  play: () => void;
+  pause: () => void;
+  seek: (seconds: number) => void;
+}
 
 interface UniversalVideoPlayerProps {
   src: string;
@@ -9,6 +15,12 @@ interface UniversalVideoPlayerProps {
   /** Altura maxima permitida pelo plano (ex.: 720, 1080, 2160) */
   maxHeight?: number;
   qualityLabel?: string;
+  /** Posição (segundos) para iniciar o vídeo ("retomar de onde parou"). */
+  initialTime?: number;
+  onTimeUpdate?: (time: number) => void;
+  onReady?: (duration: number) => void;
+  onPause?: () => void;
+  onEnded?: () => void;
 }
 
 function getGoogleDriveId(url: string): string | null {
@@ -67,18 +79,27 @@ function formatTime(seconds: number): string {
     .padStart(2, "0")}`;
 }
 
-export function UniversalVideoPlayer({
+export const UniversalVideoPlayer = forwardRef<UniversalVideoPlayerHandle, UniversalVideoPlayerProps>(
+function UniversalVideoPlayer({
   src,
   autoPlay = true,
   controls = true,
   className = "",
   maxHeight = 0,
   qualityLabel = "",
-}: UniversalVideoPlayerProps) {
+  initialTime = 0,
+  onTimeUpdate,
+  onReady,
+  onPause,
+  onEnded,
+}: UniversalVideoPlayerProps, ref) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const hlsRef = useRef<Hls | null>(null);
   const hideControlsTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pendingSeekRef = useRef<number | null>(null);
+  const callbacksRef = useRef({ onTimeUpdate, onReady, onPause, onEnded });
+  callbacksRef.current = { onTimeUpdate, onReady, onPause, onEnded };
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -94,6 +115,25 @@ export function UniversalVideoPlayer({
 
   const driveId = getGoogleDriveId(src);
   const isDrive = isGoogleDriveUrl(src);
+
+  useImperativeHandle(ref, () => ({
+    play() {
+      const video = videoRef.current;
+      if (video) video.play().catch(() => {});
+    },
+    pause() {
+      const video = videoRef.current;
+      if (video) video.pause();
+    },
+    seek(seconds: number) {
+      const video = videoRef.current;
+      if (video && video.readyState >= 1) {
+        video.currentTime = Math.max(0, seconds);
+      } else {
+        pendingSeekRef.current = Math.max(0, seconds);
+      }
+    },
+  }));
 
   const resetControlsTimer = () => {
     setShowControls(true);
@@ -249,6 +289,15 @@ export function UniversalVideoPlayer({
     const handleLoadedMetadata = () => {
       setLoading(false);
       setDuration(video.duration);
+      callbacksRef.current.onReady?.(video.duration);
+
+      // Aplica a posição de retomada (inicial ou escolhida pelo usuário).
+      const target = pendingSeekRef.current ?? initialTime;
+      pendingSeekRef.current = null;
+      if (target > 0 && Number.isFinite(target) && target < video.duration) {
+        video.currentTime = target;
+        setCurrentTime(target);
+      }
 
       if (autoPlay) {
         video.play().catch(() => {});
@@ -263,6 +312,7 @@ export function UniversalVideoPlayer({
     const handlePause = () => {
       setPlaying(false);
       setShowControls(true);
+      callbacksRef.current.onPause?.();
 
       if (hideControlsTimer.current) {
         clearTimeout(hideControlsTimer.current);
@@ -271,11 +321,13 @@ export function UniversalVideoPlayer({
 
     const handleTimeUpdate = () => {
       setCurrentTime(video.currentTime);
+      callbacksRef.current.onTimeUpdate?.(video.currentTime);
     };
 
     const handleEnded = () => {
       setPlaying(false);
       setShowControls(true);
+      callbacksRef.current.onEnded?.();
     };
 
     const handleError = () => {
@@ -359,7 +411,7 @@ export function UniversalVideoPlayer({
         clearTimeout(hideControlsTimer.current);
       }
     };
-  }, [src, autoPlay, isDrive, maxHeight]);
+  }, [src, autoPlay, isDrive, maxHeight, initialTime]);
 
   useEffect(() => {
     const handleFullscreenChange = () => {
@@ -612,4 +664,4 @@ export function UniversalVideoPlayer({
       )}
     </div>
   );
-}
+});

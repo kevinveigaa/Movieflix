@@ -121,7 +121,11 @@ export interface FavoriteRow {
 export interface WatchHistoryRow {
   id: string;
   user_id: string;
-  tmdb_id: number;
+  /** Perfil que assistiu (null = registros antigos, sem perfil). */
+  viewer_profile_id: string | null;
+  /** Título do catálogo (movies.id). Quando null, o registro aponta para tmdb_id. */
+  movie_id: string | null;
+  tmdb_id: number | null;
   media_type: MediaType;
   title: string;
   poster_path: string | null;

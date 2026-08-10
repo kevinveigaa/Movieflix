@@ -3,6 +3,12 @@ import { History as HistoryIcon, Trash2 } from 'lucide-react';
 import { useWatchHistory, useRemoveHistory } from '@/hooks/useWatchHistory';
 import { useAuth } from '@/context/AuthContext';
 import { img } from '@/lib/tmdb';
+import type { WatchHistoryRow } from '@/types';
+
+/** Retoma no player do catálogo quando o título é conhecido; senão vai à página do título. */
+function historyTarget(h: WatchHistoryRow): string {
+  return h.movie_id ? `/assistir/${h.movie_id}` : `/titulo/${h.media_type}/${h.tmdb_id}`;
+}
 
 export function HistoryPage() {
   const { user } = useAuth();
@@ -37,7 +43,7 @@ export function HistoryPage() {
         <div className="mt-8 divide-y divide-white/5">
           {items.map((h) => (
             <div key={h.id} className="flex items-center gap-4 py-4">
-              <Link to={`/titulo/${h.media_type}/${h.tmdb_id}`} className="flex-shrink-0">
+              <Link to={historyTarget(h)} className="flex-shrink-0">
                 <div className="h-16 w-28 overflow-hidden rounded-lg bg-ink-800">
                   {h.backdrop_path ? (
                     <img src={img(h.backdrop_path, 'w300')} alt={h.title} className="h-full w-full object-cover" />
@@ -47,7 +53,7 @@ export function HistoryPage() {
                 </div>
               </Link>
               <div className="flex-1">
-                <Link to={`/titulo/${h.media_type}/${h.tmdb_id}`} className="font-semibold text-white hover:text-brand-300">
+                <Link to={historyTarget(h)} className="font-semibold text-white hover:text-brand-300">
                   {h.title}
                 </Link>
                 <p className="mt-0.5 text-xs text-ink-400">

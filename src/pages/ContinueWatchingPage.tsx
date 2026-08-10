@@ -4,6 +4,12 @@ import { useWatchHistory, useRemoveHistory } from '@/hooks/useWatchHistory';
 import { useAuth } from '@/context/AuthContext';
 import { img } from '@/lib/tmdb';
 import { FullScreenLoader } from '@/components/ui/Feedback';
+import type { WatchHistoryRow } from '@/types';
+
+/** Destino do "continuar": player do catálogo quando possível, senão página do título. */
+function historyTarget(h: WatchHistoryRow): string {
+  return h.movie_id ? `/assistir/${h.movie_id}` : `/titulo/${h.media_type}/${h.tmdb_id}`;
+}
 
 export function ContinueWatchingPage() {
   const { user } = useAuth();
@@ -43,7 +49,7 @@ export function ContinueWatchingPage() {
           const pct = h.duration_seconds ? Math.min(100, (h.position_seconds / h.duration_seconds) * 100) : 0;
           return (
             <div key={h.id} className="group relative overflow-hidden rounded-2xl border border-white/10 bg-ink-900">
-              <Link to={`/titulo/${h.media_type}/${h.tmdb_id}`} className="block">
+              <Link to={historyTarget(h)} className="block">
                 <div className="relative aspect-video overflow-hidden bg-ink-800">
                   {h.backdrop_path ? (
                     <img src={img(h.backdrop_path, 'w780')} alt={h.title} className="h-full w-full object-cover transition group-hover:scale-105" />

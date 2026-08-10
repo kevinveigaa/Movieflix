@@ -3,6 +3,7 @@ import { useSearchParams } from 'react-router-dom';
 import { PosterCard } from '@/components/cards/PosterCard';
 import { FullScreenLoader } from '@/components/ui/Feedback';
 import { useMovies } from '@/hooks/useMovies';
+import { useWatchHistory } from '@/hooks/useWatchHistory';
 import { useAuth } from '@/context/AuthContext';
 import { temCategoria } from '@/lib/categorias';
 
@@ -35,11 +36,23 @@ function isKidsContent(movie: any): boolean {
 
 export function CatalogPage({ kind }: { kind: CatalogKind }) {
   const movies = useMovies();
+  const history = useWatchHistory();
   const { activeViewerProfile } = useAuth();
   const isKid = activeViewerProfile?.is_kid ?? false;
   const [search, setSearch] = useState('');
   const [searchParams] = useSearchParams();
   const categoria = searchParams.get('categoria');
+
+  // Mapa movie_id → % assistido para a barra de progresso nos cards.
+  const progressByMovie = useMemo(() => {
+    const map: Record<string, number> = {};
+    for (const h of history.data ?? []) {
+      if (!h.movie_id) continue;
+      const pct = h.duration_seconds ? Math.min(100, (h.position_seconds / h.duration_seconds) * 100) : 0;
+      map[h.movie_id] = pct;
+    }
+    return map;
+  }, [history.data]);
 
   const results = useMemo(() => {
     const termo = search.trim().toLowerCase();
@@ -82,7 +95,7 @@ export function CatalogPage({ kind }: { kind: CatalogKind }) {
       ) : (
         <div className="grid grid-cols-2 gap-x-3 gap-y-5 xs:grid-cols-3 sm:grid-cols-4 sm:gap-x-4 sm:gap-y-6 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-7">
           {results.map((movie: any) => (
-            <PosterCard key={movie.id} title={movie} className="w-full" />
+            <PosterCard key={movie.id} title={movie} className="w-full" progress={progressByMovie[movie.id]} />
           ))}
         </div>
       )}
