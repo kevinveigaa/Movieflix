@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
 import { supabase } from '@/lib/supabase';
 import { useUpsertHistory } from '@/hooks/useWatchHistory';
-import { ChevronLeft, Play, RotateCcw, Star, Calendar, Clock, Film, AlertCircle } from 'lucide-react';
+import { ChevronLeft, RotateCcw, Play, Star, Calendar, Clock, Film, AlertCircle, Loader2 } from 'lucide-react';
 import type { MediaType } from '@/types';
 
 interface Movie {
@@ -37,8 +37,10 @@ export function PlayerPage() {
   const [error, setError] = useState("");
   const [resumePos, setResumePos] = useState(0);
   const [showResume, setShowResume] = useState(false);
+  const [videoReady, setVideoReady] = useState(false);
 
   const videoRef = useRef<HTMLVideoElement>(null);
+  const hlsRef = useRef<any>(null);
   const posRef = useRef(0);
   const durRef = useRef(0);
   const lastSavedRef = useRef(0);
@@ -73,24 +75,111 @@ export function PlayerPage() {
     return () => { cancelled = true; };
   }, [id, user?.id]);
 
-  // Setup video quando movie carrega
+  // Setup video com HLS.js
   useEffect(() => {
     const v = videoRef.current;
     if (!v || !movie?.video_url) return;
 
-    v.src = movie.video_url;
+    setVideoReady(false);
+    const url = movie.video_url;
+    const isHLS = url.includes('.m3u8');
+
+    // Limpa anterior
+    if (hlsRef.current) {
+      hlsRef.current.destroy();
+      hlsRef.current = null;
+    }
+    v.pause();
+    v.removeAttribute('src');
     v.load();
 
-    const onMeta = () => {
-      durRef.current = v.duration || 0;
-      if (resumePos > 0 && !showResume) {
-        v.currentTime = resumePos;
-        v.play().catch(() => {});
+    const setupVideo = () => {
+      v.muted = false;
+      v.playsInline = true;
+      v.preload = 'auto';
+      if (movie.backdrop_url || movie.poster_url) {
+        v.poster = movie.backdrop_url || movie.poster_url || '';
       }
+
+      const onMeta = () => {
+        durRef.current = v.duration || 0;
+        setVideoReady(true);
+        if (resumePos > 0 && !showResume) {
+          v.currentTime = resumePos;
+        }
+      };
+
+      const onCanPlay = () => {
+        setVideoReady(true);
+        if (!showResume && v.paused) {
+          v.play().catch(() => { v.muted = true; v.play().catch(() => {}); });
+        }
+      };
+
+      v.addEventListener('loadedmetadata', onMeta);
+      v.addEventListener('canplay', onCanPlay);
+
+      return () => {
+        v.removeEventListener('loadedmetadata', onMeta);
+        v.removeEventListener('canplay', onCanPlay);
+      };
     };
 
-    v.addEventListener('loadedmetadata', onMeta);
-    return () => { v.removeEventListener('loadedmetadata', onMeta); };
+    let cleanup: (() => void) | undefined;
+
+    if (isHLS && typeof window !== 'undefined') {
+      // Tenta carregar HLS.js dinamicamente
+      import('hls.js').then((HlsModule) => {
+        const Hls = HlsModule.default;
+        if (Hls.isSupported()) {
+          const hls = new Hls({
+            maxBufferLength: 30,
+            maxMaxBufferLength: 60,
+            enableWorker: true,
+          });
+          hlsRef.current = hls;
+          hls.loadSource(url);
+          hls.attachMedia(v);
+          hls.on(Hls.Events.MANIFEST_PARSED, () => {
+            cleanup = setupVideo();
+            if (!showResume) v.play().catch(() => { v.muted = true; v.play().catch(() => {}); });
+          });
+          hls.on(Hls.Events.ERROR, (_e: any, data: any) => {
+            if (data.fatal) {
+              console.error('HLS error:', data);
+              // Fallback para src direto
+              v.src = url;
+              cleanup = setupVideo();
+            }
+          });
+        } else if (v.canPlayType('application/vnd.apple.mpegurl')) {
+          // Safari nativo
+          v.src = url;
+          cleanup = setupVideo();
+        } else {
+          v.src = url;
+          cleanup = setupVideo();
+        }
+      }).catch(() => {
+        // HLS.js não carregou, tenta direto
+        v.src = url;
+        cleanup = setupVideo();
+      });
+    } else {
+      v.src = url;
+      cleanup = setupVideo();
+    }
+
+    return () => {
+      if (cleanup) cleanup();
+      if (hlsRef.current) {
+        hlsRef.current.destroy();
+        hlsRef.current = null;
+      }
+      v.pause();
+      v.removeAttribute('src');
+      v.load();
+    };
   }, [movie, resumePos, showResume]);
 
   // Salva histórico
@@ -152,7 +241,10 @@ export function PlayerPage() {
   if (authLoading || loading) {
     return (
       <div className="flex h-screen items-center justify-center bg-black">
-        <div className="h-12 w-12 animate-spin rounded-full border-4 border-red-600 border-t-transparent" />
+        <div className="flex flex-col items-center gap-4">
+          <Loader2 className="h-12 w-12 animate-spin text-red-600" />
+          <p className="text-zinc-400 text-sm">Carregando...</p>
+        </div>
       </div>
     );
   }
@@ -192,7 +284,6 @@ export function PlayerPage() {
             <div className="flex items-center gap-2 text-xs text-zinc-400">
               {movie.year && <span className="flex items-center gap-1"><Calendar className="h-3 w-3" /> {movie.year}</span>}
               {movie.vote_average && <span className="flex items-center gap-1"><Star className="h-3 w-3 text-yellow-500" /> {movie.vote_average}</span>}
-              {movie.quality && <span>{movie.quality}</span>}
             </div>
           )}
         </div>
@@ -208,6 +299,12 @@ export function PlayerPage() {
           </div>
         ) : (
           <div className="relative w-full bg-black" style={{ aspectRatio: '16/9' }}>
+            {!videoReady && (
+              <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-black/80">
+                <Loader2 className="h-10 w-10 animate-spin text-red-600 mb-3" />
+                <p className="text-sm text-zinc-300">Carregando vídeo...</p>
+              </div>
+            )}
             <video
               ref={videoRef}
               controls
@@ -217,7 +314,6 @@ export function PlayerPage() {
               style={{ backgroundColor: '#000', maxHeight: '80vh' }}
               onTimeUpdate={handleTimeUpdate}
               onEnded={handleEnded}
-              poster={movie.backdrop_url || movie.poster_url}
             />
           </div>
         )}
