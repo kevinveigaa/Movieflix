@@ -86,13 +86,14 @@
 
 
 /* ---------- Navegação por controle remoto (TV / TV Box) ---------- */
-.tv-nav a:focus-visible,
-.tv-nav button:focus-visible,
-.tv-nav input:focus-visible,
-.tv-nav select:focus-visible,
-.tv-nav textarea:focus-visible,
-.tv-nav [tabindex]:focus-visible,
-.tv-nav [data-tv-focusable]:focus-visible {
+.tv-nav a:focus,
+.tv-nav button:focus,
+.tv-nav input:focus,
+.tv-nav select:focus,
+.tv-nav textarea:focus,
+.tv-nav [tabindex]:focus,
+.tv-nav [data-tv-focusable]:focus,
+.tv-nav .tv-focus {
   outline: 3px solid #ffffff;
   outline-offset: 3px;
   border-radius: 0.75rem;

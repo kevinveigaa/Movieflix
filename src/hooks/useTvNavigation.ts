@@ -1,15 +1,17 @@
 import { useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 
 /**
  * Navegação espacial por controle remoto / teclado (TV, TV Box, PC).
  *
- * - Setas: move o foco para o elemento mais próximo na direção
- * - OK / Enter: aciona o elemento focado
- * - Voltar (Backspace / Escape / tecla "Back" de TV): volta uma página
+ * Compatível com:
+ *  - Android TV / Chrome / WebView  (keyCode 37-40, 13, 8)
+ *  - Samsung Tizen                  (keyCode 10009 = Voltar)
+ *  - LG webOS                       (keyCode 461 = Voltar)
+ *  - Teclas antigas "Left"/"Up"/"Right"/"Down"/"Enter"
  *
- * Funciona com qualquer elemento focável (links, botões, inputs) e faz
- * o scroll acompanhar o foco automaticamente.
+ * Muitas TVs enviam e.key === "Unidentified", por isso usamos keyCode como
+ * fonte principal e e.key só como reforço.
  */
 
 const SELETOR_FOCAVEL = [
@@ -18,6 +20,7 @@ const SELETOR_FOCAVEL = [
   "input:not([disabled]):not([type='hidden'])",
   "select:not([disabled])",
   "textarea:not([disabled])",
+  "video",
   "[tabindex]:not([tabindex='-1'])",
   "[data-tv-focusable]",
 ].join(",");
@@ -52,7 +55,6 @@ function melhorAlvo(atual: HTMLElement, dir: Direcao): HTMLElement | null {
     const dx = alvo.x - origem.x;
     const dy = alvo.y - origem.y;
 
-    // Precisa estar realmente na direção pedida.
     const naDirecao =
       (dir === "right" && alvo.r.left >= origem.r.right - 4) ||
       (dir === "left" && alvo.r.right <= origem.r.left + 4) ||
@@ -63,8 +65,6 @@ function melhorAlvo(atual: HTMLElement, dir: Direcao): HTMLElement | null {
 
     const principal = dir === "left" || dir === "right" ? Math.abs(dx) : Math.abs(dy);
     const desvio = dir === "left" || dir === "right" ? Math.abs(dy) : Math.abs(dx);
-
-    // Penaliza fortemente o desvio para manter o foco na mesma linha/coluna.
     const custo = principal + desvio * 3;
 
     if (custo < melhorCusto) {
@@ -76,49 +76,120 @@ function melhorAlvo(atual: HTMLElement, dir: Direcao): HTMLElement | null {
   return melhor;
 }
 
+function focar(el: HTMLElement) {
+  if (!el.hasAttribute("tabindex") && !/^(A|BUTTON|INPUT|SELECT|TEXTAREA|VIDEO)$/.test(el.tagName)) {
+    el.setAttribute("tabindex", "0");
+  }
+  el.focus({ preventScroll: true });
+  el.classList.add("tv-focus");
+  el.scrollIntoView({ block: "center", inline: "center", behavior: "smooth" });
+}
+
+function limparFocoVisual() {
+  document.querySelectorAll(".tv-focus").forEach((el) => el.classList.remove("tv-focus"));
+}
+
 function primeiroFocavel(): HTMLElement | null {
-  const lista = candidatos().filter((el) => {
+  const lista = candidatos();
+  const naTela = lista.filter((el) => {
     const r = el.getBoundingClientRect();
     return r.top >= 0 && r.top < window.innerHeight;
   });
-  return lista[0] ?? candidatos()[0] ?? null;
+  return naTela[0] ?? lista[0] ?? null;
+}
+
+/** Traduz o evento em uma ação, aceitando key OU keyCode (TVs). */
+function acaoDaTecla(e: KeyboardEvent): Direcao | "ok" | "back" | null {
+  const k = e.key;
+  const c = e.keyCode || e.which;
+
+  if (k === "ArrowUp" || k === "Up" || c === 38) return "up";
+  if (k === "ArrowDown" || k === "Down" || c === 40) return "down";
+  if (k === "ArrowLeft" || k === "Left" || c === 37) return "left";
+  if (k === "ArrowRight" || k === "Right" || c === 39) return "right";
+  if (k === "Enter" || k === "OK" || k === "Select" || c === 13 || c === 32 || c === 23) return "ok";
+  if (
+    k === "GoBack" ||
+    k === "BrowserBack" ||
+    k === "XF86Back" ||
+    k === "Escape" ||
+    k === "Backspace" ||
+    c === 8 ||
+    c === 27 ||
+    c === 461 ||
+    c === 10009 ||
+    c === 166 ||
+    c === 4
+  )
+    return "back";
+
+  return null;
 }
 
 export function useTvNavigation() {
   const navigate = useNavigate();
+  const location = useLocation();
+
+  // Foco inicial a cada troca de página (o controle precisa ter "onde começar").
+  useEffect(() => {
+    limparFocoVisual();
+    const t = window.setTimeout(() => {
+      const ativo = document.activeElement as HTMLElement | null;
+      if (!ativo || ativo === document.body || !visivel(ativo)) {
+        const inicial = primeiroFocavel();
+        if (inicial) focar(inicial);
+      }
+    }, 400);
+    return () => window.clearTimeout(t);
+  }, [location.pathname]);
 
   useEffect(() => {
     document.documentElement.classList.add("tv-nav");
 
+    // Registra tecla de Voltar do Tizen (Samsung), quando disponível.
+    const tizen = (window as unknown as { tizen?: { tvinputdevice?: { registerKey: (k: string) => void } } }).tizen;
+    try {
+      tizen?.tvinputdevice?.registerKey("Back");
+    } catch {
+      /* ignora */
+    }
+
     function onKeyDown(e: KeyboardEvent) {
+      const acao = acaoDaTecla(e);
+      if (!acao) return;
+
       const ativo = document.activeElement as HTMLElement | null;
       const digitando =
         !!ativo &&
         (ativo.tagName === "INPUT" || ativo.tagName === "TEXTAREA" || ativo.isContentEditable);
 
-      // Voltar (Backspace de controle remoto / Escape / tecla Back de TV)
-      if (
-        e.key === "GoBack" ||
-        e.key === "BrowserBack" ||
-        e.key === "Escape" ||
-        (e.key === "Backspace" && !digitando)
-      ) {
+      if (acao === "back") {
+        if (digitando && (e.key === "Backspace" || e.keyCode === 8)) return; // apagar texto
         e.preventDefault();
-        navigate(-1);
+        if (window.history.length > 1) navigate(-1);
+        else navigate("/");
         return;
       }
 
-      const mapa: Record<string, Direcao> = {
-        ArrowUp: "up",
-        ArrowDown: "down",
-        ArrowLeft: "left",
-        ArrowRight: "right",
-      };
+      if (acao === "ok") {
+        if (!ativo || ativo === document.body) {
+          const inicial = primeiroFocavel();
+          if (inicial) {
+            e.preventDefault();
+            focar(inicial);
+          }
+          return;
+        }
+        if (digitando) return; // deixa o form enviar normalmente
+        if (ativo.tagName === "A" || ativo.tagName === "BUTTON" || ativo.hasAttribute("data-tv-focusable")) {
+          e.preventDefault();
+          ativo.click();
+        }
+        return;
+      }
 
-      const dir = mapa[e.key];
-      if (!dir) return;
+      const dir = acao;
 
-      // Em campos de texto, as setas horizontais movem o cursor.
       if (digitando && (dir === "left" || dir === "right")) return;
       if (ativo?.tagName === "SELECT") return;
 
@@ -126,23 +197,41 @@ export function useTvNavigation() {
         const inicial = primeiroFocavel();
         if (inicial) {
           e.preventDefault();
-          inicial.focus({ preventScroll: true });
-          inicial.scrollIntoView({ block: "center", inline: "center", behavior: "smooth" });
+          focar(inicial);
         }
         return;
       }
 
       const alvo = melhorAlvo(ativo, dir);
-      if (!alvo) return;
+      if (!alvo) {
+        // Sem vizinho na direção: rola a página para continuar navegando.
+        if (dir === "down" || dir === "up") {
+          e.preventDefault();
+          window.scrollBy({ top: dir === "down" ? 300 : -300, behavior: "smooth" });
+        }
+        return;
+      }
 
       e.preventDefault();
-      alvo.focus({ preventScroll: true });
-      alvo.scrollIntoView({ block: "center", inline: "center", behavior: "smooth" });
+      e.stopPropagation();
+      limparFocoVisual();
+      focar(alvo);
     }
 
-    window.addEventListener("keydown", onKeyDown);
+    function onFocusOut() {
+      // mantém o destaque coerente
+      limparFocoVisual();
+      const ativo = document.activeElement as HTMLElement | null;
+      if (ativo && ativo !== document.body) ativo.classList.add("tv-focus");
+    }
+
+    // Fase de captura: garante que a navegação funcione mesmo quando um
+    // componente interno (carrossel, player, modal) também escuta teclado.
+    window.addEventListener("keydown", onKeyDown, true);
+    document.addEventListener("focusin", onFocusOut);
     return () => {
-      window.removeEventListener("keydown", onKeyDown);
+      window.removeEventListener("keydown", onKeyDown, true);
+      document.removeEventListener("focusin", onFocusOut);
       document.documentElement.classList.remove("tv-nav");
     };
   }, [navigate]);
