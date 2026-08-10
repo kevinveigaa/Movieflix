@@ -184,7 +184,7 @@ export function PlayerPage() {
               poster={movie?.backdrop_url || movie?.poster_url}
               title={movie?.title}
               autoPlay={!showResume}
-              startTime={showResume ? 0 : resumePos}
+              startTime={showResume ? resumePos : 0}
               onTimeUpdate={handleTimeUpdate}
               onReady={handleReady}
               onEnded={handleEnded}
