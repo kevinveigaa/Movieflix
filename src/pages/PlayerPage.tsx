@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { ArrowLeft, Play } from "lucide-react";
+import { ArrowLeft } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { useAuth, hasActiveSubscription } from "@/context/AuthContext";
 import { UniversalVideoPlayer, type UniversalVideoPlayerHandle } from "@/components/player/UniversalVideoPlayer";
@@ -75,7 +75,6 @@ export function PlayerPage() {
       if (data) {
         setMovie(data);
 
-        // Descobre onde o usuário parou (por perfil ativo + título do catálogo).
         let saved = 0;
         let historyDuration = 0;
         if (user) {
@@ -86,7 +85,6 @@ export function PlayerPage() {
           }
         }
 
-        // Retoma se parou em ponto relevante e ainda não chegou ao fim.
         const shouldResume = saved >= 10 && (historyDuration <= 0 || saved / historyDuration < 0.95);
         if (shouldResume) {
           setResumePos(saved);
@@ -128,7 +126,6 @@ export function PlayerPage() {
   const handleTimeUpdate = useCallback(
     (t: number) => {
       posRef.current = t;
-      // Salva a cada ~10s (e também ao pausar/terminar).
       if (Math.abs(t - lastSavedRef.current) >= 10) saveHistory(t);
     },
     [saveHistory],
@@ -140,7 +137,6 @@ export function PlayerPage() {
     durRef.current = dur;
   }, []);
 
-  // Ao sair da página, grava a posição atual.
   useEffect(() => {
     return () => saveHistory(posRef.current);
   }, [saveHistory]);
@@ -161,11 +157,7 @@ export function PlayerPage() {
     setChoiceMade(true);
   }
 
-  // Vídeos do Google Drive rodam em iframe: não conseguimos controlar o tempo,
-  // então não mostramos o "retomar" nem gravamos posição.
-  const isDriveUrl = /(^|\/\/)drive\.google\.com\//i.test(videoUrl);
-
-  const showResumeOverlay = resumePos !== null && !choiceMade && !isDriveUrl;
+  const showResumeOverlay = resumePos !== null && !choiceMade;
 
   if (loading) {
     return (
@@ -184,17 +176,11 @@ export function PlayerPage() {
     return (
       <div className="flex min-h-screen items-center justify-center bg-black px-4 text-white">
         <div className="text-center">
-          <h1 className="text-2xl font-bold">
-            Conteúdo exclusivo 🔒
-          </h1>
-
-          <p className="mt-2 text-zinc-400">
-            Você precisa de uma assinatura ativa para assistir.
-          </p>
-
+          <h1 className="text-2xl font-bold">Conteúdo exclusivo 🔒</h1>
+          <p className="mt-2 text-zinc-400">Você precisa de uma assinatura ativa para assistir.</p>
           <button
             onClick={() => navigate("/minha-assinatura")}
-            className="mt-5 rounded-lg bg-brand-600 px-5 py-3 font-semibold transition hover:bg-brand-700"
+            className="mt-5 rounded-lg bg-red-600 px-5 py-3 font-semibold transition hover:bg-red-700"
           >
             Ver planos
           </button>
@@ -208,16 +194,14 @@ export function PlayerPage() {
       <div className="flex min-h-screen items-center justify-center bg-black px-4 text-white">
         <div className="max-w-md text-center">
           <h1 className="text-2xl font-bold">Limite de telas atingido</h1>
-
           <p className="mt-2 text-zinc-400">
             Seu plano permite {entitlements.screens}{" "}
             {entitlements.screens === 1 ? "tela simultânea" : "telas simultâneas"} e no momento
-            há {activeScreens} em uso. Pause em outro dispositivo ou faça upgrade do plano.
+            há {activeScreens} em uso. Pausa em outro dispositivo ou faça upgrade do plano.
           </p>
-
           <button
             onClick={() => navigate("/minha-assinatura")}
-            className="mt-5 rounded-lg bg-brand-600 px-5 py-3 font-semibold transition hover:bg-brand-700"
+            className="mt-5 rounded-lg bg-red-600 px-5 py-3 font-semibold transition hover:bg-red-700"
           >
             Fazer upgrade
           </button>
@@ -240,11 +224,8 @@ export function PlayerPage() {
         {loadingVideo ? (
           <div className="flex aspect-video w-full items-center justify-center text-white">
             <div className="text-center">
-              <div className="mx-auto h-10 w-10 animate-spin rounded-full border-4 border-zinc-700 border-t-brand-500" />
-
-              <p className="mt-3 text-sm text-zinc-400">
-                Carregando vídeo...
-              </p>
+              <div className="mx-auto h-10 w-10 animate-spin rounded-full border-4 border-zinc-700 border-t-red-500" />
+              <p className="mt-3 text-sm text-zinc-400">Carregando vídeo...</p>
             </div>
           </div>
         ) : videoUrl ? (
@@ -266,8 +247,8 @@ export function PlayerPage() {
 
             {showResumeOverlay && (
               <div className="absolute inset-0 z-40 flex flex-col items-center justify-center gap-4 bg-black/70 px-6 text-center backdrop-blur-sm">
-                <span className="flex h-16 w-16 items-center justify-center rounded-full bg-brand-600 text-white shadow-xl">
-                  <Play className="h-8 w-8 fill-white" />
+                <span className="flex h-16 w-16 items-center justify-center rounded-full bg-red-600 text-white shadow-xl">
+                  <svg className="h-8 w-8 fill-white" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
                 </span>
 
                 <div>
@@ -278,10 +259,10 @@ export function PlayerPage() {
                 </div>
 
                 <div className="flex flex-wrap justify-center gap-3">
-                  <button onClick={resume} className="btn-primary">
-                    <Play className="h-4 w-4 fill-white" /> Retomar
+                  <button onClick={resume} className="flex items-center gap-2 rounded-lg bg-red-600 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-red-500">
+                    <svg className="h-4 w-4 fill-white" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg> Retomar
                   </button>
-                  <button onClick={startFromBeginning} className="btn-outline">
+                  <button onClick={startFromBeginning} className="rounded-lg border border-white/20 bg-white/5 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-white/10">
                     Começar do início
                   </button>
                 </div>
@@ -291,10 +272,7 @@ export function PlayerPage() {
         ) : (
           <div className="flex aspect-video items-center justify-center text-center text-white">
             <div>
-              <h2 className="text-xl font-semibold">
-                Vídeo não encontrado
-              </h2>
-
+              <h2 className="text-xl font-semibold">Vídeo não encontrado</h2>
               <p className="mt-2 text-sm text-zinc-400">
                 Este filme ainda não possui uma URL de vídeo cadastrada.
               </p>
