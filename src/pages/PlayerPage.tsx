@@ -2,27 +2,13 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
 import { supabase } from '@/lib/supabase';
-import { MovieflixPlayer, MovieflixPlayerHandle } from '@/components/player/MovieflixPlayer';
+import { BunnyPlayer } from '@/components/player/BunnyPlayer';
 import { useUpsertHistory } from '@/hooks/useWatchHistory';
 import { hasActiveSubscription } from '@/lib/subscription';
 import { useEntitlements } from '@/hooks/useEntitlements';
 import { usePlaybackSession } from '@/hooks/usePlaybackSession';
 import { ChevronLeft, RotateCcw } from 'lucide-react';
 import type { MediaType } from '@/types';
-
-function detectPlayerType(url: string): { mode: 'native' | 'hls' | 'iframe'; src: string } {
-  if (!url) return { mode: 'native', src: '' };
-  const u = url.trim().toLowerCase();
-
-  if (u.includes('.m3u8') || u.includes('playlist')) {
-    return { mode: 'hls', src: url };
-  }
-  if (u.includes('youtube') || u.includes('youtu.be') || u.includes('vimeo') || 
-      u.includes('drive.google') || u.includes('bunny')) {
-    return { mode: 'iframe', src: url };
-  }
-  return { mode: 'native', src: url };
-}
 
 export function PlayerPage() {
   const { id } = useParams();
@@ -33,13 +19,11 @@ export function PlayerPage() {
   const { blocked, activeScreens } = usePlaybackSession(user?.id, entitlements.screens, subscriptionActive);
 
   const [movie, setMovie] = useState<any>(null);
-  const [playerInfo, setPlayerInfo] = useState({ mode: 'native' as const, src: '' });
+  const [videoUrl, setVideoUrl] = useState("");
   const [pageLoading, setPageLoading] = useState(true);
   const [resumePos, setResumePos] = useState(0);
   const [showResume, setShowResume] = useState(false);
-  const [errorMsg, setErrorMsg] = useState('');
 
-  const playerRef = useRef<MovieflixPlayerHandle>(null);
   const posRef = useRef(0);
   const durRef = useRef(0);
   const lastSavedRef = useRef(0);
@@ -55,9 +39,7 @@ export function PlayerPage() {
 
       if (data) {
         setMovie(data);
-        if (data.video_url) {
-          setPlayerInfo(detectPlayerType(data.video_url));
-        }
+        setVideoUrl(data.video_url || "");
 
         if (user) {
           const { data: history } = await supabase
@@ -127,25 +109,13 @@ export function PlayerPage() {
   }, []);
 
   const handleEnded = useCallback(() => {
-    if (movie && user) {
-      saveHistory(durRef.current);
-    }
+    if (movie && user) saveHistory(durRef.current);
   }, [movie, user, saveHistory]);
 
-  const handleResume = () => {
-    setShowResume(false);
-    if (playerRef.current) {
-      playerRef.current.seek(resumePos);
-      playerRef.current.play();
-    }
-  };
-
+  const handleResume = () => setShowResume(false);
   const handleRestart = () => {
+    setResumePos(0);
     setShowResume(false);
-    if (playerRef.current) {
-      playerRef.current.seek(0);
-      playerRef.current.play();
-    }
   };
 
   if (loading) {
@@ -156,20 +126,15 @@ export function PlayerPage() {
     );
   }
 
-  if (!user) {
-    navigate('/login');
-    return null;
-  }
+  if (!user) { navigate('/login'); return null; }
 
   if (!subscriptionActive) {
     return (
       <div className="flex h-screen flex-col items-center justify-center bg-black text-white p-8 text-center">
         <h2 className="text-2xl font-bold mb-2">Conteúdo exclusivo 🔒</h2>
         <p className="text-zinc-400 mb-6">Você precisa de uma assinatura ativa para assistir.</p>
-        <button 
-          onClick={() => navigate('/subscription')}
-          className="rounded-lg bg-red-600 px-6 py-3 font-semibold hover:bg-red-700 transition"
-        >
+        <button onClick={() => navigate('/subscription')}
+          className="rounded-lg bg-red-600 px-6 py-3 font-semibold hover:bg-red-700 transition">
           Ver planos
         </button>
       </div>
@@ -189,11 +154,10 @@ export function PlayerPage() {
 
   return (
     <div className="min-h-screen bg-black text-white">
+      {/* Header */}
       <div className="fixed top-0 left-0 right-0 z-50 flex items-center gap-4 bg-gradient-to-b from-black/90 to-transparent p-4">
-        <button
-          onClick={() => navigate(-1)}
-          className="flex items-center gap-2 rounded-full bg-black/50 p-2 backdrop-blur transition hover:bg-white/20"
-        >
+        <button onClick={() => navigate(-1)}
+          className="flex items-center gap-2 rounded-full bg-black/50 p-2 backdrop-blur transition hover:bg-white/20">
           <ChevronLeft className="h-6 w-6" />
         </button>
         <h1 className="truncate text-lg font-semibold md:text-xl">
@@ -201,35 +165,35 @@ export function PlayerPage() {
         </h1>
       </div>
 
+      {/* Player */}
       <div className="relative flex h-screen w-full items-center justify-center bg-black">
         {pageLoading ? (
           <div className="flex flex-col items-center gap-4">
             <div className="h-12 w-12 animate-spin rounded-full border-4 border-red-600 border-t-transparent" />
             <p className="text-zinc-400">Carregando vídeo...</p>
           </div>
-        ) : !playerInfo.src ? (
+        ) : !videoUrl ? (
           <div className="text-center p-8">
             <h2 className="text-2xl font-bold mb-2">Vídeo não encontrado</h2>
             <p className="text-zinc-400">Este título ainda não possui uma URL de vídeo.</p>
           </div>
         ) : (
           <div className="w-full max-w-[100vw] md:max-w-[90vw] lg:max-w-[85vw]">
-            <MovieflixPlayer
-              ref={playerRef}
-              src={playerInfo.src}
-              type={playerInfo.mode === 'hls' ? 'hls' : playerInfo.mode === 'iframe' ? 'iframe' : 'auto'}
+            <BunnyPlayer
+              src={videoUrl}
               poster={movie?.backdrop_url || movie?.poster_url}
+              title={movie?.title}
               autoPlay={!showResume}
               startTime={showResume ? 0 : resumePos}
               onTimeUpdate={handleTimeUpdate}
               onReady={handleReady}
               onEnded={handleEnded}
-              onError={setErrorMsg}
               className="shadow-2xl shadow-black/50"
             />
           </div>
         )}
 
+        {/* Resume dialog */}
         {showResume && (
           <div className="absolute inset-0 z-40 flex items-center justify-center bg-black/80 backdrop-blur-sm">
             <div className="mx-4 max-w-md rounded-2xl bg-zinc-900 p-8 text-center shadow-2xl border border-zinc-800">
@@ -239,16 +203,12 @@ export function PlayerPage() {
                 Você parou em {Math.floor(resumePos / 60)}:{String(resumePos % 60).padStart(2, '0')} de {movie?.title}
               </p>
               <div className="flex flex-col gap-3 sm:flex-row sm:justify-center">
-                <button
-                  onClick={handleResume}
-                  className="rounded-lg bg-red-600 px-6 py-3 font-semibold text-white transition hover:bg-red-700 hover:scale-105"
-                >
+                <button onClick={handleResume}
+                  className="rounded-lg bg-red-600 px-6 py-3 font-semibold text-white transition hover:bg-red-700 hover:scale-105">
                   Continuar
                 </button>
-                <button
-                  onClick={handleRestart}
-                  className="rounded-lg bg-zinc-800 px-6 py-3 font-semibold text-white transition hover:bg-zinc-700"
-                >
+                <button onClick={handleRestart}
+                  className="rounded-lg bg-zinc-800 px-6 py-3 font-semibold text-white transition hover:bg-zinc-700">
                   Assistir do início
                 </button>
               </div>
