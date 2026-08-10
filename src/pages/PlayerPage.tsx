@@ -178,7 +178,7 @@ export function PlayerPage() {
             <p className="text-zinc-400">Este título ainda não possui uma URL de vídeo.</p>
           </div>
         ) : (
-          <div className="w-full max-w-[100vw] md:max-w-[90vw] lg:max-w-[85vw]">
+          <div className="w-full h-full">
             <BunnyPlayer
               src={videoUrl}
               poster={movie?.backdrop_url || movie?.poster_url}
@@ -188,7 +188,7 @@ export function PlayerPage() {
               onTimeUpdate={handleTimeUpdate}
               onReady={handleReady}
               onEnded={handleEnded}
-              className="shadow-2xl shadow-black/50"
+              className="h-full w-full"
             />
           </div>
         )}
@@ -216,13 +216,6 @@ export function PlayerPage() {
           </div>
         )}
       </div>
-
-      {movie && (
-        <div className="mx-auto max-w-6xl px-4 py-8">
-          <h2 className="text-2xl font-bold mb-2">{movie.title}</h2>
-          <p className="text-zinc-400 leading-relaxed">{movie.overview}</p>
-        </div>
-      )}
     </div>
   );
 }
