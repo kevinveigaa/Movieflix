@@ -152,6 +152,17 @@ export const UniversalVideoPlayer = forwardRef<
   const callbacksRef = useRef({ onTimeUpdate, onReady, onPause, onEnded });
   callbacksRef.current = { onTimeUpdate, onReady, onPause, onEnded };
   const playingRef = useRef(false);
+  const isDriveRef = useRef(false);
+  const driveCandidatesLenRef = useRef(0);
+  const initialTimeRef = useRef(initialTime);
+  initialTimeRef.current = initialTime;
+  const nextSourceRef = useRef<() => void>(() => {});
+  const autoPlayRef = useRef(autoPlay);
+  autoPlayRef.current = autoPlay;
+  const maxHeightRef = useRef(maxHeight);
+  maxHeightRef.current = maxHeight;
+  /** Quantas trocas automáticas de fonte já foram feitas (evita loop de tela preta). */
+  const switchCountRef = useRef(0);
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -187,6 +198,9 @@ export const UniversalVideoPlayer = forwardRef<
     ? driveCandidates[Math.min(driveSourceIdx, driveCandidates.length - 1)] ??
       src
     : src;
+
+  isDriveRef.current = isDrive;
+  driveCandidatesLenRef.current = driveCandidates.length;
 
   const stalledRef = useRef(false);
   stalledRef.current = stalled;
@@ -246,6 +260,26 @@ export const UniversalVideoPlayer = forwardRef<
     }
   }, [driveSourceIdx, driveCandidates.length]);
 
+  nextSourceRef.current = nextDriveSource;
+
+  /**
+   * Troca de fonte com limite: no máximo 3 tentativas automáticas. Depois disso
+   * mostramos um aviso com botão em vez de recarregar em loop (o que deixava a
+   * tela preta poucos segundos depois de começar o vídeo).
+   */
+  const tryNextSource = useCallback(() => {
+    if (switchCountRef.current >= 3) {
+      setStalled(false);
+      setError(
+        "A fonte deste vídeo parou de responder. Tente novamente ou use o player alternativo."
+      );
+      return;
+    }
+
+    switchCountRef.current += 1;
+    nextSourceRef.current();
+  }, []);
+
   /** Recupera de travamento/tela preta: tenta tocar de novo ou troca de fonte. */
   const recover = useCallback(() => {
     const video = videoRef.current;
@@ -256,7 +290,7 @@ export const UniversalVideoPlayer = forwardRef<
 
     if (video.error || stalledRef.current) {
       if (isDrive && driveCandidates.length > 0) {
-        nextDriveSource();
+        tryNextSource();
       } else {
         video.load();
         video
@@ -278,7 +312,7 @@ export const UniversalVideoPlayer = forwardRef<
     if (video.paused) {
       video.play().catch(() => {});
     }
-  }, [isDrive, driveCandidates.length, nextDriveSource]);
+  }, [isDrive, driveCandidates.length, tryNextSource]);
 
   const togglePlay = () => {
     const video = videoRef.current;
@@ -430,14 +464,14 @@ export const UniversalVideoPlayer = forwardRef<
       callbacksRef.current.onReady?.(video.duration);
 
       // Aplica a posição de retomada (inicial ou escolhida pelo usuário).
-      const target = pendingSeekRef.current ?? initialTime;
+      const target = pendingSeekRef.current ?? initialTimeRef.current;
       pendingSeekRef.current = null;
       if (target > 0 && Number.isFinite(target) && target < video.duration) {
         video.currentTime = target;
         setCurrentTime(target);
       }
 
-      if (autoPlay) {
+      if (autoPlayRef.current) {
         video.play().catch(() => {});
       }
     };
@@ -482,8 +516,8 @@ export const UniversalVideoPlayer = forwardRef<
       setStalled(false);
 
       // Para Google Drive: tenta a próxima fonte automaticamente.
-      if (isDrive && driveCandidates.length > 0) {
-        nextDriveSource();
+      if (isDriveRef.current && driveCandidatesLenRef.current > 0) {
+        tryNextSource();
         return;
       }
 
@@ -519,28 +553,51 @@ export const UniversalVideoPlayer = forwardRef<
         hls.on(Hls.Events.MANIFEST_PARSED, () => {
           setLoading(false);
 
-          if (maxHeight > 0) {
+          if (maxHeightRef.current > 0) {
             const allowed = hls.levels
               .map((level, index) => ({ index, height: level.height ?? 0 }))
-              .filter((level) => level.height === 0 || level.height <= maxHeight);
+              .filter(
+                (level) =>
+                  level.height === 0 || level.height <= maxHeightRef.current
+              );
 
             if (allowed.length > 0 && allowed.length < hls.levels.length) {
               hls.autoLevelCapping = allowed[allowed.length - 1]!.index;
             }
           }
 
-          if (autoPlay) {
+          if (autoPlayRef.current) {
             video.play().catch(() => {});
           }
         });
 
+        // Erros de rede/mídia no HLS são recuperáveis: recuperar em vez de
+        // derrubar o player (era isso que deixava a tela preta no meio do vídeo).
+        let hlsRetries = 0;
+
         hls.on(Hls.Events.ERROR, (_event, data) => {
-          if (data.fatal) {
-            setLoading(false);
-            setError(
-              "Não foi possível carregar o vídeo HLS. Verifique se a URL M3U8 está pública."
-            );
+          if (!data.fatal) {
+            return;
           }
+
+          if (hlsRetries < 3) {
+            hlsRetries += 1;
+            setStalled(true);
+
+            if (data.type === Hls.ErrorTypes.MEDIA_ERROR) {
+              hls.recoverMediaError();
+            } else {
+              hls.startLoad();
+            }
+
+            return;
+          }
+
+          setLoading(false);
+          setStalled(false);
+          setError(
+            "Não foi possível carregar o vídeo HLS. Verifique se a URL M3U8 está pública."
+          );
         });
       } else {
         setLoading(false);
@@ -570,18 +627,10 @@ export const UniversalVideoPlayer = forwardRef<
         clearTimeout(hideControlsTimer.current);
       }
     };
-  }, [
-    src,
-    autoPlay,
-    useIframe,
-    isDrive,
-    driveCandidates.length,
-    nextDriveSource,
-    maxHeight,
-    initialTime,
-    activeUrl,
-    resetControlsTimer,
-  ]);
+    // ATENÇÃO: dependa apenas da URL ativa. Incluir callbacks/props que mudam
+    // durante a reprodução (initialTime, maxHeight, nextDriveSource...) fazia o
+    // efeito rodar de novo, chamando video.load() e apagando a imagem.
+  }, [activeUrl, useIframe, src, resetControlsTimer, tryNextSource]);
 
   /* --------------- Detecção de travamento (tela preta) --------------- */
   useEffect(() => {
@@ -604,10 +653,10 @@ export const UniversalVideoPlayer = forwardRef<
       const now = Date.now();
 
       // Esperando buffer há tempo demais -> troca de fonte automaticamente.
-      if (stalledAt && now - stalledAt > 4000) {
+      if (stalledAt && now - stalledAt > 15000) {
         stalledAt = null;
         if (isDrive && driveCandidates.length > 0) {
-          nextDriveSource();
+          tryNextSource();
         }
         return;
       }
@@ -623,11 +672,11 @@ export const UniversalVideoPlayer = forwardRef<
         if (Math.abs(video.currentTime - lastProgress) < 0.1) {
           if (!frozenAt) {
             frozenAt = now;
-          } else if (now - frozenAt > 5000) {
+          } else if (now - frozenAt > 12000) {
             frozenAt = null;
             setStalled(true);
             if (isDrive && driveCandidates.length > 0) {
-              nextDriveSource();
+              tryNextSource();
             }
           }
         } else {
@@ -647,6 +696,7 @@ export const UniversalVideoPlayer = forwardRef<
     const onPlaying = () => {
       stalledAt = null;
       frozenAt = null;
+      switchCountRef.current = 0;
       setStalled(false);
     };
 
@@ -660,7 +710,7 @@ export const UniversalVideoPlayer = forwardRef<
       video.removeEventListener("playing", onPlaying);
       video.removeEventListener("seeking", onPlaying);
     };
-  }, [src, useIframe, error, isDrive, driveCandidates.length, nextDriveSource]);
+  }, [src, useIframe, error, isDrive, driveCandidates.length, tryNextSource]);
 
   useEffect(() => {
     const handleFullscreenChange = () => {
