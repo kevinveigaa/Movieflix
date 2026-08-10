@@ -1,7 +1,7 @@
-﻿import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 import type { Session, User } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabase';
-import type { Profile, Subscription } from '@/types';
+import type { Profile, Subscription, ViewerProfile } from '@/types';
 
 interface AuthState {
   session: Session | null;
@@ -9,6 +9,8 @@ interface AuthState {
   profile: Profile | null;
   subscription: Subscription | null;
   loading: boolean;
+  activeViewerProfile: ViewerProfile | null;
+  setActiveViewerProfile: (p: ViewerProfile | null) => void;
   signIn: (email: string, password: string) => Promise<void>;
   signUp: (email: string, password: string) => Promise<void>;
   signOut: () => Promise<void>;
@@ -19,16 +21,36 @@ interface AuthState {
 
 const AuthContext = createContext<AuthState | undefined>(undefined);
 
+const PROFILE_KEY = 'movieflix_active_profile';
+
+function loadSavedProfile(): ViewerProfile | null {
+  try {
+    const saved = localStorage.getItem(PROFILE_KEY);
+    return saved ? JSON.parse(saved) : null;
+  } catch {
+    return null;
+  }
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [subscription, setSubscription] = useState<Subscription | null>(null);
   const [loading, setLoading] = useState(true);
+  const [activeViewerProfile, setActiveViewerProfileState] = useState<ViewerProfile | null>(loadSavedProfile);
+
+  function setActiveViewerProfile(p: ViewerProfile | null) {
+    setActiveViewerProfileState(p);
+    if (p) {
+      localStorage.setItem(PROFILE_KEY, JSON.stringify(p));
+    } else {
+      localStorage.removeItem(PROFILE_KEY);
+    }
+  }
 
   async function loadProfile(userId: string) {
     const { data } = await supabase.from('profiles').select('*').eq('id', userId).maybeSingle();
     if (!data) {
-      // create profile row on first login
       const email = (await supabase.auth.getUser()).data.user?.email ?? '';
       const { data: created } = await supabase
         .from('profiles')
@@ -49,7 +71,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       .order('created_at', { ascending: false })
       .limit(1)
       .maybeSingle();
-    console.log('ASSINATURA COMPLETA:', JSON.stringify(data, null, 2));
     setSubscription(data as Subscription | null);
   }
 
@@ -75,6 +96,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         } else {
           setProfile(null);
           setSubscription(null);
+          setActiveViewerProfile(null);
         }
       })();
     });
@@ -93,6 +115,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       profile,
       subscription,
       loading,
+      activeViewerProfile,
+      setActiveViewerProfile,
       async signIn(email, password) {
         const { error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
@@ -105,6 +129,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
       },
       async signOut() {
+        localStorage.removeItem(PROFILE_KEY);
         await supabase.auth.signOut();
       },
       async resetPassword(email) {
@@ -120,7 +145,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (session?.user.id) await loadSubscription(session.user.id);
       },
     }),
-    [session, profile, subscription, loading],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [session, profile, subscription, loading, activeViewerProfile],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
@@ -133,21 +159,8 @@ export function useAuth() {
 }
 
 export function hasActiveSubscription(sub: Subscription | null): boolean {
-  console.log("VERIFICANDO ASSINATURA:", sub);
-
   if (!sub) return false;
-
-  if (sub.status !== "active") return false;
-
-  if (sub.expires_at && new Date(sub.expires_at) < new Date()) {
-    return false;
-  }
-
+  if (sub.status !== 'active') return false;
+  if (sub.expires_at && new Date(sub.expires_at) < new Date()) return false;
   return true;
 }
-
-
-
-
-
-

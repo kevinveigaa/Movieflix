@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Plus, Pencil, Trash2, Check, X, Film, Baby } from 'lucide-react';
+import { Plus, Pencil, Trash2, Check, X, Film, Baby, User } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { supabase } from '@/lib/supabase';
 import type { ViewerProfile } from '@/types';
@@ -16,7 +16,7 @@ const AVATARS = [
 ];
 
 export function ProfileSelectPage() {
-  const { user, loading } = useAuth();
+  const { user, loading, setActiveViewerProfile } = useAuth();
   const navigate = useNavigate();
   const [profiles, setProfiles] = useState<ViewerProfile[]>([]);
   const [loadingProfiles, setLoadingProfiles] = useState(true);
@@ -42,6 +42,11 @@ export function ProfileSelectPage() {
     const { data } = await supabase.from('viewer_profiles').select('*').eq('owner_id', user.id).order('created_at');
     setProfiles((data as ViewerProfile[]) ?? []);
     setLoadingProfiles(false);
+  }
+
+  function selectProfile(p: ViewerProfile) {
+    setActiveViewerProfile(p);
+    navigate('/');
   }
 
   function openCreate() {
@@ -110,16 +115,26 @@ export function ProfileSelectPage() {
         {profiles.map((p) => (
           <div key={p.id} className="group flex flex-col items-center gap-3">
             <div className="relative">
-              <Link to="/" className="block">
-                <div className="relative h-28 w-28 overflow-hidden rounded-2xl border-2 border-transparent bg-ink-800 transition group-hover:border-brand-500 sm:h-32 sm:w-32">
+              <button
+                type="button"
+                onClick={() => !editing && selectProfile(p)}
+                className="block w-full cursor-pointer"
+              >
+                <div className={`relative h-28 w-28 overflow-hidden rounded-2xl border-2 bg-ink-800 transition sm:h-32 sm:w-32 ${
+                  p.is_kid
+                    ? 'border-amber-400/40 group-hover:border-amber-400'
+                    : 'border-transparent group-hover:border-brand-500'
+                }`}>
                   <img src={p.avatar_url} alt={p.name} className="h-full w-full object-cover" />
+                  {p.is_kid && (
+                    <div className="absolute inset-x-0 bottom-0 flex justify-center pb-2">
+                      <span className="flex items-center gap-1 rounded-full bg-amber-400/90 px-2 py-0.5 text-[10px] font-bold text-black">
+                        <Baby className="h-3 w-3" /> Infantil
+                      </span>
+                    </div>
+                  )}
                 </div>
-                {p.is_kid && (
-                  <span className="absolute -bottom-1 left-1/2 flex -translate-x-1/2 items-center gap-1 rounded-full bg-ink-900 px-2 py-0.5 text-[10px] font-semibold text-amber-400">
-                    <Baby className="h-3 w-3" /> Infantil
-                  </span>
-                )}
-              </Link>
+              </button>
               {editing && (
                 <div className="absolute inset-0 flex items-center justify-center gap-2 rounded-2xl bg-black/60">
                   <button onClick={() => openEdit(p)} className="rounded-full bg-white/15 p-2 text-white hover:bg-white/25">
@@ -160,11 +175,44 @@ export function ProfileSelectPage() {
       <Modal open={modalOpen} onClose={() => setModalOpen(false)} size="md">
         <div className="p-6">
           <h3 className="text-lg font-bold text-white">{editingProfile ? 'Editar perfil' : 'Novo perfil'}</h3>
-          <div className="mt-5 space-y-4">
+          <div className="mt-5 space-y-5">
             <div>
               <span className="mb-1.5 block text-sm font-medium text-ink-200">Nome</span>
               <input value={name} onChange={(e) => setName(e.target.value)} maxLength={20} placeholder="Ex.: João" className="input" />
             </div>
+
+            <div>
+              <span className="mb-3 block text-sm font-medium text-ink-200">Tipo de perfil</span>
+              <div className="grid grid-cols-2 gap-3">
+                <button
+                  type="button"
+                  onClick={() => setIsKid(false)}
+                  className={`flex flex-col items-center gap-2 rounded-xl border-2 p-4 transition ${
+                    !isKid
+                      ? 'border-brand-500 bg-brand-600/10 shadow-md shadow-brand-600/20'
+                      : 'border-white/10 bg-white/5 hover:bg-white/10'
+                  }`}
+                >
+                  <User className={`h-8 w-8 ${!isKid ? 'text-brand-400' : 'text-ink-400'}`} />
+                  <span className="text-sm font-semibold text-white">Normal</span>
+                  <span className="text-center text-[11px] text-ink-400">Todo o conteudo</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setIsKid(true)}
+                  className={`flex flex-col items-center gap-2 rounded-xl border-2 p-4 transition ${
+                    isKid
+                      ? 'border-amber-400 bg-amber-400/10 shadow-md shadow-amber-400/20'
+                      : 'border-white/10 bg-white/5 hover:bg-white/10'
+                  }`}
+                >
+                  <Baby className={`h-8 w-8 ${isKid ? 'text-amber-400' : 'text-ink-400'}`} />
+                  <span className="text-sm font-semibold text-white">Infantil</span>
+                  <span className="text-center text-[11px] text-ink-400">So conteudo para criancas</span>
+                </button>
+              </div>
+            </div>
+
             <div>
               <span className="mb-2 block text-sm font-medium text-ink-200">Avatar</span>
               <div className="flex flex-wrap gap-2">
@@ -179,10 +227,6 @@ export function ProfileSelectPage() {
                 ))}
               </div>
             </div>
-            <label className="flex items-center gap-2 text-sm text-ink-200">
-              <input type="checkbox" checked={isKid} onChange={(e) => setIsKid(e.target.checked)} className="rounded border-white/20 bg-ink-800" />
-              Controle infantil (apenas conteúdo apropriado)
-            </label>
           </div>
           <div className="mt-6 flex justify-end gap-2">
             <button onClick={() => setModalOpen(false)} className="btn-outline">
@@ -197,7 +241,3 @@ export function ProfileSelectPage() {
     </div>
   );
 }
-
-
-
-

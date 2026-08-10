@@ -5,21 +5,29 @@ import { useMovies } from "@/hooks/useMovies";
 import { useAuth, hasActiveSubscription } from "@/context/AuthContext";
 import { Link } from "react-router-dom";
 import { Crown, Sparkles, ChevronLeft, ChevronRight } from "lucide-react";
-import { categoriasDoFilme, ordenarCategorias } from "@/lib/categorias";
+import { categoriasDoFilme, ordenarCategorias, temCategoria } from "@/lib/categorias";
 
 export function HomePage() {
-  const { subscription } = useAuth();
-  // Catálogo completo: filmes, séries, animes, etc. Assim a home mostra TODAS
-  // as categorias existentes, não só as dos títulos do tipo "movie".
+  const { subscription, activeViewerProfile } = useAuth();
+  const isKid = activeViewerProfile?.is_kid ?? false;
   const movies = useMovies();
 
-  const destaques = useMemo(() => (movies.data ?? []).slice(0, 5), [movies.data]);
+  const KIDS_CATS = ["Infantil", "Familia", "Animacao"];
+  const isKidsContent = (movie: any) =>
+    KIDS_CATS.some((c) => temCategoria(movie, c)) || String(movie.type ?? "").toLowerCase() === "kids";
 
-  /** Todas as categorias existentes no catálogo, cada filme em todas as suas categorias. */
+  const visibleMovies = useMemo(
+    () => (isKid ? (movies.data ?? []).filter(isKidsContent) : (movies.data ?? [])),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [movies.data, isKid],
+  );
+
+  const destaques = useMemo(() => visibleMovies.slice(0, 5), [visibleMovies]);
+
   const categorias = useMemo(() => {
     const mapa = new Map<string, any[]>();
 
-    for (const movie of movies.data ?? []) {
+    for (const movie of visibleMovies) {
       for (const cat of categoriasDoFilme(movie)) {
         if (!mapa.has(cat)) mapa.set(cat, []);
         mapa.get(cat)!.push(movie);
@@ -31,10 +39,9 @@ export function HomePage() {
     return nomes
       .map((nome) => ({ nome, lista: mapa.get(nome)!.slice(0, 20) }))
       .filter((c) => c.lista.length > 0);
-  }, [movies.data]);
+  }, [visibleMovies]);
 
-  // Somente os 5 titulos mais recentes (a lista ja vem ordenada por created_at desc).
-  const recentes = useMemo(() => (movies.data ?? []).slice(0, 5), [movies.data]);
+  const recentes = useMemo(() => visibleMovies.slice(0, 5), [visibleMovies]);
 
   return (
     <div className="pb-16">

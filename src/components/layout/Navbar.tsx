@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, NavLink, useNavigate, useLocation } from 'react-router-dom';
-import { Search, Menu, X, Bell, User, LogOut, Settings, CreditCard, Shield, Film, Smartphone, ChevronDown } from 'lucide-react';
+import { Search, Menu, X, Bell, User, LogOut, Settings, CreditCard, Shield, Film, Smartphone, ChevronDown, Baby } from 'lucide-react';
 import { useMovies } from '@/hooks/useMovies';
 import { categoriasDoFilme, ordenarCategorias } from '@/lib/categorias';
 import { useAuth, hasActiveSubscription } from '@/context/AuthContext';
@@ -11,7 +11,6 @@ const navLinks = [
   { to: '/filmes', label: 'Filmes' },
   { to: '/series', label: 'Séries' },
   { to: '/animes', label: 'Animes' },
-  { to: '/infantil', label: 'Infantil' },
 ];
 
 /** Todas as categorias realmente usadas no catálogo, para o menu "Categorias". */
@@ -38,7 +37,8 @@ export function Navbar() {
   const [query, setQuery] = useState('');
   const navigate = useNavigate();
   const location = useLocation();
-  const { user, profile, subscription, signOut } = useAuth();
+  const { user, profile, subscription, signOut, activeViewerProfile } = useAuth();
+  const isKid = activeViewerProfile?.is_kid ?? false;
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 20);
@@ -75,6 +75,12 @@ export function Navbar() {
         scrolled ? 'bg-ink-950/95 backdrop-blur shadow-lg shadow-black/40' : 'bg-gradient-to-b from-black/80 to-transparent',
       )}
     >
+      {isKid && (
+        <div className="bg-amber-400 px-4 py-1 text-center text-xs font-bold text-black">
+          <Baby className="mr-1 inline h-3 w-3" />
+          Modo Infantil — apenas conteudo para criancas
+        </div>
+      )}
       <div className="container-app flex h-14 sm:h-16 lg:h-20 items-center gap-2 sm:gap-4">
         <Link to="/" className="flex items-center gap-2">
           <span className="flex h-7 w-7 sm:h-8 sm:w-8 lg:h-10 lg:w-10 items-center justify-center rounded-md bg-brand-600 text-white">
