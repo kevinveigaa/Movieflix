@@ -24,50 +24,39 @@ function fmt(s: number) {
   return `${String(m).padStart(2,"0")}:${String(sec).padStart(2,"0")}`;
 }
 
-function detectPlayerType(url: string): { type: "native" | "iframe" | "unknown"; src: string } {
-  const u = url.trim();
+// Carrega hls.js do CDN dinamicamente
+function loadHlsJs(): Promise<any> {
+  return new Promise((resolve, reject) => {
+    if ((window as any).Hls) { resolve((window as any).Hls); return; }
+    const script = document.createElement("script");
+    script.src = "https://cdn.jsdelivr.net/npm/hls.js@1.5.8/dist/hls.min.js";
+    script.onload = () => resolve((window as any).Hls);
+    script.onerror = () => reject(new Error("Falha ao carregar hls.js"));
+    document.head.appendChild(script);
+  });
+}
 
-  // YouTube
-  const yt = u.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([a-zA-Z0-9_-]{11})/);
+function detectPlayerType(url: string): { type: "hls" | "native" | "iframe" | "unknown"; src: string } {
+  const u = url.trim().toLowerCase();
+  if (u.endsWith(".m3u8") || u.includes(".m3u8?")) return { type: "hls", src: url.trim() };
+  if (u.endsWith(".mp4") || u.endsWith(".webm") || u.endsWith(".ogg") || u.includes(".mp4?") || u.includes(".webm?")) return { type: "native", src: url.trim() };
+
+  const yt = url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([a-zA-Z0-9_-]{11})/);
   if (yt) return { type: "iframe", src: `https://www.youtube.com/embed/${yt[1]}?autoplay=1&rel=0&playsinline=1` };
-
-  // YouTube shorts
-  const yts = u.match(/youtube\.com\/shorts\/([a-zA-Z0-9_-]+)/);
+  const yts = url.match(/youtube\.com\/shorts\/([a-zA-Z0-9_-]+)/);
   if (yts) return { type: "iframe", src: `https://www.youtube.com/embed/${yts[1]}?autoplay=1&rel=0&playsinline=1` };
-
-  // Vimeo
-  const vm = u.match(/vimeo\.com\/(\d+)/);
+  const vm = url.match(/vimeo\.com\/(\d+)/);
   if (vm) return { type: "iframe", src: `https://player.vimeo.com/video/${vm[1]}?autoplay=1&playsinline=1` };
-
-  // Dailymotion
-  const dm = u.match(/dailymotion\.com\/video\/([a-zA-Z0-9]+)/);
+  const dm = url.match(/dailymotion\.com\/video\/([a-zA-Z0-9]+)/);
   if (dm) return { type: "iframe", src: `https://www.dailymotion.com/embed/video/${dm[1]}?autoplay=1&playsinline=1` };
-
-  // Google Drive - converte para preview
-  const gd = u.match(/drive\.google\.com\/file\/d\/([a-zA-Z0-9_-]+)/);
+  const gd = url.match(/drive\.google\.com\/file\/d\/([a-zA-Z0-9_-]+)/);
   if (gd) return { type: "iframe", src: `https://drive.google.com/file/d/${gd[1]}/preview` };
-
-  // Google Drive open?id=
-  const gd2 = u.match(/drive\.google\.com\/open\?id=([a-zA-Z0-9_-]+)/);
+  const gd2 = url.match(/drive\.google\.com\/open\?id=([a-zA-Z0-9_-]+)/);
   if (gd2) return { type: "iframe", src: `https://drive.google.com/file/d/${gd2[1]}/preview` };
 
-  // Direct video files
-  const lower = u.toLowerCase();
-  if (lower.endsWith('.mp4') || lower.endsWith('.webm') || lower.endsWith('.ogg') || lower.endsWith('.mkv') || lower.includes('.mp4?') || lower.includes('.webm?')) {
-    return { type: "native", src: u };
-  }
+  if (url.includes("/embed/") || url.includes("/preview") || url.includes("iframe")) return { type: "iframe", src: url.trim() };
 
-  // M3U8 streams
-  if (lower.endsWith('.m3u8') || lower.includes('.m3u8?')) {
-    return { type: "native", src: u };
-  }
-
-  // If it's already an embed iframe
-  if (u.includes('/embed/') || u.includes('/preview')) {
-    return { type: "iframe", src: u };
-  }
-
-  return { type: "unknown", src: u };
+  return { type: "unknown", src: url.trim() };
 }
 
 export function PlayerPage() {
@@ -80,18 +69,19 @@ export function PlayerPage() {
 
   const [movie, setMovie] = useState<Movie | null>(null);
   const [videoUrl, setVideoUrl] = useState("");
-  const [playerType, setPlayerType] = useState<"native" | "iframe" | "unknown">("unknown");
+  const [playerType, setPlayerType] = useState<"hls" | "native" | "iframe" | "unknown">("unknown");
   const [embedSrc, setEmbedSrc] = useState("");
   const [loadingVideo, setLoadingVideo] = useState(true);
   const [resumePos, setResumePos] = useState(0);
   const [showResume, setShowResume] = useState(false);
-  const [nativeError, setNativeError] = useState(false);
+  const [errorMsg, setErrorMsg] = useState("");
+  const [hlsLoaded, setHlsLoaded] = useState(false);
 
   const videoRef = useRef<HTMLVideoElement | null>(null);
+  const hlsRef = useRef<any>(null);
   const posRef = useRef(0);
   const durRef = useRef(0);
   const lastSavedRef = useRef(0);
-  const errorTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const upsertHistory = useUpsertHistory();
 
@@ -101,13 +91,14 @@ export function PlayerPage() {
     async function load() {
       if (!id) { setLoadingVideo(false); return; }
       setLoadingVideo(true);
+      setErrorMsg("");
       const { data } = await supabase.from("movies").select("*").eq("id", id).single();
       if (cancelled) return;
       if (data) {
         setMovie(data);
         if (data.video_url) {
           const detected = detectPlayerType(data.video_url);
-          setVideoUrl(data.video_url);
+          setVideoUrl(detected.src);
           setPlayerType(detected.type);
           setEmbedSrc(detected.src);
         }
@@ -127,13 +118,65 @@ export function PlayerPage() {
     return () => { cancelled = true; };
   }, [id, user?.id, activeViewerProfile?.id]);
 
+  // Setup HLS
+  useEffect(() => {
+    if (playerType !== "hls" || !videoUrl) return;
+    const video = videoRef.current;
+    if (!video) return;
+
+    let cancelled = false;
+    const startTime = showResume ? 0 : resumePos;
+
+    async function initHls() {
+      try {
+        const Hls = await loadHlsJs();
+        if (cancelled) return;
+        setHlsLoaded(true);
+
+        if (Hls.isSupported()) {
+          const hls = new Hls({ maxBufferLength: 30, maxMaxBufferLength: 60 });
+          hlsRef.current = hls;
+          hls.loadSource(videoUrl);
+          hls.attachMedia(video);
+          hls.on(Hls.Events.MANIFEST_PARSED, () => {
+            if (cancelled) return;
+            video.currentTime = startTime;
+            video.muted = true;
+            video.play().catch(() => {});
+          });
+          hls.on(Hls.Events.ERROR, (_event: any, data: any) => {
+            if (data.fatal) {
+              setErrorMsg("Erro ao carregar o stream HLS.");
+            }
+          });
+        } else if (video.canPlayType("application/vnd.apple.mpegurl")) {
+          // Safari nativo suporta HLS
+          video.src = videoUrl;
+          video.currentTime = startTime;
+          video.muted = true;
+          video.play().catch(() => {});
+        } else {
+          setErrorMsg("Seu navegador não suporta HLS.");
+        }
+      } catch (e) {
+        if (!cancelled) setErrorMsg("Não foi possível carregar o player HLS.");
+      }
+    }
+
+    initHls();
+
+    return () => {
+      cancelled = true;
+      if (hlsRef.current) { hlsRef.current.destroy(); hlsRef.current = null; }
+    };
+  }, [playerType, videoUrl, showResume, resumePos]);
+
   // Setup video nativo
   useEffect(() => {
     if (playerType !== "native" || !videoUrl) return;
     const video = videoRef.current;
     if (!video) return;
 
-    setNativeError(false);
     video.pause();
     video.removeAttribute("src");
     video.load();
@@ -146,45 +189,19 @@ export function PlayerPage() {
     video.preload = "auto";
     if (movie?.poster_url) video.poster = movie.poster_url;
 
-    // Se não carregar em 12s, assume erro
-    errorTimerRef.current = setTimeout(() => {
-      if (video.readyState < 2) {
-        setNativeError(true);
-      }
-    }, 12000);
-
-    const onLoaded = () => {
-      if (errorTimerRef.current) clearTimeout(errorTimerRef.current);
-      durRef.current = video.duration;
-      video.play().catch(() => {});
-    };
-    const onTime = () => {
-      posRef.current = video.currentTime;
-      if (Math.abs(video.currentTime - lastSavedRef.current) >= 10) saveHistory(video.currentTime);
-    };
-    const onPauseEv = () => saveHistory(posRef.current);
-    const onEnd = () => saveHistory(durRef.current);
-    const onErr = () => {
-      if (errorTimerRef.current) clearTimeout(errorTimerRef.current);
-      setNativeError(true);
-    };
+    const onLoaded = () => { durRef.current = video.duration; video.play().catch(() => {}); };
+    const onErr = () => setErrorMsg("Não foi possível carregar o vídeo.");
 
     video.addEventListener("loadedmetadata", onLoaded);
-    video.addEventListener("timeupdate", onTime);
-    video.addEventListener("pause", onPauseEv);
-    video.addEventListener("ended", onEnd);
     video.addEventListener("error", onErr);
 
     return () => {
-      if (errorTimerRef.current) clearTimeout(errorTimerRef.current);
       video.removeEventListener("loadedmetadata", onLoaded);
-      video.removeEventListener("timeupdate", onTime);
-      video.removeEventListener("pause", onPauseEv);
-      video.removeEventListener("ended", onEnd);
       video.removeEventListener("error", onErr);
     };
   }, [playerType, videoUrl, showResume, resumePos, movie?.poster_url]);
 
+  // Histórico
   const saveHistory = useCallback((t: number) => {
     if (!movie || !user || t <= 0) return;
     if (durRef.current > 0 && t >= durRef.current - 2) return;
@@ -196,7 +213,7 @@ export function PlayerPage() {
 
   useEffect(() => () => { if (posRef.current > 0) saveHistory(posRef.current); }, [saveHistory]);
 
-  // Controles nativos
+  // Controles nativos/HLS
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
@@ -250,9 +267,10 @@ export function PlayerPage() {
     return <div className="flex h-screen w-screen items-center justify-center bg-black px-4 text-white text-center"><div className="max-w-md"><h1 className="text-2xl font-bold">Limite de telas atingido</h1><p className="mt-2 text-zinc-400">Seu plano permite {entitlements.screens} {entitlements.screens === 1 ? "tela" : "telas"} e há {activeScreens} em uso.</p><button onClick={() => navigate("/minha-assinatura")} className="mt-5 rounded-lg bg-red-600 px-5 py-3 font-semibold hover:bg-red-700">Fazer upgrade</button></div></div>;
   }
 
+  const showNativePlayer = playerType === "native" || playerType === "hls";
+
   return (
     <div className="fixed inset-0 z-0 h-screen w-screen overflow-hidden bg-black">
-      {/* Voltar */}
       <button onClick={() => navigate(-1)} className="absolute left-3 top-3 z-50 flex items-center gap-2 rounded-full bg-black/60 px-3 py-1.5 text-sm text-white backdrop-blur hover:bg-black/80">
         <ArrowLeft size={16} />Voltar
       </button>
@@ -265,18 +283,9 @@ export function PlayerPage() {
         <div className="flex h-full w-full items-center justify-center text-center text-white">
           <div><h2 className="text-xl font-semibold">Vídeo não encontrado</h2><p className="mt-2 text-sm text-zinc-400">Este filme ainda não possui uma URL de vídeo.</p></div>
         </div>
-      ) : playerType === "iframe" || nativeError ? (
-        /* IFRAME PLAYER - Google Drive, YouTube, etc */
-        <iframe
-          src={embedSrc || videoUrl}
-          className="h-full w-full border-0"
-          allow="autoplay; fullscreen; encrypted-media"
-          allowFullScreen
-          sandbox="allow-scripts allow-same-origin allow-presentation"
-          title={movie?.title || "Player"}
-        />
-      ) : playerType === "native" ? (
-        /* NATIVE VIDEO PLAYER */
+      ) : playerType === "iframe" ? (
+        <iframe src={embedSrc} className="h-full w-full border-0" allow="autoplay; fullscreen; encrypted-media" allowFullScreen title={movie?.title || "Player"} />
+      ) : showNativePlayer ? (
         <div className="relative h-full w-full" onClick={togglePlay} onMouseMove={resetControls} onTouchStart={resetControls}>
           <video
             ref={videoRef}
@@ -286,16 +295,41 @@ export function PlayerPage() {
             preload="auto"
             onPlay={() => setIsPlaying(true)}
             onPause={() => setIsPlaying(false)}
-            onTimeUpdate={(e) => setCurrentTime(e.currentTarget.currentTime)}
+            onTimeUpdate={(e) => { setCurrentTime(e.currentTarget.currentTime); posRef.current = e.currentTarget.currentTime; }}
             onLoadedMetadata={(e) => setDuration(e.currentTarget.duration)}
+            onEnded={() => saveHistory(durRef.current)}
           />
 
-          {!isPlaying && (
+          {/* Loading HLS */}
+          {playerType === "hls" && !hlsLoaded && !errorMsg && (
+            <div className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-black/70">
+              <div className="mx-auto h-10 w-10 animate-spin rounded-full border-4 border-zinc-700 border-t-red-600" />
+              <p className="mt-3 text-sm text-zinc-300">Carregando stream HLS...</p>
+            </div>
+          )}
+
+          {/* Erro */}
+          {errorMsg && (
+            <div className="absolute inset-0 z-30 flex flex-col items-center justify-center bg-black/90 px-6 text-center">
+              <div className="text-4xl mb-3">⚠️</div>
+              <p className="text-lg font-semibold text-white">{errorMsg}</p>
+              <p className="mt-2 text-sm text-zinc-400">Tente recarregar a página ou use outro navegador.</p>
+              {embedSrc && embedSrc !== videoUrl && (
+                <button onClick={(e) => { e.stopPropagation(); setPlayerType("iframe"); }} className="mt-4 rounded-lg bg-red-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-red-500">
+                  Tentar player alternativo
+                </button>
+              )}
+            </div>
+          )}
+
+          {/* Play central */}
+          {!isPlaying && !errorMsg && (
             <button onClick={(e) => { e.stopPropagation(); togglePlay(); }} className="absolute left-1/2 top-1/2 z-20 flex h-16 w-16 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full bg-red-600/90 text-white shadow-2xl active:scale-95 transition">
               <svg className="h-7 w-7 fill-white" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
             </button>
           )}
 
+          {/* Controles */}
           <div className={`absolute inset-x-0 bottom-0 z-30 bg-gradient-to-t from-black/90 via-black/50 to-transparent px-3 pb-4 pt-16 transition-opacity duration-300 ${showControls ? "opacity-100" : "pointer-events-none opacity-0"}`} onClick={(e) => e.stopPropagation()}>
             <input type="range" min={0} max={duration || 0} step={0.1} value={Math.min(currentTime, duration || 0)} onChange={(e) => seek(Number(e.target.value))} className="mb-2 h-1.5 w-full cursor-pointer appearance-none rounded-full" style={{ background: `linear-gradient(to right, #dc2626 0%, #dc2626 ${progressPct}%, rgba(255,255,255,0.25) ${progressPct}%, rgba(255,255,255,0.25) 100%)` }} />
             <div className="flex items-center gap-3 text-white">
@@ -307,7 +341,7 @@ export function PlayerPage() {
             </div>
           </div>
 
-          {isMuted && isPlaying && (
+          {isMuted && isPlaying && !errorMsg && (
             <button onClick={(e) => { e.stopPropagation(); toggleMute(); }} className="absolute right-3 top-3 z-20 rounded-full bg-black/50 px-3 py-1 text-xs text-white backdrop-blur">
               🔇 Toque para ativar o som
             </button>
@@ -322,7 +356,7 @@ export function PlayerPage() {
       )}
 
       {/* Resume overlay */}
-      {showResume && playerType === "native" && !nativeError && (
+      {showResume && showNativePlayer && !errorMsg && (
         <div className="absolute inset-0 z-40 flex flex-col items-center justify-center gap-4 bg-black/80 px-6 text-center">
           <div className="flex h-14 w-14 items-center justify-center rounded-full bg-red-600"><svg className="h-7 w-7 fill-white" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg></div>
           <h2 className="text-lg font-bold text-white">Continuar assistindo?</h2>
