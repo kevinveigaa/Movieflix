@@ -94,16 +94,17 @@
 .tv-nav [tabindex]:focus,
 .tv-nav [data-tv-focusable]:focus,
 .tv-nav .tv-focus {
-  outline: 2px solid rgba(255, 255, 255, 0.45) !important;
+  outline: 3px solid #fff !important;
   outline-offset: 2px;
   border-radius: 0.5rem;
+  box-shadow: 0 0 0 5px rgba(0, 0, 0, 0.45);
   z-index: 30;
   position: relative;
 }
 
 /* Em TV nao existe cursor do mouse: o foco nunca deve ficar invisivel */
 .tv-nav *:focus {
-  outline-color: rgba(255, 255, 255, 0.45);
+  outline-color: #fff;
 }
 
 /* Painel de diagnostico do controle (?tvdebug=1) */
