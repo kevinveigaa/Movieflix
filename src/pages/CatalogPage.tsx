@@ -5,7 +5,7 @@ import { FullScreenLoader } from '@/components/ui/Feedback';
 import { useMovies } from '@/hooks/useMovies';
 import { useWatchHistory } from '@/hooks/useWatchHistory';
 import { useAuth } from '@/context/AuthContext';
-import { temCategoria } from '@/lib/categorias';
+import { ehInfantil, isCategoriaKids, temCategoria } from '@/lib/categorias';
 
 type CatalogKind = 'filmes' | 'series' | 'animes';
 
@@ -26,13 +26,6 @@ const CATEGORIAS_DA_SECAO: Record<CatalogKind, string[]> = {
   series: ['Serie', 'Novela'],
   animes: ['Anime'],
 };
-
-const KIDS_CATS = ['Infantil', 'Familia', 'Animacao'];
-
-function isKidsContent(movie: any): boolean {
-  return ['Infantil', 'Familia', 'Animacao'].some((c) => temCategoria(movie, c)) ||
-    String(movie.type ?? '').toLowerCase() === 'kids';
-}
 
 export function CatalogPage({ kind }: { kind: CatalogKind }) {
   const movies = useMovies();
@@ -58,12 +51,16 @@ export function CatalogPage({ kind }: { kind: CatalogKind }) {
     const termo = search.trim().toLowerCase();
 
     return (movies.data ?? []).filter((movie: any) => {
-      if (isKid && !isKidsContent(movie)) return false;
+      if (isKid && !ehInfantil(movie)) return false;
 
       const tituloOk = !termo || String(movie.title ?? '').toLowerCase().includes(termo);
       if (!tituloOk) return false;
 
-      if (categoria) return temCategoria(movie, categoria);
+      if (categoria) {
+        // A categoria "Infantil" agrega todo o conteúdo infantil (Animação,
+        // Família e tipo "kids"), para nunca aparecer vazia.
+        return isCategoriaKids(categoria) ? ehInfantil(movie) : temCategoria(movie, categoria);
+      }
 
       const tipo = String(movie.type ?? 'movie').toLowerCase();
       if (TIPOS[kind].includes(tipo)) return true;

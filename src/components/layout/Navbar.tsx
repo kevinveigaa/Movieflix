@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, NavLink, useNavigate, useLocation } from 'react-router-dom';
 import { Search, Menu, X, Bell, User, LogOut, Settings, CreditCard, Shield, Film, Smartphone, ChevronDown, Baby, Users } from 'lucide-react';
 import { useMovies } from '@/hooks/useMovies';
-import { categoriasDoFilme, ordenarCategorias } from '@/lib/categorias';
+import { categoriasDoFilme, ehInfantil, ordenarCategorias } from '@/lib/categorias';
 import { useAuth, hasActiveSubscription } from '@/context/AuthContext';
 import { cn } from '@/lib/cn';
 
@@ -13,18 +13,20 @@ const navLinks = [
   { to: '/animes', label: 'Animes' },
 ];
 
-/** Todas as categorias realmente usadas no catálogo, para o menu "Categorias". */
-function useCategorias() {
+/** Categorias realmente usadas no catálogo, para o menu "Categorias". No modo
+ * infantil, só mostra categorias de conteúdo infantil (não leva a páginas vazias). */
+function useCategorias(isKid: boolean) {
   const movies = useMovies();
   return useMemo(() => {
     const nomes = new Set<string>();
     for (const movie of movies.data ?? []) {
+      if (isKid && !ehInfantil(movie)) continue;
       for (const cat of categoriasDoFilme(movie)) {
         if (cat !== 'Outros') nomes.add(cat);
       }
     }
     return ordenarCategorias(Array.from(nomes));
-  }, [movies.data]);
+  }, [movies.data, isKid]);
 }
 
 export function Navbar() {
@@ -33,12 +35,12 @@ export function Navbar() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [catOpen, setCatOpen] = useState(false);
   const catRef = useRef<HTMLDivElement>(null);
-  const categorias = useCategorias();
+  const { user, profile, subscription, signOut, activeViewerProfile } = useAuth();
+  const isKid = activeViewerProfile?.is_kid ?? false;
+  const categorias = useCategorias(isKid);
   const [query, setQuery] = useState('');
   const navigate = useNavigate();
   const location = useLocation();
-  const { user, profile, subscription, signOut, activeViewerProfile } = useAuth();
-  const isKid = activeViewerProfile?.is_kid ?? false;
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 20);

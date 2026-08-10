@@ -62,7 +62,7 @@ export function PlayerPage() {
 
       setLoadingVideo(true);
 
-      const { data, error } = await supabase
+      const { data } = await supabase
         .from("movies")
         .select("*")
         .eq("id", id)
@@ -97,7 +97,6 @@ export function PlayerPage() {
         }
       }
 
-      console.log("MOVIE:", data, error);
       setLoadingVideo(false);
     }
 

@@ -31,6 +31,9 @@ interface Movie {
   video_url?: string;
   backdrop_url?: string;
   vote_average?: number;
+  category?: string | null;
+  language?: string | null;
+  quality?: string | null;
 }
 
 export function TitleDetailPage() {
@@ -38,6 +41,7 @@ export function TitleDetailPage() {
   const navigate = useNavigate();
 
   const [movie, setMovie] = useState<Movie | null>(null);
+  const [naoEncontrado, setNaoEncontrado] = useState(false);
   const [downloadMsg, setDownloadMsg] = useState("");
   const [downloadError, setDownloadError] = useState("");
   const [downloading, setDownloading] = useState(false);
@@ -123,22 +127,38 @@ export function TitleDetailPage() {
     async function loadMovie() {
       if (!id) return;
 
-      const { data, error } = await supabase
+      const { data } = await supabase
         .from("movies")
         .select("*")
         .eq("id", id)
-        .single();
-
-      console.log("FILME:", data, error);
+        .maybeSingle();
 
       if (data) {
         setMovie(data);
+      } else {
+        // Título inexistente no catálogo (ex.: id de outra fonte/TMDB).
+        setNaoEncontrado(true);
       }
     }
 
     loadMovie();
   }, [id]);
 
+
+  if (naoEncontrado) {
+    return (
+      <div className="flex min-h-screen flex-col items-center justify-center gap-4 bg-black px-4 text-center text-white">
+        <h1 className="text-3xl font-bold">Título não encontrado</h1>
+        <p className="text-zinc-400">Este título não está disponível no catálogo.</p>
+        <button
+          onClick={() => navigate("/")}
+          className="rounded-lg bg-white px-5 py-3 font-bold text-black"
+        >
+          Explorar catálogo
+        </button>
+      </div>
+    );
+  }
 
   if (!movie) {
     return (
@@ -186,6 +206,30 @@ export function TitleDetailPage() {
               </span>
             )}
           </div>
+
+          {(movie.category || movie.quality || movie.language) && (
+            <div className="mt-3 flex flex-wrap gap-2">
+              {(movie.category ?? "")
+                .split(",")
+                .map((c) => c.trim())
+                .filter(Boolean)
+                .map((c) => (
+                  <span key={c} className="rounded-full border border-white/15 bg-white/5 px-3 py-1 text-xs text-zinc-300">
+                    {c}
+                  </span>
+                ))}
+              {movie.quality && (
+                <span className="rounded-full border border-brand-500/30 bg-brand-500/10 px-3 py-1 text-xs text-brand-300">
+                  {movie.quality}
+                </span>
+              )}
+              {movie.language && (
+                <span className="rounded-full border border-white/15 bg-white/5 px-3 py-1 text-xs text-zinc-300">
+                  {movie.language}
+                </span>
+              )}
+            </div>
+          )}
 
 
           <p className="mt-4 text-sm sm:text-base md:text-lg text-zinc-300 line-clamp-4">

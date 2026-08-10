@@ -60,6 +60,28 @@ export function temCategoria(movie: { category?: string | null }, categoria: str
   return categoriasDoFilme(movie).some((c) => normalizar(c) === alvo);
 }
 
+/**
+ * Categorias que representam conteúdo infantil. O filtro "Infantil" agrega
+ * todas elas (mais o tipo "kids"), para que filmes como Toy Story — que podem
+ * estar marcados como "Animação" ou "Família" no painel admin — nunca sumam
+ * da categoria infantil.
+ */
+export const CATEGORIAS_KIDS = ["Infantil", "Animação", "Família"];
+
+/** A obra é conteúdo infantil? (categoria infantil/animada/familiar ou tipo "kids"). */
+export function ehInfantil(
+  movie: { category?: string | null; type?: string | null } | null | undefined,
+): boolean {
+  if (!movie) return false;
+  if (String(movie.type ?? "").toLowerCase() === "kids") return true;
+  return CATEGORIAS_KIDS.some((c) => temCategoria(movie, c));
+}
+
+/** O filtro de categoria representa a seção "Infantil"? (agrega as categorias kids). */
+export function isCategoriaKids(categoria: string): boolean {
+  return normalizar(categoria) === "infantil";
+}
+
 /** Ordenação usada na home e no menu. */
 export function ordenarCategorias(nomes: string[]): string[] {
   return [...nomes].sort((a, b) => {

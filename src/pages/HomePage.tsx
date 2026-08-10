@@ -6,7 +6,7 @@ import { useWatchHistory } from "@/hooks/useWatchHistory";
 import { useAuth, hasActiveSubscription } from "@/context/AuthContext";
 import { Link } from "react-router-dom";
 import { Crown, Sparkles, ChevronLeft, ChevronRight } from "lucide-react";
-import { categoriasDoFilme, ordenarCategorias, temCategoria } from "@/lib/categorias";
+import { categoriasDoFilme, ehInfantil, ordenarCategorias } from "@/lib/categorias";
 
 export function HomePage() {
   const { subscription, activeViewerProfile } = useAuth();
@@ -14,12 +14,8 @@ export function HomePage() {
   const movies = useMovies();
   const history = useWatchHistory();
 
-  const KIDS_CATS = ["Infantil", "Familia", "Animacao"];
-  const isKidsContent = (movie: any) =>
-    KIDS_CATS.some((c) => temCategoria(movie, c)) || String(movie.type ?? "").toLowerCase() === "kids";
-
   const visibleMovies = useMemo(
-    () => (isKid ? (movies.data ?? []).filter(isKidsContent) : (movies.data ?? [])),
+    () => (isKid ? (movies.data ?? []).filter(ehInfantil) : (movies.data ?? [])),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [movies.data, isKid],
   );

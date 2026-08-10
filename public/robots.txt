@@ -11,5 +11,5 @@ Disallow: /historico
 Disallow: /continuar
 Disallow: /selecionar-perfil
 
-# Substitua movieflix.com.br pelo domínio real do site em produção.
-Sitemap: https://movieflix-api-udsv.onrender.com/sitemap.xml
+# Substitua o domínio abaixo pelo domínio real do site em produção, se mudar.
+Sitemap: https://movieflix-bszf.onrender.com/sitemap.xml
