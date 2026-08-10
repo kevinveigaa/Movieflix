@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, useCallback } from "react";
 import Hls from "hls.js";
 import {
   Play, Pause, Volume2, VolumeX, Maximize, Minimize, SkipBack, SkipForward,
-  Loader2, AlertCircle, Settings2, ChevronLeft, RotateCcw
+  Loader2, AlertCircle, Settings2
 } from "lucide-react";
 
 interface BunnyPlayerProps {
@@ -32,7 +32,6 @@ function detectType(src: string): "bunny-iframe" | "hls" | "mp4" | "iframe" | "u
   if (u.includes(".m3u8") || u.includes("playlist") || u.includes("master.m3u")) return "hls";
   if (u.includes(".mp4") || u.includes(".webm") || u.includes(".mkv") || u.includes(".mov")) return "mp4";
   if (u.includes("youtube") || u.includes("youtu.be") || u.includes("vimeo") || u.includes("drive.google")) return "iframe";
-  // Fallback: tenta como mp4 para URLs diretas genéricas
   if (u.startsWith("http://") || u.startsWith("https://")) return "mp4";
   return "unknown";
 }
@@ -50,7 +49,6 @@ export function BunnyPlayer({
 }: BunnyPlayerProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
-  const progressRef = useRef<HTMLDivElement>(null);
   const hlsRef = useRef<Hls | null>(null);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const cbRef = useRef({ onTimeUpdate, onReady, onEnded });
@@ -70,11 +68,7 @@ export function BunnyPlayer({
   const [rate, setRate] = useState(1);
   const [showSet, setShowSet] = useState(false);
   const [hoverVol, setHoverVol] = useState(false);
-  const [hoverTime, setHoverTime] = useState<number | null>(null);
-  const [hoverX, setHoverX] = useState(0);
   const [bufferedEnd, setBufferedEnd] = useState(0);
-
-  const isFullScreen = className.includes("h-full") || className.includes("h-screen");
 
   // Setup video
   useEffect(() => {
@@ -101,7 +95,9 @@ export function BunnyPlayer({
       const onPause = () => setPlaying(false);
       const onTime = () => { 
         setCurr(v.currentTime); 
-        setBufferedEnd(v.buffered.length > 0 ? v.buffered.end(v.buffered.length - 1) : 0);
+        if (v.buffered.length > 0) {
+          setBufferedEnd(v.buffered.end(v.buffered.length - 1));
+        }
         cbRef.current.onTimeUpdate?.(v.currentTime); 
       };
       const onEnd = () => { setPlaying(false); cbRef.current.onEnded?.(); };
@@ -181,15 +177,18 @@ export function BunnyPlayer({
         case 'k':
         case 'K':
           e.preventDefault();
-          togglePlay();
+          if (v.paused) v.play().catch(()=>{}); else v.pause();
+          resetCtrl();
           break;
         case 'ArrowRight':
           e.preventDefault();
-          skip(10);
+          v.currentTime = Math.min(v.duration || Infinity, v.currentTime + 10);
+          resetCtrl();
           break;
         case 'ArrowLeft':
           e.preventDefault();
-          skip(-10);
+          v.currentTime = Math.max(0, v.currentTime - 10);
+          resetCtrl();
           break;
         case 'f':
         case 'F':
@@ -199,21 +198,29 @@ export function BunnyPlayer({
         case 'm':
         case 'M':
           e.preventDefault();
-          toggleMute();
+          v.muted = !v.muted;
+          setMuted(v.muted);
+          resetCtrl();
           break;
         case 'ArrowUp':
           e.preventDefault();
-          chgVol(Math.min(1, volume + 0.1));
+          const newVolUp = Math.min(1, (v.volume || 0) + 0.1);
+          v.volume = newVolUp; v.muted = newVolUp === 0;
+          setVolume(newVolUp); setMuted(newVolUp === 0);
+          resetCtrl();
           break;
         case 'ArrowDown':
           e.preventDefault();
-          chgVol(Math.max(0, volume - 0.1));
+          const newVolDown = Math.max(0, (v.volume || 0) - 0.1);
+          v.volume = newVolDown; v.muted = newVolDown === 0;
+          setVolume(newVolDown); setMuted(newVolDown === 0);
+          resetCtrl();
           break;
       }
     };
     document.addEventListener('keydown', handleKey);
     return () => document.removeEventListener('keydown', handleKey);
-  }, [volume, playing]);
+  }, []);
 
   // Controls timer
   const resetCtrl = useCallback(() => {
@@ -233,19 +240,10 @@ export function BunnyPlayer({
   const pct = dur > 0 ? (curr / dur) * 100 : 0;
   const bufPct = dur > 0 ? (bufferedEnd / dur) * 100 : 0;
 
-  const handleProgressHover = (e: React.MouseEvent<HTMLDivElement>) => {
-    const rect = progressRef.current?.getBoundingClientRect();
-    if (!rect || !dur) return;
-    const x = e.clientX - rect.left;
-    const pct = Math.max(0, Math.min(1, x / rect.width));
-    setHoverTime(pct * dur);
-    setHoverX(x);
-  };
-
   // Bunny iframe
   if (stype === "bunny-iframe") {
     return (
-      <div className={`relative w-full overflow-hidden rounded-none bg-black ${isFullScreen ? 'h-full' : 'aspect-video'} ${className}`}>
+      <div className={`relative w-full overflow-hidden rounded-none bg-black aspect-video ${className}`}>
         <iframe src={bunnyEmbed(src)} className="h-full w-full border-0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowFullScreen title={title||"Video"} />
       </div>
     );
@@ -254,7 +252,7 @@ export function BunnyPlayer({
   // Generic iframe
   if (stype === "iframe") {
     return (
-      <div className={`relative w-full overflow-hidden rounded-none bg-black ${isFullScreen ? 'h-full' : 'aspect-video'} ${className}`}>
+      <div className={`relative w-full overflow-hidden rounded-none bg-black aspect-video ${className}`}>
         <iframe src={src} className="h-full w-full border-0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowFullScreen title={title||"Video"} />
       </div>
     );
@@ -263,7 +261,7 @@ export function BunnyPlayer({
   // Error
   if (error) {
     return (
-      <div className={`relative w-full bg-black flex items-center justify-center ${isFullScreen ? 'h-full' : 'aspect-video'} ${className}`}>
+      <div className={`relative w-full bg-black flex items-center justify-center aspect-video ${className}`}>
         <div className="text-center p-8">
           <AlertCircle className="mx-auto mb-3 h-12 w-12 text-red-500" />
           <p className="text-lg font-bold text-white">Não foi possível reproduzir</p>
@@ -276,13 +274,13 @@ export function BunnyPlayer({
 
   return (
     <div ref={containerRef} 
-      className={`group relative w-full overflow-hidden bg-black select-none ${isFullScreen ? 'h-full' : 'aspect-video'} ${className}`}
+      className={`group relative w-full overflow-hidden bg-black select-none aspect-video ${className}`}
       onMouseMove={resetCtrl} 
       onMouseLeave={()=>playing&&setShowCtrl(false)} 
       onClick={togglePlay}>
 
       <video ref={videoRef} playsInline preload="auto" 
-        className={`h-full w-full ${isFullScreen ? 'object-contain' : 'object-contain'}`}
+        className="h-full w-full object-contain"
         onDoubleClick={(e)=>{e.stopPropagation();toggleFs();}} />
 
       {/* Loading */}
@@ -328,18 +326,7 @@ export function BunnyPlayer({
 
         <div className="relative px-3 sm:px-5 pb-3 sm:pb-4 pt-12">
           {/* Progress bar */}
-          <div 
-            ref={progressRef}
-            className="group/prog relative mb-4 h-1 w-full cursor-pointer sm:h-1.5"
-            onMouseMove={handleProgressHover}
-            onMouseLeave={() => setHoverTime(null)}
-            onClick={(e) => {
-              const rect = progressRef.current?.getBoundingClientRect();
-              if (!rect || !dur) return;
-              const pct = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
-              seek(pct * dur);
-            }}
-          >
+          <div className="group/prog relative mb-4 h-1 w-full cursor-pointer sm:h-1.5">
             {/* Background */}
             <div className="absolute inset-0 rounded-full bg-white/20" />
             {/* Buffered */}
@@ -348,15 +335,6 @@ export function BunnyPlayer({
             <div className="absolute inset-y-0 left-0 rounded-full bg-red-600 transition-all" style={{width: `${pct}%`}}>
               <div className="absolute right-0 top-1/2 h-3 w-3 sm:h-4 sm:w-4 -translate-y-1/2 translate-x-1/2 rounded-full bg-red-500 opacity-0 group-hover/prog:opacity-100 transition-opacity shadow-lg ring-2 ring-white/20" />
             </div>
-            {/* Hover preview */}
-            {hoverTime !== null && dur > 0 && (
-              <div 
-                className="absolute -top-9 rounded-md bg-zinc-900/95 px-2 py-1 text-xs font-medium text-white shadow-xl border border-white/10"
-                style={{ left: `${Math.max(20, Math.min(hoverX, (progressRef.current?.getBoundingClientRect().width || 0) - 20))}px`, transform: 'translateX(-50%)' }}
-              >
-                {fmt(hoverTime)}
-              </div>
-            )}
             <input type="range" min={0} max={dur||1} step={0.1} value={curr}
               onChange={(e)=>seek(Number(e.target.value))}
               className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" />
