@@ -12,30 +12,102 @@ interface Props {
   onEnded?: () => void;
 }
 
-function detectType(src: string): "bunny-iframe" | "hls" | "mp4" | "iframe" | "unknown" {
-  const u = src.trim().toLowerCase();
-  if (u.includes("iframe.mediadelivery.net") || u.includes("bunnycdn")) return "bunny-iframe";
-  if (u.includes(".m3u8")) return "hls";
-  if (u.includes(".mp4") || u.includes(".webm")) return "mp4";
-  if (u.includes("youtube") || u.includes("youtu.be") || u.includes("vimeo")) return "iframe";
-  if (u.startsWith("http")) return "mp4";
-  return "unknown";
+function isBunnyCDN(url: string): boolean {
+  const u = url.toLowerCase();
+  return u.includes("bunnycdn") || u.includes("mediadelivery") || u.includes("b-cdn");
+}
+
+function isYouTube(url: string): boolean {
+  const u = url.toLowerCase();
+  return u.includes("youtube") || u.includes("youtu.be");
+}
+
+function isVimeo(url: string): boolean {
+  return url.toLowerCase().includes("vimeo");
 }
 
 function bunnyEmbed(url: string): string {
+  // Se já for iframe URL, retorna como está
   if (url.includes("iframe.mediadelivery.net/embed/")) return url;
+  // Extrai libraryId e videoId da URL do BunnyCDN
+  // Ex: https://video.bunnycdn.com/play/12345/abcd-efgh
   const m = url.match(/(\d+)\/([a-f0-9-]+)/i);
   if (m) return `https://iframe.mediadelivery.net/embed/${m[1]}/${m[2]}`;
+  // Fallback: tenta extrair da URL de playlist
+  const m2 = url.match(/([a-f0-9-]{36})/i);
+  if (m2) {
+    // Tenta encontrar o library ID na URL
+    const libMatch = url.match(/(\d{3,})/);
+    const libId = libMatch ? libMatch[1] : "0";
+    return `https://iframe.mediadelivery.net/embed/${libId}/${m2[1]}`;
+  }
+  return url;
+}
+
+function youtubeEmbed(url: string): string {
+  const match = url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([a-zA-Z0-9_-]+)/);
+  if (match) return `https://www.youtube.com/embed/${match[1]}?autoplay=1&rel=0`;
+  return url;
+}
+
+function vimeoEmbed(url: string): string {
+  const match = url.match(/vimeo\.com\/(\d+)/);
+  if (match) return `https://player.vimeo.com/video/${match[1]}?autoplay=1`;
   return url;
 }
 
 export function BunnyPlayer({ src, poster, title, autoPlay = false, startTime = 0, className = "", onTimeUpdate, onReady, onEnded }: Props) {
   const videoRef = useRef<HTMLVideoElement>(null);
-  const [stype] = useState(() => detectType(src));
   const [error, setError] = useState("");
 
+  // BunnyCDN → iframe embed (SEMPRE, nunca trava)
+  if (isBunnyCDN(src)) {
+    const embedUrl = bunnyEmbed(src);
+    return (
+      <div className={`relative w-full bg-black ${className}`} style={{ aspectRatio: '16/9' }}>
+        <iframe
+          src={embedUrl}
+          className="absolute inset-0 w-full h-full border-0"
+          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+          allowFullScreen
+          title={title || "Video"}
+        />
+      </div>
+    );
+  }
+
+  // YouTube → iframe embed
+  if (isYouTube(src)) {
+    return (
+      <div className={`relative w-full bg-black ${className}`} style={{ aspectRatio: '16/9' }}>
+        <iframe
+          src={youtubeEmbed(src)}
+          className="absolute inset-0 w-full h-full border-0"
+          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+          allowFullScreen
+          title={title || "Video"}
+        />
+      </div>
+    );
+  }
+
+  // Vimeo → iframe embed
+  if (isVimeo(src)) {
+    return (
+      <div className={`relative w-full bg-black ${className}`} style={{ aspectRatio: '16/9' }}>
+        <iframe
+          src={vimeoEmbed(src)}
+          className="absolute inset-0 w-full h-full border-0"
+          allow="autoplay; fullscreen"
+          allowFullScreen
+          title={title || "Video"}
+        />
+      </div>
+    );
+  }
+
+  // MP4 / WebM / HLS nativo → video element
   useEffect(() => {
-    if (stype === "bunny-iframe" || stype === "iframe") return;
     const v = videoRef.current;
     if (!v) return;
 
@@ -68,16 +140,7 @@ export function BunnyPlayer({ src, poster, title, autoPlay = false, startTime = 
       v.removeAttribute("src");
       v.load();
     };
-  }, [src, stype, autoPlay, startTime, poster, onTimeUpdate, onReady, onEnded]);
-
-  if (stype === "bunny-iframe" || stype === "iframe") {
-    const embedUrl = stype === "bunny-iframe" ? bunnyEmbed(src) : src;
-    return (
-      <div className={`relative w-full bg-black ${className}`} style={{ aspectRatio: '16/9' }}>
-        <iframe src={embedUrl} className="absolute inset-0 w-full h-full border-0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowFullScreen title={title || "Video"} />
-      </div>
-    );
-  }
+  }, [src, autoPlay, startTime, poster, onTimeUpdate, onReady, onEnded]);
 
   if (error) {
     return (
