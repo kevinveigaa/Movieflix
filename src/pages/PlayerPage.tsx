@@ -2,38 +2,58 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
 import { supabase } from '@/lib/supabase';
-import { BunnyPlayer } from '@/components/player/BunnyPlayer';
 import { useUpsertHistory } from '@/hooks/useWatchHistory';
-import { ChevronLeft, RotateCcw, Play, Star, Calendar, Film } from 'lucide-react';
+import { ChevronLeft, Play, RotateCcw, Star, Calendar, Clock, Film, AlertCircle } from 'lucide-react';
 import type { MediaType } from '@/types';
+
+interface Movie {
+  id: string;
+  title: string;
+  description?: string;
+  year?: string;
+  poster_url?: string;
+  video_url?: string;
+  backdrop_url?: string;
+  vote_average?: number;
+  category?: string | null;
+  language?: string | null;
+  quality?: string | null;
+  duration?: number;
+}
+
+function formatTime(s: number): string {
+  const m = Math.floor(s / 60);
+  const sec = Math.floor(s % 60);
+  return `${m}:${String(sec).padStart(2, '0')}`;
+}
 
 export function PlayerPage() {
   const { id } = useParams();
   const navigate = useNavigate();
   const { user, loading: authLoading } = useAuth();
 
-  const [movie, setMovie] = useState<any>(null);
-  const [videoUrl, setVideoUrl] = useState("");
-  const [pageLoading, setPageLoading] = useState(true);
+  const [movie, setMovie] = useState<Movie | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
   const [resumePos, setResumePos] = useState(0);
   const [showResume, setShowResume] = useState(false);
 
+  const videoRef = useRef<HTMLVideoElement>(null);
   const posRef = useRef(0);
   const durRef = useRef(0);
   const lastSavedRef = useRef(0);
   const upsertHistory = useUpsertHistory();
 
-  // Load movie
+  // Carrega filme
   useEffect(() => {
     let cancelled = false;
     async function load() {
-      if (!id) { setPageLoading(false); return; }
+      if (!id) { setLoading(false); return; }
       try {
         const { data } = await supabase.from('movies').select('*').eq('id', id).single();
         if (cancelled) return;
         if (data) {
           setMovie(data);
-          setVideoUrl(data.video_url || "");
           if (user) {
             const { data: history } = await supabase
               .from('watch_history').select('position_seconds, duration_seconds')
@@ -43,20 +63,42 @@ export function PlayerPage() {
               if (pct < 0.95) { setResumePos(history.position_seconds); setShowResume(true); }
             }
           }
+        } else {
+          setError("Filme não encontrado.");
         }
-      } catch (e) { console.error(e); }
-      setPageLoading(false);
+      } catch { setError("Erro ao carregar."); }
+      setLoading(false);
     }
     load();
     return () => { cancelled = true; };
   }, [id, user?.id]);
 
-  // Save history
+  // Setup video quando movie carrega
+  useEffect(() => {
+    const v = videoRef.current;
+    if (!v || !movie?.video_url) return;
+
+    v.src = movie.video_url;
+    v.load();
+
+    const onMeta = () => {
+      durRef.current = v.duration || 0;
+      if (resumePos > 0 && !showResume) {
+        v.currentTime = resumePos;
+        v.play().catch(() => {});
+      }
+    };
+
+    v.addEventListener('loadedmetadata', onMeta);
+    return () => { v.removeEventListener('loadedmetadata', onMeta); };
+  }, [movie, resumePos, showResume]);
+
+  // Salva histórico
   const saveHistory = useCallback((t: number) => {
     if (!movie || !user || t <= 0) return;
     if (durRef.current > 0 && t >= durRef.current - 2) return;
     lastSavedRef.current = t;
-    const type = String(movie.type ?? '').toLowerCase();
+    const type = String(movie.category ?? '').toLowerCase();
     const mediaType: MediaType = ['series', 'serie', 'tv', 'anime'].includes(type) ? 'tv' : 'movie';
     upsertHistory.mutate({
       movieId: movie.id, mediaType, title: movie.title,
@@ -77,11 +119,37 @@ export function PlayerPage() {
     return () => clearInterval(interval);
   }, [saveHistory]);
 
-  const handleTimeUpdate = useCallback((time: number) => { posRef.current = time; }, []);
-  const handleReady = useCallback((duration: number) => { durRef.current = duration; }, []);
-  const handleEnded = useCallback(() => { if (movie && user) saveHistory(durRef.current); }, [movie, user, saveHistory]);
+  const handleTimeUpdate = () => {
+    const v = videoRef.current;
+    if (v) posRef.current = v.currentTime;
+  };
 
-  if (authLoading || pageLoading) {
+  const handleEnded = () => {
+    if (movie && user && videoRef.current) {
+      saveHistory(videoRef.current.duration || 0);
+    }
+  };
+
+  const handleResume = () => {
+    setShowResume(false);
+    const v = videoRef.current;
+    if (v) {
+      v.currentTime = resumePos;
+      v.play().catch(() => {});
+    }
+  };
+
+  const handleRestart = () => {
+    setShowResume(false);
+    setResumePos(0);
+    const v = videoRef.current;
+    if (v) {
+      v.currentTime = 0;
+      v.play().catch(() => {});
+    }
+  };
+
+  if (authLoading || loading) {
     return (
       <div className="flex h-screen items-center justify-center bg-black">
         <div className="h-12 w-12 animate-spin rounded-full border-4 border-red-600 border-t-transparent" />
@@ -99,6 +167,18 @@ export function PlayerPage() {
     );
   }
 
+  if (error) {
+    return (
+      <div className="flex h-screen flex-col items-center justify-center bg-black text-white gap-4">
+        <AlertCircle className="h-16 w-16 text-red-600" />
+        <h2 className="text-2xl font-bold">{error}</h2>
+        <button onClick={() => navigate(-1)} className="rounded-xl bg-zinc-800 px-6 py-3 font-semibold hover:bg-zinc-700 transition flex items-center gap-2">
+          <ChevronLeft className="h-5 w-5" /> Voltar
+        </button>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-black text-white">
       {/* Header */}
@@ -112,30 +192,34 @@ export function PlayerPage() {
             <div className="flex items-center gap-2 text-xs text-zinc-400">
               {movie.year && <span className="flex items-center gap-1"><Calendar className="h-3 w-3" /> {movie.year}</span>}
               {movie.vote_average && <span className="flex items-center gap-1"><Star className="h-3 w-3 text-yellow-500" /> {movie.vote_average}</span>}
+              {movie.quality && <span>{movie.quality}</span>}
             </div>
           )}
         </div>
       </div>
 
-      {/* Player */}
+      {/* Video Player */}
       <div className="relative w-full bg-black pt-16">
-        {!videoUrl ? (
+        {!movie?.video_url ? (
           <div className="flex h-[60vh] flex-col items-center justify-center text-center gap-4">
             <Film className="h-16 w-16 text-zinc-600" />
             <h2 className="text-xl font-bold">Vídeo não disponível</h2>
+            <p className="text-zinc-400">Este título ainda não possui um vídeo.</p>
           </div>
         ) : (
-          <BunnyPlayer
-            src={videoUrl}
-            poster={movie?.backdrop_url || movie?.poster_url}
-            title={movie?.title}
-            autoPlay={!showResume}
-            startTime={showResume ? resumePos : 0}
-            onTimeUpdate={handleTimeUpdate}
-            onReady={handleReady}
-            onEnded={handleEnded}
-            className="w-full"
-          />
+          <div className="relative w-full bg-black" style={{ aspectRatio: '16/9' }}>
+            <video
+              ref={videoRef}
+              controls
+              playsInline
+              preload="auto"
+              className="w-full h-full"
+              style={{ backgroundColor: '#000', maxHeight: '80vh' }}
+              onTimeUpdate={handleTimeUpdate}
+              onEnded={handleEnded}
+              poster={movie.backdrop_url || movie.poster_url}
+            />
+          </div>
         )}
 
         {/* Resume Dialog */}
@@ -145,14 +229,14 @@ export function PlayerPage() {
               <RotateCcw className="mx-auto mb-4 h-12 w-12 text-red-600" />
               <h3 className="mb-1 text-xl font-bold">Continuar assistindo?</h3>
               <p className="mb-6 text-zinc-400 text-sm">
-                Você parou em <span className="text-white font-semibold">{Math.floor(resumePos/60)}:{String(resumePos%60).padStart(2,'0')}</span>
+                Você parou em <span className="text-white font-semibold">{formatTime(resumePos)}</span>
               </p>
               <div className="flex flex-col gap-3">
-                <button onClick={() => setShowResume(false)} className="flex items-center justify-center gap-2 rounded-xl bg-red-600 px-6 py-3 font-semibold text-white hover:bg-red-700 transition">
-                  <Play className="h-5 w-5" fill="white" /> Continuar
+                <button onClick={handleResume} className="flex items-center justify-center gap-2 rounded-xl bg-red-600 px-6 py-3 font-semibold text-white hover:bg-red-700 transition">
+                  <Play className="h-5 w-5" fill="white" /> Continuar de {formatTime(resumePos)}
                 </button>
-                <button onClick={() => { setResumePos(0); setShowResume(false); }} className="flex items-center justify-center gap-2 rounded-xl bg-zinc-800 px-6 py-3 font-semibold text-white hover:bg-zinc-700 transition">
-                  <RotateCcw className="h-4 w-4" /> Do início
+                <button onClick={handleRestart} className="flex items-center justify-center gap-2 rounded-xl bg-zinc-800 px-6 py-3 font-semibold text-white hover:bg-zinc-700 transition">
+                  <RotateCcw className="h-4 w-4" /> Assistir do início
                 </button>
               </div>
             </div>
@@ -160,10 +244,24 @@ export function PlayerPage() {
         )}
       </div>
 
-      {/* Info */}
+      {/* Movie Info */}
       {movie && (
         <div className="px-4 py-6 max-w-5xl mx-auto">
           <h2 className="text-2xl font-bold mb-2">{movie.title}</h2>
+          <div className="flex flex-wrap items-center gap-3 text-sm text-zinc-400 mb-4">
+            {movie.year && <span className="flex items-center gap-1"><Calendar className="h-4 w-4" /> {movie.year}</span>}
+            {movie.vote_average && <span className="flex items-center gap-1"><Star className="h-4 w-4 text-yellow-500" /> {movie.vote_average}</span>}
+            {movie.quality && <span className="rounded bg-zinc-800 px-2 py-0.5 text-xs">{movie.quality}</span>}
+            {movie.language && <span className="rounded bg-zinc-800 px-2 py-0.5 text-xs">{movie.language}</span>}
+            {movie.duration && <span className="flex items-center gap-1"><Clock className="h-4 w-4" /> {Math.floor(movie.duration / 60)} min</span>}
+          </div>
+          {movie.category && (
+            <div className="flex flex-wrap gap-2 mb-4">
+              {movie.category.split(',').map(c => c.trim()).filter(Boolean).map(c => (
+                <span key={c} className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-zinc-300">{c}</span>
+              ))}
+            </div>
+          )}
           <p className="text-zinc-300 leading-relaxed">{movie.description || "Sinopse não disponível."}</p>
         </div>
       )}
