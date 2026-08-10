@@ -1,45 +1,99 @@
-import { useRef, useState, useEffect } from "react";
+import { useMemo, useRef, useState, useEffect } from "react";
 import { PosterCard, PosterCardSkeleton } from "@/components/cards/PosterCard";
+import { HeroBanner, HeroBannerSkeleton } from "@/components/home/HeroBanner";
 import { useMovies } from "@/hooks/useMovies";
 import { useAuth, hasActiveSubscription } from "@/context/AuthContext";
 import { Link } from "react-router-dom";
 import { Crown, Sparkles, ChevronLeft, ChevronRight } from "lucide-react";
 
+/** Ordem preferida das categorias — as demais entram depois, em ordem alfabética. */
+const ORDEM_CATEGORIAS = [
+  "Ação",
+  "Aventura",
+  "Ficção Científica",
+  "Terror",
+  "Comédia",
+  "Drama",
+  "Romance",
+  "Suspense",
+  "Fantasia",
+  "Animação",
+  "Anime",
+  "Infantil",
+  "Documentário",
+  "Crime",
+  "Mistério",
+  "Guerra",
+  "Faroeste",
+  "História",
+  "Música",
+  "Família",
+  "Cinema TV",
+];
+
+function categoriasDoFilme(movie: any): string[] {
+  const lista = String(movie?.category ?? "")
+    .split(",")
+    .map((c: string) => c.trim())
+    .filter(Boolean);
+  return lista.length ? Array.from(new Set(lista)) : ["Outros"];
+}
+
 export function HomePage() {
   const { subscription } = useAuth();
   const movies = useMovies("movie");
 
-  const getMainCategory = (movie: any) => {
-    const categories = movie.category?.split(",").map((c: string) => c.trim()) || [];
+  const destaques = useMemo(() => (movies.data ?? []).slice(0, 5), [movies.data]);
 
-    if (categories.includes("Ação")) return "Ação";
-    if (categories.includes("Terror")) return "Terror";
-    if (categories.includes("Comédia")) return "Comédia";
-    if (categories.includes("Drama")) return "Drama";
-    if (categories.includes("Ficção Científica")) return "Ficção Científica";
+  /** Todas as categorias existentes no catálogo, cada filme em todas as suas categorias. */
+  const categorias = useMemo(() => {
+    const mapa = new Map<string, any[]>();
 
-    return categories[0] || "Outros";
-  };
+    for (const movie of movies.data ?? []) {
+      for (const cat of categoriasDoFilme(movie)) {
+        if (!mapa.has(cat)) mapa.set(cat, []);
+        mapa.get(cat)!.push(movie);
+      }
+    }
 
-  const categorias = [
-    { nome: "Filmes em destaque", lista: movies.data?.slice(0, 20) },
-    { nome: "Ação", lista: movies.data?.filter((m) => getMainCategory(m) === "Ação").slice(0, 20) },
-    { nome: "Aventura", lista: movies.data?.filter((m) => getMainCategory(m) === "Aventura").slice(0, 20) },
-    { nome: "Ficção Científica", lista: movies.data?.filter((m) => getMainCategory(m) === "Ficção Científica").slice(0, 20) },
-    { nome: "Terror", lista: movies.data?.filter((m) => getMainCategory(m) === "Terror").slice(0, 20) },
-    { nome: "Comédia", lista: movies.data?.filter((m) => getMainCategory(m) === "Comédia").slice(0, 20) },
-  ];
+    const nomes = Array.from(mapa.keys()).sort((a, b) => {
+      const ia = ORDEM_CATEGORIAS.indexOf(a);
+      const ib = ORDEM_CATEGORIAS.indexOf(b);
+      if (ia !== -1 && ib !== -1) return ia - ib;
+      if (ia !== -1) return -1;
+      if (ib !== -1) return 1;
+      if (a === "Outros") return 1;
+      if (b === "Outros") return -1;
+      return a.localeCompare(b, "pt-BR");
+    });
+
+    return nomes
+      .map((nome) => ({ nome, lista: mapa.get(nome)!.slice(0, 20) }))
+      .filter((c) => c.lista.length > 0);
+  }, [movies.data]);
+
+  const recentes = useMemo(() => (movies.data ?? []).slice(0, 20), [movies.data]);
 
   return (
-    <div className="container-app pt-8 pb-16 space-y-10">
-      {!hasActiveSubscription(subscription) && <UpgradeBanner />}
+    <div className="pb-16">
+      <div className="container-app">
+        {movies.isLoading ? <HeroBannerSkeleton /> : <HeroBanner items={destaques} />}
+      </div>
 
-      {movies.isLoading && <CategoryRowSkeleton />}
+      <div className="container-app space-y-10 pt-8">
+        {!hasActiveSubscription(subscription) && <UpgradeBanner />}
 
-      {!movies.isLoading &&
-        categorias
-          .filter((cat) => cat.lista?.length)
-          .map((cat) => <CategoryRow key={cat.nome} title={cat.nome} items={cat.lista ?? []} />)}
+        {movies.isLoading && <CategoryRowSkeleton />}
+
+        {!movies.isLoading && (
+          <>
+            {recentes.length > 0 && <CategoryRow title="Adicionados recentemente" items={recentes} />}
+            {categorias.map((cat) => (
+              <CategoryRow key={cat.nome} title={cat.nome} items={cat.lista} />
+            ))}
+          </>
+        )}
+      </div>
     </div>
   );
 }
@@ -73,13 +127,12 @@ function CategoryRow({ title, items }: { title: string; items: any[] }) {
   const scroll = (dir: "left" | "right") => {
     const el = ref.current;
     if (!el) return;
-    // rola exatamente uma "página" (os itens visíveis)
     const amount = el.clientWidth;
     el.scrollBy({ left: dir === "left" ? -amount : amount, behavior: "smooth" });
   };
 
   return (
-    <section className="group/row relative">
+    <section className="group/row relative" data-tv-row>
       <div className="mb-4 flex items-center justify-between gap-4">
         <h2 className="truncate text-lg font-bold text-white sm:text-xl lg:text-2xl">{title}</h2>
 
@@ -114,7 +167,6 @@ function CategoryRow({ title, items }: { title: string; items: any[] }) {
       </div>
 
       <div className="relative">
-        {/* seta flutuante esquerda */}
         {canLeft && (
           <button
             type="button"
@@ -126,7 +178,6 @@ function CategoryRow({ title, items }: { title: string; items: any[] }) {
           </button>
         )}
 
-        {/* seta flutuante direita */}
         {canRight && (
           <button
             type="button"
@@ -187,7 +238,7 @@ function CategoryRowSkeleton() {
   );
 }
 
-/* ---------- Banner de upgrade (inalterado) ---------- */
+/* ---------- Banner de upgrade ---------- */
 
 function UpgradeBanner() {
   return (

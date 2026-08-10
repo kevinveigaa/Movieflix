@@ -5,6 +5,7 @@ import { AuthProvider, useAuth } from '@/context/AuthContext';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Seo } from '@/components/Seo';
 import { FullScreenLoader } from '@/components/ui/Feedback';
+import { useTvNavigation } from '@/hooks/useTvNavigation';
 import type { JSX } from 'react';
 
 // Code splitting por rota: cada página é carregada sob demanda (React.lazy).
@@ -44,6 +45,9 @@ function RequireAuth({ children }: { children: JSX.Element }) {
 }
 
 function AppRoutes() {
+  // Navegação por controle remoto (setas + OK + Voltar) para TV, TV Box e PC.
+  useTvNavigation();
+
   return (
     <>
       <Seo />

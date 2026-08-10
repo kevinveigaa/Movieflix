@@ -17,7 +17,14 @@ export function PosterCard({
   mediaType = "movie",
 }: MovieCardProps) {
   return (
-    <div className={cn("group flex w-full flex-col", className)}>
+    <Link
+      to={`/titulo/${forceType || mediaType}/${title.id}`}
+      aria-label={title?.title}
+      className={cn(
+        "group flex w-full flex-col rounded-xl focus:outline-none",
+        className
+      )}
+    >
       <div className="relative aspect-[2/3] w-full overflow-hidden rounded-xl bg-zinc-900">
         <img
           src={title?.poster_url}
@@ -26,14 +33,10 @@ export function PosterCard({
           className="h-full w-full object-cover transition duration-300 lg:group-hover:scale-105"
         />
 
-        <div className="pointer-events-none absolute inset-0 flex items-end justify-start bg-gradient-to-t from-black/70 via-black/5 to-transparent p-1.5 opacity-100 transition duration-300 sm:p-2 lg:opacity-0 lg:group-hover:opacity-100">
-          <Link
-            to={`/titulo/${forceType || mediaType}/${title.id}`}
-            className="pointer-events-auto flex h-7 w-7 items-center justify-center rounded-full bg-white/95 text-black shadow-lg transition hover:scale-110 sm:h-8 sm:w-8"
-            aria-label="Assistir"
-          >
+        <div className="pointer-events-none absolute inset-0 flex items-end justify-start bg-gradient-to-t from-black/70 via-black/5 to-transparent p-1.5 opacity-100 transition duration-300 sm:p-2 lg:opacity-0 lg:group-hover:opacity-100 lg:group-focus-visible:opacity-100">
+          <span className="flex h-7 w-7 items-center justify-center rounded-full bg-white/95 text-black shadow-lg transition group-hover:scale-110 sm:h-8 sm:w-8">
             <Play className="h-3.5 w-3.5 sm:h-4 sm:w-4" fill="currentColor" />
-          </Link>
+          </span>
         </div>
       </div>
 
@@ -45,7 +48,7 @@ export function PosterCard({
           {title?.year}
         </p>
       </div>
-    </div>
+    </Link>
   );
 }
 
