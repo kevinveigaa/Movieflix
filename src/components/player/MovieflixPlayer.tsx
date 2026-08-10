@@ -170,8 +170,6 @@ export const MovieflixPlayer = forwardRef<MovieflixPlayerHandle, MovieflixPlayer
         controlBar: {
           children: [
             'playToggle',
-            'skipBackward',
-            'skipForward',
             'volumePanel',
             'currentTimeDisplay',
             'timeDivider',
