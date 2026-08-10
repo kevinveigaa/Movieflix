@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
 import { supabase } from '@/lib/supabase';
@@ -27,6 +27,20 @@ function formatTime(s: number): string {
   return `${m}:${String(sec).padStart(2, '0')}`;
 }
 
+function isBunnyCDN(url: string): boolean {
+  return url.includes('bunnycdn') || url.includes('b-cdn.net') || url.includes('mediadelivery');
+}
+
+function getBunnyEmbedUrl(videoUrl: string): string {
+  // Extrai o video UUID da URL do playlist
+  // Ex: https://vz-b3c2a7fe-e98.b-cdn.net/b48df706-504d-49a1-b860-f346f2ba833d/playlist.m3u8
+  const match = videoUrl.match(/([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})/i);
+  if (match) {
+    return `https://iframe.mediadelivery.net/embed/723294/${match[1]}?autoplay=true&preload=true`;
+  }
+  return videoUrl;
+}
+
 export function PlayerPage() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -38,7 +52,6 @@ export function PlayerPage() {
   const [resumePos, setResumePos] = useState(0);
   const [showResume, setShowResume] = useState(false);
 
-  const videoRef = useRef<HTMLVideoElement>(null);
   const posRef = useRef(0);
   const durRef = useRef(0);
   const lastSavedRef = useRef(0);
@@ -73,26 +86,7 @@ export function PlayerPage() {
     return () => { cancelled = true; };
   }, [id, user?.id]);
 
-  // Setup video
-  useEffect(() => {
-    const v = videoRef.current;
-    if (!v || !movie?.video_url) return;
-
-    v.src = movie.video_url;
-    v.load();
-
-    const onMeta = () => {
-      durRef.current = v.duration || 0;
-      if (resumePos > 0 && !showResume) {
-        v.currentTime = resumePos;
-      }
-    };
-
-    v.addEventListener('loadedmetadata', onMeta);
-    return () => { v.removeEventListener('loadedmetadata', onMeta); };
-  }, [movie, resumePos, showResume]);
-
-  // Salva histórico
+  // Salva histórico (só para video nativo, iframe não dá pra trackar)
   const saveHistory = useCallback((t: number) => {
     if (!movie || !user || t <= 0) return;
     if (durRef.current > 0 && t >= durRef.current - 2) return;
@@ -111,42 +105,8 @@ export function PlayerPage() {
     return () => { if (posRef.current > 0) saveHistory(posRef.current); };
   }, [saveHistory]);
 
-  useEffect(() => {
-    const interval = setInterval(() => {
-      if (posRef.current > 0 && posRef.current !== lastSavedRef.current) saveHistory(posRef.current);
-    }, 15000);
-    return () => clearInterval(interval);
-  }, [saveHistory]);
-
-  const handleTimeUpdate = () => {
-    const v = videoRef.current;
-    if (v) posRef.current = v.currentTime;
-  };
-
-  const handleEnded = () => {
-    if (movie && user && videoRef.current) {
-      saveHistory(videoRef.current.duration || 0);
-    }
-  };
-
-  const handleResume = () => {
-    setShowResume(false);
-    const v = videoRef.current;
-    if (v) {
-      v.currentTime = resumePos;
-      v.play().catch(() => {});
-    }
-  };
-
-  const handleRestart = () => {
-    setShowResume(false);
-    setResumePos(0);
-    const v = videoRef.current;
-    if (v) {
-      v.currentTime = 0;
-      v.play().catch(() => {});
-    }
-  };
+  const handleResume = () => setShowResume(false);
+  const handleRestart = () => { setShowResume(false); setResumePos(0); };
 
   if (authLoading || loading) {
     return (
@@ -178,6 +138,9 @@ export function PlayerPage() {
     );
   }
 
+  const isBunny = movie?.video_url ? isBunnyCDN(movie.video_url) : false;
+  const embedUrl = movie?.video_url ? getBunnyEmbedUrl(movie.video_url) : '';
+
   return (
     <div className="min-h-screen bg-black text-white">
       {/* Header */}
@@ -196,32 +159,42 @@ export function PlayerPage() {
         </div>
       </div>
 
-      {/* Video Player */}
+      {/* Player */}
       <div className="relative w-full bg-black pt-16">
         {!movie?.video_url ? (
           <div className="flex h-[60vh] flex-col items-center justify-center text-center gap-4">
             <Film className="h-16 w-16 text-zinc-600" />
             <h2 className="text-xl font-bold">Vídeo não disponível</h2>
           </div>
+        ) : isBunny ? (
+          /* BunnyCDN - iframe embed (sempre funciona) */
+          <div className="relative w-full bg-black" style={{ aspectRatio: '16/9' }}>
+            <iframe
+              src={embedUrl}
+              className="absolute inset-0 w-full h-full border-0"
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+              allowFullScreen
+              title={movie.title}
+            />
+          </div>
         ) : (
+          /* MP4/WebM - video nativo */
           <div className="relative w-full bg-black" style={{ aspectRatio: '16/9' }}>
             <video
-              ref={videoRef}
               controls
               playsInline
               preload="auto"
               className="w-full h-full"
               style={{ backgroundColor: '#000', maxHeight: '80vh' }}
-              onTimeUpdate={handleTimeUpdate}
-              onEnded={handleEnded}
               poster={movie.backdrop_url || movie.poster_url}
-              src={movie.video_url}
-            />
+            >
+              <source src={movie.video_url} type="video/mp4" />
+            </video>
           </div>
         )}
 
-        {/* Resume Dialog */}
-        {showResume && movie && (
+        {/* Resume Dialog - só mostra para video nativo, iframe não dá pra controlar */}
+        {showResume && !isBunny && movie && (
           <div className="absolute inset-0 z-40 flex items-center justify-center bg-black/85 backdrop-blur-md">
             <div className="mx-4 w-full max-w-sm rounded-2xl bg-zinc-900 p-6 text-center shadow-2xl border border-zinc-800">
               <RotateCcw className="mx-auto mb-4 h-12 w-12 text-red-600" />
