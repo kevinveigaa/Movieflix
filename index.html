@@ -21,16 +21,7 @@
     <meta property="og:site_name" content="MovieFlix" />
     <meta property="og:locale" content="pt_BR" />
   
-  <script>
-    // Redirect para HashRouter: /assistir/123 -> /#/assistir/123
-    (function() {
-      var path = window.location.pathname;
-      var hash = window.location.hash;
-      if (path !== '/' && !hash.startsWith('#/')) {
-        window.location.replace(window.location.origin + '/#' + path + window.location.search + window.location.hash);
-      }
-    })();
-  </script>
+
 </head>
   <body>
     <div id="root"></div>
