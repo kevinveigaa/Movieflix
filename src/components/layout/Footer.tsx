@@ -9,6 +9,7 @@ const cols = [
       { label: 'Filmes', to: '/filmes' },
       { label: 'Séries', to: '/series' },
       { label: 'Animes', to: '/animes' },
+      { label: 'Baixar app', to: '/baixar-app' },
     ],
   },
   {

@@ -33,6 +33,7 @@ const ROUTE_SEO: Array<{ path: string; title: string; description: string }> = [
   { path: '/configuracoes', title: 'Configurações — MovieFlix', description: 'Preferências e configurações da sua conta MovieFlix.' },
   { path: '/minha-assinatura', title: 'Minha Assinatura — MovieFlix', description: 'Gerencie sua assinatura e planos no MovieFlix.' },
   { path: '/admin', title: 'Painel Admin — MovieFlix', description: 'Painel administrativo do MovieFlix.' },
+  { path: '/baixar-app', title: 'Baixar App — MovieFlix', description: 'Baixe o aplicativo MovieFlix para Android e assista em qualquer lugar.' },
   { path: '/login', title: 'Entrar — MovieFlix', description: 'Acesse sua conta MovieFlix para continuar assistindo.' },
   { path: '/cadastro', title: 'Criar Conta — MovieFlix', description: 'Crie sua conta e assine o MovieFlix.' },
   { path: '/recuperar-senha', title: 'Recuperar Senha — MovieFlix', description: 'Recupere o acesso à sua conta MovieFlix.' },

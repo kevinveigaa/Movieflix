@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link, NavLink, useNavigate, useLocation } from 'react-router-dom';
-import { Search, Menu, X, Bell, User, LogOut, Settings, CreditCard, Shield, Film } from 'lucide-react';
+import { Search, Menu, X, Bell, User, LogOut, Settings, CreditCard, Shield, Film, Smartphone } from 'lucide-react';
 import { useAuth, hasActiveSubscription } from '@/context/AuthContext';
 import { cn } from '@/lib/cn';
 
@@ -112,6 +112,7 @@ export function Navbar() {
                   {profile?.is_admin && (
                     <MenuLink to="/admin" icon={<Shield className="h-4 w-4" />}>Painel Admin</MenuLink>
                   )}
+                  <MenuLink to="/baixar-app" icon={<Smartphone className="h-4 w-4" />}>Baixar app</MenuLink>
                   <button
                     onClick={() => signOut()}
                     className="flex w-full items-center gap-3 px-4 py-2.5 text-sm text-ink-200 transition hover:bg-white/5 hover:text-white"
@@ -167,6 +168,17 @@ export function Navbar() {
                 {l.label}
               </NavLink>
             ))}
+            <NavLink
+              to="/baixar-app"
+              className={({ isActive }) =>
+                cn(
+                  'mt-1 flex items-center gap-2 rounded-lg border border-brand-500/30 bg-brand-500/10 px-3 py-2.5 text-sm font-semibold text-brand-300 transition-colors',
+                  isActive ? 'bg-white/10 text-white' : 'hover:bg-brand-500/20 hover:text-brand-200',
+                )
+              }
+            >
+              <Smartphone className="h-4 w-4" /> Baixar app
+            </NavLink>
           </div>
         </div>
       )}

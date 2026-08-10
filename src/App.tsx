@@ -24,6 +24,7 @@ const LoginPage = lazy(() => import('@/pages/auth/LoginPage').then((m) => ({ def
 const SignupPage = lazy(() => import('@/pages/auth/SignupPage').then((m) => ({ default: m.SignupPage })));
 const ForgotPasswordPage = lazy(() => import('@/pages/auth/ForgotPasswordPage').then((m) => ({ default: m.ForgotPasswordPage })));
 const ProfileSelectPage = lazy(() => import('@/pages/auth/ProfileSelectPage').then((m) => ({ default: m.ProfileSelectPage })));
+const DownloadAppPage = lazy(() => import('@/pages/DownloadAppPage').then((m) => ({ default: m.DownloadAppPage })));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -56,6 +57,7 @@ function AppRoutes() {
             <Route path="/documentarios" element={<CatalogPage kind="documentarios" />} />
             <Route path="/infantil" element={<CatalogPage kind="infantil" />} />
             <Route path="/pesquisa" element={<SearchPage />} />
+            <Route path="/baixar-app" element={<DownloadAppPage />} />
             <Route path="/titulo/:type/:id" element={<TitleDetailPage />} />
             <Route path="/assistir/:id" element={<PlayerPage />} />
             <Route path="/favoritos" element={<RequireAuth><FavoritesPage /></RequireAuth>} />
