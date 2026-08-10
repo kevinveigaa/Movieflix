@@ -3,7 +3,8 @@ import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/context/AuthContext";
 import { tmdb, img } from "@/lib/tmdb";
 import { Pencil, Trash2, Plus, Search, X, Save, RefreshCw } from "lucide-react";
-import { CATEGORIAS } from "@/lib/categorias";
+import { CATEGORIAS, categoriasDoFilme, normalizar } from "@/lib/categorias";
+import { useQueryClient } from "@tanstack/react-query";
 
 const ADMIN_EMAIL = "veigakevin71@gmail.com";
 
@@ -36,6 +37,7 @@ const FORM_VAZIO: Form = {
 
 export function AdminPage() {
   const { user } = useAuth();
+  const queryClient = useQueryClient();
 
   const [aba, setAba] = useState<"lista" | "form">("lista");
   const [filmes, setFilmes] = useState<any[]>([]);
@@ -150,21 +152,45 @@ export function AdminPage() {
     }
     setSalvando(true);
 
+    // Normaliza as categorias escolhidas: sem espaços sobrando, sem repetidas.
+    const categorias = categoriasDoFilme({ category: form.category })
+      .filter((c) => c !== "Outros")
+      .join(", ");
+    const payload = { ...form, category: categorias };
+
     if (editandoId) {
-      const { error } = await supabase.from("movies").update(form).eq("id", editandoId);
-      if (error) setMsg({ tipo: "erro", texto: error.message });
-      else {
+      const { data, error } = await supabase
+        .from("movies")
+        .update(payload)
+        .eq("id", editandoId)
+        .select("id, category");
+
+      if (error) {
+        setMsg({ tipo: "erro", texto: error.message });
+      } else if (!data || data.length === 0) {
+        // UPDATE aceito porém sem linhas alteradas = falta a policy de update no banco.
+        setMsg({
+          tipo: "erro",
+          texto:
+            "Nada foi salvo: o banco bloqueou a atualização. Rode a migration \"liberar update movies\" no Supabase e tente de novo.",
+        });
+      } else {
         setMsg({ tipo: "ok", texto: "Filme atualizado com sucesso!" });
+        await queryClient.invalidateQueries({ queryKey: ["movies"] });
         await carregarFilmes();
         setAba("lista");
         setEditandoId(null);
         setForm(FORM_VAZIO);
       }
     } else {
-      const { error } = await supabase.from("movies").insert(form);
-      if (error) setMsg({ tipo: "erro", texto: error.message });
-      else {
+      const { data, error } = await supabase.from("movies").insert(payload).select("id");
+      if (error) {
+        setMsg({ tipo: "erro", texto: error.message });
+      } else if (!data || data.length === 0) {
+        setMsg({ tipo: "erro", texto: "Nada foi salvo: o banco bloqueou o cadastro." });
+      } else {
         setMsg({ tipo: "ok", texto: "Filme cadastrado com sucesso!" });
+        await queryClient.invalidateQueries({ queryKey: ["movies"] });
         await carregarFilmes();
         setAba("lista");
         setForm(FORM_VAZIO);
@@ -372,13 +398,15 @@ export function AdminPage() {
           <div className="flex flex-wrap gap-2">
             {CATEGORIAS.map((c) => {
               const atuais = form.category.split(",").map((x) => x.trim()).filter(Boolean);
-              const ativo = atuais.includes(c);
+              const ativo = atuais.some((x) => normalizar(x) === normalizar(c));
               return (
                 <button
                   key={c}
                   type="button"
                   onClick={() => {
-                    const novas = ativo ? atuais.filter((x) => x !== c) : [...atuais, c];
+                    const novas = ativo
+                      ? atuais.filter((x) => normalizar(x) !== normalizar(c))
+                      : [...atuais, c];
                     setForm({ ...form, category: novas.join(", ") });
                   }}
                   className={`rounded-full border px-3 py-1 text-xs transition ${

@@ -33,7 +33,8 @@ export function HomePage() {
       .filter((c) => c.lista.length > 0);
   }, [movies.data]);
 
-  const recentes = useMemo(() => (movies.data ?? []).slice(0, 20), [movies.data]);
+  // Somente os 5 titulos mais recentes (a lista ja vem ordenada por created_at desc).
+  const recentes = useMemo(() => (movies.data ?? []).slice(0, 5), [movies.data]);
 
   return (
     <div className="pb-16">
