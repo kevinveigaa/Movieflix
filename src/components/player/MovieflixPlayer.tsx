@@ -1,8 +1,6 @@
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState, useCallback } from 'react';
 import videojs from 'video.js';
 import type Player from 'video.js/dist/types/player';
-import 'videojs-contrib-quality-levels';
-import 'videojs-hls-quality-selector';
 import './videojs-theme.css';
 
 export interface MovieflixPlayerHandle {
@@ -205,16 +203,6 @@ export const MovieflixPlayer = forwardRef<MovieflixPlayerHandle, MovieflixPlayer
       }, () => {
         playerRef.current = player;
 
-        if (videoType === 'application/x-mpegURL') {
-          try {
-            (player as any).hlsQualitySelector({
-              displayCurrentQuality: true,
-              vjsIconClass: 'vjs-icon-hd',
-            });
-          } catch (e) {
-            console.warn('Quality selector not available', e);
-          }
-        }
 
         if (startTime > 0) {
           player.currentTime(startTime);
