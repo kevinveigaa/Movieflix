@@ -3,31 +3,10 @@ import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/context/AuthContext";
 import { tmdb, img } from "@/lib/tmdb";
 import { Pencil, Trash2, Plus, Search, X, Save, RefreshCw } from "lucide-react";
+import { CATEGORIAS } from "@/lib/categorias";
 
 const ADMIN_EMAIL = "veigakevin71@gmail.com";
 
-const CATEGORIAS = [
-  "Ação",
-  "Aventura",
-  "Comédia",
-  "Terror",
-  "Ficção Científica",
-  "Drama",
-  "Romance",
-  "Suspense",
-  "Fantasia",
-  "Animação",
-  "Anime",
-  "Infantil",
-  "Documentário",
-  "Crime",
-  "Mistério",
-  "Guerra",
-  "Faroeste",
-  "História",
-  "Música",
-  "Família",
-];
 
 type Form = {
   title: string;
@@ -371,6 +350,9 @@ export function AdminPage() {
               >
                 <option value="movie">Filme</option>
                 <option value="series">Série</option>
+                <option value="anime">Anime</option>
+                <option value="documentary">Documentário</option>
+                <option value="kids">Infantil</option>
               </select>
             </label>
 

@@ -1,21 +1,41 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, NavLink, useNavigate, useLocation } from 'react-router-dom';
-import { Search, Menu, X, Bell, User, LogOut, Settings, CreditCard, Shield, Film, Smartphone } from 'lucide-react';
+import { Search, Menu, X, Bell, User, LogOut, Settings, CreditCard, Shield, Film, Smartphone, ChevronDown } from 'lucide-react';
+import { useMovies } from '@/hooks/useMovies';
+import { categoriasDoFilme, ordenarCategorias } from '@/lib/categorias';
 import { useAuth, hasActiveSubscription } from '@/context/AuthContext';
 import { cn } from '@/lib/cn';
 
 const navLinks = [
   { to: '/', label: 'Início' },
   { to: '/filmes', label: 'Filmes' },
+  { to: '/series', label: 'Séries' },
   { to: '/animes', label: 'Animes' },
   { to: '/documentarios', label: 'Documentários' },
   { to: '/infantil', label: 'Infantil' },
 ];
 
+/** Todas as categorias realmente usadas no catálogo, para o menu "Categorias". */
+function useCategorias() {
+  const movies = useMovies();
+  return useMemo(() => {
+    const nomes = new Set<string>();
+    for (const movie of movies.data ?? []) {
+      for (const cat of categoriasDoFilme(movie)) {
+        if (cat !== 'Outros') nomes.add(cat);
+      }
+    }
+    return ordenarCategorias(Array.from(nomes));
+  }, [movies.data]);
+}
+
 export function Navbar() {
   const [scrolled, setScrolled] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [catOpen, setCatOpen] = useState(false);
+  const catRef = useRef<HTMLDivElement>(null);
+  const categorias = useCategorias();
   const [query, setQuery] = useState('');
   const navigate = useNavigate();
   const location = useLocation();
@@ -31,7 +51,16 @@ export function Navbar() {
   useEffect(() => {
     setMobileOpen(false);
     setMenuOpen(false);
+    setCatOpen(false);
   }, [location.pathname]);
+
+  useEffect(() => {
+    const onClick = (e: MouseEvent) => {
+      if (catRef.current && !catRef.current.contains(e.target as Node)) setCatOpen(false);
+    };
+    document.addEventListener('mousedown', onClick);
+    return () => document.removeEventListener('mousedown', onClick);
+  }, []);
 
   const submitSearch = (e: React.FormEvent) => {
     e.preventDefault();
@@ -71,6 +100,35 @@ export function Navbar() {
               {l.label}
             </NavLink>
           ))}
+
+          <div className="relative" ref={catRef}>
+            <button
+              type="button"
+              onClick={() => setCatOpen((v) => !v)}
+              aria-expanded={catOpen}
+              className={cn(
+                'flex items-center gap-1 rounded-full px-3 py-1.5 text-sm font-medium transition-colors',
+                catOpen ? 'text-white' : 'text-ink-300 hover:text-white',
+              )}
+            >
+              Categorias
+              <ChevronDown className={cn('h-4 w-4 transition-transform', catOpen && 'rotate-180')} />
+            </button>
+
+            {catOpen && categorias.length > 0 && (
+              <div className="absolute left-0 mt-2 grid max-h-[70vh] w-[34rem] grid-cols-3 gap-1 overflow-y-auto rounded-xl border border-white/10 bg-ink-900 p-3 shadow-2xl animate-fade-in-fast">
+                {categorias.map((c) => (
+                  <Link
+                    key={c}
+                    to={`/filmes?categoria=${encodeURIComponent(c)}`}
+                    className="truncate rounded-lg px-3 py-2 text-sm text-ink-200 transition hover:bg-white/10 hover:text-white"
+                  >
+                    {c}
+                  </Link>
+                ))}
+              </div>
+            )}
+          </div>
         </nav>
 
         <div className="ml-auto flex items-center gap-2">
@@ -168,6 +226,23 @@ export function Navbar() {
                 {l.label}
               </NavLink>
             ))}
+            {categorias.length > 0 && (
+              <div className="mt-2 border-t border-white/10 pt-3">
+                <p className="mb-2 px-1 text-xs font-semibold uppercase tracking-wide text-ink-400">Categorias</p>
+                <div className="flex flex-wrap gap-2">
+                  {categorias.map((c) => (
+                    <Link
+                      key={c}
+                      to={`/filmes?categoria=${encodeURIComponent(c)}`}
+                      className="rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-xs text-ink-200 transition hover:bg-white/10 hover:text-white"
+                    >
+                      {c}
+                    </Link>
+                  ))}
+                </div>
+              </div>
+            )}
+
             <NavLink
               to="/baixar-app"
               className={({ isActive }) =>

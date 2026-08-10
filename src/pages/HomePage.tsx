@@ -5,43 +5,13 @@ import { useMovies } from "@/hooks/useMovies";
 import { useAuth, hasActiveSubscription } from "@/context/AuthContext";
 import { Link } from "react-router-dom";
 import { Crown, Sparkles, ChevronLeft, ChevronRight } from "lucide-react";
-
-/** Ordem preferida das categorias — as demais entram depois, em ordem alfabética. */
-const ORDEM_CATEGORIAS = [
-  "Ação",
-  "Aventura",
-  "Ficção Científica",
-  "Terror",
-  "Comédia",
-  "Drama",
-  "Romance",
-  "Suspense",
-  "Fantasia",
-  "Animação",
-  "Anime",
-  "Infantil",
-  "Documentário",
-  "Crime",
-  "Mistério",
-  "Guerra",
-  "Faroeste",
-  "História",
-  "Música",
-  "Família",
-  "Cinema TV",
-];
-
-function categoriasDoFilme(movie: any): string[] {
-  const lista = String(movie?.category ?? "")
-    .split(",")
-    .map((c: string) => c.trim())
-    .filter(Boolean);
-  return lista.length ? Array.from(new Set(lista)) : ["Outros"];
-}
+import { categoriasDoFilme, ordenarCategorias } from "@/lib/categorias";
 
 export function HomePage() {
   const { subscription } = useAuth();
-  const movies = useMovies("movie");
+  // Catálogo completo: filmes, séries, animes, etc. Assim a home mostra TODAS
+  // as categorias existentes, não só as dos títulos do tipo "movie".
+  const movies = useMovies();
 
   const destaques = useMemo(() => (movies.data ?? []).slice(0, 5), [movies.data]);
 
@@ -56,16 +26,7 @@ export function HomePage() {
       }
     }
 
-    const nomes = Array.from(mapa.keys()).sort((a, b) => {
-      const ia = ORDEM_CATEGORIAS.indexOf(a);
-      const ib = ORDEM_CATEGORIAS.indexOf(b);
-      if (ia !== -1 && ib !== -1) return ia - ib;
-      if (ia !== -1) return -1;
-      if (ib !== -1) return 1;
-      if (a === "Outros") return 1;
-      if (b === "Outros") return -1;
-      return a.localeCompare(b, "pt-BR");
-    });
+    const nomes = ordenarCategorias(Array.from(mapa.keys()));
 
     return nomes
       .map((nome) => ({ nome, lista: mapa.get(nome)!.slice(0, 20) }))

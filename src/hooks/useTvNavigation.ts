@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
+import { ehTelaDeTv } from "@/lib/tv";
 
 /**
  * Navegação espacial por controle remoto / teclado (TV, TV Box, PC).
@@ -139,8 +140,13 @@ export function useTvNavigation() {
   const navigate = useNavigate();
   const location = useLocation();
 
+  // Só em TV / TV Box. Em celular, tablet e PC a navegação por controle
+  // (e o destaque de foco que ela desenha) fica totalmente desligada.
+  const emTv = typeof window !== "undefined" && ehTelaDeTv();
+
   // Foco inicial a cada troca de página (o controle precisa ter "onde começar").
   useEffect(() => {
+    if (!emTv) return;
     limparFocoVisual();
     const t = window.setTimeout(() => {
       const ativo = document.activeElement as HTMLElement | null;
@@ -150,9 +156,14 @@ export function useTvNavigation() {
       }
     }, 400);
     return () => window.clearTimeout(t);
-  }, [location.pathname]);
+  }, [location.pathname, emTv]);
 
   useEffect(() => {
+    if (!emTv) {
+      document.documentElement.classList.remove("tv-nav");
+      limparFocoVisual();
+      return;
+    }
     document.documentElement.classList.add("tv-nav");
 
     // Registra tecla de Voltar do Tizen (Samsung), quando disponível.
@@ -243,5 +254,5 @@ export function useTvNavigation() {
       document.removeEventListener("focusin", onFocusOut);
       document.documentElement.classList.remove("tv-nav");
     };
-  }, [navigate]);
+  }, [navigate, emTv]);
 }

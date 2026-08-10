@@ -18,8 +18,6 @@ export function useMovies(type?: string) {
 
       if (error) throw error;
 
-      console.log('FILMES SUPABASE:', data); console.log('PRIMEIRO FILME COMPLETO:', data?.[0]);
-
       return data;
     },
   });
