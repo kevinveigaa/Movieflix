@@ -194,7 +194,7 @@ export function PlayerPage() {
 
           <button
             onClick={() => navigate("/minha-assinatura")}
-            className="mt-5 rounded-lg bg-purple-600 px-5 py-3 font-semibold transition hover:bg-purple-700"
+            className="mt-5 rounded-lg bg-brand-600 px-5 py-3 font-semibold transition hover:bg-brand-700"
           >
             Ver planos
           </button>
@@ -217,7 +217,7 @@ export function PlayerPage() {
 
           <button
             onClick={() => navigate("/minha-assinatura")}
-            className="mt-5 rounded-lg bg-purple-600 px-5 py-3 font-semibold transition hover:bg-purple-700"
+            className="mt-5 rounded-lg bg-brand-600 px-5 py-3 font-semibold transition hover:bg-brand-700"
           >
             Fazer upgrade
           </button>
@@ -240,7 +240,7 @@ export function PlayerPage() {
         {loadingVideo ? (
           <div className="flex aspect-video w-full items-center justify-center text-white">
             <div className="text-center">
-              <div className="mx-auto h-10 w-10 animate-spin rounded-full border-4 border-zinc-700 border-t-purple-500" />
+              <div className="mx-auto h-10 w-10 animate-spin rounded-full border-4 border-zinc-700 border-t-brand-500" />
 
               <p className="mt-3 text-sm text-zinc-400">
                 Carregando vídeo...
@@ -252,6 +252,7 @@ export function PlayerPage() {
             <UniversalVideoPlayer
               ref={playerRef}
               src={videoUrl}
+              backdrop={movie?.backdrop_url ?? movie?.poster_url ?? null}
               autoPlay={!showResumeOverlay}
               controls
               maxHeight={entitlements.maxHeight}

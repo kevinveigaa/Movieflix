@@ -253,7 +253,7 @@ export function TitleDetailPage() {
               disabled={downloading}
               className={`flex w-fit items-center gap-2 rounded-lg px-5 py-3 font-semibold transition ${
                 entitlements.downloads > 0
-                  ? "bg-purple-600 text-white hover:bg-purple-700"
+                  ? "bg-brand-600 text-white hover:bg-brand-700"
                   : "bg-zinc-800 text-zinc-300 hover:bg-zinc-700"
               } ${downloading ? "cursor-not-allowed opacity-70" : ""}`}
             >
@@ -286,7 +286,7 @@ export function TitleDetailPage() {
 
           {downloadMsg && (
             <p className="mt-3 flex items-center gap-2 text-sm text-zinc-300">
-              <CheckCircle2 size={16} className="text-purple-400" />
+              <CheckCircle2 size={16} className="text-brand-400" />
               {downloadMsg}
             </p>
           )}

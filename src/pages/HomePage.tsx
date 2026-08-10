@@ -272,9 +272,9 @@ function UpgradeBanner() {
   return (
     <Link
       to="/minha-assinatura"
-      className="flex items-center gap-4 rounded-2xl border border-purple-600/30 bg-gradient-to-r from-purple-900 to-black p-5"
+      className="flex items-center gap-4 rounded-2xl border border-brand-600/30 bg-gradient-to-r from-brand-700 via-purple-900 to-black p-5"
     >
-      <div className="rounded-xl bg-purple-600 p-3">
+      <div className="rounded-xl bg-brand-600 p-3">
         <Crown />
       </div>
 
