@@ -95,6 +95,15 @@ function primeiroFocavel(): HTMLElement | null {
     const r = el.getBoundingClientRect();
     return r.top >= 0 && r.top < window.innerHeight;
   });
+
+  // Prefere o conteudo principal (banner/cards) em vez do menu do topo:
+  // numa TV o usuario espera comecar no filme em destaque, nao no logo.
+  const conteudo = document.querySelector("main");
+  if (conteudo) {
+    const dentro = naTela.filter((el) => conteudo.contains(el));
+    if (dentro.length > 0) return dentro[0];
+  }
+
   return naTela[0] ?? lista[0] ?? null;
 }
 

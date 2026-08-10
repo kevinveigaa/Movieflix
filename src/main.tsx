@@ -10,10 +10,36 @@ createRoot(document.getElementById('root')!).render(
 );
 
 // PWA: registra o service worker apenas em produção (evita cache "preso" no dev).
+// Em TVs e TV Box o app costuma ficar aberto por muito tempo, então forçamos a
+// checagem de atualização e recarregamos assim que uma nova versão assume.
 if (import.meta.env.PROD && 'serviceWorker' in navigator) {
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('/sw.js').catch(() => {
-      // Ignora falhas de registro silenciosamente.
+    navigator.serviceWorker
+      .register('/sw.js')
+      .then((registration) => {
+        // Procura atualização agora e a cada 30 minutos.
+        registration.update().catch(() => undefined);
+        window.setInterval(() => registration.update().catch(() => undefined), 30 * 60 * 1000);
+
+        registration.addEventListener('updatefound', () => {
+          const novo = registration.installing;
+          if (!novo) return;
+          novo.addEventListener('statechange', () => {
+            if (novo.state === 'installed' && navigator.serviceWorker.controller) {
+              novo.postMessage('SKIP_WAITING');
+            }
+          });
+        });
+      })
+      .catch(() => {
+        // Ignora falhas de registro silenciosamente.
+      });
+
+    let recarregando = false;
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      if (recarregando) return;
+      recarregando = true;
+      window.location.reload();
     });
   });
 }
