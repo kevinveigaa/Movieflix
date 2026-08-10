@@ -11,7 +11,6 @@ const navLinks = [
   { to: '/filmes', label: 'Filmes' },
   { to: '/series', label: 'Séries' },
   { to: '/animes', label: 'Animes' },
-  { to: '/documentarios', label: 'Documentários' },
   { to: '/infantil', label: 'Infantil' },
 ];
 

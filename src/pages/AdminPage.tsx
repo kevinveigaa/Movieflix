@@ -116,7 +116,7 @@ export function AdminPage() {
     const { error } = await supabase.from("movies").delete().eq("id", filme.id);
     if (error) setMsg({ tipo: "erro", texto: error.message });
     else {
-      setMsg({ tipo: "ok", texto: "Filme excluído." });
+      setMsg({ tipo: "ok", texto: "Título excluído." });
       setFilmes((atual) => atual.filter((f) => f.id !== filme.id));
     }
   }
@@ -124,22 +124,25 @@ export function AdminPage() {
   async function buscarTMDB() {
     if (!tmdbSearch.trim()) return;
     try {
+      // Determina se busca filme ou série baseado no tipo selecionado
+      const mediaType = form.type === "series" || form.type === "tv" ? "tv" : "movie";
       const resultado: any = await tmdb.search(tmdbSearch);
-      const filme = resultado.results?.find((item: any) => item.media_type === "movie");
-      if (!filme) {
-        setMsg({ tipo: "erro", texto: "Filme não encontrado no TMDB." });
+      const obra = resultado.results?.find((item: any) => item.media_type === mediaType);
+      if (!obra) {
+        setMsg({ tipo: "erro", texto: `Nenhum${mediaType === "tv" ? "a série" : " filme"} encontrado no TMDB.` });
         return;
       }
-      const detalhes: any = await tmdb.details("movie", filme.id);
+      const detalhes: any = await tmdb.details(mediaType, obra.id);
       setForm((f) => ({
         ...f,
-        title: detalhes.title ?? f.title,
+        title: (detalhes.title ?? detalhes.name) ?? f.title,
         description: detalhes.overview ?? f.description,
         poster_url: img(detalhes.poster_path, "w500") ?? f.poster_url,
         backdrop_url: img(detalhes.backdrop_path, "w1280") ?? f.backdrop_url,
         category: detalhes.genres?.map((g: any) => g.name).join(", ") ?? f.category,
+        type: mediaType,
       }));
-      setMsg({ tipo: "ok", texto: "Dados carregados do TMDB." });
+      setMsg({ tipo: "ok", texto: `Dados carregados do TMDB (${mediaType === "tv" ? "Série" : "Filme"}).` });
     } catch (e: any) {
       setMsg({ tipo: "erro", texto: e?.message ?? "Erro ao consultar o TMDB." });
     }
@@ -175,7 +178,7 @@ export function AdminPage() {
             "Nada foi salvo: o banco bloqueou a atualização. Rode a migration \"liberar update movies\" no Supabase e tente de novo.",
         });
       } else {
-        setMsg({ tipo: "ok", texto: "Filme atualizado com sucesso!" });
+        setMsg({ tipo: "ok", texto: "Título atualizado com sucesso!" });
         await queryClient.invalidateQueries({ queryKey: ["movies"] });
         await carregarFilmes();
         setAba("lista");
@@ -286,6 +289,7 @@ export function AdminPage() {
                   <h3 className="truncate font-semibold">{filme.title}</h3>
                   <p className="truncate text-xs text-gray-400">{filme.category || "Sem categoria"}</p>
                   <div className="mt-1 flex flex-wrap gap-1.5 text-[11px]">
+                    <span className="chip">{filme.type === "series" || filme.type === "tv" ? "📺 Série" : filme.type === "anime" ? "🍥 Anime" : "🎬 Filme"}</span>
                     <span className="chip">{filme.quality ?? "HD"}</span>
                     <span className="chip">{filme.language ?? "—"}</span>
                     <span className="chip">{filme.required_plan ?? "—"}</span>
@@ -319,17 +323,17 @@ export function AdminPage() {
       {aba === "form" && (
         <div className="max-w-3xl space-y-4">
           <h2 className="text-xl font-bold">
-            {editandoId ? "Editar filme" : "Adicionar filme"}
+            {editandoId ? (form.type === "series" ? "Editar série" : form.type === "anime" ? "Editar anime" : "Editar título") : (form.type === "series" ? "Adicionar série" : form.type === "anime" ? "Adicionar anime" : "Adicionar título")}
           </h2>
 
           <div className="flex flex-wrap items-end gap-3">
             <label className="block flex-1 min-w-[220px]">
               <span className="mb-1 block text-xs font-medium text-gray-400">
-                Preencher automaticamente pelo TMDB
+                Preencher automaticamente pelo TMDB (busca filme ou série conforme o Tipo selecionado)
               </span>
               <input
                 className="input"
-                placeholder="Buscar filme no TMDB"
+                placeholder="Buscar título no TMDB"
                 value={tmdbSearch}
                 onChange={(e) => setTmdbSearch(e.target.value)}
                 onKeyDown={(e) => e.key === "Enter" && buscarTMDB()}
@@ -374,11 +378,9 @@ export function AdminPage() {
                 value={form.type}
                 onChange={(e) => setForm({ ...form, type: e.target.value })}
               >
-                <option value="movie">Filme</option>
-                <option value="series">Série</option>
-                <option value="anime">Anime</option>
-                <option value="documentary">Documentário</option>
-                <option value="kids">Infantil</option>
+                <option value="movie">🎬 Filme</option>
+                <option value="series">📺 Série</option>
+                <option value="anime">🍥 Anime</option>
               </select>
             </label>
 
@@ -424,7 +426,7 @@ export function AdminPage() {
           <div className="flex flex-wrap items-center gap-3 pt-2">
             <button onClick={salvar} disabled={salvando} className="btn-primary">
               <Save className="h-4 w-4" />
-              {salvando ? "Salvando…" : editandoId ? "Salvar alterações" : "Cadastrar filme"}
+              {salvando ? "Salvando…" : editandoId ? "Salvar alterações" : form.type === "series" ? "Cadastrar série" : form.type === "anime" ? "Cadastrar anime" : "Cadastrar título"}
             </button>
             <button
               onClick={() => {

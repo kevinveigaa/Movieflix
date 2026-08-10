@@ -20,7 +20,6 @@ export const CATEGORIAS = [
   "Animação",
   "Anime",
   "Infantil",
-  "Documentário",
   "Crime",
   "Mistério",
   "Guerra",

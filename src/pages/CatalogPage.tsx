@@ -5,13 +5,12 @@ import { FullScreenLoader } from '@/components/ui/Feedback';
 import { useMovies } from '@/hooks/useMovies';
 import { temCategoria } from '@/lib/categorias';
 
-type CatalogKind = 'filmes' | 'series' | 'animes' | 'documentarios' | 'infantil';
+type CatalogKind = 'filmes' | 'series' | 'animes' | 'infantil';
 
 const TITLES: Record<CatalogKind, string> = {
   filmes: 'Filmes',
   series: 'Séries',
   animes: 'Animes',
-  documentarios: 'Documentários',
   infantil: 'Infantil',
 };
 
@@ -24,7 +23,6 @@ const TIPOS: Record<CatalogKind, string[]> = {
   filmes: ['movie'],
   series: ['series', 'serie', 'tv'],
   animes: ['anime'],
-  documentarios: ['documentary', 'documentario'],
   infantil: ['kids', 'infantil'],
 };
 
@@ -32,7 +30,6 @@ const CATEGORIAS_DA_SECAO: Record<CatalogKind, string[]> = {
   filmes: [],
   series: ['Série', 'Novela'],
   animes: ['Anime'],
-  documentarios: ['Documentário'],
   infantil: ['Infantil', 'Família', 'Animação'],
 };
 
