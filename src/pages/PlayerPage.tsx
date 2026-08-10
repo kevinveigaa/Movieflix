@@ -4,7 +4,7 @@ import { useAuth } from '@/context/AuthContext';
 import { supabase } from '@/lib/supabase';
 import { BunnyPlayer } from '@/components/player/BunnyPlayer';
 import { useUpsertHistory } from '@/hooks/useWatchHistory';
-import { hasActiveSubscription } from '@/lib/plans';
+import { hasActiveSubscription } from '@/context/AuthContext';
 import { useEntitlements } from '@/hooks/useEntitlements';
 import { usePlaybackSession } from '@/hooks/usePlaybackSession';
 import { ChevronLeft, RotateCcw } from 'lucide-react';
