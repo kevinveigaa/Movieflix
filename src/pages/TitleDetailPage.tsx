@@ -238,7 +238,7 @@ export function TitleDetailPage() {
 
 
           <button
-            onClick={() => navigate(`/assistir/${movie.id}`)}
+            onClick={() => navigate(`/watch/${movie.id}`)}
             className="mt-5 flex w-fit items-center gap-2 rounded-lg bg-white px-5 py-3 font-bold text-black"
           >
             <Play fill="black" />
