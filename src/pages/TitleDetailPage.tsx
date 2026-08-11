@@ -1,7 +1,7 @@
 ﻿import { useParams, useNavigate } from "react-router-dom";
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabase";
-import { Play, ArrowLeft, Download, Lock, CheckCircle2, XCircle, Loader2 } from "lucide-react";
+import { Play, ArrowLeft, Download, Lock, CheckCircle2, XCircle, Loader2, Clock, RotateCcw } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { useEntitlements } from "@/hooks/useEntitlements";
 import { useWatchHistory } from "@/hooks/useWatchHistory";
@@ -47,6 +47,7 @@ export function TitleDetailPage() {
   const [downloading, setDownloading] = useState(false);
   const [progress, setProgress] = useState(0);
   const [downloadCount, setDownloadCount] = useState(0);
+  const [showResumeModal, setShowResumeModal] = useState(false);
 
   const { user } = useAuth();
   const { entitlements } = useEntitlements();
@@ -238,7 +239,13 @@ export function TitleDetailPage() {
 
 
           <button
-            onClick={() => window.location.href = '/#/assistir/' + movie.id}
+            onClick={() => {
+              if (canResume && historyRow) {
+                setShowResumeModal(true);
+              } else {
+                window.location.href = '/#/assistir/' + movie.id;
+              }
+            }}
             className="mt-5 flex w-fit items-center gap-2 rounded-lg bg-white px-5 py-3 font-bold text-black"
           >
             <Play fill="black" />
@@ -246,6 +253,41 @@ export function TitleDetailPage() {
               ? `Continuar de ${formatTime(historyRow.position_seconds)}`
               : "Assistir agora"}
           </button>
+
+          {/* Modal: Continuar de onde parou? */}
+          {showResumeModal && historyRow && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
+              <div className="w-full max-w-sm rounded-2xl border border-white/10 bg-ink-900 p-6 text-center">
+                <Clock className="mx-auto h-10 w-10 text-brand-400" />
+                <h3 className="mt-3 text-lg font-bold text-white">Continuar assistindo?</h3>
+                <p className="mt-2 text-sm text-zinc-400">
+                  Você parou em <span className="text-white font-semibold">{formatTime(historyRow.position_seconds)}</span> de {formatTime(historyRow.duration_seconds || 0)}.
+                </p>
+                <div className="mt-5 flex gap-3">
+                  <button
+                    onClick={() => {
+                      setShowResumeModal(false);
+                      window.location.href = '/#/assistir/' + movie.id;
+                    }}
+                    className="flex-1 rounded-lg bg-white/10 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-white/20 flex items-center justify-center gap-2"
+                  >
+                    <RotateCcw className="h-4 w-4" />
+                    Do início
+                  </button>
+                  <button
+                    onClick={() => {
+                      setShowResumeModal(false);
+                      window.location.href = '/#/assistir/' + movie.id + '?t=' + historyRow.position_seconds;
+                    }}
+                    className="flex-1 rounded-lg bg-brand-600 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-brand-500 flex items-center justify-center gap-2"
+                  >
+                    <Play className="h-4 w-4" fill="white" />
+                    Continuar
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
 
           <div className="mt-4 flex flex-wrap items-center gap-3">
             <button
