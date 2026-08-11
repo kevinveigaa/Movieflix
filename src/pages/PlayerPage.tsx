@@ -113,11 +113,15 @@ export function PlayerPage() {
     async function load() {
       if (!id) { setLoading(false); return; }
 
-      const episodeId = searchParams.get('episode');
-      episodeIdRef.current = episodeId;
+      const episodeIdRaw = searchParams.get('episode');
+      const episodeId = episodeIdRaw ? parseInt(episodeIdRaw, 10) : null;
+      episodeIdRef.current = episodeIdRaw;
 
-      if (episodeId) {
+      console.log('[Player] Carregando:', { id, episodeId, episodeIdRaw });
+
+      if (episodeId && !isNaN(episodeId)) {
         // Carregar episódio específico
+        console.log('[Player] Buscando episódio ID:', episodeId);
         const { data: epData, error: epError } = await supabase
           .from('episodes')
           .select('*, seasons!inner(series_id, season_number)')
@@ -125,19 +129,26 @@ export function PlayerPage() {
           .single();
 
         if (epError) {
-          console.error('Erro ao carregar episódio:', epError);
+          console.error('[Player] Erro ao carregar episódio:', epError);
           setMsg({ tipo: 'erro', texto: `Episódio não encontrado. Ele pode ter sido excluído.` });
           setLoading(false);
           return;
         }
 
         if (epData) {
-          console.log('Episódio carregado:', epData);
-          const { data: seriesData } = await supabase
+          console.log('[Player] Episódio encontrado:', epData);
+          const { data: seriesData, error: seriesError } = await supabase
             .from('movies')
             .select('*')
             .eq('id', epData.seasons.series_id)
             .single();
+
+          if (seriesError) {
+            console.error('[Player] Erro ao carregar série:', seriesError);
+            setMsg({ tipo: 'erro', texto: `Erro ao carregar série: ${seriesError.message}` });
+            setLoading(false);
+            return;
+          }
 
           if (seriesData) {
             if (!epData.video_url) {
@@ -154,6 +165,7 @@ export function PlayerPage() {
               poster_url: epData.thumbnail_url || seriesData.poster_url,
               backdrop_url: seriesData.backdrop_url,
             });
+            console.log('[Player] Filme setado com sucesso');
             setLoading(false);
             return;
           }
@@ -161,14 +173,32 @@ export function PlayerPage() {
       }
 
       // Fallback: carregar filme/série normal
+      console.log('[Player] Fallback: carregando filme ID:', id);
       const { data, error } = await supabase.from('movies').select('*').eq('id', id).single();
       if (error) {
+        console.error('[Player] Erro ao carregar filme:', error);
         setMsg({ tipo: 'erro', texto: `Erro ao carregar: ${error.message}` });
       }
-      setMovie(data);
+      if (data) {
+        setMovie(data);
+        console.log('[Player] Filme carregado:', data.title);
+      }
       setLoading(false);
     }
     load();
+
+    // Timeout de segurança: se loading ficar true por mais de 15 segundos, força false
+    const timeout = setTimeout(() => {
+      setLoading((current) => {
+        if (current) {
+          console.warn('[Player] Timeout de segurança ativado - forçando loading false');
+          return false;
+        }
+        return current;
+      });
+    }, 15000);
+
+    return () => clearTimeout(timeout);
   }, [id, searchParams]);
 
   // Pula para o tempo salvo quando o vídeo estiver pronto
