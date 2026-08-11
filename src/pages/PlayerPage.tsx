@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
 import { supabase } from '@/lib/supabase';
-import { ChevronLeft, Film } from 'lucide-react';
+import { ChevronLeft, Film, Volume2, VolumeX } from 'lucide-react';
 
 export function PlayerPage() {
   const { id } = useParams();
@@ -11,6 +11,11 @@ export function PlayerPage() {
   const [movie, setMovie] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const videoRef = useRef<HTMLVideoElement>(null);
+  const iframeRef = useRef<HTMLIFrameElement>(null);
+  const audioCtxRef = useRef<AudioContext | null>(null);
+  const gainNodeRef = useRef<GainNode | null>(null);
+  const [volumeBoost, setVolumeBoost] = useState(1.5);
+  const [isMuted, setIsMuted] = useState(false);
 
   useEffect(() => {
     async function load() {
@@ -22,12 +27,75 @@ export function PlayerPage() {
     load();
   }, [id]);
 
-  // Aumenta o volume para máximo quando o vídeo carrega
+  // Web Audio API para boostar volume no vídeo HTML5
   useEffect(() => {
-    if (videoRef.current) {
-      videoRef.current.volume = 1;
+    const video = videoRef.current;
+    if (!video || !videoUrl || isBunny) return;
+
+    try {
+      const AudioContextClass = (window as any).AudioContext || (window as any).webkitAudioContext;
+      if (!AudioContextClass) return;
+
+      const audioCtx = new AudioContextClass();
+      audioCtxRef.current = audioCtx;
+
+      const source = audioCtx.createMediaElementSource(video);
+      const gainNode = audioCtx.createGain();
+      gainNodeRef.current = gainNode;
+
+      source.connect(gainNode);
+      gainNode.connect(audioCtx.destination);
+
+      // Volume base máximo + boost
+      video.volume = 1;
+      gainNode.gain.value = volumeBoost;
+    } catch (e) {
+      // Fallback: apenas volume normal
+      video.volume = 1;
     }
+
+    return () => {
+      if (audioCtxRef.current && audioCtxRef.current.state !== 'closed') {
+        audioCtxRef.current.close();
+      }
+    };
   }, [movie]);
+
+  // Atualiza o gain quando o usuário muda o boost
+  useEffect(() => {
+    if (gainNodeRef.current) {
+      gainNodeRef.current.gain.value = isMuted ? 0 : volumeBoost;
+    }
+  }, [volumeBoost, isMuted]);
+
+  // BunnyCDN iframe: envia volume via postMessage API
+  useEffect(() => {
+    const iframe = iframeRef.current;
+    if (!iframe || !isBunny) return;
+
+    const handleLoad = () => {
+      // Bunny Player API via postMessage
+      iframe.contentWindow?.postMessage(
+        { method: 'setVolume', value: 100 },
+        '*'
+      );
+      iframe.contentWindow?.postMessage(
+        { method: 'unmute' },
+        '*'
+      );
+    };
+
+    iframe.addEventListener('load', handleLoad);
+    // Tenta novamente após 1s e 3s (o player pode demorar a inicializar)
+    const t1 = setTimeout(handleLoad, 1000);
+    const t2 = setTimeout(handleLoad, 3000);
+
+    return () => {
+      iframe.removeEventListener('load', handleLoad);
+      clearTimeout(t1);
+      clearTimeout(t2);
+    };
+  }, [movie, isBunny]);
 
   if (authLoading || loading) {
     return <div className="flex h-screen items-center justify-center bg-black"><div className="h-12 w-12 animate-spin rounded-full border-4 border-red-600 border-t-transparent"/></div>;
@@ -42,12 +110,13 @@ export function PlayerPage() {
 
   function getEmbed(url: string) {
     const m = url.match(/([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})/i);
-    if (m) return 'https://iframe.mediadelivery.net/embed/723294/' + m[1] + '?autoplay=true&volume=100';
+    if (m) return 'https://iframe.mediadelivery.net/embed/723294/' + m[1] + '?autoplay=true&muted=false&preload=true&volume=100';
     return url;
   }
 
   return (
     <div className="min-h-screen bg-black text-white">
+      {/* Header fixo */}
       <div className="fixed top-0 left-0 right-0 z-50 flex items-center gap-3 bg-gradient-to-b from-black/90 via-black/60 to-transparent p-4">
         <button onClick={() => navigate(-1)} className="flex items-center gap-2 rounded-full bg-black/50 p-2.5 backdrop-blur transition hover:bg-white/20">
           <ChevronLeft className="h-5 w-5" />
@@ -55,16 +124,48 @@ export function PlayerPage() {
         <h1 className="truncate text-base font-semibold">{movie?.title || 'Player'}</h1>
       </div>
 
+      {/* Player */}
       <div className="relative w-full bg-black">
         {isBunny ? (
           <div className="relative w-full bg-black" style={{ aspectRatio: '16/9' }}>
-            <iframe src={getEmbed(videoUrl)} className="absolute inset-0 w-full h-full border-0" allow="autoplay; fullscreen" allowFullScreen title={movie?.title || 'Video'} />
+            <iframe
+              ref={iframeRef}
+              src={getEmbed(videoUrl)}
+              className="absolute inset-0 w-full h-full border-0"
+              allow="autoplay; fullscreen; encrypted-media"
+              allowFullScreen
+              title={movie?.title || 'Video'}
+            />
           </div>
         ) : videoUrl ? (
           <div className="relative w-full bg-black" style={{ aspectRatio: '16/9' }}>
-            <video ref={videoRef} controls playsInline preload="auto" className="w-full h-full" style={{ backgroundColor: '#000', maxHeight: '80vh' }} poster={movie?.backdrop_url || movie?.poster_url}>
+            <video
+              ref={videoRef}
+              controls
+              playsInline
+              preload="auto"
+              className="w-full h-full"
+              style={{ backgroundColor: '#000', maxHeight: '80vh' }}
+              poster={movie?.backdrop_url || movie?.poster_url}
+            >
               <source src={videoUrl} type="video/mp4" />
             </video>
+            {/* Controle de volume boost (apenas vídeo HTML5) */}
+            <div className="absolute bottom-16 right-4 flex items-center gap-2 bg-black/70 backdrop-blur rounded-full px-3 py-1.5">
+              <button onClick={() => setIsMuted(!isMuted)} className="text-white hover:text-red-500 transition">
+                {isMuted ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
+              </button>
+              <span className="text-xs text-zinc-300">{isMuted ? 'Mudo' : `Vol ${Math.round(volumeBoost * 100)}%`}</span>
+              <input
+                type="range"
+                min="1"
+                max="3"
+                step="0.1"
+                value={volumeBoost}
+                onChange={(e) => setVolumeBoost(parseFloat(e.target.value))}
+                className="w-20 accent-red-600"
+              />
+            </div>
           </div>
         ) : (
           <div className="flex h-[60vh] flex-col items-center justify-center text-center gap-4">
@@ -74,6 +175,7 @@ export function PlayerPage() {
         )}
       </div>
 
+      {/* Info do filme */}
       {movie && (
         <div className="px-4 py-6 max-w-5xl mx-auto">
           <h2 className="text-2xl font-bold mb-2">{movie.title}</h2>
