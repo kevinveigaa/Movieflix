@@ -126,10 +126,12 @@ export function PlayerPage() {
 
         if (epError) {
           console.error('Erro ao carregar episódio:', epError);
-          setMsg({ tipo: 'erro', texto: `Erro ao carregar episódio: ${epError.message}` });
+          setMsg({ tipo: 'erro', texto: `Episódio não encontrado. Ele pode ter sido excluído.` });
+          setLoading(false);
+          return;
         }
 
-        if (epData && !epError) {
+        if (epData) {
           console.log('Episódio carregado:', epData);
           const { data: seriesData } = await supabase
             .from('movies')
@@ -139,7 +141,7 @@ export function PlayerPage() {
 
           if (seriesData) {
             if (!epData.video_url) {
-              setMsg({ tipo: 'erro', texto: 'Este episódio não tem URL de vídeo cadastrada.' });
+              setMsg({ tipo: 'erro', texto: 'Este episódio não tem URL de vídeo cadastrada. Edite no painel admin.' });
               setLoading(false);
               return;
             }
@@ -159,7 +161,10 @@ export function PlayerPage() {
       }
 
       // Fallback: carregar filme/série normal
-      const { data } = await supabase.from('movies').select('*').eq('id', id).single();
+      const { data, error } = await supabase.from('movies').select('*').eq('id', id).single();
+      if (error) {
+        setMsg({ tipo: 'erro', texto: `Erro ao carregar: ${error.message}` });
+      }
       setMovie(data);
       setLoading(false);
     }
