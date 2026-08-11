@@ -1,14 +1,17 @@
 import { useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/context/AuthContext";
 import { tmdb, img } from "@/lib/tmdb";
-import { Pencil, Trash2, Plus, Search, X, Save, RefreshCw, Layers, ListFilter } from "lucide-react";
+import {
+  Pencil, Trash2, Plus, Search, X, Save, RefreshCw, Layers,
+  ListFilter, ChevronDown, ChevronUp, Film
+} from "lucide-react";
 import { CATEGORIAS, categoriasDoFilme, normalizar } from "@/lib/categorias";
 import { useQueryClient } from "@tanstack/react-query";
 
 const ADMIN_EMAIL = "veigakevin71@gmail.com";
 
+type Aba = "lista" | "form-filme" | "form-serie";
 
 type Form = {
   title: string;
@@ -36,12 +39,30 @@ const FORM_VAZIO: Form = {
   category: "",
 };
 
+interface Season {
+  id: string;
+  series_id: string;
+  season_number: number;
+  title: string | null;
+  poster_url: string | null;
+}
+
+interface Episode {
+  id: string;
+  season_id: string;
+  episode_number: number;
+  title: string;
+  description: string | null;
+  video_url: string;
+  duration_seconds: number | null;
+  thumbnail_url: string | null;
+}
+
 export function AdminPage() {
   const { user } = useAuth();
-  const navigate = useNavigate();
   const queryClient = useQueryClient();
 
-  const [aba, setAba] = useState<"lista" | "form">("lista");
+  const [aba, setAba] = useState<Aba>("lista");
   const [filtroLista, setFiltroLista] = useState<"todos" | "filmes" | "series">("todos");
   const [filmes, setFilmes] = useState<any[]>([]);
   const [carregando, setCarregando] = useState(false);
@@ -52,7 +73,31 @@ export function AdminPage() {
   const [salvando, setSalvando] = useState(false);
   const [msg, setMsg] = useState<{ tipo: "ok" | "erro"; texto: string } | null>(null);
 
+  // === TEMPORADAS E EPISÓDIOS (inline para séries) ===
+  const [seriesData, setSeriesData] = useState<any>(null);
+  const [seasons, setSeasons] = useState<Season[]>([]);
+  const [episodes, setEpisodes] = useState<Record<string, Episode[]>>({});
+  const [loadingSeries, setLoadingSeries] = useState(false);
+  const [expandedSeason, setExpandedSeason] = useState<string | null>(null);
+
+  // Form para nova temporada
+  const [newSeasonNumber, setNewSeasonNumber] = useState(1);
+  const [newSeasonTitle, setNewSeasonTitle] = useState("");
+
+  // Form para novo episódio
+  const [newEpisode, setNewEpisode] = useState({
+    seasonId: "",
+    episodeNumber: 1,
+    title: "",
+    description: "",
+    videoUrl: "",
+    durationSeconds: 0,
+    thumbnailUrl: "",
+  });
+
   const ehAdmin = user?.email === ADMIN_EMAIL;
+  const ehSerie = form.type === "series" || form.type === "tv" || form.type === "anime";
+  const mostrarTemporadas = editandoId && ehSerie && !form.video_url;
 
   async function carregarFilmes() {
     setCarregando(true);
@@ -70,20 +115,44 @@ export function AdminPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ehAdmin]);
 
+  useEffect(() => {
+    if (mostrarTemporadas && editandoId) {
+      loadSeasonsAndEpisodes(editandoId);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mostrarTemporadas, editandoId]);
+
+  async function loadSeasonsAndEpisodes(seriesId: string) {
+    setLoadingSeries(true);
+    const { data: sData } = await supabase.from("movies").select("*").eq("id", seriesId).single();
+    setSeriesData(sData);
+    const { data: seasonsData } = await supabase
+      .from("seasons")
+      .select("*")
+      .eq("series_id", seriesId)
+      .order("season_number", { ascending: true });
+    const seasonsList = seasonsData ?? [];
+    setSeasons(seasonsList);
+    const eps: Record<string, Episode[]> = {};
+    for (const season of seasonsList) {
+      const { data: epData } = await supabase
+        .from("episodes")
+        .select("*")
+        .eq("season_id", season.id)
+        .order("episode_number", { ascending: true });
+      eps[season.id] = epData ?? [];
+    }
+    setEpisodes(eps);
+    setLoadingSeries(false);
+  }
+
   const filtrados = useMemo(() => {
     let resultado = filmes;
-
-    // Filtro por aba: Filmes vs Séries
     if (filtroLista === "filmes") {
-      resultado = resultado.filter((f) => 
-        f.type === "movie" || (f.type === "anime" && f.video_url)
-      );
+      resultado = resultado.filter((f) => f.type === "movie" || (f.type === "anime" && f.video_url));
     } else if (filtroLista === "series") {
-      resultado = resultado.filter((f) => 
-        f.type === "series" || f.type === "tv" || (f.type === "anime" && !f.video_url)
-      );
+      resultado = resultado.filter((f) => f.type === "series" || f.type === "tv" || (f.type === "anime" && !f.video_url));
     }
-
     const termo = busca.trim().toLowerCase();
     if (!termo) return resultado;
     return resultado.filter(
@@ -101,14 +170,28 @@ export function AdminPage() {
     );
   }
 
-  function novo() {
+  function novoFilme() {
     setEditandoId(null);
-    setForm(FORM_VAZIO);
+    setForm({ ...FORM_VAZIO, type: "movie" });
     setTmdbSearch("");
-    setAba("form");
+    setSeasons([]);
+    setEpisodes({});
+    setExpandedSeason(null);
+    setAba("form-filme");
+  }
+
+  function novaSerie() {
+    setEditandoId(null);
+    setForm({ ...FORM_VAZIO, type: "series", video_url: "" });
+    setTmdbSearch("");
+    setSeasons([]);
+    setEpisodes({});
+    setExpandedSeason(null);
+    setAba("form-serie");
   }
 
   function editar(filme: any) {
+    const isSerie = filme.type === "series" || filme.type === "tv" || (filme.type === "anime" && !filme.video_url);
     setEditandoId(filme.id);
     setForm({
       title: filme.title ?? "",
@@ -123,7 +206,7 @@ export function AdminPage() {
       category: filme.category ?? "",
     });
     setTmdbSearch("");
-    setAba("form");
+    setAba(isSerie ? "form-serie" : "form-filme");
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
@@ -140,8 +223,7 @@ export function AdminPage() {
   async function buscarTMDB() {
     if (!tmdbSearch.trim()) return;
     try {
-      // Determina se busca filme ou série baseado no tipo selecionado
-      const mediaType = form.type === "series" || form.type === "tv" ? "tv" : "movie";
+      const mediaType = ehSerie ? "tv" : "movie";
       const resultado: any = await tmdb.search(tmdbSearch);
       const obra = resultado.results?.find((item: any) => item.media_type === mediaType);
       if (!obra) {
@@ -156,7 +238,7 @@ export function AdminPage() {
         poster_url: img(detalhes.poster_path, "w500") ?? f.poster_url,
         backdrop_url: img(detalhes.backdrop_path, "w1280") ?? f.backdrop_url,
         category: detalhes.genres?.map((g: any) => g.name).join(", ") ?? f.category,
-        type: mediaType,
+        type: mediaType === "tv" ? (f.type === "anime" ? "anime" : "series") : "movie",
       }));
       setMsg({ tipo: "ok", texto: `Dados carregados do TMDB (${mediaType === "tv" ? "Série" : "Filme"}).` });
     } catch (e: any) {
@@ -170,8 +252,6 @@ export function AdminPage() {
       return;
     }
     setSalvando(true);
-
-    // Normaliza as categorias escolhidas: sem espaços sobrando, sem repetidas.
     const categorias = categoriasDoFilme({ category: form.category })
       .filter((c) => c !== "Outros")
       .join(", ");
@@ -183,23 +263,19 @@ export function AdminPage() {
         .update(payload)
         .eq("id", editandoId)
         .select("id, category");
-
       if (error) {
         setMsg({ tipo: "erro", texto: error.message });
       } else if (!data || data.length === 0) {
-        // UPDATE aceito porém sem linhas alteradas = falta a policy de update no banco.
-        setMsg({
-          tipo: "erro",
-          texto:
-            "Nada foi salvo: o banco bloqueou a atualização. Rode a migration \"liberar update movies\" no Supabase e tente de novo.",
-        });
+        setMsg({ tipo: "erro", texto: "Nada foi salvo: o banco bloqueou a atualização." });
       } else {
         setMsg({ tipo: "ok", texto: "Título atualizado com sucesso!" });
         await queryClient.invalidateQueries({ queryKey: ["movies"] });
         await carregarFilmes();
-        setAba("lista");
-        setEditandoId(null);
-        setForm(FORM_VAZIO);
+        if (!ehSerie) {
+          setAba("lista");
+          setEditandoId(null);
+          setForm(FORM_VAZIO);
+        }
       }
     } else {
       const { data, error } = await supabase.from("movies").insert(payload).select("id");
@@ -208,15 +284,82 @@ export function AdminPage() {
       } else if (!data || data.length === 0) {
         setMsg({ tipo: "erro", texto: "Nada foi salvo: o banco bloqueou o cadastro." });
       } else {
-        setMsg({ tipo: "ok", texto: "Filme cadastrado com sucesso!" });
+        const novoId = data[0].id;
+        setMsg({ tipo: "ok", texto: "Cadastrado! Agora adicione temporadas e episódios." });
         await queryClient.invalidateQueries({ queryKey: ["movies"] });
         await carregarFilmes();
-        setAba("lista");
-        setForm(FORM_VAZIO);
+        if (ehSerie) {
+          setEditandoId(novoId);
+          await loadSeasonsAndEpisodes(novoId);
+        } else {
+          setAba("lista");
+          setForm(FORM_VAZIO);
+        }
       }
     }
-
     setSalvando(false);
+  }
+
+  async function addSeason() {
+    if (!editandoId) return;
+    const { error } = await supabase.from("seasons").insert({
+      series_id: editandoId,
+      season_number: newSeasonNumber,
+      title: newSeasonTitle || null,
+    });
+    if (error) {
+      setMsg({ tipo: "erro", texto: error.message });
+    } else {
+      setMsg({ tipo: "ok", texto: "Temporada adicionada!" });
+      setNewSeasonNumber((prev) => prev + 1);
+      setNewSeasonTitle("");
+      if (editandoId) await loadSeasonsAndEpisodes(editandoId);
+    }
+  }
+
+  async function deleteSeason(seasonId: string) {
+    if (!window.confirm("Excluir esta temporada e todos os episódios?")) return;
+    await supabase.from("episodes").delete().eq("season_id", seasonId);
+    await supabase.from("seasons").delete().eq("id", seasonId);
+    setMsg({ tipo: "ok", texto: "Temporada excluída!" });
+    if (editandoId) await loadSeasonsAndEpisodes(editandoId);
+  }
+
+  async function addEpisode() {
+    if (!newEpisode.seasonId || !newEpisode.title || !newEpisode.videoUrl) {
+      setMsg({ tipo: "erro", texto: "Preencha título e URL do vídeo do episódio!" });
+      return;
+    }
+    const { error } = await supabase.from("episodes").insert({
+      season_id: newEpisode.seasonId,
+      episode_number: newEpisode.episodeNumber,
+      title: newEpisode.title,
+      description: newEpisode.description || null,
+      video_url: newEpisode.videoUrl,
+      duration_seconds: newEpisode.durationSeconds || null,
+      thumbnail_url: newEpisode.thumbnailUrl || null,
+    });
+    if (error) {
+      setMsg({ tipo: "erro", texto: error.message });
+    } else {
+      setMsg({ tipo: "ok", texto: "Episódio adicionado!" });
+      setNewEpisode((prev) => ({
+        ...prev,
+        episodeNumber: prev.episodeNumber + 1,
+        title: "",
+        videoUrl: "",
+        description: "",
+        thumbnailUrl: "",
+      }));
+      if (editandoId) await loadSeasonsAndEpisodes(editandoId);
+    }
+  }
+
+  async function deleteEpisode(episodeId: string) {
+    if (!window.confirm("Excluir este episódio?")) return;
+    await supabase.from("episodes").delete().eq("id", episodeId);
+    setMsg({ tipo: "ok", texto: "Episódio excluído!" });
+    if (editandoId) await loadSeasonsAndEpisodes(editandoId);
   }
 
   function campo(name: keyof Form, placeholder: string) {
@@ -233,134 +376,76 @@ export function AdminPage() {
     );
   }
 
+  const formAtivo = aba === "form-filme" || aba === "form-serie";
+  const tituloForm = editandoId
+    ? ehSerie ? "Editar Série" : "Editar Filme"
+    : aba === "form-serie" ? "Adicionar Série" : "Adicionar Filme";
+
   return (
     <div className="container-app min-h-screen py-10 text-white">
       <div className="mb-8 flex flex-wrap items-center justify-between gap-4">
         <h1 className="text-3xl font-bold">Painel Admin MovieFlix</h1>
         <div className="flex items-center gap-2">
-          <button
-            onClick={() => setAba("lista")}
-            className={aba === "lista" ? "btn-primary" : "btn-outline"}
-          >
+          <button onClick={() => setAba("lista")} className={aba === "lista" ? "btn-primary" : "btn-outline"}>
             Catálogo ({filmes.length})
           </button>
-          <button onClick={novo} className={aba === "form" ? "btn-primary" : "btn-outline"}>
-            <Plus className="h-4 w-4" />
-            {editandoId ? "Editando" : "Adicionar"}
+          <button onClick={novoFilme} className={aba === "form-filme" ? "btn-primary" : "btn-outline"}>
+            <Plus className="h-4 w-4" /> Filme
+          </button>
+          <button onClick={novaSerie} className={aba === "form-serie" ? "btn-primary" : "btn-outline"}>
+            <Layers className="h-4 w-4" /> Série
           </button>
         </div>
       </div>
 
       {msg && (
-        <div
-          className={`mb-6 flex items-center justify-between gap-3 rounded-xl border px-4 py-3 text-sm ${
-            msg.tipo === "ok"
-              ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-200"
-              : "border-red-500/30 bg-red-500/10 text-red-200"
-          }`}
-        >
+        <div className={`mb-6 flex items-center justify-between gap-3 rounded-xl border px-4 py-3 text-sm ${
+          msg.tipo === "ok" ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-200" : "border-red-500/30 bg-red-500/10 text-red-200"
+        }`}>
           <span>{msg.texto}</span>
-          <button onClick={() => setMsg(null)} aria-label="Fechar aviso">
-            <X className="h-4 w-4" />
-          </button>
+          <button onClick={() => setMsg(null)} aria-label="Fechar aviso"><X className="h-4 w-4" /></button>
         </div>
       )}
 
       {aba === "lista" && (
         <div className="space-y-4">
-          {/* Filtros Filmes / Séries */}
           <div className="flex flex-wrap items-center gap-2">
             <ListFilter className="h-4 w-4 text-gray-400" />
-            <button
-              onClick={() => setFiltroLista("todos")}
-              className={`rounded-full px-3 py-1 text-xs transition ${filtroLista === "todos" ? "bg-brand-600 text-white" : "bg-white/5 text-gray-300 hover:bg-white/10"}`}
-            >
-              Todos
-            </button>
-            <button
-              onClick={() => setFiltroLista("filmes")}
-              className={`rounded-full px-3 py-1 text-xs transition ${filtroLista === "filmes" ? "bg-brand-600 text-white" : "bg-white/5 text-gray-300 hover:bg-white/10"}`}
-            >
-              Filmes
-            </button>
-            <button
-              onClick={() => setFiltroLista("series")}
-              className={`rounded-full px-3 py-1 text-xs transition ${filtroLista === "series" ? "bg-brand-600 text-white" : "bg-white/5 text-gray-300 hover:bg-white/10"}`}
-            >
-              Séries
-            </button>
+            <button onClick={() => setFiltroLista("todos")} className={`rounded-full px-3 py-1 text-xs transition ${filtroLista === "todos" ? "bg-brand-600 text-white" : "bg-white/5 text-gray-300 hover:bg-white/10"}`}>Todos</button>
+            <button onClick={() => setFiltroLista("filmes")} className={`rounded-full px-3 py-1 text-xs transition ${filtroLista === "filmes" ? "bg-brand-600 text-white" : "bg-white/5 text-gray-300 hover:bg-white/10"}`}>Filmes</button>
+            <button onClick={() => setFiltroLista("series")} className={`rounded-full px-3 py-1 text-xs transition ${filtroLista === "series" ? "bg-brand-600 text-white" : "bg-white/5 text-gray-300 hover:bg-white/10"}`}>Séries</button>
           </div>
           <div className="flex flex-wrap items-center gap-3">
             <div className="relative flex-1 min-w-[220px]">
               <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-500" />
-              <input
-                className="input pl-10"
-                placeholder="Buscar por título ou categoria"
-                value={busca}
-                onChange={(e) => setBusca(e.target.value)}
-              />
+              <input className="input pl-10" placeholder="Buscar por título ou categoria" value={busca} onChange={(e) => setBusca(e.target.value)} />
             </div>
             <button onClick={carregarFilmes} className="btn-outline">
-              <RefreshCw className={`h-4 w-4 ${carregando ? "animate-spin" : ""}`} />
-              Atualizar
+              <RefreshCw className={`h-4 w-4 ${carregando ? "animate-spin" : ""}`} /> Atualizar
             </button>
           </div>
 
           {carregando && <p className="text-gray-400">Carregando títulos…</p>}
-          {!carregando && filtrados.length === 0 && (
-            <p className="text-gray-400">Nenhum título encontrado.</p>
-          )}
+          {!carregando && filtrados.length === 0 && <p className="text-gray-400">Nenhum título encontrado.</p>}
 
           <div className="grid gap-3">
             {filtrados.map((filme) => (
-              <div
-                key={filme.id}
-                className="card-surface flex items-center gap-4 p-3"
-              >
-                <img
-                  src={filme.poster_url}
-                  alt={filme.title}
-                  className="h-24 w-16 shrink-0 rounded-lg bg-ink-800 object-cover"
-                  loading="lazy"
-                />
+              <div key={filme.id} className="card-surface flex items-center gap-4 p-3">
+                <img src={filme.poster_url} alt={filme.title} className="h-24 w-16 shrink-0 rounded-lg bg-ink-800 object-cover" loading="lazy" />
                 <div className="min-w-0 flex-1">
                   <h3 className="truncate font-semibold">{filme.title}</h3>
                   <p className="truncate text-xs text-gray-400">{filme.category || "Sem categoria"}</p>
                   <div className="mt-1 flex flex-wrap gap-1.5 text-[11px]">
-                    <span className="chip">{filme.type === "series" || filme.type === "tv" ? "📺 Série" : filme.type === "anime" ? "🍥 Anime" : "🎬 Filme"}</span>
+                    <span className="chip">{filme.type === "series" || filme.type === "tv" ? "📺 Série" : filme.type === "anime" ? (filme.video_url ? "🍥 Anime (Filme)" : "🍥 Anime (Série)") : "🎬 Filme"}</span>
                     <span className="chip">{filme.quality ?? "HD"}</span>
                     <span className="chip">{filme.language ?? "—"}</span>
                     <span className="chip">{filme.required_plan ?? "—"}</span>
-                    {!filme.video_url && (
-                      <span className="chip border-amber-500/40 text-amber-300">sem link</span>
-                    )}
+                    {!filme.video_url && filme.type !== "series" && filme.type !== "tv" && filme.type !== "anime" && <span className="chip border-amber-500/40 text-amber-300">sem link</span>}
                   </div>
                 </div>
                 <div className="flex shrink-0 items-center gap-2">
-                  {(filme.type === "series" || filme.type === "tv" || (filme.type === "anime" && !filme.video_url)) && (
-                    <button
-                      onClick={() => navigate(`/admin/series/${filme.id}`)}
-                      className="btn-outline px-3 py-2 text-brand-300 border-brand-500/30 hover:bg-brand-500/10"
-                      aria-label={`Gerenciar temporadas ${filme.title}`}
-                      title="Gerenciar temporadas e episódios"
-                    >
-                      <Layers className="h-4 w-4" />
-                    </button>
-                  )}
-                  <button
-                    onClick={() => editar(filme)}
-                    className="btn-outline px-3 py-2"
-                    aria-label={`Editar ${filme.title}`}
-                  >
-                    <Pencil className="h-4 w-4" />
-                  </button>
-                  <button
-                    onClick={() => excluir(filme)}
-                    className="btn px-3 py-2 bg-red-600/80 text-white hover:bg-red-600"
-                    aria-label={`Excluir ${filme.title}`}
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </button>
+                  <button onClick={() => editar(filme)} className="btn-outline px-3 py-2" aria-label={`Editar ${filme.title}`}><Pencil className="h-4 w-4" /></button>
+                  <button onClick={() => excluir(filme)} className="btn px-3 py-2 bg-red-600/80 text-white hover:bg-red-600" aria-label={`Excluir ${filme.title}`}><Trash2 className="h-4 w-4" /></button>
                 </div>
               </div>
             ))}
@@ -368,41 +453,23 @@ export function AdminPage() {
         </div>
       )}
 
-      {aba === "form" && (
-        <div className="max-w-3xl space-y-4">
-          <h2 className="text-xl font-bold">
-            {editandoId ? (form.type === "series" ? "Editar série" : form.type === "anime" ? "Editar anime" : "Editar título") : (form.type === "series" ? "Adicionar série" : form.type === "anime" ? "Adicionar anime" : "Adicionar título")}
-          </h2>
+      {formAtivo && (
+        <div className="max-w-3xl space-y-6">
+          <h2 className="text-xl font-bold">{tituloForm}</h2>
 
           <div className="flex flex-wrap items-end gap-3">
             <label className="block flex-1 min-w-[220px]">
-              <span className="mb-1 block text-xs font-medium text-gray-400">
-                Preencher automaticamente pelo TMDB (busca filme ou série conforme o Tipo selecionado)
-              </span>
-              <input
-                className="input"
-                placeholder="Buscar título no TMDB"
-                value={tmdbSearch}
-                onChange={(e) => setTmdbSearch(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && buscarTMDB()}
-              />
+              <span className="mb-1 block text-xs font-medium text-gray-400">Preencher pelo TMDB ({ehSerie ? "Série" : "Filme"})</span>
+              <input className="input" placeholder="Buscar título no TMDB" value={tmdbSearch} onChange={(e) => setTmdbSearch(e.target.value)} onKeyDown={(e) => e.key === "Enter" && buscarTMDB()} />
             </label>
-            <button onClick={buscarTMDB} className="btn-outline">
-              <Search className="h-4 w-4" />
-              Buscar
-            </button>
+            <button onClick={buscarTMDB} className="btn-outline"><Search className="h-4 w-4" /> Buscar</button>
           </div>
 
           {campo("title", "Título")}
 
           <label className="block">
             <span className="mb-1 block text-xs font-medium text-gray-400">Descrição</span>
-            <textarea
-              className="input min-h-[110px]"
-              placeholder="Descrição"
-              value={form.description}
-              onChange={(e) => setForm({ ...form, description: e.target.value })}
-            />
+            <textarea className="input min-h-[110px]" placeholder="Descrição" value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} />
           </label>
 
           <div className="grid gap-4 sm:grid-cols-2">
@@ -410,7 +477,7 @@ export function AdminPage() {
             {campo("backdrop_url", "URL do banner")}
           </div>
 
-          {campo("video_url", "URL do vídeo")}
+          {aba === "form-filme" && campo("video_url", "URL do vídeo")}
 
           <div className="grid gap-4 sm:grid-cols-3">
             {campo("language", "Idioma")}
@@ -421,27 +488,15 @@ export function AdminPage() {
           <div className="grid gap-4 sm:grid-cols-2">
             <label className="block">
               <span className="mb-1 block text-xs font-medium text-gray-400">Tipo</span>
-              <select
-                className="input"
-                value={form.type}
-                onChange={(e) => setForm({ ...form, type: e.target.value })}
-              >
+              <select className="input" value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value })}>
                 <option value="movie">🎬 Filme</option>
                 <option value="series">📺 Série</option>
                 <option value="anime">🍥 Anime</option>
               </select>
             </label>
-
             <label className="block">
-              <span className="mb-1 block text-xs font-medium text-gray-400">
-                Categorias (separe por vírgula)
-              </span>
-              <input
-                className="input"
-                placeholder="Ex.: Ação, Aventura"
-                value={form.category}
-                onChange={(e) => setForm({ ...form, category: e.target.value })}
-              />
+              <span className="mb-1 block text-xs font-medium text-gray-400">Categorias (separe por vírgula)</span>
+              <input className="input" placeholder="Ex.: Ação, Aventura" value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })} />
             </label>
           </div>
 
@@ -450,43 +505,95 @@ export function AdminPage() {
               const atuais = form.category.split(",").map((x) => x.trim()).filter(Boolean);
               const ativo = atuais.some((x) => normalizar(x) === normalizar(c));
               return (
-                <button
-                  key={c}
-                  type="button"
-                  onClick={() => {
-                    const novas = ativo
-                      ? atuais.filter((x) => normalizar(x) !== normalizar(c))
-                      : [...atuais, c];
-                    setForm({ ...form, category: novas.join(", ") });
-                  }}
-                  className={`rounded-full border px-3 py-1 text-xs transition ${
-                    ativo
-                      ? "border-brand-500 bg-brand-600 text-white"
-                      : "border-white/15 bg-white/5 text-gray-300 hover:bg-white/10"
-                  }`}
-                >
-                  {c}
-                </button>
+                <button key={c} type="button" onClick={() => {
+                  const novas = ativo ? atuais.filter((x) => normalizar(x) !== normalizar(c)) : [...atuais, c];
+                  setForm({ ...form, category: novas.join(", ") });
+                }} className={`rounded-full border px-3 py-1 text-xs transition ${ativo ? "border-brand-500 bg-brand-600 text-white" : "border-white/15 bg-white/5 text-gray-300 hover:bg-white/10"}`}>{c}</button>
               );
             })}
           </div>
 
           <div className="flex flex-wrap items-center gap-3 pt-2">
             <button onClick={salvar} disabled={salvando} className="btn-primary">
-              <Save className="h-4 w-4" />
-              {salvando ? "Salvando…" : editandoId ? "Salvar alterações" : form.type === "series" ? "Cadastrar série" : form.type === "anime" ? "Cadastrar anime" : "Cadastrar título"}
+              <Save className="h-4 w-4" /> {salvando ? "Salvando…" : editandoId ? "Salvar alterações" : "Cadastrar"}
             </button>
-            <button
-              onClick={() => {
-                setAba("lista");
-                setEditandoId(null);
-                setForm(FORM_VAZIO);
-              }}
-              className="btn-outline"
-            >
-              Cancelar
-            </button>
+            <button onClick={() => { setAba("lista"); setEditandoId(null); setForm(FORM_VAZIO); setSeasons([]); setEpisodes({}); }} className="btn-outline">Cancelar</button>
           </div>
+
+          {mostrarTemporadas && (
+            <div className="mt-8 space-y-6 border-t border-white/10 pt-8">
+              <h3 className="text-lg font-bold flex items-center gap-2">
+                <Layers className="h-5 w-5 text-brand-400" />
+                Gerenciar Temporadas e Episódios
+              </h3>
+
+              <div className="rounded-2xl border border-white/10 bg-ink-900 p-5">
+                <h4 className="mb-3 text-sm font-bold text-zinc-300">Adicionar Temporada</h4>
+                <div className="flex flex-wrap gap-3">
+                  <input type="number" className="input w-24" placeholder="Nº" value={newSeasonNumber} onChange={(e) => setNewSeasonNumber(parseInt(e.target.value) || 1)} />
+                  <input className="input flex-1 min-w-[200px]" placeholder="Título da temporada (opcional)" value={newSeasonTitle} onChange={(e) => setNewSeasonTitle(e.target.value)} />
+                  <button onClick={addSeason} className="btn-primary"><Plus className="h-4 w-4" /> Adicionar</button>
+                </div>
+              </div>
+
+              {loadingSeries ? (
+                <p className="text-zinc-400">Carregando temporadas…</p>
+              ) : seasons.length === 0 ? (
+                <div className="text-center py-8 text-zinc-500">
+                  <Film className="mx-auto h-10 w-10 mb-2" />
+                  <p>Nenhuma temporada ainda. Adicione a primeira acima!</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {seasons.map((season) => (
+                    <div key={season.id} className="rounded-2xl border border-white/10 bg-ink-900 overflow-hidden">
+                      <button onClick={() => setExpandedSeason(expandedSeason === season.id ? null : season.id)} className="flex w-full items-center justify-between p-4 hover:bg-white/5">
+                        <div className="flex items-center gap-3">
+                          {expandedSeason === season.id ? <ChevronUp className="h-5 w-5" /> : <ChevronDown className="h-5 w-5" />}
+                          <span className="font-bold">Temporada {season.season_number}</span>
+                          {season.title && <span className="text-zinc-400">- {season.title}</span>}
+                          <span className="text-xs text-zinc-500">({episodes[season.id]?.length ?? 0} episódios)</span>
+                        </div>
+                        <button onClick={(e) => { e.stopPropagation(); deleteSeason(season.id); }} className="rounded-full p-2 text-red-400 hover:bg-red-600/20"><Trash2 className="h-4 w-4" /></button>
+                      </button>
+
+                      {expandedSeason === season.id && (
+                        <div className="border-t border-white/10 p-4">
+                          <div className="mb-4 space-y-2">
+                            {(episodes[season.id] ?? []).map((ep) => (
+                              <div key={ep.id} className="flex items-center gap-3 rounded-lg bg-black/30 p-3">
+                                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-brand-600 text-sm font-bold">{ep.episode_number}</div>
+                                <div className="min-w-0 flex-1">
+                                  <p className="truncate font-medium">{ep.title}</p>
+                                  {ep.description && <p className="truncate text-xs text-zinc-500">{ep.description}</p>}
+                                  <p className="truncate text-[11px] text-zinc-600">{ep.video_url}</p>
+                                </div>
+                                <button onClick={() => deleteEpisode(ep.id)} className="rounded-full p-2 text-red-400 hover:bg-red-600/20"><Trash2 className="h-4 w-4" /></button>
+                              </div>
+                            ))}
+                            {(episodes[season.id] ?? []).length === 0 && <p className="text-center text-sm text-zinc-500 py-4">Nenhum episódio ainda.</p>}
+                          </div>
+
+                          <div className="rounded-xl border border-white/10 bg-black/20 p-4">
+                            <h5 className="mb-3 text-sm font-bold text-zinc-300">Adicionar Episódio</h5>
+                            <div className="grid gap-3 sm:grid-cols-2">
+                              <input type="number" className="input" placeholder="Nº do episódio" value={newEpisode.seasonId === season.id ? newEpisode.episodeNumber : 1} onChange={(e) => setNewEpisode({ ...newEpisode, seasonId: season.id, episodeNumber: parseInt(e.target.value) || 1 })} />
+                              <input className="input" placeholder="Título do episódio" value={newEpisode.seasonId === season.id ? newEpisode.title : ""} onChange={(e) => setNewEpisode({ ...newEpisode, seasonId: season.id, title: e.target.value })} />
+                              <input className="input sm:col-span-2" placeholder="URL do vídeo do episódio" value={newEpisode.seasonId === season.id ? newEpisode.videoUrl : ""} onChange={(e) => setNewEpisode({ ...newEpisode, seasonId: season.id, videoUrl: e.target.value })} />
+                              <input className="input sm:col-span-2" placeholder="Descrição (opcional)" value={newEpisode.seasonId === season.id ? newEpisode.description : ""} onChange={(e) => setNewEpisode({ ...newEpisode, seasonId: season.id, description: e.target.value })} />
+                              <input className="input sm:col-span-2" placeholder="URL da thumbnail/capa do episódio (opcional)" value={newEpisode.seasonId === season.id ? newEpisode.thumbnailUrl : ""} onChange={(e) => setNewEpisode({ ...newEpisode, seasonId: season.id, thumbnailUrl: e.target.value })} />
+                              <input type="number" className="input" placeholder="Duração em segundos (opcional)" value={newEpisode.seasonId === season.id ? newEpisode.durationSeconds : 0} onChange={(e) => setNewEpisode({ ...newEpisode, seasonId: season.id, durationSeconds: parseInt(e.target.value) || 0 })} />
+                            </div>
+                            <button onClick={() => { setNewEpisode({ ...newEpisode, seasonId: season.id }); setTimeout(addEpisode, 0); }} className="btn-primary mt-3"><Plus className="h-4 w-4" /> Adicionar Episódio</button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
         </div>
       )}
     </div>
