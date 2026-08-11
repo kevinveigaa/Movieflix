@@ -642,14 +642,30 @@ export function AdminPage() {
                         <div className="border-t border-white/10 p-4">
                           <div className="mb-4 space-y-2">
                             {(episodes[season.id] ?? []).map((ep) => (
-                              <div key={ep.id} className="flex items-center gap-3 rounded-lg bg-black/30 p-3">
-                                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-brand-600 text-sm font-bold">{ep.episode_number}</div>
-                                <div className="min-w-0 flex-1">
-                                  <p className="truncate font-medium">{ep.title}</p>
-                                  {ep.description && <p className="truncate text-xs text-zinc-500">{ep.description}</p>}
-                                  <p className="truncate text-[11px] text-zinc-600">{ep.video_url}</p>
-                                </div>
-                                <button onClick={() => deleteEpisode(ep.id)} className="rounded-full p-2 text-red-400 hover:bg-red-600/20"><Trash2 className="h-4 w-4" /></button>
+                              <div key={ep.id}>
+                                {editingEpisode === ep.id ? (
+                                  {/* Form de edição inline */}
+                                  <div className="rounded-lg bg-brand-900/20 border border-brand-500/30 p-4 space-y-3">
+                                    <h6 className="text-sm font-bold text-brand-300">Editar Episódio {ep.episode_number}</h6>
+                                    <input className="input w-full" placeholder="Título" value={editEpisodeForm.title} onChange={(e) => setEditEpisodeForm({ ...editEpisodeForm, title: e.target.value })} />
+                                    <input className="input w-full" placeholder="URL do vídeo" value={editEpisodeForm.videoUrl} onChange={(e) => setEditEpisodeForm({ ...editEpisodeForm, videoUrl: e.target.value })} />
+                                    <input className="input w-full" placeholder="URL da capa (opcional)" value={editEpisodeForm.thumbnailUrl} onChange={(e) => setEditEpisodeForm({ ...editEpisodeForm, thumbnailUrl: e.target.value })} />
+                                    <div className="flex gap-2">
+                                      <button onClick={() => saveEditEpisode(ep.id)} className="btn-primary text-xs px-3 py-2"><Save className="h-3 w-3" /> Salvar</button>
+                                      <button onClick={cancelEditEpisode} className="btn-outline text-xs px-3 py-2">Cancelar</button>
+                                    </div>
+                                  </div>
+                                ) : (
+                                  <div className="flex items-center gap-3 rounded-lg bg-black/30 p-3">
+                                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-brand-600 text-sm font-bold">{ep.episode_number}</div>
+                                    <div className="min-w-0 flex-1">
+                                      <p className="truncate font-medium">{ep.title}</p>
+                                      <p className="truncate text-[11px] text-zinc-600">{ep.video_url}</p>
+                                    </div>
+                                    <button onClick={() => startEditEpisode(ep)} className="rounded-full p-2 text-brand-400 hover:bg-brand-600/20" title="Editar episódio"><Pencil className="h-4 w-4" /></button>
+                                    <button onClick={() => deleteEpisode(ep.id)} className="rounded-full p-2 text-red-400 hover:bg-red-600/20" title="Excluir episódio"><Trash2 className="h-4 w-4" /></button>
+                                  </div>
+                                )}
                               </div>
                             ))}
                             {(episodes[season.id] ?? []).length === 0 && <p className="text-center text-sm text-zinc-500 py-4">Nenhum episódio ainda.</p>}

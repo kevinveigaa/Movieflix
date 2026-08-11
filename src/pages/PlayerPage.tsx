@@ -124,7 +124,13 @@ export function PlayerPage() {
           .eq('id', episodeId)
           .single();
 
+        if (epError) {
+          console.error('Erro ao carregar episódio:', epError);
+          setMsg({ tipo: 'erro', texto: `Erro ao carregar episódio: ${epError.message}` });
+        }
+
         if (epData && !epError) {
+          console.log('Episódio carregado:', epData);
           const { data: seriesData } = await supabase
             .from('movies')
             .select('*')
@@ -132,6 +138,11 @@ export function PlayerPage() {
             .single();
 
           if (seriesData) {
+            if (!epData.video_url) {
+              setMsg({ tipo: 'erro', texto: 'Este episódio não tem URL de vídeo cadastrada.' });
+              setLoading(false);
+              return;
+            }
             setMovie({
               ...seriesData,
               id: seriesData.id,
