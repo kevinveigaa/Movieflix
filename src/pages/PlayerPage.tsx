@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
 import { supabase } from '@/lib/supabase';
@@ -17,6 +17,19 @@ export function PlayerPage() {
   const [volumeBoost, setVolumeBoost] = useState(1.5);
   const [isMuted, setIsMuted] = useState(false);
 
+  // Declarar videoUrl e isBunny ANTES dos useEffects
+  const videoUrl = movie?.video_url || '';
+  const isBunny = useMemo(() => {
+    return videoUrl.includes('bunnycdn') || videoUrl.includes('b-cdn.net') || videoUrl.includes('mediadelivery');
+  }, [videoUrl]);
+
+  function getEmbed(url: string) {
+    const m = url.match(/([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})/i);
+    if (m) return 'https://iframe.mediadelivery.net/embed/723294/' + m[1] + '?autoplay=true&muted=false&preload=true&volume=100';
+    return url;
+  }
+
+  // Carrega o filme
   useEffect(() => {
     async function load() {
       if (!id) { setLoading(false); return; }
@@ -46,11 +59,9 @@ export function PlayerPage() {
       source.connect(gainNode);
       gainNode.connect(audioCtx.destination);
 
-      // Volume base máximo + boost
       video.volume = 1;
       gainNode.gain.value = volumeBoost;
     } catch (e) {
-      // Fallback: apenas volume normal
       video.volume = 1;
     }
 
@@ -59,7 +70,7 @@ export function PlayerPage() {
         audioCtxRef.current.close();
       }
     };
-  }, [movie]);
+  }, [movie, videoUrl, isBunny, volumeBoost]);
 
   // Atualiza o gain quando o usuário muda o boost
   useEffect(() => {
@@ -74,19 +85,11 @@ export function PlayerPage() {
     if (!iframe || !isBunny) return;
 
     const handleLoad = () => {
-      // Bunny Player API via postMessage
-      iframe.contentWindow?.postMessage(
-        { method: 'setVolume', value: 100 },
-        '*'
-      );
-      iframe.contentWindow?.postMessage(
-        { method: 'unmute' },
-        '*'
-      );
+      iframe.contentWindow?.postMessage({ method: 'setVolume', value: 100 }, '*');
+      iframe.contentWindow?.postMessage({ method: 'unmute' }, '*');
     };
 
     iframe.addEventListener('load', handleLoad);
-    // Tenta novamente após 1s e 3s (o player pode demorar a inicializar)
     const t1 = setTimeout(handleLoad, 1000);
     const t2 = setTimeout(handleLoad, 3000);
 
@@ -97,7 +100,7 @@ export function PlayerPage() {
     };
   }, [movie, isBunny]);
 
-  // Teclas de atalho: ESC volta, Espaço play/pause, setas 10s, F fullscreen, M mute
+  // Teclas de atalho
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
@@ -134,20 +137,21 @@ export function PlayerPage() {
   }, [navigate]);
 
   if (authLoading || loading) {
-    return <div className="flex h-screen items-center justify-center bg-black"><div className="h-12 w-12 animate-spin rounded-full border-4 border-red-600 border-t-transparent"/></div>;
+    return (
+      <div className="flex h-screen items-center justify-center bg-black">
+        <div className="h-12 w-12 animate-spin rounded-full border-4 border-red-600 border-t-transparent"/>
+      </div>
+    );
   }
 
   if (!user) {
-    return <div className="flex h-screen flex-col items-center justify-center bg-black text-white gap-4"><Film className="h-16 w-16 text-red-600"/><h2 className="text-2xl font-bold">Login necessario</h2><button onClick={() => navigate('/login')} className="rounded-xl bg-red-600 px-8 py-3 font-semibold">Entrar</button></div>;
-  }
-
-  const videoUrl = movie?.video_url || '';
-  const isBunny = videoUrl.includes('bunnycdn') || videoUrl.includes('b-cdn.net') || videoUrl.includes('mediadelivery');
-
-  function getEmbed(url: string) {
-    const m = url.match(/([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})/i);
-    if (m) return 'https://iframe.mediadelivery.net/embed/723294/' + m[1] + '?autoplay=true&muted=false&preload=true&volume=100';
-    return url;
+    return (
+      <div className="flex h-screen flex-col items-center justify-center bg-black text-white gap-4">
+        <Film className="h-16 w-16 text-red-600"/>
+        <h2 className="text-2xl font-bold">Login necessario</h2>
+        <button onClick={() => navigate('/login')} className="rounded-xl bg-red-600 px-8 py-3 font-semibold">Entrar</button>
+      </div>
+    );
   }
 
   return (
@@ -186,7 +190,7 @@ export function PlayerPage() {
             >
               <source src={videoUrl} type="video/mp4" />
             </video>
-            {/* Controle de volume boost (apenas vídeo HTML5) */}
+            {/* Controle de volume boost */}
             <div className="absolute bottom-16 right-4 flex items-center gap-2 bg-black/70 backdrop-blur rounded-full px-3 py-1.5">
               <button onClick={() => setIsMuted(!isMuted)} className="text-white hover:text-red-500 transition">
                 {isMuted ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
