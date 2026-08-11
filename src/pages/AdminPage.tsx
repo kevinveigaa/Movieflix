@@ -38,16 +38,16 @@ const FORM_VAZIO: Form = {
 };
 
 interface Season {
-  id: string;
-  series_id: string;
+  id: number;
+  series_id: number;
   season_number: number;
   title: string | null;
   poster_url: string | null;
 }
 
 interface Episode {
-  id: string;
-  season_id: string;
+  id: number;
+  season_id: number;
   episode_number: number;
   title: string;
   description: string | null;
@@ -84,7 +84,7 @@ export function AdminPage() {
 
   // Form para novo episódio
   const [newEpisode, setNewEpisode] = useState({
-    seasonId: "",
+    seasonId: 0,
     episodeNumber: 1,
     title: "",
     description: "",

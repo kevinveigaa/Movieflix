@@ -23,7 +23,7 @@ function formatTime(seconds: number): string {
 }
 
 interface Season {
-  id: string;
+  id: number;
   series_id: string;
   season_number: number;
   title: string | null;
@@ -31,8 +31,8 @@ interface Season {
 }
 
 interface Episode {
-  id: string;
-  season_id: string;
+  id: number;
+  season_id: number;
   episode_number: number;
   title: string;
   description: string | null;
