@@ -656,36 +656,30 @@ export function AdminPage() {
                           </div>
 
                           <div className="rounded-xl border border-white/10 bg-black/20 p-4">
-                            <h5 className="mb-3 text-sm font-bold text-zinc-300">Adicionar Episódio {newEpisode.seasonId === season.id ? newEpisode.episodeNumber : (episodes[season.id]?.length ?? 0) + 1}</h5>
+                            <h5 className="mb-3 text-sm font-bold text-zinc-300">Adicionar Episódio {(episodes[season.id]?.length ?? 0) + 1}</h5>
 
                             {/* URL do vídeo - único campo obrigatório */}
                             <input className="input w-full mb-3" placeholder="URL do vídeo do episódio *" value={newEpisode.seasonId === season.id ? newEpisode.videoUrl : ""} onChange={(e) => setNewEpisode({ ...newEpisode, seasonId: season.id, videoUrl: e.target.value })} />
-
-                            {/* Título (preenche automático do TMDb) */}
-                            <input className="input w-full mb-3" placeholder="Título do episódio (busca automática do TMDb)" value={newEpisode.seasonId === season.id ? newEpisode.title : ""} onChange={(e) => setNewEpisode({ ...newEpisode, seasonId: season.id, title: e.target.value })} />
-
-                            {/* Descrição opcional */}
-                            <input className="input w-full mb-3" placeholder="Descrição (opcional)" value={newEpisode.seasonId === season.id ? newEpisode.description : ""} onChange={(e) => setNewEpisode({ ...newEpisode, seasonId: season.id, description: e.target.value })} />
 
                             {/* Preview da capa + botão buscar */}
                             <div className="flex items-center gap-3 mb-3">
                               <div className="relative h-20 w-36 shrink-0 overflow-hidden rounded-lg bg-zinc-900">
                                 <img
-                                  src={newEpisode.seasonId === season.id && newEpisode.thumbnailUrl ? newEpisode.thumbnailUrl : gerarThumbnailPadrao(newEpisode.seasonId === season.id ? newEpisode.episodeNumber : (episodes[season.id]?.length ?? 0) + 1)}
+                                  src={newEpisode.seasonId === season.id && newEpisode.thumbnailUrl ? newEpisode.thumbnailUrl : gerarThumbnailPadrao((episodes[season.id]?.length ?? 0) + 1)}
                                   alt="Preview"
                                   className="h-full w-full object-cover"
-                                  onError={(e) => { (e.target as HTMLImageElement).src = gerarThumbnailPadrao(newEpisode.seasonId === season.id ? newEpisode.episodeNumber : (episodes[season.id]?.length ?? 0) + 1); }}
+                                  onError={(e) => { (e.target as HTMLImageElement).src = gerarThumbnailPadrao((episodes[season.id]?.length ?? 0) + 1); }}
                                 />
                               </div>
                               <div className="flex-1">
                                 <button
-                                  onClick={() => buscarCapaEpisodioTMDB(season.season_number, newEpisode.seasonId === season.id ? newEpisode.episodeNumber : (episodes[season.id]?.length ?? 0) + 1)}
+                                  onClick={() => buscarCapaEpisodioTMDB(season.season_number, (episodes[season.id]?.length ?? 0) + 1)}
                                   className="btn-outline text-xs px-3 py-2"
                                 >
                                   <Search className="h-3 w-3" /> Buscar capa no TMDb
                                 </button>
                                 <p className="mt-1 text-[11px] text-zinc-500">
-                                  Busca título e capa automaticamente
+                                  Busca capa do episódio no TMDb
                                 </p>
                               </div>
                             </div>
