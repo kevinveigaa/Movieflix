@@ -1,7 +1,7 @@
 ﻿import { useParams, useNavigate } from "react-router-dom";
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabase";
-import { Play, ArrowLeft, Download, Lock, CheckCircle2, XCircle, Loader2, Clock, RotateCcw } from "lucide-react";
+import { Play, ArrowLeft, Download, Lock, CheckCircle2, XCircle, Loader2, Clock, RotateCcw, ChevronDown, ChevronUp } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { useEntitlements } from "@/hooks/useEntitlements";
 import { useWatchHistory } from "@/hooks/useWatchHistory";
@@ -22,6 +22,25 @@ function formatTime(seconds: number): string {
   return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
 }
 
+interface Season {
+  id: string;
+  series_id: string;
+  season_number: number;
+  title: string | null;
+  poster_url: string | null;
+}
+
+interface Episode {
+  id: string;
+  season_id: string;
+  episode_number: number;
+  title: string;
+  description: string | null;
+  video_url: string;
+  duration_seconds: number | null;
+  thumbnail_url: string | null;
+}
+
 interface Movie {
   id: string;
   title: string;
@@ -34,6 +53,7 @@ interface Movie {
   category?: string | null;
   language?: string | null;
   quality?: string | null;
+  type?: string | null;
 }
 
 export function TitleDetailPage() {
@@ -48,6 +68,11 @@ export function TitleDetailPage() {
   const [progress, setProgress] = useState(0);
   const [downloadCount, setDownloadCount] = useState(0);
   const [showResumeModal, setShowResumeModal] = useState(false);
+  const [seasons, setSeasons] = useState<Season[]>([]);
+  const [episodes, setEpisodes] = useState<Record<string, Episode[]>>({});
+  const [selectedSeason, setSelectedSeason] = useState<string | null>(null);
+  const [expandedSeason, setExpandedSeason] = useState<string | null>(null);
+  const [loadingSeries, setLoadingSeries] = useState(false);
 
   const { user } = useAuth();
   const { entitlements } = useEntitlements();
@@ -136,10 +161,43 @@ export function TitleDetailPage() {
 
       if (data) {
         setMovie(data);
+        // Se for série/anime, carrega temporadas e episódios
+        if (data.type === "series" || data.type === "tv" || data.type === "anime") {
+          loadSeasonsAndEpisodes(data.id);
+        }
       } else {
         // Título inexistente no catálogo (ex.: id de outra fonte/TMDB).
         setNaoEncontrado(true);
       }
+    }
+
+    async function loadSeasonsAndEpisodes(seriesId: string) {
+      setLoadingSeries(true);
+      const { data: seasonsData } = await supabase
+        .from("seasons")
+        .select("*")
+        .eq("series_id", seriesId)
+        .order("season_number", { ascending: true });
+
+      const seasonsList = seasonsData ?? [];
+      setSeasons(seasonsList);
+
+      if (seasonsList.length > 0) {
+        setSelectedSeason(seasonsList[0].id);
+        setExpandedSeason(seasonsList[0].id);
+      }
+
+      const eps: Record<string, Episode[]> = {};
+      for (const season of seasonsList) {
+        const { data: epData } = await supabase
+          .from("episodes")
+          .select("*")
+          .eq("season_id", season.id)
+          .order("episode_number", { ascending: true });
+        eps[season.id] = epData ?? [];
+      }
+      setEpisodes(eps);
+      setLoadingSeries(false);
     }
 
     loadMovie();
@@ -343,6 +401,71 @@ export function TitleDetailPage() {
         </div>
 
       </div>
+
+      {/* Seção de Temporadas e Episódios - estilo Netflix */}
+      {(movie?.type === "series" || movie?.type === "tv" || movie?.type === "anime") && (
+        <div className="px-5 sm:px-8 md:px-10 py-8 max-w-5xl mx-auto">
+          <h2 className="text-xl font-bold mb-4">Episódios</h2>
+
+          {loadingSeries ? (
+            <p className="text-zinc-400">Carregando temporadas…</p>
+          ) : seasons.length === 0 ? (
+            <p className="text-zinc-400">Nenhuma temporada disponível ainda.</p>
+          ) : (
+            <div className="space-y-4">
+              {/* Dropdown de Temporadas */}
+              <div className="relative inline-block">
+                <select
+                  className="appearance-none bg-zinc-800 border border-zinc-700 text-white px-4 py-2 pr-10 rounded-lg cursor-pointer focus:outline-none focus:border-brand-500"
+                  value={selectedSeason || ""}
+                  onChange={(e) => {
+                    const seasonId = e.target.value;
+                    setSelectedSeason(seasonId);
+                    setExpandedSeason(seasonId);
+                  }}
+                >
+                  {seasons.map((season) => (
+                    <option key={season.id} value={season.id}>
+                      Temporada {season.season_number}{season.title ? ` - ${season.title}` : ""}
+                    </option>
+                  ))}
+                </select>
+                <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 pointer-events-none text-zinc-400" />
+              </div>
+
+              {/* Lista de Episódios da temporada selecionada */}
+              {selectedSeason && (
+                <div className="space-y-2">
+                  {(episodes[selectedSeason] ?? []).length === 0 ? (
+                    <p className="text-zinc-500 text-sm py-4">Nenhum episódio nesta temporada.</p>
+                  ) : (
+                    (episodes[selectedSeason] ?? []).map((ep) => (
+                      <button
+                        key={ep.id}
+                        onClick={() => {
+                          window.location.href = `/#/assistir/${movie?.id}?episode=${ep.id}`;
+                        }}
+                        className="w-full flex items-center gap-4 p-3 rounded-xl bg-zinc-900/50 border border-zinc-800 hover:bg-zinc-800 hover:border-zinc-700 transition text-left group"
+                      >
+                        <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-zinc-800 group-hover:bg-brand-600 transition text-sm font-bold">
+                          {ep.episode_number}
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <p className="font-medium text-white group-hover:text-brand-300 transition">{ep.title}</p>
+                          {ep.description && (
+                            <p className="text-xs text-zinc-500 line-clamp-1 mt-0.5">{ep.description}</p>
+                          )}
+                        </div>
+                        <Play className="h-5 w-5 text-zinc-600 group-hover:text-white transition shrink-0" fill="currentColor" />
+                      </button>
+                    ))
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
 
     </div>
   );

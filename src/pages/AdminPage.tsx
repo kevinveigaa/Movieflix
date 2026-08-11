@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/context/AuthContext";
 import { tmdb, img } from "@/lib/tmdb";
-import { Pencil, Trash2, Plus, Search, X, Save, RefreshCw } from "lucide-react";
+import { Pencil, Trash2, Plus, Search, X, Save, RefreshCw, Layers } from "lucide-react";
 import { CATEGORIAS, categoriasDoFilme, normalizar } from "@/lib/categorias";
 import { useQueryClient } from "@tanstack/react-query";
 
@@ -37,6 +38,7 @@ const FORM_VAZIO: Form = {
 
 export function AdminPage() {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const queryClient = useQueryClient();
 
   const [aba, setAba] = useState<"lista" | "form">("lista");
@@ -299,6 +301,16 @@ export function AdminPage() {
                   </div>
                 </div>
                 <div className="flex shrink-0 items-center gap-2">
+                  {(filme.type === "series" || filme.type === "tv" || filme.type === "anime") && (
+                    <button
+                      onClick={() => navigate(`/admin/series/${filme.id}`)}
+                      className="btn-outline px-3 py-2 text-brand-300 border-brand-500/30 hover:bg-brand-500/10"
+                      aria-label={`Gerenciar temporadas ${filme.title}`}
+                      title="Gerenciar temporadas e episódios"
+                    >
+                      <Layers className="h-4 w-4" />
+                    </button>
+                  )}
                   <button
                     onClick={() => editar(filme)}
                     className="btn-outline px-3 py-2"

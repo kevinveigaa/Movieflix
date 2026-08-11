@@ -100,16 +100,51 @@ export function PlayerPage() {
     }
   }
 
-  // Carrega o filme e pula para o tempo salvo
+  // Carrega o filme/episódio e pula para o tempo salvo
   useEffect(() => {
     async function load() {
       if (!id) { setLoading(false); return; }
+
+      const episodeId = searchParams.get('episode');
+
+      if (episodeId) {
+        // Carregar episódio específico
+        const { data: epData, error: epError } = await supabase
+          .from('episodes')
+          .select('*, seasons!inner(series_id, season_number)')
+          .eq('id', episodeId)
+          .single();
+
+        if (epData && !epError) {
+          const { data: seriesData } = await supabase
+            .from('movies')
+            .select('*')
+            .eq('id', epData.seasons.series_id)
+            .single();
+
+          if (seriesData) {
+            setMovie({
+              ...seriesData,
+              id: seriesData.id,
+              title: `${seriesData.title || 'Série'} - T${epData.seasons.season_number || '?'} E${epData.episode_number}: ${epData.title}`,
+              video_url: epData.video_url,
+              description: epData.description || seriesData.description,
+              poster_url: epData.thumbnail_url || seriesData.poster_url,
+              backdrop_url: seriesData.backdrop_url,
+            });
+            setLoading(false);
+            return;
+          }
+        }
+      }
+
+      // Fallback: carregar filme/série normal
       const { data } = await supabase.from('movies').select('*').eq('id', id).single();
       setMovie(data);
       setLoading(false);
     }
     load();
-  }, [id]);
+  }, [id, searchParams]);
 
   // Pula para o tempo salvo quando o vídeo estiver pronto
   useEffect(() => {

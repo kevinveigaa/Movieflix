@@ -20,6 +20,7 @@ const ProfilePage = lazy(() => import('@/pages/ProfilePage').then((m) => ({ defa
 const SettingsPage = lazy(() => import('@/pages/SettingsPage').then((m) => ({ default: m.SettingsPage })));
 const SubscriptionPage = lazy(() => import('@/pages/SubscriptionPage').then((m) => ({ default: m.SubscriptionPage })));
 const AdminPage = lazy(() => import('@/pages/AdminPage').then((m) => ({ default: m.AdminPage })));
+const AdminSeriesPage = lazy(() => import('@/pages/AdminSeriesPage').then((m) => ({ default: m.AdminSeriesPage })));
 import { PlayerPage } from '@/pages/PlayerPage';
 const LoginPage = lazy(() => import('@/pages/auth/LoginPage').then((m) => ({ default: m.LoginPage })));
 const SignupPage = lazy(() => import('@/pages/auth/SignupPage').then((m) => ({ default: m.SignupPage })));
@@ -69,6 +70,7 @@ function AppRoutes() {
             <Route path="/configuracoes" element={<RequireAuth><SettingsPage /></RequireAuth>} />
             <Route path="/minha-assinatura" element={<RequireAuth><SubscriptionPage /></RequireAuth>} />
             <Route path="/admin" element={<RequireAuth><AdminPage /></RequireAuth>} />
+            <Route path="/admin/series/:seriesId" element={<RequireAuth><AdminSeriesPage /></RequireAuth>} />
           </Route>
           <Route path="/login" element={<LoginPage />} />
           <Route path="/cadastro" element={<SignupPage />} />
