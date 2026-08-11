@@ -136,6 +136,34 @@ export function useUpsertHistory() {
   });
 }
 
+export function useClearHistory() {
+  const { user } = useAuth();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async () => {
+      if (!user) return;
+      await supabase.from('watch_history').delete().eq('user_id', user.id);
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: [KEY] }),
+  });
+}
+
+export function useMarkAsWatched() {
+  const { user } = useAuth();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) => {
+      if (!user) return;
+      await supabase.from('watch_history').update({
+        position_seconds: 999999,
+        duration_seconds: 999999,
+        updated_at: new Date().toISOString(),
+      }).eq('id', id);
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: [KEY] }),
+  });
+}
+
 export function useRemoveHistory() {
   const { user } = useAuth();
   const qc = useQueryClient();
