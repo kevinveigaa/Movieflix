@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/context/AuthContext";
 import { tmdb, img } from "@/lib/tmdb";
-import { Pencil, Trash2, Plus, Search, X, Save, RefreshCw, Layers } from "lucide-react";
+import { Pencil, Trash2, Plus, Search, X, Save, RefreshCw, Layers, ListFilter } from "lucide-react";
 import { CATEGORIAS, categoriasDoFilme, normalizar } from "@/lib/categorias";
 import { useQueryClient } from "@tanstack/react-query";
 
@@ -39,9 +39,11 @@ const FORM_VAZIO: Form = {
 export function AdminPage() {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const navigate = useNavigate();
   const queryClient = useQueryClient();
 
   const [aba, setAba] = useState<"lista" | "form">("lista");
+  const [filtroLista, setFiltroLista] = useState<"todos" | "filmes" | "series">("todos");
   const [filmes, setFilmes] = useState<any[]>([]);
   const [carregando, setCarregando] = useState(false);
   const [busca, setBusca] = useState("");
@@ -70,14 +72,27 @@ export function AdminPage() {
   }, [ehAdmin]);
 
   const filtrados = useMemo(() => {
+    let resultado = filmes;
+
+    // Filtro por aba: Filmes vs Séries
+    if (filtroLista === "filmes") {
+      resultado = resultado.filter((f) => 
+        f.type === "movie" || (f.type === "anime" && f.video_url)
+      );
+    } else if (filtroLista === "series") {
+      resultado = resultado.filter((f) => 
+        f.type === "series" || f.type === "tv" || (f.type === "anime" && !f.video_url)
+      );
+    }
+
     const termo = busca.trim().toLowerCase();
-    if (!termo) return filmes;
-    return filmes.filter(
+    if (!termo) return resultado;
+    return resultado.filter(
       (f) =>
         String(f.title ?? "").toLowerCase().includes(termo) ||
         String(f.category ?? "").toLowerCase().includes(termo)
     );
-  }, [filmes, busca]);
+  }, [filmes, busca, filtroLista]);
 
   if (!ehAdmin) {
     return (
@@ -228,7 +243,7 @@ export function AdminPage() {
             onClick={() => setAba("lista")}
             className={aba === "lista" ? "btn-primary" : "btn-outline"}
           >
-            Filmes ({filmes.length})
+            Catálogo ({filmes.length})
           </button>
           <button onClick={novo} className={aba === "form" ? "btn-primary" : "btn-outline"}>
             <Plus className="h-4 w-4" />
@@ -254,6 +269,28 @@ export function AdminPage() {
 
       {aba === "lista" && (
         <div className="space-y-4">
+          {/* Filtros Filmes / Séries */}
+          <div className="flex flex-wrap items-center gap-2">
+            <ListFilter className="h-4 w-4 text-gray-400" />
+            <button
+              onClick={() => setFiltroLista("todos")}
+              className={`rounded-full px-3 py-1 text-xs transition ${filtroLista === "todos" ? "bg-brand-600 text-white" : "bg-white/5 text-gray-300 hover:bg-white/10"}`}
+            >
+              Todos
+            </button>
+            <button
+              onClick={() => setFiltroLista("filmes")}
+              className={`rounded-full px-3 py-1 text-xs transition ${filtroLista === "filmes" ? "bg-brand-600 text-white" : "bg-white/5 text-gray-300 hover:bg-white/10"}`}
+            >
+              Filmes
+            </button>
+            <button
+              onClick={() => setFiltroLista("series")}
+              className={`rounded-full px-3 py-1 text-xs transition ${filtroLista === "series" ? "bg-brand-600 text-white" : "bg-white/5 text-gray-300 hover:bg-white/10"}`}
+            >
+              Séries
+            </button>
+          </div>
           <div className="flex flex-wrap items-center gap-3">
             <div className="relative flex-1 min-w-[220px]">
               <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-500" />
@@ -270,9 +307,9 @@ export function AdminPage() {
             </button>
           </div>
 
-          {carregando && <p className="text-gray-400">Carregando filmes…</p>}
+          {carregando && <p className="text-gray-400">Carregando títulos…</p>}
           {!carregando && filtrados.length === 0 && (
-            <p className="text-gray-400">Nenhum filme encontrado.</p>
+            <p className="text-gray-400">Nenhum título encontrado.</p>
           )}
 
           <div className="grid gap-3">
@@ -301,7 +338,7 @@ export function AdminPage() {
                   </div>
                 </div>
                 <div className="flex shrink-0 items-center gap-2">
-                  {(filme.type === "series" || filme.type === "tv" || filme.type === "anime") && (
+                  {(filme.type === "series" || filme.type === "tv" || (filme.type === "anime" && !filme.video_url)) && (
                     <button
                       onClick={() => navigate(`/admin/series/${filme.id}`)}
                       className="btn-outline px-3 py-2 text-brand-300 border-brand-500/30 hover:bg-brand-500/10"

@@ -403,7 +403,7 @@ export function TitleDetailPage() {
       </div>
 
       {/* Seção de Temporadas e Episódios - estilo Netflix */}
-      {(movie?.type === "series" || movie?.type === "tv" || movie?.type === "anime") && (
+      {(movie?.type === "series" || movie?.type === "tv" || (movie?.type === "anime" && !movie?.video_url)) && (
         <div className="px-5 sm:px-8 md:px-10 py-8 max-w-5xl mx-auto">
           <h2 className="text-xl font-bold mb-4">Episódios</h2>
 
