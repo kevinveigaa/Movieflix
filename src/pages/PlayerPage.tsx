@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useMemo, useCallback } from 'react';
+import { useEffect, useRef, useState, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
 import { supabase } from '@/lib/supabase';
@@ -17,11 +17,23 @@ export function PlayerPage() {
   const [volumeBoost, setVolumeBoost] = useState(1.5);
   const [isMuted, setIsMuted] = useState(false);
   const lastSaveRef = useRef(0);
-  const bunnyTimeRef = useRef({ currentTime: 0, duration: 0 });
+
+  // Refs para evitar stale closures no salvamento
+  const movieRef = useRef<any>(null);
+  const userRef = useRef<any>(null);
+  const profileRef = useRef<any>(null);
+  const isBunnyRef = useRef(false);
+
+  // Sincroniza refs com estado
+  useEffect(() => { movieRef.current = movie; }, [movie]);
+  useEffect(() => { userRef.current = user; }, [user]);
+  useEffect(() => { profileRef.current = activeViewerProfile; }, [activeViewerProfile]);
 
   const videoUrl = movie?.video_url || '';
   const isBunny = useMemo(() => {
-    return videoUrl.includes('bunnycdn') || videoUrl.includes('b-cdn.net') || videoUrl.includes('mediadelivery');
+    const result = videoUrl.includes('bunnycdn') || videoUrl.includes('b-cdn.net') || videoUrl.includes('mediadelivery');
+    isBunnyRef.current = result;
+    return result;
   }, [videoUrl]);
 
   function getEmbed(url: string) {
@@ -30,9 +42,11 @@ export function PlayerPage() {
     return url;
   }
 
-  // Salva progresso DIRETAMENTE no Supabase
-  const doSave = useCallback(async (positionSeconds: number, durationSeconds: number) => {
-    if (!user || !movie || !movie.id) return;
+  // Função de salvamento que lê das refs (sempre valor atual)
+  async function doSave(positionSeconds: number, durationSeconds: number) {
+    const m = movieRef.current;
+    const u = userRef.current;
+    if (!u || !m || !m.id) return;
     if (positionSeconds < 3) return;
     if (durationSeconds > 0 && positionSeconds / durationSeconds >= 0.95) return;
 
@@ -41,13 +55,13 @@ export function PlayerPage() {
     lastSaveRef.current = now;
 
     try {
-      const profileId = activeViewerProfile?.id || null;
+      const profileId = profileRef.current?.id || null;
 
       let query = supabase
         .from('watch_history')
         .select('id')
-        .eq('user_id', user.id)
-        .eq('movie_id', movie.id);
+        .eq('user_id', u.id)
+        .eq('movie_id', m.id);
 
       if (profileId) query = query.eq('viewer_profile_id', profileId);
       else query = query.is('viewer_profile_id', null);
@@ -57,9 +71,9 @@ export function PlayerPage() {
       const payload = {
         position_seconds: positionSeconds,
         duration_seconds: durationSeconds,
-        title: movie.title,
-        poster_path: movie.poster_url || null,
-        backdrop_path: movie.backdrop_url || null,
+        title: m.title,
+        poster_path: m.poster_url || null,
+        backdrop_path: m.backdrop_url || null,
         updated_at: new Date().toISOString(),
       };
 
@@ -67,12 +81,12 @@ export function PlayerPage() {
         await supabase.from('watch_history').update(payload).eq('id', existing.id);
       } else {
         const insert: any = {
-          user_id: user.id,
-          movie_id: movie.id,
+          user_id: u.id,
+          movie_id: m.id,
           media_type: 'movie',
-          title: movie.title,
-          poster_path: movie.poster_url || null,
-          backdrop_path: movie.backdrop_url || null,
+          title: m.title,
+          poster_path: m.poster_url || null,
+          backdrop_path: m.backdrop_url || null,
           position_seconds: positionSeconds,
           duration_seconds: durationSeconds,
         };
@@ -82,20 +96,7 @@ export function PlayerPage() {
     } catch (e) {
       console.error('Erro ao salvar histórico:', e);
     }
-  }, [user, movie, activeViewerProfile]);
-
-  // Para vídeo HTML5
-  const saveVideoProgress = useCallback(() => {
-    const video = videoRef.current;
-    if (!video) return;
-    doSave(Math.floor(video.currentTime), Math.floor(video.duration || 0));
-  }, [doSave]);
-
-  // Para BunnyCDN iframe
-  const saveBunnyProgress = useCallback(() => {
-    const { currentTime, duration } = bunnyTimeRef.current;
-    doSave(Math.floor(currentTime), Math.floor(duration));
-  }, [doSave]);
+  }
 
   // Carrega o filme
   useEffect(() => {
@@ -108,14 +109,25 @@ export function PlayerPage() {
     load();
   }, [id]);
 
-  // === VÍDEO HTML5: salva a cada 10s + pause + unload ===
+  // === SALVAMENTO AUTOMÁTICO ===
   useEffect(() => {
     const video = videoRef.current;
-    if (!video || isBunny) return;
+    if (!video) return;
 
-    const interval = setInterval(saveVideoProgress, 10000);
-    const handlePause = () => saveVideoProgress();
-    const handleBeforeUnload = () => saveVideoProgress();
+    // Salva a cada 10 segundos
+    const interval = setInterval(() => {
+      doSave(Math.floor(video.currentTime), Math.floor(video.duration || 0));
+    }, 10000);
+
+    // Salva quando pausa
+    const handlePause = () => {
+      doSave(Math.floor(video.currentTime), Math.floor(video.duration || 0));
+    };
+
+    // Salva quando fecha a aba
+    const handleBeforeUnload = () => {
+      doSave(Math.floor(video.currentTime), Math.floor(video.duration || 0));
+    };
 
     video.addEventListener('pause', handlePause);
     window.addEventListener('beforeunload', handleBeforeUnload);
@@ -124,50 +136,10 @@ export function PlayerPage() {
       clearInterval(interval);
       video.removeEventListener('pause', handlePause);
       window.removeEventListener('beforeunload', handleBeforeUnload);
-      saveVideoProgress();
+      // Último save ao desmontar
+      doSave(Math.floor(video.currentTime), Math.floor(video.duration || 0));
     };
-  }, [isBunny, saveVideoProgress]);
-
-  // === BUNNYCDN IFRAME: ouve tempo via postMessage ===
-  useEffect(() => {
-    if (!isBunny) return;
-
-    // Ouve respostas do Bunny Player
-    const handleMessage = (event: MessageEvent) => {
-      if (event.origin !== 'https://iframe.mediadelivery.net') return;
-      const data = event.data;
-      if (data && typeof data === 'object') {
-        if (data.currentTime !== undefined) {
-          bunnyTimeRef.current.currentTime = data.currentTime;
-        }
-        if (data.duration !== undefined) {
-          bunnyTimeRef.current.duration = data.duration;
-        }
-      }
-    };
-    window.addEventListener('message', handleMessage);
-
-    // Pede o tempo a cada 10 segundos
-    const interval = setInterval(() => {
-      const iframe = iframeRef.current;
-      if (iframe && iframe.contentWindow) {
-        iframe.contentWindow.postMessage({ method: 'getCurrentTime' }, '*');
-        iframe.contentWindow.postMessage({ method: 'getDuration' }, '*');
-      }
-      // Salva o último tempo conhecido
-      saveBunnyProgress();
-    }, 10000);
-
-    const handleBeforeUnload = () => saveBunnyProgress();
-    window.addEventListener('beforeunload', handleBeforeUnload);
-
-    return () => {
-      window.removeEventListener('message', handleMessage);
-      clearInterval(interval);
-      window.removeEventListener('beforeunload', handleBeforeUnload);
-      saveBunnyProgress();
-    };
-  }, [isBunny, saveBunnyProgress]);
+  }, []); // Só roda uma vez - usa refs para dados atualizados
 
   // Web Audio API para boostar volume
   useEffect(() => {
@@ -233,7 +205,10 @@ export function PlayerPage() {
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
-        isBunny ? saveBunnyProgress() : saveVideoProgress();
+        const video = videoRef.current;
+        if (video) {
+          doSave(Math.floor(video.currentTime), Math.floor(video.duration || 0));
+        }
         navigate(-1);
       }
       if (e.key === ' ' || e.code === 'Space') {
@@ -264,7 +239,7 @@ export function PlayerPage() {
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [navigate, isBunny, saveBunnyProgress, saveVideoProgress]);
+  }, [navigate]);
 
   if (authLoading || loading) {
     return (
@@ -285,8 +260,10 @@ export function PlayerPage() {
   }
 
   const handleBack = () => {
-    if (isBunny) saveBunnyProgress();
-    else saveVideoProgress();
+    const video = videoRef.current;
+    if (video) {
+      doSave(Math.floor(video.currentTime), Math.floor(video.duration || 0));
+    }
     navigate(-1);
   };
 
