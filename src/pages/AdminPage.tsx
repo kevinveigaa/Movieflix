@@ -383,16 +383,19 @@ export function AdminPage() {
       return;
     }
     try {
-      // Buscar série pelo nome
+      // Buscar série pelo nome (usando o proxy do backend)
       const resultado: any = await tmdb.search(form.title);
       const serie = resultado.results?.find((item: any) => item.media_type === "tv");
       if (!serie) {
         setMsg({ tipo: "erro", texto: "Série não encontrada no TMDB." });
         return;
       }
-      // Buscar detalhes do episódio
+      // Buscar detalhes do episódio usando o mesmo proxy
+      const PUBLIC_API_URL = 'https://movieflix-api-udsv.onrender.com';
+      const API_URL = (import.meta.env.VITE_API_URL as string) || PUBLIC_API_URL;
+
       const response = await fetch(
-        `https://api.themoviedb.org/3/tv/${serie.id}/season/${seasonNum}/episode/${epNum}?api_key=${import.meta.env.VITE_TMDB_API_KEY || ""}&language=pt-BR`
+        `${API_URL}/api/tmdb/tv/${serie.id}/season/${seasonNum}/episode/${epNum}?language=pt-BR`
       );
       if (!response.ok) throw new Error("Episódio não encontrado");
       const epData = await response.json();
