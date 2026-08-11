@@ -359,6 +359,48 @@ export function AdminPage() {
     if (editandoId) await loadSeasonsAndEpisodes(editandoId);
   }
 
+  // Gerar thumbnail padrão com número do episódio
+  function gerarThumbnailPadrao(numero: number): string {
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="400" height="225" viewBox="0 0 400 225">
+      <rect width="400" height="225" fill="#0a0a0a"/>
+      <rect x="20" y="20" width="360" height="185" rx="12" fill="#1a1a1a" stroke="#333" stroke-width="2"/>
+      <text x="200" y="100" font-family="Arial, sans-serif" font-size="20" fill="#666" text-anchor="middle">EPISÓDIO</text>
+      <text x="200" y="145" font-family="Arial, sans-serif" font-size="56" fill="#e50914" font-weight="bold" text-anchor="middle">${numero}</text>
+    </svg>`;
+    return `data:image/svg+xml;base64,${btoa(unescape(encodeURIComponent(svg)))}`;
+  }
+
+  async function buscarCapaEpisodioTMDB(seasonNum: number, epNum: number) {
+    if (!form.title) {
+      setMsg({ tipo: "erro", texto: "Preencha o título da série primeiro!" });
+      return;
+    }
+    try {
+      // Buscar série pelo nome
+      const resultado: any = await tmdb.search(form.title);
+      const serie = resultado.results?.find((item: any) => item.media_type === "tv");
+      if (!serie) {
+        setMsg({ tipo: "erro", texto: "Série não encontrada no TMDB." });
+        return;
+      }
+      // Buscar detalhes do episódio
+      const response = await fetch(
+        `https://api.themoviedb.org/3/tv/${serie.id}/season/${seasonNum}/episode/${epNum}?api_key=${import.meta.env.VITE_TMDB_API_KEY || ""}&language=pt-BR`
+      );
+      if (!response.ok) throw new Error("Episódio não encontrado");
+      const epData = await response.json();
+      if (epData.still_path) {
+        const url = img(epData.still_path, "w400");
+        setNewEpisode((prev) => ({ ...prev, thumbnailUrl: url || "" }));
+        setMsg({ tipo: "ok", texto: "Capa do episódio encontrada no TMDB!" });
+      } else {
+        setMsg({ tipo: "erro", texto: "Episódio encontrado, mas sem imagem. Usando padrão." });
+      }
+    } catch (e: any) {
+      setMsg({ tipo: "erro", texto: e?.message || "Erro ao buscar capa no TMDB." });
+    }
+  }
+
   function campo(name: keyof Form, placeholder: string) {
     return (
       <label className="block">
@@ -576,9 +618,32 @@ export function AdminPage() {
                               <input className="input" placeholder="Título do episódio" value={newEpisode.seasonId === season.id ? newEpisode.title : ""} onChange={(e) => setNewEpisode({ ...newEpisode, seasonId: season.id, title: e.target.value })} />
                               <input className="input sm:col-span-2" placeholder="URL do vídeo do episódio" value={newEpisode.seasonId === season.id ? newEpisode.videoUrl : ""} onChange={(e) => setNewEpisode({ ...newEpisode, seasonId: season.id, videoUrl: e.target.value })} />
                               <input className="input sm:col-span-2" placeholder="Descrição (opcional)" value={newEpisode.seasonId === season.id ? newEpisode.description : ""} onChange={(e) => setNewEpisode({ ...newEpisode, seasonId: season.id, description: e.target.value })} />
-                              <input className="input sm:col-span-2" placeholder="URL da thumbnail/capa do episódio (opcional)" value={newEpisode.seasonId === season.id ? newEpisode.thumbnailUrl : ""} onChange={(e) => setNewEpisode({ ...newEpisode, seasonId: season.id, thumbnailUrl: e.target.value })} />
                               <input type="number" className="input" placeholder="Duração em segundos (opcional)" value={newEpisode.seasonId === season.id ? newEpisode.durationSeconds : 0} onChange={(e) => setNewEpisode({ ...newEpisode, seasonId: season.id, durationSeconds: parseInt(e.target.value) || 0 })} />
                             </div>
+
+                            {/* Preview da capa */}
+                            <div className="mt-3 flex items-center gap-3">
+                              <div className="relative h-20 w-36 shrink-0 overflow-hidden rounded-lg bg-zinc-900">
+                                <img
+                                  src={newEpisode.seasonId === season.id && newEpisode.thumbnailUrl ? newEpisode.thumbnailUrl : gerarThumbnailPadrao(newEpisode.seasonId === season.id ? newEpisode.episodeNumber : 1)}
+                                  alt="Preview"
+                                  className="h-full w-full object-cover"
+                                  onError={(e) => { (e.target as HTMLImageElement).src = gerarThumbnailPadrao(newEpisode.seasonId === season.id ? newEpisode.episodeNumber : 1); }}
+                                />
+                              </div>
+                              <div className="flex-1">
+                                <button
+                                  onClick={() => buscarCapaEpisodioTMDB(season.season_number, newEpisode.seasonId === season.id ? newEpisode.episodeNumber : 1)}
+                                  className="btn-outline text-xs px-3 py-2"
+                                >
+                                  <Search className="h-3 w-3" /> Buscar capa no TMDb
+                                </button>
+                                <p className="mt-1 text-[11px] text-zinc-500">
+                                  Se não encontrar, usa imagem padrão com o número do episódio
+                                </p>
+                              </div>
+                            </div>
+
                             <button onClick={() => { setNewEpisode({ ...newEpisode, seasonId: season.id }); setTimeout(addEpisode, 0); }} className="btn-primary mt-3"><Plus className="h-4 w-4" /> Adicionar Episódio</button>
                           </div>
                         </div>
