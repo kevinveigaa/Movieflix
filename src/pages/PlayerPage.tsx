@@ -206,6 +206,32 @@ export function PlayerPage() {
     return () => clearTimeout(timeout);
   }, [id, searchParams]);
 
+  // Inicializa hls.js para URLs HLS (.m3u8)
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video || !videoUrl) return;
+
+    if (videoUrl.includes('.m3u8')) {
+      if (Hls.isSupported()) {
+        const hls = new Hls();
+        hls.loadSource(videoUrl);
+        hls.attachMedia(video);
+        hls.on(Hls.Events.MANIFEST_PARSED, () => {
+          console.log('[Player] HLS manifest parsed');
+        });
+        hls.on(Hls.Events.ERROR, (event, data) => {
+          console.error('[Player] HLS error:', data);
+        });
+        return () => {
+          hls.destroy();
+        };
+      } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+        // Safari nativo suporta HLS
+        video.src = videoUrl;
+      }
+    }
+  }, [videoUrl]);
+
   // Pula para o tempo salvo quando o vídeo estiver pronto
   useEffect(() => {
     const video = videoRef.current;
