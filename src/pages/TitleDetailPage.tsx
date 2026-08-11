@@ -170,7 +170,7 @@ export function TitleDetailPage() {
 
 
   return (
-    <div className="min-h-screen bg-black text-white pt-16 md:pt-20">
+    <div className="min-h-screen bg-black text-white">
 
       <div
         className="relative min-h-[600px] md:h-[500px] bg-cover bg-center"
