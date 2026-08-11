@@ -39,7 +39,6 @@ const FORM_VAZIO: Form = {
 export function AdminPage() {
   const { user } = useAuth();
   const navigate = useNavigate();
-  const navigate = useNavigate();
   const queryClient = useQueryClient();
 
   const [aba, setAba] = useState<"lista" | "form">("lista");
