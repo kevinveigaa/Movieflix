@@ -34,7 +34,12 @@ export function PlayerPage() {
 
   const videoUrl = movie?.video_url || '';
   const isBunny = useMemo(() => {
-    const result = videoUrl.includes('bunnycdn') || videoUrl.includes('b-cdn.net') || videoUrl.includes('mediadelivery');
+    // Só usa iframe Bunny se tiver UUID para embed (não é HLS direto)
+    const hasUuid = /([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})/i.test(videoUrl);
+    const isBunnyDomain = videoUrl.includes('bunnycdn') || videoUrl.includes('b-cdn.net') || videoUrl.includes('mediadelivery');
+    const isHls = videoUrl.endsWith('.m3u8') || videoUrl.includes('.m3u8');
+    // Se for HLS direto, não usa iframe (usa <video> tag)
+    const result = isBunnyDomain && hasUuid && !isHls;
     isBunnyRef.current = result;
     return result;
   }, [videoUrl]);
@@ -411,7 +416,7 @@ export function PlayerPage() {
               style={{ backgroundColor: '#000', maxHeight: '80vh' }}
               poster={movie?.backdrop_url || movie?.poster_url}
             >
-              <source src={videoUrl} type="video/mp4" />
+              <source src={videoUrl} type={videoUrl.includes('.m3u8') ? 'application/x-mpegURL' : 'video/mp4'} />
             </video>
             {/* Controle de volume boost */}
             <div className="absolute bottom-16 right-4 flex items-center gap-2 bg-black/70 backdrop-blur rounded-full px-3 py-1.5">
