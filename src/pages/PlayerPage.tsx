@@ -17,6 +17,7 @@ export function PlayerPage() {
   const [volumeBoost, setVolumeBoost] = useState(1.5);
   const [isMuted, setIsMuted] = useState(false);
   const lastSaveRef = useRef(0);
+  const bunnyTimeRef = useRef({ currentTime: 0, duration: 0 });
 
   const videoUrl = movie?.video_url || '';
   const isBunny = useMemo(() => {
@@ -29,29 +30,19 @@ export function PlayerPage() {
     return url;
   }
 
-  // Salva progresso DIRETAMENTE no Supabase (mais confiável que mutation)
-  const saveProgress = useCallback(async () => {
+  // Salva progresso DIRETAMENTE no Supabase
+  const doSave = useCallback(async (positionSeconds: number, durationSeconds: number) => {
     if (!user || !movie || !movie.id) return;
-
-    const video = videoRef.current;
-    if (!video) return;
-
-    const positionSeconds = Math.floor(video.currentTime);
-    const durationSeconds = Math.floor(video.duration || 0);
-
-    // Só salva se assistiu pelo menos 3 segundos
     if (positionSeconds < 3) return;
-    // Não salva se já terminou (95%+)
     if (durationSeconds > 0 && positionSeconds / durationSeconds >= 0.95) return;
-    // Evita salvar muito frequentemente (mínimo 5 segundos entre saves)
+
     const now = Date.now();
-    if (now - lastSaveRef.current < 5000) return;
+    if (now - lastSaveRef.current < 3000) return;
     lastSaveRef.current = now;
 
     try {
       const profileId = activeViewerProfile?.id || null;
 
-      // Procura se já existe registro
       let query = supabase
         .from('watch_history')
         .select('id')
@@ -93,6 +84,19 @@ export function PlayerPage() {
     }
   }, [user, movie, activeViewerProfile]);
 
+  // Para vídeo HTML5
+  const saveVideoProgress = useCallback(() => {
+    const video = videoRef.current;
+    if (!video) return;
+    doSave(Math.floor(video.currentTime), Math.floor(video.duration || 0));
+  }, [doSave]);
+
+  // Para BunnyCDN iframe
+  const saveBunnyProgress = useCallback(() => {
+    const { currentTime, duration } = bunnyTimeRef.current;
+    doSave(Math.floor(currentTime), Math.floor(duration));
+  }, [doSave]);
+
   // Carrega o filme
   useEffect(() => {
     async function load() {
@@ -104,17 +108,14 @@ export function PlayerPage() {
     load();
   }, [id]);
 
-  // Salva progresso a cada 10 segundos + quando pausa + quando sai
+  // === VÍDEO HTML5: salva a cada 10s + pause + unload ===
   useEffect(() => {
     const video = videoRef.current;
     if (!video || isBunny) return;
 
-    const interval = setInterval(() => {
-      saveProgress();
-    }, 10000);
-
-    const handlePause = () => saveProgress();
-    const handleBeforeUnload = () => saveProgress();
+    const interval = setInterval(saveVideoProgress, 10000);
+    const handlePause = () => saveVideoProgress();
+    const handleBeforeUnload = () => saveVideoProgress();
 
     video.addEventListener('pause', handlePause);
     window.addEventListener('beforeunload', handleBeforeUnload);
@@ -123,9 +124,50 @@ export function PlayerPage() {
       clearInterval(interval);
       video.removeEventListener('pause', handlePause);
       window.removeEventListener('beforeunload', handleBeforeUnload);
-      saveProgress(); // último save ao sair
+      saveVideoProgress();
     };
-  }, [isBunny, saveProgress]);
+  }, [isBunny, saveVideoProgress]);
+
+  // === BUNNYCDN IFRAME: ouve tempo via postMessage ===
+  useEffect(() => {
+    if (!isBunny) return;
+
+    // Ouve respostas do Bunny Player
+    const handleMessage = (event: MessageEvent) => {
+      if (event.origin !== 'https://iframe.mediadelivery.net') return;
+      const data = event.data;
+      if (data && typeof data === 'object') {
+        if (data.currentTime !== undefined) {
+          bunnyTimeRef.current.currentTime = data.currentTime;
+        }
+        if (data.duration !== undefined) {
+          bunnyTimeRef.current.duration = data.duration;
+        }
+      }
+    };
+    window.addEventListener('message', handleMessage);
+
+    // Pede o tempo a cada 10 segundos
+    const interval = setInterval(() => {
+      const iframe = iframeRef.current;
+      if (iframe && iframe.contentWindow) {
+        iframe.contentWindow.postMessage({ method: 'getCurrentTime' }, '*');
+        iframe.contentWindow.postMessage({ method: 'getDuration' }, '*');
+      }
+      // Salva o último tempo conhecido
+      saveBunnyProgress();
+    }, 10000);
+
+    const handleBeforeUnload = () => saveBunnyProgress();
+    window.addEventListener('beforeunload', handleBeforeUnload);
+
+    return () => {
+      window.removeEventListener('message', handleMessage);
+      clearInterval(interval);
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+      saveBunnyProgress();
+    };
+  }, [isBunny, saveBunnyProgress]);
 
   // Web Audio API para boostar volume
   useEffect(() => {
@@ -191,7 +233,7 @@ export function PlayerPage() {
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
-        saveProgress();
+        isBunny ? saveBunnyProgress() : saveVideoProgress();
         navigate(-1);
       }
       if (e.key === ' ' || e.code === 'Space') {
@@ -222,7 +264,7 @@ export function PlayerPage() {
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [navigate, saveProgress]);
+  }, [navigate, isBunny, saveBunnyProgress, saveVideoProgress]);
 
   if (authLoading || loading) {
     return (
@@ -242,11 +284,17 @@ export function PlayerPage() {
     );
   }
 
+  const handleBack = () => {
+    if (isBunny) saveBunnyProgress();
+    else saveVideoProgress();
+    navigate(-1);
+  };
+
   return (
     <div className="min-h-screen bg-black text-white">
       {/* Header fixo */}
       <div className="fixed top-0 left-0 right-0 z-50 flex items-center gap-3 bg-gradient-to-b from-black/90 via-black/60 to-transparent p-4">
-        <button onClick={() => { saveProgress(); navigate(-1); }} className="flex items-center gap-2 rounded-full bg-black/50 p-2.5 backdrop-blur transition hover:bg-white/20">
+        <button onClick={handleBack} className="flex items-center gap-2 rounded-full bg-black/50 p-2.5 backdrop-blur transition hover:bg-white/20">
           <ChevronLeft className="h-5 w-5" />
         </button>
         <h1 className="truncate text-base font-semibold">{movie?.title || 'Player'}</h1>
