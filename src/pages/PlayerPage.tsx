@@ -161,7 +161,7 @@ export function PlayerPage() {
       </div>
 
       {/* Player */}
-      <div className="relative w-full bg-black">
+      <div className="relative w-full bg-black pt-14">
         {isBunny ? (
           <div className="relative w-full bg-black" style={{ aspectRatio: '16/9' }}>
             <iframe
