@@ -644,7 +644,6 @@ export function AdminPage() {
                             {(episodes[season.id] ?? []).map((ep) => (
                               <div key={ep.id}>
                                 {editingEpisode === ep.id ? (
-                                  {/* Form de edição inline */}
                                   <div className="rounded-lg bg-brand-900/20 border border-brand-500/30 p-4 space-y-3">
                                     <h6 className="text-sm font-bold text-brand-300">Editar Episódio {ep.episode_number}</h6>
                                     <input className="input w-full" placeholder="Título" value={editEpisodeForm.title} onChange={(e) => setEditEpisodeForm({ ...editEpisodeForm, title: e.target.value })} />
