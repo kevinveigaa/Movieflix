@@ -25,6 +25,7 @@ export function PlayerPage() {
   const userRef = useRef<any>(null);
   const profileRef = useRef<any>(null);
   const isBunnyRef = useRef(false);
+  const episodeIdRef = useRef<string | null>(null);
 
   // Sincroniza refs com estado
   useEffect(() => { movieRef.current = movie; }, [movie]);
@@ -70,7 +71,7 @@ export function PlayerPage() {
 
       const { data: existing } = await query.maybeSingle();
 
-      const payload = {
+      const payload: any = {
         position_seconds: positionSeconds,
         duration_seconds: durationSeconds,
         title: m.title,
@@ -78,6 +79,12 @@ export function PlayerPage() {
         backdrop_path: m.backdrop_url || null,
         updated_at: new Date().toISOString(),
       };
+
+      // Se estiver assistindo um episódio, salva o episode_id
+      const epId = episodeIdRef.current;
+      if (epId) {
+        payload.episode_id = epId;
+      }
 
       if (existing) {
         await supabase.from('watch_history').update(payload).eq('id', existing.id);
@@ -93,6 +100,7 @@ export function PlayerPage() {
           duration_seconds: durationSeconds,
         };
         if (profileId) insert.viewer_profile_id = profileId;
+        if (epId) insert.episode_id = epId;
         await supabase.from('watch_history').insert(insert);
       }
     } catch (e) {
@@ -106,6 +114,7 @@ export function PlayerPage() {
       if (!id) { setLoading(false); return; }
 
       const episodeId = searchParams.get('episode');
+      episodeIdRef.current = episodeId;
 
       if (episodeId) {
         // Carregar episódio específico

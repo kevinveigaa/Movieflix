@@ -73,6 +73,8 @@ export function TitleDetailPage() {
   const [selectedSeason, setSelectedSeason] = useState<string | null>(null);
   const [expandedSeason, setExpandedSeason] = useState<string | null>(null);
   const [loadingSeries, setLoadingSeries] = useState(false);
+  const [firstEpisode, setFirstEpisode] = useState<Episode | null>(null);
+  const [lastWatchedEpisode, setLastWatchedEpisode] = useState<Episode | null>(null);
 
   const { user } = useAuth();
   const { entitlements } = useEntitlements();
@@ -161,9 +163,10 @@ export function TitleDetailPage() {
 
       if (data) {
         setMovie(data);
-        // Se for série/anime, carrega temporadas e episódios
-        if (data.type === "series" || data.type === "tv" || data.type === "anime") {
+        // Se for série/anime SEM video_url, carrega temporadas e episódios
+        if ((data.type === "series" || data.type === "tv" || data.type === "anime") && !data.video_url) {
           loadSeasonsAndEpisodes(data.id);
+          if (user) loadLastWatchedEpisode(data.id);
         }
       } else {
         // Título inexistente no catálogo (ex.: id de outra fonte/TMDB).
@@ -188,20 +191,48 @@ export function TitleDetailPage() {
       }
 
       const eps: Record<string, Episode[]> = {};
+      let firstEp: Episode | null = null;
       for (const season of seasonsList) {
         const { data: epData } = await supabase
           .from("episodes")
           .select("*")
           .eq("season_id", season.id)
           .order("episode_number", { ascending: true });
-        eps[season.id] = epData ?? [];
+        const epList = epData ?? [];
+        eps[season.id] = epList;
+        if (!firstEp && epList.length > 0) {
+          firstEp = epList[0];
+        }
       }
       setEpisodes(eps);
+      setFirstEpisode(firstEp);
       setLoadingSeries(false);
     }
 
+    async function loadLastWatchedEpisode(seriesId: string) {
+      if (!user) return;
+      // Busca o histórico mais recente para esta série
+      const { data: historyData } = await supabase
+        .from("watch_history")
+        .select("*")
+        .eq("user_id", user.id)
+        .eq("movie_id", seriesId)
+        .order("updated_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (historyData?.episode_id) {
+        const { data: epData } = await supabase
+          .from("episodes")
+          .select("*")
+          .eq("id", historyData.episode_id)
+          .single();
+        if (epData) setLastWatchedEpisode(epData);
+      }
+    }
+
     loadMovie();
-  }, [id]);
+  }, [id, user]);
 
 
   if (naoEncontrado) {
@@ -298,18 +329,37 @@ export function TitleDetailPage() {
 
           <button
             onClick={() => {
-              if (canResume && historyRow) {
-                setShowResumeModal(true);
+              const isSeries = movie?.type === "series" || movie?.type === "tv" || (movie?.type === "anime" && !movie?.video_url);
+              if (isSeries) {
+                // Para séries: vai para o último episódio assistido ou o primeiro
+                const targetEpisode = lastWatchedEpisode || firstEpisode;
+                if (targetEpisode) {
+                  window.location.href = '/#/assistir/' + movie.id + '?episode=' + targetEpisode.id;
+                } else {
+                  setMsg?.({ tipo: "erro", texto: "Nenhum episódio disponível ainda." });
+                }
               } else {
-                window.location.href = '/#/assistir/' + movie.id;
+                // Para filmes: continua do histórico ou do início
+                if (canResume && historyRow) {
+                  setShowResumeModal(true);
+                } else {
+                  window.location.href = '/#/assistir/' + movie.id;
+                }
               }
             }}
             className="mt-5 flex w-fit items-center gap-2 rounded-lg bg-white px-5 py-3 font-bold text-black"
           >
             <Play fill="black" />
-            {canResume && historyRow
-              ? `Continuar de ${formatTime(historyRow.position_seconds)}`
-              : "Assistir agora"}
+            {(() => {
+              const isSeries = movie?.type === "series" || movie?.type === "tv" || (movie?.type === "anime" && !movie?.video_url);
+              if (isSeries) {
+                if (lastWatchedEpisode) return `Continuar Episódio ${lastWatchedEpisode.episode_number}`;
+                if (firstEpisode) return `Assistir Episódio ${firstEpisode.episode_number}`;
+                return "Assistir agora";
+              }
+              if (canResume && historyRow) return `Continuar de ${formatTime(historyRow.position_seconds)}`;
+              return "Assistir agora";
+            })()}
           </button>
 
           {/* Modal: Continuar de onde parou? */}
