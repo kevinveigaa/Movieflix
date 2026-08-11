@@ -2,13 +2,12 @@ import { useEffect, useRef, useState, useMemo, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
 import { supabase } from '@/lib/supabase';
-import { useUpsertHistory } from '@/hooks/useWatchHistory';
 import { ChevronLeft, Film, Volume2, VolumeX } from 'lucide-react';
 
 export function PlayerPage() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { user, loading: authLoading } = useAuth();
+  const { user, loading: authLoading, activeViewerProfile } = useAuth();
   const [movie, setMovie] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -17,9 +16,8 @@ export function PlayerPage() {
   const gainNodeRef = useRef<GainNode | null>(null);
   const [volumeBoost, setVolumeBoost] = useState(1.5);
   const [isMuted, setIsMuted] = useState(false);
-  const upsertHistory = useUpsertHistory();
+  const lastSaveRef = useRef(0);
 
-  // Declarar videoUrl e isBunny ANTES dos useEffects
   const videoUrl = movie?.video_url || '';
   const isBunny = useMemo(() => {
     return videoUrl.includes('bunnycdn') || videoUrl.includes('b-cdn.net') || videoUrl.includes('mediadelivery');
@@ -31,33 +29,69 @@ export function PlayerPage() {
     return url;
   }
 
-  // Função para salvar progresso no histórico
-  const saveProgress = useCallback(() => {
+  // Salva progresso DIRETAMENTE no Supabase (mais confiável que mutation)
+  const saveProgress = useCallback(async () => {
     if (!user || !movie || !movie.id) return;
 
     const video = videoRef.current;
-    let positionSeconds = 0;
-    let durationSeconds = 0;
+    if (!video) return;
 
-    if (video) {
-      positionSeconds = Math.floor(video.currentTime);
-      durationSeconds = Math.floor(video.duration || 0);
-    }
+    const positionSeconds = Math.floor(video.currentTime);
+    const durationSeconds = Math.floor(video.duration || 0);
 
-    // Só salva se assistiu pelo menos 5 segundos e não terminou (menos de 95%)
-    if (positionSeconds < 5) return;
+    // Só salva se assistiu pelo menos 3 segundos
+    if (positionSeconds < 3) return;
+    // Não salva se já terminou (95%+)
     if (durationSeconds > 0 && positionSeconds / durationSeconds >= 0.95) return;
+    // Evita salvar muito frequentemente (mínimo 5 segundos entre saves)
+    const now = Date.now();
+    if (now - lastSaveRef.current < 5000) return;
+    lastSaveRef.current = now;
 
-    upsertHistory.mutate({
-      movieId: movie.id,
-      mediaType: 'movie',
-      title: movie.title,
-      posterPath: movie.poster_url || null,
-      backdropPath: movie.backdrop_url || null,
-      positionSeconds,
-      durationSeconds,
-    });
-  }, [user, movie, upsertHistory]);
+    try {
+      const profileId = activeViewerProfile?.id || null;
+
+      // Procura se já existe registro
+      let query = supabase
+        .from('watch_history')
+        .select('id')
+        .eq('user_id', user.id)
+        .eq('movie_id', movie.id);
+
+      if (profileId) query = query.eq('viewer_profile_id', profileId);
+      else query = query.is('viewer_profile_id', null);
+
+      const { data: existing } = await query.maybeSingle();
+
+      const payload = {
+        position_seconds: positionSeconds,
+        duration_seconds: durationSeconds,
+        title: movie.title,
+        poster_path: movie.poster_url || null,
+        backdrop_path: movie.backdrop_url || null,
+        updated_at: new Date().toISOString(),
+      };
+
+      if (existing) {
+        await supabase.from('watch_history').update(payload).eq('id', existing.id);
+      } else {
+        const insert: any = {
+          user_id: user.id,
+          movie_id: movie.id,
+          media_type: 'movie',
+          title: movie.title,
+          poster_path: movie.poster_url || null,
+          backdrop_path: movie.backdrop_url || null,
+          position_seconds: positionSeconds,
+          duration_seconds: durationSeconds,
+        };
+        if (profileId) insert.viewer_profile_id = profileId;
+        await supabase.from('watch_history').insert(insert);
+      }
+    } catch (e) {
+      console.error('Erro ao salvar histórico:', e);
+    }
+  }, [user, movie, activeViewerProfile]);
 
   // Carrega o filme
   useEffect(() => {
@@ -70,38 +104,30 @@ export function PlayerPage() {
     load();
   }, [id]);
 
-  // Salva progresso a cada 10 segundos e quando sai da página
+  // Salva progresso a cada 10 segundos + quando pausa + quando sai
   useEffect(() => {
     const video = videoRef.current;
     if (!video || isBunny) return;
 
-    // Salva a cada 10 segundos
     const interval = setInterval(() => {
       saveProgress();
     }, 10000);
 
-    // Salva quando sai da página
-    const handleBeforeUnload = () => {
-      saveProgress();
-    };
-    window.addEventListener('beforeunload', handleBeforeUnload);
+    const handlePause = () => saveProgress();
+    const handleBeforeUnload = () => saveProgress();
 
-    // Salva quando pausa o vídeo
-    const handlePause = () => {
-      saveProgress();
-    };
     video.addEventListener('pause', handlePause);
+    window.addEventListener('beforeunload', handleBeforeUnload);
 
     return () => {
       clearInterval(interval);
-      window.removeEventListener('beforeunload', handleBeforeUnload);
       video.removeEventListener('pause', handlePause);
-      // Salva uma última vez ao desmontar
-      saveProgress();
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+      saveProgress(); // último save ao sair
     };
   }, [isBunny, saveProgress]);
 
-  // Web Audio API para boostar volume no vídeo HTML5
+  // Web Audio API para boostar volume
   useEffect(() => {
     const video = videoRef.current;
     if (!video || !videoUrl || isBunny) return;
@@ -133,14 +159,14 @@ export function PlayerPage() {
     };
   }, [movie, videoUrl, isBunny, volumeBoost]);
 
-  // Atualiza o gain quando o usuário muda o boost
+  // Atualiza o gain
   useEffect(() => {
     if (gainNodeRef.current) {
       gainNodeRef.current.gain.value = isMuted ? 0 : volumeBoost;
     }
   }, [volumeBoost, isMuted]);
 
-  // BunnyCDN iframe: envia volume via postMessage API
+  // BunnyCDN iframe volume
   useEffect(() => {
     const iframe = iframeRef.current;
     if (!iframe || !isBunny) return;
@@ -165,6 +191,7 @@ export function PlayerPage() {
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
+        saveProgress();
         navigate(-1);
       }
       if (e.key === ' ' || e.code === 'Space') {
@@ -195,7 +222,7 @@ export function PlayerPage() {
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [navigate]);
+  }, [navigate, saveProgress]);
 
   if (authLoading || loading) {
     return (
