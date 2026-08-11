@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useMemo } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
 import { supabase } from '@/lib/supabase';
 import { ChevronLeft, Film, Volume2, VolumeX } from 'lucide-react';
@@ -7,6 +7,8 @@ import { ChevronLeft, Film, Volume2, VolumeX } from 'lucide-react';
 export function PlayerPage() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const resumeTime = parseInt(searchParams.get('t') || '0', 10);
   const { user, loading: authLoading, activeViewerProfile } = useAuth();
   const [movie, setMovie] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -98,7 +100,7 @@ export function PlayerPage() {
     }
   }
 
-  // Carrega o filme
+  // Carrega o filme e pula para o tempo salvo
   useEffect(() => {
     async function load() {
       if (!id) { setLoading(false); return; }
@@ -108,6 +110,24 @@ export function PlayerPage() {
     }
     load();
   }, [id]);
+
+  // Pula para o tempo salvo quando o vídeo estiver pronto
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video || !resumeTime) return;
+
+    const handleCanPlay = () => {
+      video.currentTime = resumeTime;
+    };
+
+    video.addEventListener('canplay', handleCanPlay);
+    // Se já estiver carregado
+    if (video.readyState >= 2) {
+      video.currentTime = resumeTime;
+    }
+
+    return () => video.removeEventListener('canplay', handleCanPlay);
+  }, [resumeTime]);
 
   // === SALVAMENTO AUTOMÁTICO ===
   useEffect(() => {
