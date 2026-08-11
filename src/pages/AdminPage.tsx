@@ -299,18 +299,25 @@ export function AdminPage() {
 
   async function addSeason() {
     if (!editandoId) return;
-    const { error } = await supabase.from("seasons").insert({
+    const { data: newSeason, error } = await supabase.from("seasons").insert({
       series_id: editandoId,
       season_number: newSeasonNumber,
       title: newSeasonTitle || null,
-    });
+    }).select("id").single();
     if (error) {
       setMsg({ tipo: "erro", texto: error.message });
     } else {
-      setMsg({ tipo: "ok", texto: "Temporada adicionada!" });
+      setMsg({ tipo: "ok", texto: "Temporada adicionada! Agora adicione os episódios." });
       setNewSeasonNumber((prev) => prev + 1);
       setNewSeasonTitle("");
-      if (editandoId) await loadSeasonsAndEpisodes(editandoId);
+      if (editandoId) {
+        await loadSeasonsAndEpisodes(editandoId);
+        // Expande a nova temporada automaticamente
+        if (newSeason?.id) {
+          setExpandedSeason(newSeason.id);
+          setNewEpisode((prev) => ({ ...prev, seasonId: newSeason.id, episodeNumber: 1 }));
+        }
+      }
     }
   }
 
