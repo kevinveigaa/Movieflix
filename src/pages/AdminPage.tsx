@@ -330,18 +330,23 @@ export function AdminPage() {
   }
 
   async function addEpisode() {
-    if (!newEpisode.seasonId || !newEpisode.title || !newEpisode.videoUrl) {
-      setMsg({ tipo: "erro", texto: "Preencha título e URL do vídeo do episódio!" });
+    if (!newEpisode.seasonId || !newEpisode.videoUrl) {
+      setMsg({ tipo: "erro", texto: "Informe a URL do vídeo do episódio!" });
       return;
     }
+    // Calcula o próximo número de episódio automaticamente
+    const seasonEpisodes = episodes[newEpisode.seasonId] ?? [];
+    const nextNumber = seasonEpisodes.length > 0 
+      ? Math.max(...seasonEpisodes.map(e => e.episode_number)) + 1 
+      : 1;
     const { error } = await supabase.from("episodes").insert({
       season_id: newEpisode.seasonId,
-      episode_number: newEpisode.episodeNumber,
-      title: newEpisode.title,
+      episode_number: nextNumber,
+      title: newEpisode.title || `Episódio ${nextNumber}`,
       description: newEpisode.description || null,
       video_url: newEpisode.videoUrl,
       duration_seconds: newEpisode.durationSeconds || null,
-      thumbnail_url: newEpisode.thumbnailUrl || null,
+      thumbnail_url: newEpisode.thumbnailUrl || gerarThumbnailPadrao(nextNumber),
     });
     if (error) {
       setMsg({ tipo: "erro", texto: error.message });
@@ -349,7 +354,7 @@ export function AdminPage() {
       setMsg({ tipo: "ok", texto: "Episódio adicionado!" });
       setNewEpisode((prev) => ({
         ...prev,
-        episodeNumber: prev.episodeNumber + 1,
+        episodeNumber: (episodes[prev.seasonId]?.length ?? 0) + 2,
         title: "",
         videoUrl: "",
         description: "",
@@ -651,39 +656,41 @@ export function AdminPage() {
                           </div>
 
                           <div className="rounded-xl border border-white/10 bg-black/20 p-4">
-                            <h5 className="mb-3 text-sm font-bold text-zinc-300">Adicionar Episódio</h5>
-                            <div className="grid gap-3 sm:grid-cols-2">
-                              <input type="number" className="input" placeholder="Nº do episódio" value={newEpisode.seasonId === season.id ? newEpisode.episodeNumber : 1} onChange={(e) => setNewEpisode({ ...newEpisode, seasonId: season.id, episodeNumber: parseInt(e.target.value) || 1 })} />
-                              <input className="input" placeholder="Título do episódio" value={newEpisode.seasonId === season.id ? newEpisode.title : ""} onChange={(e) => setNewEpisode({ ...newEpisode, seasonId: season.id, title: e.target.value })} />
-                              <input className="input sm:col-span-2" placeholder="URL do vídeo do episódio" value={newEpisode.seasonId === season.id ? newEpisode.videoUrl : ""} onChange={(e) => setNewEpisode({ ...newEpisode, seasonId: season.id, videoUrl: e.target.value })} />
-                              <input className="input sm:col-span-2" placeholder="Descrição (opcional)" value={newEpisode.seasonId === season.id ? newEpisode.description : ""} onChange={(e) => setNewEpisode({ ...newEpisode, seasonId: season.id, description: e.target.value })} />
-                              <input type="number" className="input" placeholder="Duração em segundos (opcional)" value={newEpisode.seasonId === season.id ? newEpisode.durationSeconds : 0} onChange={(e) => setNewEpisode({ ...newEpisode, seasonId: season.id, durationSeconds: parseInt(e.target.value) || 0 })} />
-                            </div>
+                            <h5 className="mb-3 text-sm font-bold text-zinc-300">Adicionar Episódio {newEpisode.seasonId === season.id ? newEpisode.episodeNumber : (episodes[season.id]?.length ?? 0) + 1}</h5>
 
-                            {/* Preview da capa */}
-                            <div className="mt-3 flex items-center gap-3">
+                            {/* URL do vídeo - único campo obrigatório */}
+                            <input className="input w-full mb-3" placeholder="URL do vídeo do episódio *" value={newEpisode.seasonId === season.id ? newEpisode.videoUrl : ""} onChange={(e) => setNewEpisode({ ...newEpisode, seasonId: season.id, videoUrl: e.target.value })} />
+
+                            {/* Título (preenche automático do TMDb) */}
+                            <input className="input w-full mb-3" placeholder="Título do episódio (busca automática do TMDb)" value={newEpisode.seasonId === season.id ? newEpisode.title : ""} onChange={(e) => setNewEpisode({ ...newEpisode, seasonId: season.id, title: e.target.value })} />
+
+                            {/* Descrição opcional */}
+                            <input className="input w-full mb-3" placeholder="Descrição (opcional)" value={newEpisode.seasonId === season.id ? newEpisode.description : ""} onChange={(e) => setNewEpisode({ ...newEpisode, seasonId: season.id, description: e.target.value })} />
+
+                            {/* Preview da capa + botão buscar */}
+                            <div className="flex items-center gap-3 mb-3">
                               <div className="relative h-20 w-36 shrink-0 overflow-hidden rounded-lg bg-zinc-900">
                                 <img
-                                  src={newEpisode.seasonId === season.id && newEpisode.thumbnailUrl ? newEpisode.thumbnailUrl : gerarThumbnailPadrao(newEpisode.seasonId === season.id ? newEpisode.episodeNumber : 1)}
+                                  src={newEpisode.seasonId === season.id && newEpisode.thumbnailUrl ? newEpisode.thumbnailUrl : gerarThumbnailPadrao(newEpisode.seasonId === season.id ? newEpisode.episodeNumber : (episodes[season.id]?.length ?? 0) + 1)}
                                   alt="Preview"
                                   className="h-full w-full object-cover"
-                                  onError={(e) => { (e.target as HTMLImageElement).src = gerarThumbnailPadrao(newEpisode.seasonId === season.id ? newEpisode.episodeNumber : 1); }}
+                                  onError={(e) => { (e.target as HTMLImageElement).src = gerarThumbnailPadrao(newEpisode.seasonId === season.id ? newEpisode.episodeNumber : (episodes[season.id]?.length ?? 0) + 1); }}
                                 />
                               </div>
                               <div className="flex-1">
                                 <button
-                                  onClick={() => buscarCapaEpisodioTMDB(season.season_number, newEpisode.seasonId === season.id ? newEpisode.episodeNumber : 1)}
+                                  onClick={() => buscarCapaEpisodioTMDB(season.season_number, newEpisode.seasonId === season.id ? newEpisode.episodeNumber : (episodes[season.id]?.length ?? 0) + 1)}
                                   className="btn-outline text-xs px-3 py-2"
                                 >
                                   <Search className="h-3 w-3" /> Buscar capa no TMDb
                                 </button>
                                 <p className="mt-1 text-[11px] text-zinc-500">
-                                  Se não encontrar, usa imagem padrão com o número do episódio
+                                  Busca título e capa automaticamente
                                 </p>
                               </div>
                             </div>
 
-                            <button onClick={() => { setNewEpisode({ ...newEpisode, seasonId: season.id }); setTimeout(addEpisode, 0); }} className="btn-primary mt-3"><Plus className="h-4 w-4" /> Adicionar Episódio</button>
+                            <button onClick={() => { setNewEpisode({ ...newEpisode, seasonId: season.id }); setTimeout(addEpisode, 0); }} className="btn-primary"><Plus className="h-4 w-4" /> Adicionar Episódio</button>
                           </div>
                         </div>
                       )}
