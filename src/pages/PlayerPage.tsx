@@ -97,6 +97,42 @@ export function PlayerPage() {
     };
   }, [movie, isBunny]);
 
+  // Teclas de atalho: ESC volta, Espaço play/pause, setas 10s, F fullscreen, M mute
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        navigate(-1);
+      }
+      if (e.key === ' ' || e.code === 'Space') {
+        const video = videoRef.current;
+        if (video && document.activeElement === document.body) {
+          e.preventDefault();
+          video.paused ? video.play() : video.pause();
+        }
+      }
+      if (e.key === 'ArrowRight') {
+        const video = videoRef.current;
+        if (video) { e.preventDefault(); video.currentTime = Math.min(video.duration || Infinity, video.currentTime + 10); }
+      }
+      if (e.key === 'ArrowLeft') {
+        const video = videoRef.current;
+        if (video) { e.preventDefault(); video.currentTime = Math.max(0, video.currentTime - 10); }
+      }
+      if (e.key === 'f' || e.key === 'F') {
+        const video = videoRef.current;
+        if (video) {
+          e.preventDefault();
+          document.fullscreenElement ? document.exitFullscreen() : video.requestFullscreen();
+        }
+      }
+      if (e.key === 'm' || e.key === 'M') {
+        setIsMuted((prev) => !prev);
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [navigate]);
+
   if (authLoading || loading) {
     return <div className="flex h-screen items-center justify-center bg-black"><div className="h-12 w-12 animate-spin rounded-full border-4 border-red-600 border-t-transparent"/></div>;
   }
