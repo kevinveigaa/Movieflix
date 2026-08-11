@@ -1,7 +1,9 @@
+import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { History as HistoryIcon, Trash2 } from 'lucide-react';
+import { History as HistoryIcon, Trash2, Film } from 'lucide-react';
 import { useWatchHistory, useRemoveHistory } from '@/hooks/useWatchHistory';
 import { useAuth } from '@/context/AuthContext';
+import { supabase } from '@/lib/supabase';
 import { img } from '@/lib/tmdb';
 import type { WatchHistoryRow } from '@/types';
 
@@ -14,6 +16,18 @@ export function HistoryPage() {
   const { user } = useAuth();
   const history = useWatchHistory();
   const remove = useRemoveHistory();
+  const [validMovieIds, setValidMovieIds] = useState<Set<string>>(new Set());
+
+  // Busca os IDs dos filmes que realmente existem no catálogo
+  useEffect(() => {
+    async function loadValidMovies() {
+      const { data } = await supabase.from('movies').select('id');
+      if (data) {
+        setValidMovieIds(new Set(data.map((m: any) => m.id)));
+      }
+    }
+    loadValidMovies();
+  }, []);
 
   if (!user) {
     return (
@@ -24,7 +38,9 @@ export function HistoryPage() {
     );
   }
 
-  const items = history.data ?? [];
+  const allItems = history.data ?? [];
+  // Filtra apenas filmes que existem no catálogo (têm movie_id válido)
+  const items = allItems.filter((h) => h.movie_id && validMovieIds.has(h.movie_id));
 
   return (
     <div className="container-app py-8">
@@ -46,9 +62,13 @@ export function HistoryPage() {
               <Link to={historyTarget(h)} className="flex-shrink-0">
                 <div className="h-16 w-28 overflow-hidden rounded-lg bg-ink-800">
                   {h.backdrop_path ? (
-                    <img src={img(h.backdrop_path, 'w300')} alt={h.title} className="h-full w-full object-cover" />
+                    <img src={img(h.backdrop_path, 'w300')} alt={h.title} className="h-full w-full object-cover" loading="lazy" />
+                  ) : h.poster_path ? (
+                    <img src={img(h.poster_path, 'w300')} alt={h.title} className="h-full w-full object-cover" loading="lazy" />
                   ) : (
-                    <div className="flex h-full w-full items-center justify-center text-xs text-ink-500">{h.title}</div>
+                    <div className="flex h-full w-full items-center justify-center text-xs text-ink-500">
+                      <Film className="h-6 w-6" />
+                    </div>
                   )}
                 </div>
               </Link>
@@ -74,7 +94,3 @@ export function HistoryPage() {
     </div>
   );
 }
-
-
-
-
