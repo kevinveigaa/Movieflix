@@ -22,7 +22,6 @@ type Form = {
   language: string;
   quality: string;
   type: string;
-  required_plan: string;
   category: string;
 };
 
@@ -35,7 +34,6 @@ const FORM_VAZIO: Form = {
   language: "Dublado",
   quality: "HD",
   type: "movie",
-  required_plan: "premium",
   category: "",
 };
 
@@ -202,7 +200,6 @@ export function AdminPage() {
       language: filme.language ?? "Dublado",
       quality: filme.quality ?? "HD",
       type: filme.type ?? "movie",
-      required_plan: filme.required_plan ?? "premium",
       category: filme.category ?? "",
     });
     setTmdbSearch("");
@@ -255,7 +252,7 @@ export function AdminPage() {
     const categorias = categoriasDoFilme({ category: form.category })
       .filter((c) => c !== "Outros")
       .join(", ");
-    const payload = { ...form, category: categorias };
+    const payload = { ...form, category: categorias, required_plan: "premium" };
 
     if (editandoId) {
       const { data, error } = await supabase
@@ -439,7 +436,6 @@ export function AdminPage() {
                     <span className="chip">{filme.type === "series" || filme.type === "tv" ? "📺 Série" : filme.type === "anime" ? (filme.video_url ? "🍥 Anime (Filme)" : "🍥 Anime (Série)") : "🎬 Filme"}</span>
                     <span className="chip">{filme.quality ?? "HD"}</span>
                     <span className="chip">{filme.language ?? "—"}</span>
-                    <span className="chip">{filme.required_plan ?? "—"}</span>
                     {!filme.video_url && filme.type !== "series" && filme.type !== "tv" && filme.type !== "anime" && <span className="chip border-amber-500/40 text-amber-300">sem link</span>}
                   </div>
                 </div>
@@ -482,7 +478,6 @@ export function AdminPage() {
           <div className="grid gap-4 sm:grid-cols-3">
             {campo("language", "Idioma")}
             {campo("quality", "Qualidade")}
-            {campo("required_plan", "Plano necessário")}
           </div>
 
           <div className="grid gap-4 sm:grid-cols-2">
