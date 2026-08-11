@@ -9,7 +9,13 @@ import type { WatchHistoryRow } from '@/types';
 
 /** Retoma no player do catálogo quando o título é conhecido; senão vai à página do título. */
 function historyTarget(h: WatchHistoryRow): string {
-  return h.movie_id ? `/assistir/${h.movie_id}` : `/titulo/${h.media_type}/${h.tmdb_id}`;
+  if (!h.movie_id) return `/titulo/${h.media_type}/${h.tmdb_id}`;
+  const pct = h.duration_seconds ? h.position_seconds / h.duration_seconds : 0;
+  // Se assistiu entre 2% e 95%, continua de onde parou
+  if (pct >= 0.02 && pct < 0.95) {
+    return `/assistir/${h.movie_id}?t=${h.position_seconds}`;
+  }
+  return `/assistir/${h.movie_id}`;
 }
 
 function getProgress(h: WatchHistoryRow): number {
