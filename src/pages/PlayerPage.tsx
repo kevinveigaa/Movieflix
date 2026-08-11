@@ -1,7 +1,8 @@
-import { useEffect, useRef, useState, useMemo } from 'react';
+import { useEffect, useRef, useState, useMemo, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
 import { supabase } from '@/lib/supabase';
+import { useUpsertHistory } from '@/hooks/useWatchHistory';
 import { ChevronLeft, Film, Volume2, VolumeX } from 'lucide-react';
 
 export function PlayerPage() {
@@ -16,6 +17,7 @@ export function PlayerPage() {
   const gainNodeRef = useRef<GainNode | null>(null);
   const [volumeBoost, setVolumeBoost] = useState(1.5);
   const [isMuted, setIsMuted] = useState(false);
+  const upsertHistory = useUpsertHistory();
 
   // Declarar videoUrl e isBunny ANTES dos useEffects
   const videoUrl = movie?.video_url || '';
@@ -29,6 +31,34 @@ export function PlayerPage() {
     return url;
   }
 
+  // Função para salvar progresso no histórico
+  const saveProgress = useCallback(() => {
+    if (!user || !movie || !movie.id) return;
+
+    const video = videoRef.current;
+    let positionSeconds = 0;
+    let durationSeconds = 0;
+
+    if (video) {
+      positionSeconds = Math.floor(video.currentTime);
+      durationSeconds = Math.floor(video.duration || 0);
+    }
+
+    // Só salva se assistiu pelo menos 5 segundos e não terminou (menos de 95%)
+    if (positionSeconds < 5) return;
+    if (durationSeconds > 0 && positionSeconds / durationSeconds >= 0.95) return;
+
+    upsertHistory.mutate({
+      movieId: movie.id,
+      mediaType: 'movie',
+      title: movie.title,
+      posterPath: movie.poster_url || null,
+      backdropPath: movie.backdrop_url || null,
+      positionSeconds,
+      durationSeconds,
+    });
+  }, [user, movie, upsertHistory]);
+
   // Carrega o filme
   useEffect(() => {
     async function load() {
@@ -39,6 +69,37 @@ export function PlayerPage() {
     }
     load();
   }, [id]);
+
+  // Salva progresso a cada 10 segundos e quando sai da página
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video || isBunny) return;
+
+    // Salva a cada 10 segundos
+    const interval = setInterval(() => {
+      saveProgress();
+    }, 10000);
+
+    // Salva quando sai da página
+    const handleBeforeUnload = () => {
+      saveProgress();
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+
+    // Salva quando pausa o vídeo
+    const handlePause = () => {
+      saveProgress();
+    };
+    video.addEventListener('pause', handlePause);
+
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+      video.removeEventListener('pause', handlePause);
+      // Salva uma última vez ao desmontar
+      saveProgress();
+    };
+  }, [isBunny, saveProgress]);
 
   // Web Audio API para boostar volume no vídeo HTML5
   useEffect(() => {
@@ -158,7 +219,7 @@ export function PlayerPage() {
     <div className="min-h-screen bg-black text-white">
       {/* Header fixo */}
       <div className="fixed top-0 left-0 right-0 z-50 flex items-center gap-3 bg-gradient-to-b from-black/90 via-black/60 to-transparent p-4">
-        <button onClick={() => navigate(-1)} className="flex items-center gap-2 rounded-full bg-black/50 p-2.5 backdrop-blur transition hover:bg-white/20">
+        <button onClick={() => { saveProgress(); navigate(-1); }} className="flex items-center gap-2 rounded-full bg-black/50 p-2.5 backdrop-blur transition hover:bg-white/20">
           <ChevronLeft className="h-5 w-5" />
         </button>
         <h1 className="truncate text-base font-semibold">{movie?.title || 'Player'}</h1>
