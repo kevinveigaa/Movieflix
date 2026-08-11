@@ -2,6 +2,7 @@ import { Outlet, useLocation } from 'react-router-dom';
 import { Navbar } from './Navbar';
 import { Footer } from './Footer';
 import { ScrollToTop } from './ScrollToTop';
+import { cn } from '@/lib/cn';
 
 export function AppLayout() {
   const location = useLocation();
@@ -10,7 +11,7 @@ export function AppLayout() {
   return (
     <div className="flex min-h-screen flex-col bg-ink-950">
       {!isPlayer && <Navbar />}
-      <main className="flex-1">
+      <main className={cn("flex-1", !isPlayer && "pt-16")}>
         <Outlet />
       </main>
       {!isPlayer && <Footer />}
