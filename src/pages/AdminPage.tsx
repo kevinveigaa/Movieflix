@@ -383,31 +383,60 @@ export function AdminPage() {
       return;
     }
     try {
+      setMsg({ tipo: "ok", texto: "Buscando no TMDb..." });
+
       // Buscar série pelo nome (usando o proxy do backend)
       const resultado: any = await tmdb.search(form.title);
       const serie = resultado.results?.find((item: any) => item.media_type === "tv");
       if (!serie) {
-        setMsg({ tipo: "erro", texto: "Série não encontrada no TMDB." });
+        setMsg({ tipo: "erro", texto: "Série não encontrada no TMDB. Tente o nome em inglês." });
         return;
       }
-      // Buscar detalhes do episódio usando o mesmo proxy
+
+      // Buscar detalhes do episódio usando o proxy
       const PUBLIC_API_URL = 'https://movieflix-api-udsv.onrender.com';
       const API_URL = (import.meta.env.VITE_API_URL as string) || PUBLIC_API_URL;
 
-      const response = await fetch(
+      // Tentativa 1: Buscar episódio em português
+      let response = await fetch(
         `${API_URL}/api/tmdb/tv/${serie.id}/season/${seasonNum}/episode/${epNum}?language=pt-BR`
       );
-      if (!response.ok) throw new Error("Episódio não encontrado");
+
+      // Tentativa 2: Se falhou, tentar em inglês
+      if (!response.ok) {
+        response = await fetch(
+          `${API_URL}/api/tmdb/tv/${serie.id}/season/${seasonNum}/episode/${epNum}?language=en-US`
+        );
+      }
+
+      // Tentativa 3: Buscar temporada inteira e pegar o episódio
+      if (!response.ok) {
+        const seasonResponse = await fetch(
+          `${API_URL}/api/tmdb/tv/${serie.id}/season/${seasonNum}?language=pt-BR`
+        );
+        if (seasonResponse.ok) {
+          const seasonData = await seasonResponse.json();
+          const ep = seasonData.episodes?.find((e: any) => e.episode_number === epNum);
+          if (ep?.still_path) {
+            const url = img(ep.still_path, "w400");
+            setNewEpisode((prev) => ({ ...prev, thumbnailUrl: url || "" }));
+            setMsg({ tipo: "ok", texto: "Capa do episódio encontrada!" });
+            return;
+          }
+        }
+        throw new Error("Episódio não encontrado no TMDb.");
+      }
+
       const epData = await response.json();
       if (epData.still_path) {
         const url = img(epData.still_path, "w400");
         setNewEpisode((prev) => ({ ...prev, thumbnailUrl: url || "" }));
-        setMsg({ tipo: "ok", texto: "Capa do episódio encontrada no TMDB!" });
+        setMsg({ tipo: "ok", texto: "Capa do episódio encontrada no TMDb!" });
       } else {
         setMsg({ tipo: "erro", texto: "Episódio encontrado, mas sem imagem. Usando padrão." });
       }
     } catch (e: any) {
-      setMsg({ tipo: "erro", texto: e?.message || "Erro ao buscar capa no TMDB." });
+      setMsg({ tipo: "erro", texto: e?.message || "Erro ao buscar capa no TMDb. Tente o nome em inglês." });
     }
   }
 
