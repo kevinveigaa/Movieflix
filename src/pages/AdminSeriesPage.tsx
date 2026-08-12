@@ -109,26 +109,76 @@ export function AdminSeriesPage() {
     await loadSeries();
   }
 
-  async function addEpisode() {
-    if (!newEpisode.seasonId || !newEpisode.title || !newEpisode.videoUrl) {
+  async function addEpisode(seasonId?: string) {
+    const targetSeasonId = seasonId || newEpisode.seasonId;
+    const targetEpisode = seasonId
+      ? newEpisode
+      : newEpisode;
+
+    if (!targetSeasonId || !newEpisode.title || !newEpisode.videoUrl) {
       setMsg({ tipo: 'erro', texto: 'Preencha título e URL do vídeo!' });
       return;
     }
-    const { error } = await supabase.from('episodes').insert({
-      season_id: newEpisode.seasonId,
-      episode_number: newEpisode.episodeNumber,
-      title: newEpisode.title,
-      description: newEpisode.description || null,
-      video_url: newEpisode.videoUrl,
-      duration_seconds: newEpisode.durationSeconds || null,
-      thumbnail_url: newEpisode.thumbnailUrl || null,
-    });
-    if (error) {
-      setMsg({ tipo: 'erro', texto: error.message });
-    } else {
-      setMsg({ tipo: 'ok', texto: 'Episódio adicionado!' });
-      setNewEpisode((prev) => ({ ...prev, episodeNumber: prev.episodeNumber + 1, title: '', videoUrl: '', description: '' }));
-      await loadSeries();
+    try {
+      const { error } = await supabase.from('episodes').insert({
+        season_id: targetSeasonId,
+        episode_number: newEpisode.episodeNumber,
+        title: newEpisode.title,
+        description: newEpisode.description || null,
+        video_url: newEpisode.videoUrl,
+        duration_seconds: newEpisode.durationSeconds || null,
+        thumbnail_url: newEpisode.thumbnailUrl || null,
+      });
+      if (error) {
+        setMsg({ tipo: 'erro', texto: error.message });
+      } else {
+        setMsg({ tipo: 'ok', texto: 'Episódio adicionado!' });
+        setNewEpisode((prev) => ({ 
+          ...prev, 
+          seasonId: targetSeasonId,
+          episodeNumber: prev.episodeNumber + 1, 
+          title: '', 
+          videoUrl: '', 
+          description: '' 
+        }));
+        await loadSeries();
+      }
+    } catch (err: any) {
+      setMsg({ tipo: 'erro', texto: err?.message || 'Erro ao adicionar episódio' });
+    }
+  }
+
+  async function addEpisodeToSeason(seasonId: string) {
+    if (!newEpisode.title || !newEpisode.videoUrl) {
+      setMsg({ tipo: 'erro', texto: 'Preencha título e URL do vídeo!' });
+      return;
+    }
+    try {
+      const { error } = await supabase.from('episodes').insert({
+        season_id: seasonId,
+        episode_number: newEpisode.episodeNumber,
+        title: newEpisode.title,
+        description: newEpisode.description || null,
+        video_url: newEpisode.videoUrl,
+        duration_seconds: newEpisode.durationSeconds || null,
+        thumbnail_url: newEpisode.thumbnailUrl || null,
+      });
+      if (error) {
+        setMsg({ tipo: 'erro', texto: error.message });
+      } else {
+        setMsg({ tipo: 'ok', texto: 'Episódio adicionado!' });
+        setNewEpisode((prev) => ({ 
+          ...prev, 
+          seasonId,
+          episodeNumber: prev.episodeNumber + 1, 
+          title: '', 
+          videoUrl: '', 
+          description: '' 
+        }));
+        await loadSeries();
+      }
+    } catch (err: any) {
+      setMsg({ tipo: 'erro', texto: err?.message || 'Erro ao adicionar episódio' });
     }
   }
 
@@ -233,17 +283,17 @@ export function AdminSeriesPage() {
               <div className="border-t border-white/10 p-4">
                 {/* Lista de episódios */}
                 <div className="mb-4 space-y-2">
-                  {(episodes[season.id] ?? []).map((ep) => (
-                    <div key={ep.id} className="flex items-center gap-3 rounded-lg bg-black/30 p-3">
+                  {(episodes[season.id] ?? []).filter(Boolean).map((ep, idx) => (
+                    <div key={ep?.id || `ep-${idx}`} className="flex items-center gap-3 rounded-lg bg-black/30 p-3">
                       <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-brand-600 text-sm font-bold">
-                        {ep.episode_number}
+                        {ep?.episode_number ?? '-'}
                       </div>
                       <div className="min-w-0 flex-1">
-                        <p className="truncate font-medium">{ep.title}</p>
-                        <p className="truncate text-xs text-zinc-500">{ep.video_url}</p>
+                        <p className="truncate font-medium">{ep?.title || 'Sem título'}</p>
+                        <p className="truncate text-xs text-zinc-500">{ep?.video_url || ''}</p>
                       </div>
                       <button
-                        onClick={() => deleteEpisode(ep.id, season.id)}
+                        onClick={() => ep?.id && deleteEpisode(ep.id, season.id)}
                         className="rounded-full p-2 text-red-400 hover:bg-red-600/20"
                       >
                         <Trash2 className="h-4 w-4" />
@@ -299,10 +349,7 @@ export function AdminSeriesPage() {
                     />
                   </div>
                   <button
-                    onClick={() => {
-                      setNewEpisode({ ...newEpisode, seasonId: season.id });
-                      setTimeout(addEpisode, 0);
-                    }}
+                    onClick={() => addEpisodeToSeason(season.id)}
                     className="btn-primary mt-3"
                   >
                     <Plus className="h-4 w-4" />
