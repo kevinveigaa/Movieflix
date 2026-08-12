@@ -4,7 +4,7 @@ import { supabase } from "@/lib/supabase";
 import { Play, ArrowLeft, Download, Lock, CheckCircle2, XCircle, Loader2, Clock, RotateCcw, ChevronDown, ChevronUp } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { useEntitlements } from "@/hooks/useEntitlements";
-import { useWatchHistory, useResetHistory } from "@/hooks/useWatchHistory";
+import { useWatchHistory } from "@/hooks/useWatchHistory";
 import { hasUnlimitedDownloads } from "@/lib/plans";
 import { downloadVideo } from "@/lib/hlsDownload";
 import {
@@ -79,7 +79,6 @@ export function TitleDetailPage() {
   const { user } = useAuth();
   const { entitlements } = useEntitlements();
   const history = useWatchHistory();
-  const resetHistory = useResetHistory();
 
   // Registro de reprodução deste título (para o botão "Continuar de ...").
   const historyRow = useMemo(
@@ -332,16 +331,12 @@ export function TitleDetailPage() {
             onClick={() => {
               const isSeries = movie?.type === "series" || movie?.type === "tv" || (movie?.type === "anime" && !movie?.video_url);
               if (isSeries) {
-                // Para séries: se tem histórico de episódio, pergunta se continua
-                if (lastWatchedEpisode && historyRow && historyRow.position_seconds > 30) {
-                  setShowResumeModal(true);
+                // Para séries: vai para o último episódio assistido ou o primeiro
+                const targetEpisode = lastWatchedEpisode || firstEpisode;
+                if (targetEpisode) {
+                  navigate('/assistir/' + movie.id + '?episode=' + targetEpisode.id);
                 } else {
-                  const targetEpisode = lastWatchedEpisode || firstEpisode;
-                  if (targetEpisode) {
-                    navigate('/assistir/' + movie.id + '?episode=' + targetEpisode.id);
-                  } else {
-                    setMsg?.({ tipo: "erro", texto: "Nenhum episódio disponível ainda." });
-                  }
+                  setMsg?.({ tipo: "erro", texto: "Nenhum episódio disponível ainda." });
                 }
               } else {
                 // Para filmes: continua do histórico ou do início
@@ -373,33 +368,14 @@ export function TitleDetailPage() {
               <div className="w-full max-w-sm rounded-2xl border border-white/10 bg-ink-900 p-6 text-center">
                 <Clock className="mx-auto h-10 w-10 text-brand-400" />
                 <h3 className="mt-3 text-lg font-bold text-white">Continuar assistindo?</h3>
-
-                {isSeries && lastWatchedEpisode ? (
-                  <>
-                    <p className="mt-2 text-sm text-zinc-400">
-                      Você parou no <span className="text-white font-semibold">Episódio {lastWatchedEpisode.episode_number}: {lastWatchedEpisode.title}</span>
-                    </p>
-                    <p className="mt-1 text-xs text-ink-500">
-                      {formatTime(historyRow.position_seconds)} de {formatTime(historyRow.duration_seconds || 0)}
-                    </p>
-                  </>
-                ) : (
-                  <p className="mt-2 text-sm text-zinc-400">
-                    Você parou em <span className="text-white font-semibold">{formatTime(historyRow.position_seconds)}</span> de {formatTime(historyRow.duration_seconds || 0)}.
-                  </p>
-                )}
-
+                <p className="mt-2 text-sm text-zinc-400">
+                  Você parou em <span className="text-white font-semibold">{formatTime(historyRow.position_seconds)}</span> de {formatTime(historyRow.duration_seconds || 0)}.
+                </p>
                 <div className="mt-5 flex gap-3">
                   <button
                     onClick={() => {
                       setShowResumeModal(false);
-                      if (isSeries && lastWatchedEpisode) {
-                        // Do início = primeiro episódio
-                        const targetEpisode = firstEpisode || lastWatchedEpisode;
-                        navigate('/assistir/' + movie.id + '?episode=' + targetEpisode.id);
-                      } else {
-                        navigate('/assistir/' + movie.id);
-                      }
+                      navigate('/assistir/' + movie.id);
                     }}
                     className="flex-1 rounded-lg bg-white/10 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-white/20 flex items-center justify-center gap-2"
                   >
@@ -409,11 +385,7 @@ export function TitleDetailPage() {
                   <button
                     onClick={() => {
                       setShowResumeModal(false);
-                      if (isSeries && lastWatchedEpisode) {
-                        navigate('/assistir/' + movie.id + '?episode=' + lastWatchedEpisode.id + '&t=' + historyRow.position_seconds);
-                      } else {
-                        navigate('/assistir/' + movie.id + '?t=' + historyRow.position_seconds);
-                      }
+                      navigate('/assistir/' + movie.id + '?t=' + historyRow.position_seconds);
                     }}
                     className="flex-1 rounded-lg bg-brand-600 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-brand-500 flex items-center justify-center gap-2"
                   >
