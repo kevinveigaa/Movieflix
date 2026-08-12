@@ -206,23 +206,27 @@ export function AdminSeriesPage() {
         {seasons.map((season) => (
           <div key={season.id} className="rounded-2xl border border-white/10 bg-ink-900 overflow-hidden">
             {/* Header da Temporada */}
-            <button
-              onClick={() => setExpandedSeason(expandedSeason === season.id ? null : season.id)}
-              className="flex w-full items-center justify-between p-4 hover:bg-white/5"
-            >
-              <div className="flex items-center gap-3">
-                {expandedSeason === season.id ? <ChevronUp className="h-5 w-5" /> : <ChevronDown className="h-5 w-5" />}
-                <span className="font-bold">Temporada {season.season_number}</span>
-                {season.title && <span className="text-zinc-400">- {season.title}</span>}
-                <span className="text-xs text-zinc-500">({episodes[season.id]?.length ?? 0} episódios)</span>
-              </div>
+            <div className="flex w-full items-center justify-between p-4 hover:bg-white/5">
               <button
-                onClick={(e) => { e.stopPropagation(); deleteSeason(season.id); }}
-                className="rounded-full p-2 text-red-400 hover:bg-red-600/20"
+                type="button"
+                onClick={() => setExpandedSeason(expandedSeason === season.id ? null : season.id)}
+                className="flex min-w-0 flex-1 items-center gap-3 text-left"
+                aria-expanded={expandedSeason === season.id}
+              >
+                {expandedSeason === season.id ? <ChevronUp className="h-5 w-5 shrink-0" /> : <ChevronDown className="h-5 w-5 shrink-0" />}
+                <span className="font-bold">Temporada {season.season_number}</span>
+                {season.title && <span className="truncate text-zinc-400">- {season.title}</span>}
+                <span className="text-xs text-zinc-500">({episodes[season.id]?.length ?? 0} episódios)</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => deleteSeason(season.id)}
+                className="ml-2 shrink-0 rounded-full p-2 text-red-400 hover:bg-red-600/20"
+                title="Excluir temporada"
               >
                 <Trash2 className="h-4 w-4" />
               </button>
-            </button>
+            </div>
 
             {/* Episódios */}
             {expandedSeason === season.id && (
@@ -320,3 +324,4 @@ export function AdminSeriesPage() {
     </div>
   );
 }
+
