@@ -164,21 +164,6 @@ export function useMarkAsWatched() {
   });
 }
 
-export function useResetHistory() {
-  const { user } = useAuth();
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: async (id: string) => {
-      if (!user) return;
-      await supabase.from('watch_history').update({
-        position_seconds: 0,
-        updated_at: new Date().toISOString(),
-      }).eq('id', id);
-    },
-    onSuccess: () => qc.invalidateQueries({ queryKey: [KEY] }),
-  });
-}
-
 export function useRemoveHistory() {
   const { user } = useAuth();
   const qc = useQueryClient();
