@@ -1,6 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
-import { Play, Info, ChevronLeft, ChevronRight } from "lucide-react";
+import { Play, Info, ChevronLeft, ChevronRight, RotateCcw } from "lucide-react";
+import { useAuth } from "@/context/AuthContext";
+import { supabase } from "@/lib/supabase";
+import { formatTime } from "@/lib/timeFormat";
 
 const INTERVALO = 5000;
 
@@ -19,7 +22,35 @@ export interface HeroItem {
 export function HeroBanner({ items }: { items: HeroItem[] }) {
   const slides = items.slice(0, 5);
   const [index, setIndex] = useState(0);
+  const [heroProgress, setHeroProgress] = useState<{pos: number; dur: number} | null>(null);
   const timer = useRef<ReturnType<typeof setInterval> | null>(null);
+  const { user } = useAuth();
+
+  // Busca progresso do slide atual
+  useEffect(() => {
+    if (!user || !slides[index]?.id) { setHeroProgress(null); return; }
+    let cancelled = false;
+    async function load() {
+      const { data } = await supabase
+        .from('watch_history')
+        .select('position_seconds, duration_seconds')
+        .eq('user_id', user.id)
+        .eq('movie_id', String(slides[index].id))
+        .maybeSingle();
+      if (!cancelled && data && data.duration_seconds > 0) {
+        const pct = data.position_seconds / data.duration_seconds;
+        if (pct >= 0.02 && pct < 0.95) {
+          setHeroProgress({ pos: data.position_seconds, dur: data.duration_seconds });
+        } else {
+          setHeroProgress(null);
+        }
+      } else {
+        setHeroProgress(null);
+      }
+    }
+    load();
+    return () => { cancelled = true; };
+  }, [user, index, slides]);
 
   const go = useCallback(
     (dir: 1 | -1) => {
@@ -101,10 +132,17 @@ export function HeroBanner({ items }: { items: HeroItem[] }) {
               )}
 
               <div className="flex flex-wrap items-center gap-3 pt-1">
-                <Link to={`/assistir/${atual.id}`} className="btn-primary px-6 py-2.5">
-                  <Play className="h-4 w-4" fill="currentColor" />
-                  Assistir
-                </Link>
+                {heroProgress ? (
+                  <Link to={`/assistir/${atual.id}?t=${heroProgress.pos}`} className="btn-primary px-6 py-2.5">
+                    <Play className="h-4 w-4" fill="currentColor" />
+                    Continuar {formatTime(heroProgress.pos)}
+                  </Link>
+                ) : (
+                  <Link to={`/assistir/${atual.id}`} className="btn-primary px-6 py-2.5">
+                    <Play className="h-4 w-4" fill="currentColor" />
+                    Assistir
+                  </Link>
+                )}
                 <Link
                   to={`/titulo/${atual.type === "series" ? "tv" : "movie"}/${atual.id}`}
                   className="btn-ghost px-6 py-2.5"
