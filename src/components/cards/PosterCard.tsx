@@ -1,5 +1,6 @@
 import { Link } from "react-router-dom";
 import { Play } from "lucide-react";
+
 import { cn } from "@/lib/cn";
 
 interface MovieCardProps {
