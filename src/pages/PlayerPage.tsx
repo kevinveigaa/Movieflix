@@ -129,9 +129,9 @@ export function PlayerPage() {
         console.log('[Player] Buscando episódio ID:', episodeId);
         const { data: epData, error: epError } = await supabase
           .from('episodes')
-          .select('*, seasons!inner(series_id, season_number)')
+          .select('*')
           .eq('id', episodeId)
-          .single();
+          .maybeSingle();
 
         if (epError) {
           console.error('[Player] Erro ao carregar episódio:', epError);
@@ -140,41 +140,52 @@ export function PlayerPage() {
           return;
         }
 
-        if (epData) {
-          console.log('[Player] Episódio encontrado:', epData);
-          const { data: seriesData, error: seriesError } = await supabase
-            .from('movies')
-            .select('*')
-            .eq('id', epData.seasons.series_id)
-            .single();
-
-          if (seriesError) {
-            console.error('[Player] Erro ao carregar série:', seriesError);
-            setMsg({ tipo: 'erro', texto: `Erro ao carregar série: ${seriesError.message}` });
-            setLoading(false);
-            return;
-          }
-
-          if (seriesData) {
-            if (!epData.video_url) {
-              setMsg({ tipo: 'erro', texto: 'Este episódio não tem URL de vídeo cadastrada. Edite no painel admin.' });
-              setLoading(false);
-              return;
-            }
-            setMovie({
-              ...seriesData,
-              id: seriesData.id,
-              title: `${seriesData.title || 'Série'} - T${epData.seasons.season_number || '?'} E${epData.episode_number}: ${epData.title}`,
-              video_url: epData.video_url,
-              description: epData.description || seriesData.description,
-              poster_url: epData.thumbnail_url || seriesData.poster_url,
-              backdrop_url: seriesData.backdrop_url,
-            });
-            console.log('[Player] Filme setado com sucesso');
-            setLoading(false);
-            return;
-          }
+        if (!epData) {
+          console.error('[Player] Episódio não existe. ID:', episodeId);
+          setMsg({ tipo: 'erro', texto: 'Episódio não encontrado. Ele pode ter sido excluído.' });
+          setLoading(false);
+          return;
         }
+
+        console.log('[Player] Episódio encontrado:', epData);
+        // Busca a season separadamente (sem join que quebra)
+        const { data: seasonData } = await supabase
+          .from('seasons')
+          .select('*')
+          .eq('id', epData.season_id)
+          .maybeSingle();
+
+        const seriesId = seasonData?.series_id || id;
+        const { data: seriesData, error: seriesError } = await supabase
+          .from('movies')
+          .select('*')
+          .eq('id', seriesId)
+          .maybeSingle();
+
+        if (seriesError || !seriesData) {
+          console.error('[Player] Erro ao carregar série:', seriesError);
+          setMsg({ tipo: 'erro', texto: 'Erro ao carregar série.' });
+          setLoading(false);
+          return;
+        }
+
+        if (!epData.video_url) {
+          setMsg({ tipo: 'erro', texto: 'Este episódio não tem URL de vídeo cadastrada. Edite no painel admin.' });
+          setLoading(false);
+          return;
+        }
+        setMovie({
+          ...seriesData,
+          id: seriesData.id,
+          title: `${seriesData.title || 'Série'} - T${seasonData?.season_number || '?'} E${epData.episode_number}: ${epData.title}`,
+          video_url: epData.video_url,
+          description: epData.description || seriesData.description,
+          poster_url: epData.thumbnail_url || seriesData.poster_url,
+          backdrop_url: seriesData.backdrop_url,
+        });
+        console.log('[Player] Episódio pronto para tocar');
+        setLoading(false);
+        return;
       }
 
       // Fallback: carregar filme/série normal
@@ -193,21 +204,34 @@ export function PlayerPage() {
         const isSeries = data.media_type === 'tv' || data.number_of_seasons > 0 || data.number_of_episodes > 0;
         if (isSeries && !data.video_url) {
           console.log('[Player] Série sem video_url, buscando primeiro episódio...');
-          const { data: firstEp, error: epErr } = await supabase
-            .from('episodes')
-            .select('*, seasons!inner(season_number)')
-            .eq('seasons.series_id', data.id)
-            .not('video_url', 'is', null)
-            .order('season_number', { referencedTable: 'seasons', ascending: true })
-            .order('episode_number', { ascending: true })
-            .limit(1)
-            .maybeSingle();
+          const { data: seasonsData } = await supabase
+            .from('seasons')
+            .select('*')
+            .eq('series_id', data.id)
+            .order('season_number', { ascending: true });
 
-          if (firstEp && firstEp.video_url) {
-            console.log('[Player] Primeiro episódio encontrado:', firstEp);
+          if (!seasonsData || seasonsData.length === 0) {
+            console.log('[Player] Nenhuma temporada encontrada');
+            setMovie(data);
+            setLoading(false);
+            return;
+          }
+
+          const firstSeason = seasonsData[0];
+          const { data: epsData } = await supabase
+            .from('episodes')
+            .select('*')
+            .eq('season_id', firstSeason.id)
+            .not('video_url', 'is', null)
+            .order('episode_number', { ascending: true })
+            .limit(1);
+
+          if (epsData && epsData.length > 0 && epsData[0].video_url) {
+            const firstEp = epsData[0];
+            console.log('[Player] Primeiro episódio encontrado:', firstEp.title);
             setMovie({
               ...data,
-              title: `${data.title || 'Série'} - T${firstEp.seasons?.season_number || '?'} E${firstEp.episode_number}: ${firstEp.title}`,
+              title: `${data.title || 'Série'} - T${firstSeason.season_number || '?'} E${firstEp.episode_number}: ${firstEp.title}`,
               video_url: firstEp.video_url,
               description: firstEp.description || data.description,
               poster_url: firstEp.thumbnail_url || data.poster_url,
@@ -215,12 +239,11 @@ export function PlayerPage() {
             episodeIdRef.current = String(firstEp.id);
             setLoading(false);
             return;
-          } else {
-            console.log('[Player] Nenhum episódio com video_url encontrado');
-            setMovie(data);
-            setLoading(false);
-            return;
           }
+          console.log('[Player] Nenhum episódio com video_url encontrado');
+          setMovie(data);
+          setLoading(false);
+          return;
         }
         setMovie(data);
       }
