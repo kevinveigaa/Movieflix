@@ -57,29 +57,33 @@ export function Navbar() {
     return location.pathname.startsWith(path);
   };
 
+  // Avatar color based on name
+  const avatarLetter = activeViewerProfile?.name?.[0]?.toUpperCase() || profile?.email?.[0]?.toUpperCase() || '';
+  const avatarColor = avatarLetter ? `hsl(${(avatarLetter.charCodeAt(0) * 137) % 360}, 70%, 45%)` : '#e60000';
+
   return (
     <header className="fixed top-0 left-0 right-0 z-50 glass">
       <div className="container-app">
         <nav className="flex h-16 items-center justify-between gap-4">
           <Link to="/" className="flex items-center gap-2 shrink-0" aria-label="MovieFlix Home">
-            <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-brand-600 text-white">
+            <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-brand-600 to-brand-800 text-white shadow-lg shadow-brand-900/30">
               <Film className="h-5 w-5" />
             </span>
-            <span className="font-display text-xl tracking-wide text-white hidden sm:block">MOVIEFLIX</span>
+            <span className="font-display text-2xl tracking-wider text-white hidden sm:block">MOVIEFLIX</span>
           </Link>
 
           <div className="hidden md:flex items-center gap-1">
             {navLinks.map((l) => (
               <Link key={l.to} to={l.to}
-                className={cn('rounded-full px-3 py-1.5 text-sm font-medium transition-colors',
-                  isActive(l.to) ? 'text-white bg-white/10' : 'text-ink-300 hover:text-white hover:bg-white/5')}>
+                className={cn('rounded-full px-3.5 py-2 text-sm font-medium transition-all duration-200',
+                  isActive(l.to) ? 'text-white bg-white/15 shadow-sm' : 'text-ink-300 hover:text-white hover:bg-white/10')}>
                 {l.label}
               </Link>
             ))}
             <div className="relative" ref={catRef}>
               <button onClick={() => setCatOpen(!catOpen)}
-                className={cn('flex items-center gap-1 rounded-full px-3 py-1.5 text-sm font-medium transition-colors',
-                  catOpen ? 'text-white bg-white/10' : 'text-ink-300 hover:text-white hover:bg-white/5')}
+                className={cn('flex items-center gap-1 rounded-full px-3.5 py-2 text-sm font-medium transition-all duration-200',
+                  catOpen ? 'text-white bg-white/15 shadow-sm' : 'text-ink-300 hover:text-white hover:bg-white/10')}
                 aria-expanded={catOpen} aria-haspopup="true">
                 Categorias <ChevronDown className={cn('h-3.5 w-3.5 transition-transform', catOpen && 'rotate-180')} />
               </button>
@@ -104,9 +108,9 @@ export function Navbar() {
                   <input ref={searchRef} type="text" value={searchValue}
                     onChange={(e) => setSearchValue(e.target.value)}
                     placeholder="Buscar filmes, séries..."
-                    className="w-40 sm:w-64 rounded-full border border-white/20 bg-ink-800/80 px-4 py-2 text-sm text-white placeholder:text-ink-400 focus:border-brand-500 focus:outline-none" />
+                    className="w-44 sm:w-64 rounded-full border border-white/20 bg-ink-800/90 px-4 py-2 text-sm text-white placeholder:text-ink-400 focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500 transition-all" />
                   <button type="button" onClick={() => { setSearchOpen(false); setSearchValue(''); }}
-                    className="rounded-full p-2 text-ink-400 hover:text-white" aria-label="Fechar busca">
+                    className="rounded-full p-2 text-ink-400 hover:text-white transition" aria-label="Fechar busca">
                     <X className="h-4 w-4" />
                   </button>
                 </form>
@@ -121,20 +125,27 @@ export function Navbar() {
             {user ? (
               <div className="relative" ref={profileRef}>
                 <button onClick={() => setProfileOpen(!profileOpen)}
-                  className="flex items-center gap-2 rounded-full p-1 pr-3 transition hover:bg-white/10" aria-expanded={profileOpen}>
-                  <div className="flex h-8 w-8 items-center justify-center rounded-full bg-brand-600 text-white text-sm font-bold">
-                    {activeViewerProfile?.name?.[0]?.toUpperCase() || profile?.email?.[0]?.toUpperCase() || <User className="h-4 w-4" />}
+                  className="flex items-center gap-2.5 rounded-full p-1 pr-3 transition hover:bg-white/10" aria-expanded={profileOpen}>
+                  <div className="flex h-9 w-9 items-center justify-center rounded-full text-white text-sm font-bold shadow-md"
+                    style={{ backgroundColor: avatarColor }}>
+                    {avatarLetter || <User className="h-4 w-4" />}
                   </div>
-                  <span className="hidden sm:block text-sm text-ink-300 max-w-[120px] truncate">
+                  <span className="hidden sm:block text-sm text-ink-200 max-w-[100px] truncate font-medium">
                     {activeViewerProfile?.name || profile?.email?.split('@')[0]}
                   </span>
                   <ChevronDown className={cn('h-3.5 w-3.5 text-ink-400 transition-transform hidden sm:block', profileOpen && 'rotate-180')} />
                 </button>
                 {profileOpen && (
                   <div className="absolute right-0 top-full mt-2 w-64 rounded-xl border border-white/10 bg-ink-900/95 backdrop-blur-xl p-2 shadow-2xl animate-scale-in">
-                    <div className="border-b border-white/10 px-3 py-3">
-                      <p className="text-sm font-semibold text-white truncate">{activeViewerProfile?.name || profile?.email}</p>
-                      <p className="text-xs text-ink-400">{activeViewerProfile ? (activeViewerProfile.is_kid ? 'Perfil infantil' : 'Perfil normal') : 'Conta principal'}</p>
+                    <div className="border-b border-white/10 px-3 py-3 flex items-center gap-3">
+                      <div className="flex h-10 w-10 items-center justify-center rounded-full text-white text-sm font-bold shrink-0"
+                        style={{ backgroundColor: avatarColor }}>
+                        {avatarLetter || <User className="h-4 w-4" />}
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-sm font-semibold text-white truncate">{activeViewerProfile?.name || profile?.email}</p>
+                        <p className="text-xs text-ink-400">{activeViewerProfile ? (activeViewerProfile.is_kid ? 'Perfil infantil' : 'Perfil normal') : 'Conta principal'}</p>
+                      </div>
                     </div>
                     <div className="py-1">
                       <Link to="/perfil" onClick={() => setProfileOpen(false)} className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm text-ink-300 transition hover:bg-white/10 hover:text-white"><User className="h-4 w-4" /> Meu perfil</Link>
@@ -160,7 +171,7 @@ export function Navbar() {
             ) : (
               <div className="flex items-center gap-2">
                 <Link to="/login" className="hidden sm:inline-flex rounded-full px-4 py-2 text-sm font-medium text-white transition hover:bg-white/10">Entrar</Link>
-                <Link to="/cadastro" className="rounded-full bg-brand-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-brand-500">Assinar</Link>
+                <Link to="/cadastro" className="rounded-full bg-brand-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-brand-500 shadow-lg shadow-brand-900/20">Assinar</Link>
               </div>
             )}
 

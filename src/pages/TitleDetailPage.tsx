@@ -26,7 +26,11 @@ export function TitleDetailPage() {
   const [activeSeason, setActiveSeason] = useState<number | null>(null);
 
   const movieId = id || '';
+  const numericId = Number(movieId) || 1;
   const isTv = type === 'tv' || movie?.type === 'series' || movie?.type === 'tv';
+
+  // Hook SEMPRE no topo (regra dos hooks)
+  const favHook = useFavorite(numericId, isTv ? 'tv' : 'movie');
 
   useEffect(() => {
     async function load() {
@@ -63,7 +67,6 @@ export function TitleDetailPage() {
     load();
   }, [movieId, type, user, activeViewerProfile?.id]);
 
-  const favHook = movie && !isNaN(Number(movieId)) ? useFavorite(Number(movieId), isTv ? 'tv' : 'movie') : null;
   const isFav = favHook?.isFavorite ?? false;
   const toggleFav = favHook?.toggle;
   const canWatch = hasActiveSubscription(subscription) || movie?.type === 'trailer';
@@ -104,28 +107,31 @@ export function TitleDetailPage() {
 
   return (
     <div className="min-h-screen bg-ink-950">
-      <div className="relative h-[50vh] min-h-[300px] w-full sm:h-[55vh] lg:h-[65vh]">
-        <img src={movie.backdrop_url || movie.poster_url} alt="" className="h-full w-full object-cover" />
-        <div className="absolute inset-0 bg-gradient-to-t from-ink-950 via-ink-950/70 to-transparent" />
+      {/* Backdrop - ajustado para não cortar */}
+      <div className="relative h-[45vh] min-h-[280px] w-full sm:h-[50vh] md:h-[55vh] lg:h-[60vh]">
+        <img src={movie.backdrop_url || movie.poster_url} alt="" className="h-full w-full object-cover object-top" />
+        <div className="absolute inset-0 bg-gradient-to-t from-ink-950 via-ink-950/70 to-ink-950/20" />
         <div className="absolute inset-0 bg-gradient-to-r from-ink-950/90 via-ink-950/40 to-transparent" />
         <button onClick={() => navigate(-1)} className="absolute left-4 top-4 flex h-10 w-10 items-center justify-center rounded-full bg-black/40 text-white backdrop-blur-sm transition hover:bg-black/70 sm:left-6 sm:top-6" aria-label="Voltar">
           <ArrowLeft className="h-5 w-5" />
         </button>
       </div>
 
-      <div className="container-app relative -mt-32 sm:-mt-40 lg:-mt-48">
-        <div className="flex flex-col gap-8 lg:flex-row lg:gap-12">
+      <div className="container-app relative -mt-24 sm:-mt-32 md:-mt-40 lg:-mt-48">
+        <div className="flex flex-col gap-6 lg:flex-row lg:gap-10">
+          {/* Poster */}
           <div className="shrink-0 mx-auto lg:mx-0">
-            <div className="w-48 sm:w-56 lg:w-64 overflow-hidden rounded-2xl shadow-2xl shadow-black/50">
+            <div className="w-44 sm:w-52 lg:w-60 overflow-hidden rounded-2xl shadow-2xl shadow-black/50 ring-1 ring-white/10">
               <img src={movie.poster_url} alt={movie.title} className="h-full w-full object-cover" />
             </div>
           </div>
-          <div className="flex-1 space-y-5 pb-8">
+          {/* Info */}
+          <div className="flex-1 space-y-4 pb-8">
             <div>
-              <h1 className="text-3xl font-extrabold text-white sm:text-4xl lg:text-5xl">{movie.title}</h1>
+              <h1 className="text-2xl font-extrabold text-white sm:text-3xl md:text-4xl lg:text-5xl">{movie.title}</h1>
               {movie.original_title && movie.original_title !== movie.title && <p className="mt-1 text-sm text-ink-400">{movie.original_title}</p>}
             </div>
-            <div className="flex flex-wrap items-center gap-3">
+            <div className="flex flex-wrap items-center gap-2 sm:gap-3">
               {rating && Number(rating) > 0 && <span className="flex items-center gap-1 rounded-full bg-amber-500/20 px-3 py-1 text-sm font-bold text-amber-300"><Star className="h-4 w-4 fill-amber-300" />{rating}</span>}
               {year && <span className="flex items-center gap-1 text-sm text-ink-300"><Calendar className="h-4 w-4" />{year}</span>}
               {duration && <span className="flex items-center gap-1 text-sm text-ink-300"><Clock className="h-4 w-4" />{duration}</span>}
@@ -139,12 +145,12 @@ export function TitleDetailPage() {
             )}
             <p className="max-w-2xl text-sm leading-relaxed text-ink-200 sm:text-base">{movie.description || 'Sinopse não disponível.'}</p>
             <div className="flex flex-wrap items-center gap-3 pt-1">
-              <button onClick={handleWatch} className="btn-primary px-6 py-3">
-                <Play className="h-5 w-5" fill="currentColor" /> {canWatch ? 'Assistir Agora' : 'Assine para assistir'}
+              <button onClick={handleWatch} className="btn-primary px-5 py-2.5 sm:px-6 sm:py-3">
+                <Play className="h-4 w-4 sm:h-5 sm:w-5" fill="currentColor" /> {canWatch ? 'Assistir Agora' : 'Assine para assistir'}
               </button>
               {toggleFav && (
-                <button onClick={() => toggleFav()} className={`btn-ghost px-6 py-3 ${isFav ? 'text-brand-400' : ''}`}>
-                  {isFav ? <Check className="h-5 w-5" /> : <Plus className="h-5 w-5" />} {isFav ? 'Na Minha Lista' : 'Adicionar à Lista'}
+                <button onClick={() => toggleFav()} className={`btn-ghost px-5 py-2.5 sm:px-6 sm:py-3 ${isFav ? 'text-brand-400' : ''}`}>
+                  {isFav ? <Check className="h-4 w-4 sm:h-5 sm:w-5" /> : <Plus className="h-4 w-4 sm:h-5 sm:w-5" />} {isFav ? 'Na Minha Lista' : 'Minha Lista'}
                 </button>
               )}
             </div>
@@ -169,7 +175,7 @@ export function TitleDetailPage() {
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
               {episodes.map((ep) => (
                 <Link key={ep.id} to={`/assistir/${movieId}?episode=${ep.id}`}
-                  className="flex gap-3 rounded-xl border border-white/10 bg-ink-900/50 p-3 transition hover:bg-white/5">
+                  className="flex gap-3 rounded-xl border border-white/10 bg-ink-900/50 p-3 transition hover:bg-white/5 hover:border-white/20">
                   <div className="h-20 w-32 shrink-0 overflow-hidden rounded-lg bg-ink-800">
                     {ep.thumbnail_url ? <img src={ep.thumbnail_url} alt={ep.title} className="h-full w-full object-cover" /> : <Film className="h-full w-full p-6 text-ink-600" />}
                   </div>
@@ -213,10 +219,10 @@ export function TitleDetailPage() {
 function DetailSkeleton() {
   return (
     <div className="min-h-screen bg-ink-950">
-      <div className="h-[50vh] min-h-[300px] animate-pulse bg-ink-800/70 sm:h-[55vh] lg:h-[65vh]" />
-      <div className="container-app relative -mt-32 sm:-mt-40 lg:-mt-48">
-        <div className="flex flex-col gap-8 lg:flex-row lg:gap-12">
-          <div className="shrink-0 mx-auto lg:mx-0"><div className="w-48 sm:w-56 lg:w-64 aspect-[2/3] rounded-2xl bg-ink-800 skeleton" /></div>
+      <div className="h-[45vh] min-h-[280px] animate-pulse bg-ink-800/70 sm:h-[50vh] md:h-[55vh] lg:h-[60vh]" />
+      <div className="container-app relative -mt-24 sm:-mt-32 md:-mt-40 lg:-mt-48">
+        <div className="flex flex-col gap-6 lg:flex-row lg:gap-10">
+          <div className="shrink-0 mx-auto lg:mx-0"><div className="w-44 sm:w-52 lg:w-60 aspect-[2/3] rounded-2xl bg-ink-800 skeleton" /></div>
           <div className="flex-1 space-y-4">
             <div className="h-10 w-3/4 rounded-lg bg-ink-800 skeleton" />
             <div className="h-4 w-1/2 rounded bg-ink-800 skeleton" />

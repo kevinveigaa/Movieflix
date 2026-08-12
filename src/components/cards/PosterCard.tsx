@@ -22,13 +22,15 @@ export function PosterCard({
   const [imgError, setImgError] = useState(false);
   const { user } = useAuth();
 
-  const tmdbId = typeof title.id === 'number' ? title.id : undefined;
-  const favHook = tmdbId ? useFavorite(tmdbId, forceType || mediaType) : null;
-  const isFav = favHook?.isFavorite ?? false;
-  const toggleFav = favHook?.toggle;
+  // Sempre chamar o hook (regra dos hooks), mas só usar se tiver tmdbId válido
+  const tmdbId = typeof title?.id === 'number' ? title.id : 0;
+  const favType = (forceType || mediaType || 'movie') as 'movie' | 'tv';
+  const favHook = useFavorite(tmdbId || 1, favType);
+  const isFav = tmdbId ? favHook?.isFavorite ?? false : false;
+  const toggleFav = tmdbId ? favHook?.toggle : undefined;
 
-  const type = forceType || mediaType || (title.media_type as MediaType) || 'movie';
-  const linkTo = `/titulo/${type}/${title.id}`;
+  const type = forceType || mediaType || (title?.media_type as MediaType) || 'movie';
+  const linkTo = `/titulo/${type}/${title?.id}`;
   const year = title?.year || title?.release_date?.slice(0, 4) || title?.first_air_date?.slice(0, 4) || '';
   const rating = title?.vote_average || title?.vote_average === 0 ? Number(title.vote_average).toFixed(1) : null;
   const quality = title?.quality || 'HD';
@@ -37,11 +39,17 @@ export function PosterCard({
     <div className={cn('group relative flex w-full flex-col', className)}>
       <Link to={linkTo} aria-label={title?.title || title?.name || 'Ver detalhes'}
         className="relative aspect-[2/3] w-full overflow-hidden rounded-xl bg-ink-800">
-        <img src={imgError ? '/placeholder-poster.svg' : (title?.poster_url || title?.poster_path || '')}
+        <img src={imgError ? '' : (title?.poster_url || title?.poster_path || '')}
           alt={title?.title || title?.name || 'Poster'} loading="lazy"
           onLoad={() => setImgLoaded(true)} onError={() => setImgError(true)}
           className={cn('h-full w-full object-cover transition duration-500', imgLoaded ? 'opacity-100' : 'opacity-0', 'group-hover:scale-105')} />
         {!imgLoaded && !imgError && <div className="absolute inset-0 skeleton" />}
+        {imgError && (
+          <div className="absolute inset-0 flex flex-col items-center justify-center bg-ink-800 text-ink-500">
+            <Play className="h-8 w-8 mb-2" />
+            <span className="text-xs">{title?.title || 'Sem imagem'}</span>
+          </div>
+        )}
         <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/10 to-transparent opacity-60 transition-opacity group-hover:opacity-90" />
         <div className="absolute left-2 top-2 flex flex-wrap gap-1.5">
           <span className="rounded bg-black/60 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-white backdrop-blur-sm">{quality}</span>

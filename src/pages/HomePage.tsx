@@ -157,12 +157,12 @@ function CategoryRow({ title, items, icon, category, progressMap, verMaisTo }: {
 function CategoryRowSkeleton({ count = 4 }: { count?: number }) {
   return (
     <div className="space-y-12">
-      {Array.from({ length: count }).map((row, i) => (
-        <section key={i}>
+      {Array.from({ length: count }).map((_, idx) => (
+        <section key={`skeleton-${idx}`}>
           <div className="mb-4 h-7 w-48 animate-pulse rounded-lg bg-white/10" />
           <div className="flex gap-3 sm:gap-4 lg:gap-5">
-            {Array.from({ length: 6 }).map((j) => (
-              <div key={j} className="shrink-0 basis-[calc((100%-1.5rem)/3)] sm:basis-[calc((100%-3rem)/4)] md:basis-[calc((100%-4rem)/5)] lg:basis-[calc((100%-5rem)/6)] xl:basis-[calc((100%-6rem)/7)]">
+            {Array.from({ length: 6 }).map((_, j) => (
+              <div key={`sk-${idx}-${j}`} className="shrink-0 basis-[calc((100%-1.5rem)/3)] sm:basis-[calc((100%-3rem)/4)] md:basis-[calc((100%-4rem)/5)] lg:basis-[calc((100%-5rem)/6)] xl:basis-[calc((100%-6rem)/7)]">
                 <PosterCardSkeleton />
               </div>
             ))}
