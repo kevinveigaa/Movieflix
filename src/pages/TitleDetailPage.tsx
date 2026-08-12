@@ -4,7 +4,7 @@ import { supabase } from "@/lib/supabase";
 import { Play, ArrowLeft, Download, Lock, CheckCircle2, XCircle, Loader2, Clock, RotateCcw, ChevronDown, ChevronUp } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { useEntitlements } from "@/hooks/useEntitlements";
-import { useWatchHistory } from "@/hooks/useWatchHistory";
+import { useWatchHistory, useResetHistory } from "@/hooks/useWatchHistory";
 import { hasUnlimitedDownloads } from "@/lib/plans";
 import { downloadVideo } from "@/lib/hlsDownload";
 import {
