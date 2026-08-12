@@ -1,9 +1,6 @@
-import { useEffect, useState } from 'react';
 import { Link } from "react-router-dom";
 import { Play } from "lucide-react";
 import { cn } from "@/lib/cn";
-import { useAuth } from "@/context/AuthContext";
-import { supabase } from "@/lib/supabase";
 
 interface MovieCardProps {
   title: any;
@@ -19,31 +16,8 @@ export function PosterCard({
   className,
   forceType,
   mediaType = "movie",
-  progress: propProgress,
+  progress,
 }: MovieCardProps) {
-  const { user } = useAuth();
-  const [progress, setProgress] = useState<number | undefined>(propProgress);
-
-  // Se não recebeu progresso via prop, busca do Supabase
-  useEffect(() => {
-    if (propProgress !== undefined || !user || !title?.id) return;
-    let cancelled = false;
-    async function load() {
-      const { data } = await supabase
-        .from('watch_history')
-        .select('position_seconds, duration_seconds')
-        .eq('user_id', user.id)
-        .eq('movie_id', title.id)
-        .maybeSingle();
-      if (!cancelled && data && data.duration_seconds > 0) {
-        const pct = Math.min(100, Math.round((data.position_seconds / data.duration_seconds) * 100));
-        setProgress(pct > 2 && pct < 95 ? pct : undefined);
-      }
-    }
-    load();
-    return () => { cancelled = true; };
-  }, [user, title?.id, propProgress]);
-
   return (
     <Link
       to={`/titulo/${forceType || mediaType}/${title.id}`}
