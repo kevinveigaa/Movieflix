@@ -334,7 +334,7 @@ export function TitleDetailPage() {
                 // Para séries: vai para o último episódio assistido ou o primeiro
                 const targetEpisode = lastWatchedEpisode || firstEpisode;
                 if (targetEpisode) {
-                  window.location.href = '/#/assistir/' + movie.id + '?episode=' + targetEpisode.id;
+                  navigate('/assistir/' + movie.id + '?episode=' + targetEpisode.id);
                 } else {
                   setMsg?.({ tipo: "erro", texto: "Nenhum episódio disponível ainda." });
                 }
@@ -343,7 +343,7 @@ export function TitleDetailPage() {
                 if (canResume && historyRow) {
                   setShowResumeModal(true);
                 } else {
-                  window.location.href = '/#/assistir/' + movie.id;
+                  navigate('/assistir/' + movie.id);
                 }
               }
             }}
@@ -375,7 +375,7 @@ export function TitleDetailPage() {
                   <button
                     onClick={() => {
                       setShowResumeModal(false);
-                      window.location.href = '/#/assistir/' + movie.id;
+                      navigate('/assistir/' + movie.id);
                     }}
                     className="flex-1 rounded-lg bg-white/10 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-white/20 flex items-center justify-center gap-2"
                   >
@@ -385,7 +385,7 @@ export function TitleDetailPage() {
                   <button
                     onClick={() => {
                       setShowResumeModal(false);
-                      window.location.href = '/#/assistir/' + movie.id + '?t=' + historyRow.position_seconds;
+                      navigate('/assistir/' + movie.id + '?t=' + historyRow.position_seconds);
                     }}
                     className="flex-1 rounded-lg bg-brand-600 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-brand-500 flex items-center justify-center gap-2"
                   >
@@ -493,7 +493,7 @@ export function TitleDetailPage() {
                       <button
                         key={ep.id}
                         onClick={() => {
-                          window.location.href = `/#/assistir/${movie?.id}?episode=${ep.id}`;
+                          navigate(`/assistir/${movie?.id}?episode=${ep.id}`);
                         }}
                         className="w-full flex items-center gap-4 p-3 rounded-xl bg-zinc-900/50 border border-zinc-800 hover:bg-zinc-800 hover:border-zinc-700 transition text-left group"
                       >
