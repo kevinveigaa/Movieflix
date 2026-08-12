@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, useMemo } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
 import { supabase } from '@/lib/supabase';
-import { ChevronLeft, Film, Volume2, VolumeX, Cast, Monitor, Smartphone, Tv } from 'lucide-react';
+import { ChevronLeft, Film, Volume2, VolumeX, Cast, Tv } from 'lucide-react';
 import Hls from 'hls.js';
 
 declare global {
@@ -240,29 +240,37 @@ export function PlayerPage() {
   }
 
   function handleCast() {
+    const video = videoRef.current;
+    const ua = navigator.userAgent.toLowerCase();
+    const isIOS = /iphone|ipad|ipod/.test(ua);
+    const isAndroid = ua.includes('android');
+
+    // === iPhone / iPad → AirPlay direto ===
+    if (isIOS && video && (video as any).webkitShowPlaybackTargetPicker) {
+      (video as any).webkitShowPlaybackTargetPicker();
+      return;
+    }
+
+    // === Android (Samsung, Xiaomi, Motorola, etc) → Seletor nativo do sistema ===
+    // getDisplayMedia abre o seletor do Android: Smart View, Cast, Miracast, etc
+    if (isAndroid) {
+      tryWebRTCCast();
+      return;
+    }
+
+    // === PC Chrome → Google Cast ===
     if (window.cast && window.chrome) {
       const castContext = window.cast.framework.CastContext.getInstance();
       const session = castContext.getCurrentSession();
       if (session) { session.endSession(true); setCastState('available'); return; }
       castContext.requestSession().then(
         () => setCastState('connecting'),
-        () => tryAirPlay()
+        () => tryWebRTCCast()
       );
       return;
     }
-    tryAirPlay();
-  }
 
-  function tryAirPlay() {
-    const video = videoRef.current;
-    if (video && (video as any).webkitShowPlaybackTargetPicker) {
-      (video as any).webkitShowPlaybackTargetPicker();
-      return;
-    }
-    if ('presentation' in navigator) {
-      (navigator as any).presentation.defaultRequest?.start().catch(() => setShowCastModal(true));
-      return;
-    }
+    // === PC outros / Fallback → Compartilhar Tela ===
     tryWebRTCCast();
   }
 
@@ -280,7 +288,10 @@ export function PlayerPage() {
           setCastState('none');
         };
       }
-    } catch { setShowCastModal(true); }
+    } catch {
+      // Se o usuário cancelou o seletor nativo, não faz nada
+      console.log('[Cast] Usuário cancelou o espelhamento');
+    }
   }
 
   // HLS
@@ -470,41 +481,7 @@ export function PlayerPage() {
         </div>
       )}
 
-      {showCastModal && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 backdrop-blur-sm px-4" onClick={() => setShowCastModal(false)}>
-          <div className="w-full max-w-sm rounded-2xl bg-zinc-900 border border-zinc-800 p-6 text-center shadow-2xl" onClick={(e) => e.stopPropagation()}>
-            <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-zinc-800">
-              <Cast className="h-7 w-7 text-red-500" />
-            </div>
-            <h3 className="mb-2 text-lg font-bold text-white">Espelhar na TV</h3>
-            <p className="mb-4 text-sm text-zinc-400 leading-relaxed">Selecione como deseja espelhar:</p>
-            <div className="space-y-2 mb-4">
-              <button
-                onClick={() => { setShowCastModal(false); tryAirPlay(); }}
-                className="w-full flex items-center gap-3 rounded-xl bg-zinc-800 px-4 py-3 text-sm text-white transition hover:bg-zinc-700"
-              >
-                <Smartphone className="h-5 w-5 text-zinc-400" />
-                <span className="text-left flex-1">AirPlay (iPhone/iPad)</span>
-              </button>
-              <button
-                onClick={() => { setShowCastModal(false); if (window.cast && window.chrome) { const ctx = window.cast.framework.CastContext.getInstance(); ctx.requestSession(); } }}
-                className="w-full flex items-center gap-3 rounded-xl bg-zinc-800 px-4 py-3 text-sm text-white transition hover:bg-zinc-700"
-              >
-                <Cast className="h-5 w-5 text-zinc-400" />
-                <span className="text-left flex-1">Chromecast (Android/PC)</span>
-              </button>
-              <button
-                onClick={() => { setShowCastModal(false); tryWebRTCCast(); }}
-                className="w-full flex items-center gap-3 rounded-xl bg-zinc-800 px-4 py-3 text-sm text-white transition hover:bg-zinc-700"
-              >
-                <Monitor className="h-5 w-5 text-zinc-400" />
-                <span className="text-left flex-1">Compartilhar Tela (WebRTC)</span>
-              </button>
-            </div>
-            <button onClick={() => setShowCastModal(false)} className="w-full rounded-xl bg-zinc-800 px-4 py-3 text-sm font-semibold text-zinc-300 transition hover:bg-zinc-700">Cancelar</button>
-          </div>
-        </div>
-      )}
+
 
       {movie && (
         <div className="px-4 py-6 max-w-5xl mx-auto">
