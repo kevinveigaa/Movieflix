@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, useMemo } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
 import { supabase } from '@/lib/supabase';
-import { ChevronLeft, Film, Volume2, VolumeX } from 'lucide-react';
+import { ChevronLeft, Film, Volume2, VolumeX, Cast } from 'lucide-react';
 import Hls from 'hls.js';
 
 export function PlayerPage() {
@@ -386,6 +386,20 @@ export function PlayerPage() {
     );
   }
 
+  const handleCast = () => {
+    const video = videoRef.current;
+    if (!video) return;
+    // Tenta ativar o espelhamento nativo do navegador (AirPlay/Chromecast)
+    if ((video as any).webkitShowPlaybackTargetPicker) {
+      (video as any).webkitShowPlaybackTargetPicker();
+    } else if ((navigator as any).presentation) {
+      // Presentation API fallback
+      alert('Use o menu de casting do seu navegador ou dispositivo para espelhar na TV.');
+    } else {
+      alert('Para espelhar na TV, use o botão de cast do seu navegador ou dispositivo.');
+    }
+  };
+
   const handleBack = () => {
     const video = videoRef.current;
     if (video) doSave(Math.floor(video.currentTime), Math.floor(video.duration || 0));
@@ -421,6 +435,18 @@ export function PlayerPage() {
           </div>
         )}
       </div>
+
+      {videoUrl && (
+        <div className="px-4 pt-4 max-w-5xl mx-auto">
+          <button
+            onClick={handleCast}
+            className="flex items-center gap-2 rounded-lg bg-zinc-800/80 hover:bg-zinc-700 px-4 py-2 text-sm font-medium text-zinc-200 transition"
+          >
+            <Cast className="h-4 w-4" />
+            Espelhar na TV
+          </button>
+        </div>
+      )}
 
       {movie && (
         <div className="px-4 py-6 max-w-5xl mx-auto">
