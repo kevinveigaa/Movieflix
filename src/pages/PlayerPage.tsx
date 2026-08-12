@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, useMemo } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
 import { supabase } from '@/lib/supabase';
-import { ChevronLeft, Film, Volume2, VolumeX } from 'lucide-react';
+import { ChevronLeft, Film } from 'lucide-react';
 import Hls from 'hls.js';
 
 export function PlayerPage() {
@@ -16,10 +16,8 @@ export function PlayerPage() {
   const [msg, setMsg] = useState<{ tipo: 'erro' | 'info'; texto: string } | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const iframeRef = useRef<HTMLIFrameElement>(null);
-  const audioCtxRef = useRef<AudioContext | null>(null);
-  const gainNodeRef = useRef<GainNode | null>(null);
-  const [volumeBoost, setVolumeBoost] = useState(1.5);
-  const [isMuted, setIsMuted] = useState(false);
+
+
   const lastSaveRef = useRef(0);
 
   // Refs para evitar stale closures no salvamento
@@ -320,44 +318,6 @@ export function PlayerPage() {
     };
   }, []); // Só roda uma vez - usa refs para dados atualizados
 
-  // Web Audio API para boostar volume
-  useEffect(() => {
-    const video = videoRef.current;
-    if (!video || !videoUrl || isBunny) return;
-
-    try {
-      const AudioContextClass = (window as any).AudioContext || (window as any).webkitAudioContext;
-      if (!AudioContextClass) return;
-
-      const audioCtx = new AudioContextClass();
-      audioCtxRef.current = audioCtx;
-
-      const source = audioCtx.createMediaElementSource(video);
-      const gainNode = audioCtx.createGain();
-      gainNodeRef.current = gainNode;
-
-      source.connect(gainNode);
-      gainNode.connect(audioCtx.destination);
-
-      video.volume = 1;
-      gainNode.gain.value = volumeBoost;
-    } catch (e) {
-      video.volume = 1;
-    }
-
-    return () => {
-      if (audioCtxRef.current && audioCtxRef.current.state !== 'closed') {
-        audioCtxRef.current.close();
-      }
-    };
-  }, [movie, videoUrl, isBunny, volumeBoost]);
-
-  // Atualiza o gain
-  useEffect(() => {
-    if (gainNodeRef.current) {
-      gainNodeRef.current.gain.value = isMuted ? 0 : volumeBoost;
-    }
-  }, [volumeBoost, isMuted]);
 
   // BunnyCDN iframe volume
   useEffect(() => {
@@ -493,22 +453,7 @@ export function PlayerPage() {
             >
               <source src={videoUrl} type={videoUrl.includes('.m3u8') ? 'application/x-mpegURL' : 'video/mp4'} />
             </video>
-            {/* Controle de volume boost */}
-            <div className="absolute bottom-16 right-4 flex items-center gap-2 bg-black/70 backdrop-blur rounded-full px-3 py-1.5">
-              <button onClick={() => setIsMuted(!isMuted)} className="text-white hover:text-red-500 transition">
-                {isMuted ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
-              </button>
-              <span className="text-xs text-zinc-300">{isMuted ? 'Mudo' : `Vol ${Math.round(volumeBoost * 100)}%`}</span>
-              <input
-                type="range"
-                min="1"
-                max="3"
-                step="0.1"
-                value={volumeBoost}
-                onChange={(e) => setVolumeBoost(parseFloat(e.target.value))}
-                className="w-20 accent-red-600"
-              />
-            </div>
+
           </div>
         ) : (
           <div className="flex h-[60vh] flex-col items-center justify-center text-center gap-4">
