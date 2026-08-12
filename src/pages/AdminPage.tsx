@@ -8,6 +8,7 @@ import {
 } from "lucide-react";
 import { CATEGORIAS, categoriasDoFilme, normalizar } from "@/lib/categorias";
 import { useQueryClient } from "@tanstack/react-query";
+import { ErrorBoundary } from "@/components/ui/ErrorBoundary";
 
 const ADMIN_EMAIL = "veigakevin71@gmail.com";
 
@@ -76,7 +77,7 @@ export function AdminPage() {
   const [seasons, setSeasons] = useState<Season[]>([]);
   const [episodes, setEpisodes] = useState<Record<string, Episode[]>>({});
   const [loadingSeries, setLoadingSeries] = useState(false);
-  const [expandedSeason, setExpandedSeason] = useState<string | null>(null);
+  const [expandedSeason, setExpandedSeason] = useState<string | number | null>(null);
 
   // Form para nova temporada
   const [newSeasonNumber, setNewSeasonNumber] = useState(1);
@@ -376,10 +377,11 @@ export function AdminPage() {
     const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="400" height="225" viewBox="0 0 400 225">
       <rect width="400" height="225" fill="#0a0a0a"/>
       <rect x="20" y="20" width="360" height="185" rx="12" fill="#1a1a1a" stroke="#333" stroke-width="2"/>
-      <text x="200" y="100" font-family="Arial, sans-serif" font-size="20" fill="#666" text-anchor="middle">EPISÓDIO</text>
+      <text x="200" y="100" font-family="Arial, sans-serif" font-size="20" fill="#666" text-anchor="middle">EPISODIO</text>
       <text x="200" y="145" font-family="Arial, sans-serif" font-size="56" fill="#e50914" font-weight="bold" text-anchor="middle">${numero}</text>
     </svg>`;
-    return `data:image/svg+xml;base64,${btoa(unescape(encodeURIComponent(svg)))}`;
+    // utf8 -> data URI sem btoa: btoa quebra com acentos em alguns WebViews.
+    return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
   }
 
   async function buscarCapaEpisodioTMDB(seasonNum: number, epNum: number) {
@@ -602,6 +604,7 @@ export function AdminPage() {
           </div>
 
           {mostrarTemporadas && (
+            <ErrorBoundary titulo="Não foi possível carregar temporadas e episódios.">
             <div className="mt-8 space-y-6 border-t border-white/10 pt-8">
               <h3 className="text-lg font-bold flex items-center gap-2">
                 <Layers className="h-5 w-5 text-brand-400" />
@@ -628,15 +631,20 @@ export function AdminPage() {
                 <div className="space-y-3">
                   {seasons.map((season) => (
                     <div key={season.id} className="rounded-2xl border border-white/10 bg-ink-900 overflow-hidden">
-                      <button onClick={() => setExpandedSeason(expandedSeason === season.id ? null : season.id)} className="flex w-full items-center justify-between p-4 hover:bg-white/5">
-                        <div className="flex items-center gap-3">
-                          {expandedSeason === season.id ? <ChevronUp className="h-5 w-5" /> : <ChevronDown className="h-5 w-5" />}
+                      <div className="flex w-full items-center justify-between p-4 hover:bg-white/5">
+                        <button
+                          type="button"
+                          onClick={() => setExpandedSeason(expandedSeason === season.id ? null : season.id)}
+                          className="flex min-w-0 flex-1 items-center gap-3 text-left"
+                          aria-expanded={expandedSeason === season.id}
+                        >
+                          {expandedSeason === season.id ? <ChevronUp className="h-5 w-5 shrink-0" /> : <ChevronDown className="h-5 w-5 shrink-0" />}
                           <span className="font-bold">Temporada {season.season_number}</span>
-                          {season.title && <span className="text-zinc-400">- {season.title}</span>}
+                          {season.title && <span className="truncate text-zinc-400">- {season.title}</span>}
                           <span className="text-xs text-zinc-500">({episodes[season.id]?.length ?? 0} episódios)</span>
-                        </div>
-                        <button onClick={(e) => { e.stopPropagation(); deleteSeason(season.id); }} className="rounded-full p-2 text-red-400 hover:bg-red-600/20"><Trash2 className="h-4 w-4" /></button>
-                      </button>
+                        </button>
+                        <button type="button" onClick={() => deleteSeason(season.id)} className="ml-2 shrink-0 rounded-full p-2 text-red-400 hover:bg-red-600/20" title="Excluir temporada"><Trash2 className="h-4 w-4" /></button>
+                      </div>
 
                       {expandedSeason === season.id && (
                         <div className="border-t border-white/10 p-4">
@@ -708,9 +716,11 @@ export function AdminPage() {
                 </div>
               )}
             </div>
+            </ErrorBoundary>
           )}
         </div>
       )}
     </div>
   );
 }
+
