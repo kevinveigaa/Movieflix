@@ -12,6 +12,7 @@ export function PlayerPage() {
   const { user, loading: authLoading, activeViewerProfile } = useAuth();
   const [movie, setMovie] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [msg, setMsg] = useState<{ tipo: 'erro' | 'info'; texto: string } | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const audioCtxRef = useRef<AudioContext | null>(null);
@@ -183,10 +184,46 @@ export function PlayerPage() {
       if (error) {
         console.error('[Player] Erro ao carregar filme:', error);
         setMsg({ tipo: 'erro', texto: `Erro ao carregar: ${error.message}` });
+        setLoading(false);
+        return;
       }
       if (data) {
-        setMovie(data);
         console.log('[Player] Filme carregado:', data.title);
+        // Se for uma série (tem temporadas ou media_type tv) e não tem video_url próprio,
+        // tenta carregar o primeiro episódio disponível
+        const isSeries = data.media_type === 'tv' || data.number_of_seasons > 0 || data.number_of_episodes > 0;
+        if (isSeries && !data.video_url) {
+          console.log('[Player] Série sem video_url, buscando primeiro episódio...');
+          const { data: firstEp, error: epErr } = await supabase
+            .from('episodes')
+            .select('*, seasons!inner(season_number)')
+            .eq('seasons.series_id', data.id)
+            .not('video_url', 'is', null)
+            .order('season_number', { referencedTable: 'seasons', ascending: true })
+            .order('episode_number', { ascending: true })
+            .limit(1)
+            .maybeSingle();
+
+          if (firstEp && firstEp.video_url) {
+            console.log('[Player] Primeiro episódio encontrado:', firstEp);
+            setMovie({
+              ...data,
+              title: `${data.title || 'Série'} - T${firstEp.seasons?.season_number || '?'} E${firstEp.episode_number}: ${firstEp.title}`,
+              video_url: firstEp.video_url,
+              description: firstEp.description || data.description,
+              poster_url: firstEp.thumbnail_url || data.poster_url,
+            });
+            episodeIdRef.current = String(firstEp.id);
+            setLoading(false);
+            return;
+          } else {
+            console.log('[Player] Nenhum episódio com video_url encontrado');
+            setMovie(data);
+            setLoading(false);
+            return;
+          }
+        }
+        setMovie(data);
       }
       setLoading(false);
     }
@@ -400,6 +437,17 @@ export function PlayerPage() {
     );
   }
 
+  // Renderiza mensagem de erro/info se existir
+  if (msg) {
+    return (
+      <div className="min-h-screen bg-black text-white flex flex-col items-center justify-center gap-4 px-4">
+        <Film className="h-16 w-16 text-red-600" />
+        <h2 className="text-xl font-bold text-center">{msg.texto}</h2>
+        <button onClick={() => navigate(-1)} className="rounded-xl bg-red-600 px-8 py-3 font-semibold">Voltar</button>
+      </div>
+    );
+  }
+
   const handleBack = () => {
     const video = videoRef.current;
     if (video) {
@@ -465,6 +513,10 @@ export function PlayerPage() {
           <div className="flex h-[60vh] flex-col items-center justify-center text-center gap-4">
             <Film className="h-16 w-16 text-zinc-600" />
             <h2 className="text-xl font-bold">Video nao disponivel</h2>
+            <p className="text-zinc-400 text-sm max-w-md">
+              Este título não possui vídeo cadastrado. Se for uma série, certifique-se de que os episódios tenham URLs de vídeo no painel administrativo.
+            </p>
+            <button onClick={handleBack} className="rounded-xl bg-red-600 px-6 py-2 font-semibold text-sm">Voltar</button>
           </div>
         )}
       </div>
