@@ -352,7 +352,6 @@ export function PlayerPage() {
         )}
       </div>
 
-}
 
 
 
