@@ -411,13 +411,6 @@ export function PlayerPage() {
             <video ref={videoRef} controls playsInline preload="auto" className="w-full h-full" style={{ backgroundColor: '#000', maxHeight: '80vh' }} poster={movie?.backdrop_url || movie?.poster_url}>
               <source src={videoUrl} type={videoUrl.includes('.m3u8') ? 'application/x-mpegURL' : 'video/mp4'} />
             </video>
-            <div className="absolute bottom-16 right-4 flex items-center gap-2 bg-black/70 backdrop-blur rounded-full px-3 py-1.5">
-              <button onClick={() => setIsMuted(!isMuted)} className="text-white hover:text-red-500 transition">
-                {isMuted ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
-              </button>
-              <span className="text-xs text-zinc-300">{isMuted ? 'Mudo' : `Vol ${Math.round(volumeBoost * 100)}%`}</span>
-              <input type="range" min="1" max="3" step="0.1" value={volumeBoost} onChange={(e) => setVolumeBoost(parseFloat(e.target.value))} className="w-20 accent-red-600" />
-            </div>
           </div>
         ) : (
           <div className="flex h-[60vh] flex-col items-center justify-center text-center gap-4">
