@@ -2,8 +2,16 @@ import { useEffect, useRef, useState, useMemo } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
 import { supabase } from '@/lib/supabase';
-import { ChevronLeft, Film, Volume2, VolumeX, Cast } from 'lucide-react';
+import { ChevronLeft, Film, Volume2, VolumeX, Cast, Monitor, Smartphone, Tv } from 'lucide-react';
 import Hls from 'hls.js';
+
+declare global {
+  interface Window {
+    cast?: any;
+    chrome?: any;
+    __onGCastApiAvailable?: (isAvailable: boolean) => void;
+  }
+}
 
 export function PlayerPage() {
   const { id } = useParams();
@@ -21,6 +29,7 @@ export function PlayerPage() {
   const [volumeBoost, setVolumeBoost] = useState(1.5);
   const [isMuted, setIsMuted] = useState(false);
   const [showCastModal, setShowCastModal] = useState(false);
+  const [castState, setCastState] = useState<'none' | 'available' | 'connecting' | 'connected'>('none');
   const lastSaveRef = useRef(0);
 
   const movieRef = useRef<any>(null);
@@ -28,6 +37,7 @@ export function PlayerPage() {
   const profileRef = useRef<any>(null);
   const isBunnyRef = useRef(false);
   const episodeIdRef = useRef<string | null>(null);
+  const castSessionRef = useRef<any>(null);
 
   useEffect(() => { movieRef.current = movie; }, [movie]);
   useEffect(() => { userRef.current = user; }, [user]);
@@ -55,18 +65,15 @@ export function PlayerPage() {
     if (!u || !m || !m.id) return;
     if (positionSeconds < 3) return;
     if (durationSeconds > 0 && positionSeconds / durationSeconds >= 0.95) return;
-
     const now = Date.now();
     if (now - lastSaveRef.current < 3000) return;
     lastSaveRef.current = now;
-
     try {
       const profileId = profileRef.current?.id || null;
       let query = supabase.from('watch_history').select('id').eq('user_id', u.id).eq('movie_id', m.id);
       if (profileId) query = query.eq('viewer_profile_id', profileId);
       else query = query.is('viewer_profile_id', null);
       const { data: existing } = await query.maybeSingle();
-
       const payload: any = {
         position_seconds: positionSeconds,
         duration_seconds: durationSeconds,
@@ -77,7 +84,6 @@ export function PlayerPage() {
       };
       const epId = episodeIdRef.current;
       if (epId) payload.episode_id = epId;
-
       if (existing) {
         await supabase.from('watch_history').update(payload).eq('id', existing.id);
       } else {
@@ -95,75 +101,43 @@ export function PlayerPage() {
     }
   }
 
-  // === CARREGAMENTO PRINCIPAL ===
   useEffect(() => {
     async function load() {
       if (!id) { setLoading(false); return; }
-
       const episodeIdRaw = searchParams.get('episode');
       const episodeId = episodeIdRaw ? parseInt(episodeIdRaw, 10) : null;
       episodeIdRef.current = episodeIdRaw;
-
       console.log('[Player] Carregando:', { id, episodeId, episodeIdRaw });
 
-      // --- CASO 1: Episódio específico na URL ---
       if (episodeId && !isNaN(episodeId)) {
         console.log('[Player] Modo episódio. ID:', episodeId);
-
-        // Busca o episódio direto (sem join complexo)
         const { data: epData, error: epError } = await supabase
-          .from('episodes')
-          .select('*')
-          .eq('id', episodeId)
-          .maybeSingle();
-
+          .from('episodes').select('*').eq('id', episodeId).maybeSingle();
         if (epError) {
           console.error('[Player] Erro Supabase episódio:', epError);
           setMsg({ tipo: 'erro', texto: 'Erro ao buscar episódio no banco de dados.' });
-          setLoading(false);
-          return;
+          setLoading(false); return;
         }
-
         if (!epData) {
           console.error('[Player] Episódio não existe. ID:', episodeId);
           setMsg({ tipo: 'erro', texto: 'Episódio não encontrado. Ele pode ter sido excluído.' });
-          setLoading(false);
-          return;
+          setLoading(false); return;
         }
-
         console.log('[Player] Episódio encontrado:', epData);
-
-        // Busca a season separadamente
-        const { data: seasonData } = await supabase
-          .from('seasons')
-          .select('*')
-          .eq('id', epData.season_id)
-          .maybeSingle();
-
-        // Busca a série separadamente
+        const { data: seasonData } = await supabase.from('seasons').select('*').eq('id', epData.season_id).maybeSingle();
         const seriesId = seasonData?.series_id || id;
-        const { data: seriesData, error: seriesError } = await supabase
-          .from('movies')
-          .select('*')
-          .eq('id', seriesId)
-          .maybeSingle();
-
+        const { data: seriesData, error: seriesError } = await supabase.from('movies').select('*').eq('id', seriesId).maybeSingle();
         if (seriesError || !seriesData) {
           console.error('[Player] Erro ao carregar série:', seriesError);
           setMsg({ tipo: 'erro', texto: 'Erro ao carregar série.' });
-          setLoading(false);
-          return;
+          setLoading(false); return;
         }
-
         if (!epData.video_url) {
           setMsg({ tipo: 'erro', texto: 'Este episódio não tem URL de vídeo cadastrada. Edite no painel admin.' });
-          setLoading(false);
-          return;
+          setLoading(false); return;
         }
-
         setMovie({
-          ...seriesData,
-          id: seriesData.id,
+          ...seriesData, id: seriesData.id,
           title: `${seriesData.title || 'Série'} - T${seasonData?.season_number || '?'} E${epData.episode_number}: ${epData.title}`,
           video_url: epData.video_url,
           description: epData.description || seriesData.description,
@@ -171,58 +145,31 @@ export function PlayerPage() {
           backdrop_url: seriesData.backdrop_url,
         });
         console.log('[Player] Episódio pronto para tocar');
-        setLoading(false);
-        return;
+        setLoading(false); return;
       }
 
-      // --- CASO 2: Filme/Série sem episódio na URL ---
       console.log('[Player] Modo filme/série. ID:', id);
       const { data, error } = await supabase.from('movies').select('*').eq('id', id).maybeSingle();
-
       if (error) {
         console.error('[Player] Erro ao carregar filme:', error);
         setMsg({ tipo: 'erro', texto: `Erro ao carregar: ${error.message}` });
-        setLoading(false);
-        return;
+        setLoading(false); return;
       }
-
       if (!data) {
         setMsg({ tipo: 'erro', texto: 'Título não encontrado no catálogo.' });
-        setLoading(false);
-        return;
+        setLoading(false); return;
       }
-
-      console.log('[Player] Título carregado:', data.title, '| video_url:', data.video_url, '| type:', data.type, '| media_type:', data.media_type);
-
-      // Se for série e não tiver video_url próprio, busca primeiro episódio
+      console.log('[Player] Título carregado:', data.title, '| video_url:', data.video_url, '| type:', data.type);
       const isSeries = data.type === 'series' || data.type === 'tv' || data.type === 'anime' || data.media_type === 'tv' || (data.number_of_seasons > 0);
       if (isSeries && !data.video_url) {
         console.log('[Player] Série sem video_url. Buscando primeiro episódio...');
-
-        // Busca todas as seasons desta série
-        const { data: seasonsData } = await supabase
-          .from('seasons')
-          .select('*')
-          .eq('series_id', data.id)
-          .order('season_number', { ascending: true });
-
+        const { data: seasonsData } = await supabase.from('seasons').select('*').eq('series_id', data.id).order('season_number', { ascending: true });
         if (!seasonsData || seasonsData.length === 0) {
           console.log('[Player] Nenhuma temporada encontrada');
-          setMovie(data);
-          setLoading(false);
-          return;
+          setMovie(data); setLoading(false); return;
         }
-
-        // Busca episódios da primeira temporada
         const firstSeason = seasonsData[0];
-        const { data: epsData } = await supabase
-          .from('episodes')
-          .select('*')
-          .eq('season_id', firstSeason.id)
-          .not('video_url', 'is', null)
-          .order('episode_number', { ascending: true })
-          .limit(1);
-
+        const { data: epsData } = await supabase.from('episodes').select('*').eq('season_id', firstSeason.id).not('video_url', 'is', null).order('episode_number', { ascending: true }).limit(1);
         if (epsData && epsData.length > 0 && epsData[0].video_url) {
           const firstEp = epsData[0];
           console.log('[Player] Primeiro episódio encontrado:', firstEp.title);
@@ -234,35 +181,107 @@ export function PlayerPage() {
             poster_url: firstEp.thumbnail_url || data.poster_url,
           });
           episodeIdRef.current = String(firstEp.id);
-          setLoading(false);
-          return;
+          setLoading(false); return;
         }
-
         console.log('[Player] Nenhum episódio com video_url encontrado');
-        setMovie(data);
-        setLoading(false);
-        return;
+        setMovie(data); setLoading(false); return;
       }
-
-      // Filme normal ou série com video_url próprio
-      setMovie(data);
-      setLoading(false);
+      setMovie(data); setLoading(false);
     }
-
     load();
-
     const timeout = setTimeout(() => {
-      setLoading((current) => {
-        if (current) {
-          console.warn('[Player] Timeout de segurança');
-          return false;
-        }
-        return current;
-      });
+      setLoading((current) => { if (current) { console.warn('[Player] Timeout de segurança'); return false; } return current; });
     }, 15000);
-
     return () => clearTimeout(timeout);
   }, [id, searchParams]);
+
+  // === CASTING ===
+  useEffect(() => {
+    window.__onGCastApiAvailable = (isAvailable: boolean) => {
+      if (isAvailable && window.cast && window.chrome) {
+        const castContext = window.cast.framework.CastContext.getInstance();
+        castContext.setOptions({
+          receiverApplicationId: window.chrome.cast.media.DEFAULT_MEDIA_RECEIVER_APP_ID,
+          autoJoinPolicy: window.chrome.cast.AutoJoinPolicy.ORIGIN_SCOPED,
+        });
+        castContext.addEventListener(
+          window.cast.framework.CastContextEventType.SESSION_STATE_CHANGED,
+          (event: any) => {
+            if (event.sessionState === window.cast.framework.SessionState.SESSION_STARTED) {
+              setCastState('connected');
+              castSessionRef.current = castContext.getCurrentSession();
+              startCasting(castSessionRef.current);
+            } else if (event.sessionState === window.cast.framework.SessionState.SESSION_ENDED) {
+              setCastState('none');
+              castSessionRef.current = null;
+            }
+          }
+        );
+        const session = castContext.getCurrentSession();
+        if (session) { setCastState('connected'); castSessionRef.current = session; }
+        else { setCastState('available'); }
+      }
+    };
+  }, []);
+
+  function startCasting(session: any) {
+    if (!session || !videoUrl) return;
+    const mediaInfo = new window.chrome.cast.media.MediaInfo(videoUrl, 'video/mp4');
+    mediaInfo.metadata = new window.chrome.cast.media.GenericMediaMetadata();
+    mediaInfo.metadata.title = movie?.title || 'MovieFlix';
+    mediaInfo.metadata.subtitle = movie?.description || '';
+    if (movie?.poster_url) mediaInfo.metadata.images = [{ url: movie.poster_url }];
+    const request = new window.chrome.cast.media.LoadRequest(mediaInfo);
+    request.autoplay = true;
+    session.loadMedia(request).then(
+      () => console.log('[Cast] Mídia carregada com sucesso'),
+      (error: any) => console.error('[Cast] Erro ao carregar mídia:', error)
+    );
+  }
+
+  function handleCast() {
+    if (window.cast && window.chrome) {
+      const castContext = window.cast.framework.CastContext.getInstance();
+      const session = castContext.getCurrentSession();
+      if (session) { session.endSession(true); setCastState('available'); return; }
+      castContext.requestSession().then(
+        () => setCastState('connecting'),
+        () => tryAirPlay()
+      );
+      return;
+    }
+    tryAirPlay();
+  }
+
+  function tryAirPlay() {
+    const video = videoRef.current;
+    if (video && (video as any).webkitShowPlaybackTargetPicker) {
+      (video as any).webkitShowPlaybackTargetPicker();
+      return;
+    }
+    if ('presentation' in navigator) {
+      (navigator as any).presentation.defaultRequest?.start().catch(() => setShowCastModal(true));
+      return;
+    }
+    tryWebRTCCast();
+  }
+
+  async function tryWebRTCCast() {
+    try {
+      const stream = await (navigator as any).mediaDevices.getDisplayMedia({ video: true, audio: true });
+      const video = videoRef.current;
+      if (video) {
+        video.srcObject = stream;
+        video.play();
+        setCastState('connected');
+        stream.getVideoTracks()[0].onended = () => {
+          video.srcObject = null;
+          if (videoUrl) video.src = videoUrl;
+          setCastState('none');
+        };
+      }
+    } catch { setShowCastModal(true); }
+  }
 
   // HLS
   useEffect(() => {
@@ -331,7 +350,7 @@ export function PlayerPage() {
 
   useEffect(() => { if (gainNodeRef.current) gainNodeRef.current.gain.value = isMuted ? 0 : volumeBoost; }, [volumeBoost, isMuted]);
 
-  // Bunny iframe volume
+  // Bunny iframe
   useEffect(() => {
     const iframe = iframeRef.current;
     if (!iframe || !isBunny) return;
@@ -387,22 +406,14 @@ export function PlayerPage() {
     );
   }
 
-  const handleCast = () => {
-    const video = videoRef.current;
-    if (!video) { setShowCastModal(true); return; }
-    // Tenta ativar o espelhamento nativo do navegador (AirPlay/Chromecast)
-    if ((video as any).webkitShowPlaybackTargetPicker) {
-      (video as any).webkitShowPlaybackTargetPicker();
-    } else {
-      setShowCastModal(true);
-    }
-  };
-
   const handleBack = () => {
     const video = videoRef.current;
     if (video) doSave(Math.floor(video.currentTime), Math.floor(video.duration || 0));
     navigate(-1);
   };
+
+  const castIcon = castState === 'connected' ? <Tv className="h-4 w-4 text-green-400" /> : <Cast className="h-4 w-4" />;
+  const castLabel = castState === 'connected' ? 'Transmitindo' : castState === 'connecting' ? 'Conectando...' : 'Espelhar na TV';
 
   return (
     <div className="min-h-screen bg-black text-white">
@@ -420,7 +431,16 @@ export function PlayerPage() {
           </div>
         ) : videoUrl ? (
           <div className="relative w-full bg-black" style={{ aspectRatio: '16/9' }}>
-            <video ref={videoRef} controls playsInline preload="auto" className="w-full h-full" style={{ backgroundColor: '#000', maxHeight: '80vh' }} poster={movie?.backdrop_url || movie?.poster_url}>
+            <video
+              ref={videoRef}
+              controls
+              playsInline
+              preload="auto"
+              className="w-full h-full"
+              style={{ backgroundColor: '#000', maxHeight: '80vh' }}
+              poster={movie?.backdrop_url || movie?.poster_url}
+              x-webkit-airplay="allow"
+            >
               <source src={videoUrl} type={videoUrl.includes('.m3u8') ? 'application/x-mpegURL' : 'video/mp4'} />
             </video>
           </div>
@@ -438,15 +458,18 @@ export function PlayerPage() {
         <div className="px-4 pt-4 max-w-5xl mx-auto">
           <button
             onClick={handleCast}
-            className="flex items-center gap-2 rounded-lg bg-zinc-800/80 hover:bg-zinc-700 px-4 py-2 text-sm font-medium text-zinc-200 transition"
+            className={`flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition ${
+              castState === 'connected'
+                ? 'bg-green-600/20 text-green-400 hover:bg-green-600/30'
+                : 'bg-zinc-800/80 text-zinc-200 hover:bg-zinc-700'
+            }`}
           >
-            <Cast className="h-4 w-4" />
-            Espelhar na TV
+            {castIcon}
+            {castLabel}
           </button>
         </div>
       )}
 
-      {/* Modal Espelhar na TV */}
       {showCastModal && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 backdrop-blur-sm px-4" onClick={() => setShowCastModal(false)}>
           <div className="w-full max-w-sm rounded-2xl bg-zinc-900 border border-zinc-800 p-6 text-center shadow-2xl" onClick={(e) => e.stopPropagation()}>
@@ -454,29 +477,31 @@ export function PlayerPage() {
               <Cast className="h-7 w-7 text-red-500" />
             </div>
             <h3 className="mb-2 text-lg font-bold text-white">Espelhar na TV</h3>
-            <p className="mb-6 text-sm text-zinc-400 leading-relaxed">
-              Para espelhar na TV, use o menu nativo do seu dispositivo:
-            </p>
-            <ul className="mb-6 text-left text-sm text-zinc-300 space-y-2">
-              <li className="flex items-start gap-2">
-                <span className="mt-0.5 h-1.5 w-1.5 rounded-full bg-red-500 shrink-0" />
-                <span><strong className="text-white">iPhone/iPad:</strong> Toque no ícone <span className="text-white">AirPlay</span> nos controles do vídeo</span>
-              </li>
-              <li className="flex items-start gap-2">
-                <span className="mt-0.5 h-1.5 w-1.5 rounded-full bg-red-500 shrink-0" />
-                <span><strong className="text-white">Android:</strong> Use o <span className="text-white">Google Cast</span> no menu do navegador</span>
-              </li>
-              <li className="flex items-start gap-2">
-                <span className="mt-0.5 h-1.5 w-1.5 rounded-full bg-red-500 shrink-0" />
-                <span><strong className="text-white">PC:</strong> Clique com o botão direito no vídeo → "Transmitir para dispositivo"</span>
-              </li>
-            </ul>
-            <button
-              onClick={() => setShowCastModal(false)}
-              className="w-full rounded-xl bg-red-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-red-500"
-            >
-              Entendi
-            </button>
+            <p className="mb-4 text-sm text-zinc-400 leading-relaxed">Selecione como deseja espelhar:</p>
+            <div className="space-y-2 mb-4">
+              <button
+                onClick={() => { setShowCastModal(false); tryAirPlay(); }}
+                className="w-full flex items-center gap-3 rounded-xl bg-zinc-800 px-4 py-3 text-sm text-white transition hover:bg-zinc-700"
+              >
+                <Smartphone className="h-5 w-5 text-zinc-400" />
+                <span className="text-left flex-1">AirPlay (iPhone/iPad)</span>
+              </button>
+              <button
+                onClick={() => { setShowCastModal(false); if (window.cast && window.chrome) { const ctx = window.cast.framework.CastContext.getInstance(); ctx.requestSession(); } }}
+                className="w-full flex items-center gap-3 rounded-xl bg-zinc-800 px-4 py-3 text-sm text-white transition hover:bg-zinc-700"
+              >
+                <Cast className="h-5 w-5 text-zinc-400" />
+                <span className="text-left flex-1">Chromecast (Android/PC)</span>
+              </button>
+              <button
+                onClick={() => { setShowCastModal(false); tryWebRTCCast(); }}
+                className="w-full flex items-center gap-3 rounded-xl bg-zinc-800 px-4 py-3 text-sm text-white transition hover:bg-zinc-700"
+              >
+                <Monitor className="h-5 w-5 text-zinc-400" />
+                <span className="text-left flex-1">Compartilhar Tela (WebRTC)</span>
+              </button>
+            </div>
+            <button onClick={() => setShowCastModal(false)} className="w-full rounded-xl bg-zinc-800 px-4 py-3 text-sm font-semibold text-zinc-300 transition hover:bg-zinc-700">Cancelar</button>
           </div>
         </div>
       )}
