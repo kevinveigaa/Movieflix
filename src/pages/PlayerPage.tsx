@@ -215,7 +215,7 @@ export function PlayerPage() {
   useEffect(() => {
     const video = videoRef.current;
     if (!video) return;
-    const interval = setInterval(() => { doSave(Math.floor(video.currentTime), Math.floor(video.duration || 0)); }, 10000);
+    const interval = setInterval(() => { doSave(Math.floor(video.currentTime), Math.floor(video.duration || 0)); }, 5000);
     const handlePause = () => { doSave(Math.floor(video.currentTime), Math.floor(video.duration || 0)); };
     const handleBeforeUnload = () => { doSave(Math.floor(video.currentTime), Math.floor(video.duration || 0)); };
     video.addEventListener('pause', handlePause);
