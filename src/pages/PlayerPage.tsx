@@ -20,6 +20,7 @@ export function PlayerPage() {
   const gainNodeRef = useRef<GainNode | null>(null);
   const [volumeBoost, setVolumeBoost] = useState(1.5);
   const [isMuted, setIsMuted] = useState(false);
+  const [showCastModal, setShowCastModal] = useState(false);
   const lastSaveRef = useRef(0);
 
   const movieRef = useRef<any>(null);
@@ -388,15 +389,12 @@ export function PlayerPage() {
 
   const handleCast = () => {
     const video = videoRef.current;
-    if (!video) return;
+    if (!video) { setShowCastModal(true); return; }
     // Tenta ativar o espelhamento nativo do navegador (AirPlay/Chromecast)
     if ((video as any).webkitShowPlaybackTargetPicker) {
       (video as any).webkitShowPlaybackTargetPicker();
-    } else if ((navigator as any).presentation) {
-      // Presentation API fallback
-      alert('Use o menu de casting do seu navegador ou dispositivo para espelhar na TV.');
     } else {
-      alert('Para espelhar na TV, use o botão de cast do seu navegador ou dispositivo.');
+      setShowCastModal(true);
     }
   };
 
@@ -445,6 +443,41 @@ export function PlayerPage() {
             <Cast className="h-4 w-4" />
             Espelhar na TV
           </button>
+        </div>
+      )}
+
+      {/* Modal Espelhar na TV */}
+      {showCastModal && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 backdrop-blur-sm px-4" onClick={() => setShowCastModal(false)}>
+          <div className="w-full max-w-sm rounded-2xl bg-zinc-900 border border-zinc-800 p-6 text-center shadow-2xl" onClick={(e) => e.stopPropagation()}>
+            <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-zinc-800">
+              <Cast className="h-7 w-7 text-red-500" />
+            </div>
+            <h3 className="mb-2 text-lg font-bold text-white">Espelhar na TV</h3>
+            <p className="mb-6 text-sm text-zinc-400 leading-relaxed">
+              Para espelhar na TV, use o menu nativo do seu dispositivo:
+            </p>
+            <ul className="mb-6 text-left text-sm text-zinc-300 space-y-2">
+              <li className="flex items-start gap-2">
+                <span className="mt-0.5 h-1.5 w-1.5 rounded-full bg-red-500 shrink-0" />
+                <span><strong className="text-white">iPhone/iPad:</strong> Toque no ícone <span className="text-white">AirPlay</span> nos controles do vídeo</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <span className="mt-0.5 h-1.5 w-1.5 rounded-full bg-red-500 shrink-0" />
+                <span><strong className="text-white">Android:</strong> Use o <span className="text-white">Google Cast</span> no menu do navegador</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <span className="mt-0.5 h-1.5 w-1.5 rounded-full bg-red-500 shrink-0" />
+                <span><strong className="text-white">PC:</strong> Clique com o botão direito no vídeo → "Transmitir para dispositivo"</span>
+              </li>
+            </ul>
+            <button
+              onClick={() => setShowCastModal(false)}
+              className="w-full rounded-xl bg-red-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-red-500"
+            >
+              Entendi
+            </button>
+          </div>
         </div>
       )}
 
