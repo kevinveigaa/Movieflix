@@ -2,16 +2,8 @@ import { useEffect, useRef, useState, useMemo } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
 import { supabase } from '@/lib/supabase';
-import { ChevronLeft, Film, Volume2, VolumeX, Cast, Tv } from 'lucide-react';
+import { ChevronLeft, Film, Volume2, VolumeX } from 'lucide-react';
 import Hls from 'hls.js';
-
-declare global {
-  interface Window {
-    cast?: any;
-    chrome?: any;
-    __onGCastApiAvailable?: (isAvailable: boolean) => void;
-  }
-}
 
 export function PlayerPage() {
   const { id } = useParams();
@@ -28,7 +20,6 @@ export function PlayerPage() {
   const gainNodeRef = useRef<GainNode | null>(null);
   const [volumeBoost, setVolumeBoost] = useState(1.5);
   const [isMuted, setIsMuted] = useState(false);
-    const [castState, setCastState] = useState<'none' | 'available' | 'connecting' | 'connected'>('none');
   const lastSaveRef = useRef(0);
 
   const movieRef = useRef<any>(null);
@@ -36,8 +27,6 @@ export function PlayerPage() {
   const profileRef = useRef<any>(null);
   const isBunnyRef = useRef(false);
   const episodeIdRef = useRef<string | null>(null);
-  const castSessionRef = useRef<any>(null);
-
   useEffect(() => { movieRef.current = movie; }, [movie]);
   useEffect(() => { userRef.current = user; }, [user]);
   useEffect(() => { profileRef.current = activeViewerProfile; }, [activeViewerProfile]);
@@ -194,128 +183,6 @@ export function PlayerPage() {
     return () => clearTimeout(timeout);
   }, [id, searchParams]);
 
-  // === CASTING / ESPELHAR NA TV ===
-  const [castToast, setCastToast] = useState<{msg: string; type: 'info'|'error'} | null>(null);
-
-  useEffect(() => {
-    window.__onGCastApiAvailable = (isAvailable: boolean) => {
-      if (isAvailable && window.cast && window.chrome) {
-        const castContext = window.cast.framework.CastContext.getInstance();
-        castContext.setOptions({
-          receiverApplicationId: window.chrome.cast.media.DEFAULT_MEDIA_RECEIVER_APP_ID,
-          autoJoinPolicy: window.chrome.cast.AutoJoinPolicy.ORIGIN_SCOPED,
-        });
-        castContext.addEventListener(
-          window.cast.framework.CastContextEventType.SESSION_STATE_CHANGED,
-          (event: any) => {
-            if (event.sessionState === window.cast.framework.SessionState.SESSION_STARTED) {
-              setCastState('connected');
-              castSessionRef.current = castContext.getCurrentSession();
-              // Envia o vídeo para o Chromecast
-              const session = castSessionRef.current;
-              if (session && videoUrl) {
-                const mediaInfo = new window.chrome.cast.media.MediaInfo(videoUrl, 'video/mp4');
-                mediaInfo.metadata = new window.chrome.cast.media.GenericMediaMetadata();
-                mediaInfo.metadata.title = movie?.title || 'MovieFlix';
-                if (movie?.poster_url) mediaInfo.metadata.images = [{ url: movie.poster_url }];
-                const request = new window.chrome.cast.media.LoadRequest(mediaInfo);
-                request.autoplay = true;
-                session.loadMedia(request);
-              }
-            } else if (event.sessionState === window.cast.framework.SessionState.SESSION_ENDED) {
-              setCastState('none');
-              castSessionRef.current = null;
-            }
-          }
-        );
-        const session = castContext.getCurrentSession();
-        if (session) { setCastState('connected'); castSessionRef.current = session; }
-        else { setCastState('available'); }
-      }
-    };
-  }, []);
-
-  function handleCast() {
-    const video = videoRef.current;
-    const ua = navigator.userAgent;
-    const isIOS = /iPhone|iPad|iPod/.test(ua);
-    const isAndroid = /Android/.test(ua);
-    const isSamsung = /Samsung/.test(ua);
-
-    console.log('[Cast] Dispositivo:', { isIOS, isAndroid, isSamsung, ua: ua.slice(0, 50) });
-
-    // === iPhone / iPad → AirPlay nativo ===
-    if (isIOS && video && (video as any).webkitShowPlaybackTargetPicker) {
-      (video as any).webkitShowPlaybackTargetPicker();
-      return;
-    }
-
-    // === Android / Samsung → Tenta abrir o seletor de tela do sistema ===
-    if (isAndroid) {
-      // Tenta getDisplayMedia que abre o seletor nativo do Android
-      // (Smart View no Samsung, Cast no Google, etc)
-      const constraints = {
-        video: { displaySurface: 'monitor' as any },
-        audio: true,
-        selfBrowserSurface: 'exclude' as any,
-        preferCurrentTab: false as any,
-      };
-      (navigator as any).mediaDevices.getDisplayMedia(constraints).then((stream: MediaStream) => {
-        if (video) {
-          video.srcObject = stream;
-          video.play();
-          setCastState('connected');
-          setCastToast({ msg: 'Espelhamento iniciado! Toque em "Parar" no seletor para encerrar.', type: 'info' });
-          stream.getVideoTracks()[0].onended = () => {
-            video.srcObject = null;
-            if (videoUrl) video.src = videoUrl;
-            setCastState('none');
-            setCastToast({ msg: 'Espelhamento encerrado.', type: 'info' });
-          };
-        }
-      }).catch((err: any) => {
-        console.log('[Cast] getDisplayMedia cancelado ou erro:', err.name);
-        // Se o usuário cancelou, mostra dica de como usar Smart View nativo
-        if (isSamsung) {
-          setCastToast({ msg: 'Deslize para baixo e toque em "Smart View" no painel de notificações para espelhar na TV.', type: 'info' });
-        } else {
-          setCastToast({ msg: 'Deslize para baixo e toque em "Cast" ou "Espelhar tela" no painel de notificações.', type: 'info' });
-        }
-      });
-      return;
-    }
-
-    // === PC Chrome → Google Cast ===
-    if (window.cast && window.chrome) {
-      const castContext = window.cast.framework.CastContext.getInstance();
-      const session = castContext.getCurrentSession();
-      if (session) { session.endSession(true); setCastState('available'); return; }
-      castContext.requestSession().then(
-        () => setCastState('connecting'),
-        () => {
-          setCastToast({ msg: 'Nenhum dispositivo Chromecast encontrado. Verifique se a TV está na mesma rede Wi-Fi.', type: 'error' });
-        }
-      );
-      return;
-    }
-
-    // === PC outros → Compartilhar Tela ===
-    (navigator as any).mediaDevices.getDisplayMedia({ video: true, audio: true }).then((stream: MediaStream) => {
-      if (video) {
-        video.srcObject = stream;
-        video.play();
-        setCastState('connected');
-        stream.getVideoTracks()[0].onended = () => {
-          video.srcObject = null;
-          if (videoUrl) video.src = videoUrl;
-          setCastState('none');
-        };
-      }
-    }).catch(() => {
-      setCastToast({ msg: 'Não foi possível iniciar o espelhamento. Verifique as permissões do navegador.', type: 'error' });
-    });
-  }
-
   // HLS
   useEffect(() => {
     const video = videoRef.current;
@@ -445,8 +312,6 @@ export function PlayerPage() {
     navigate(-1);
   };
 
-  const castIcon = castState === 'connected' ? <Tv className="h-4 w-4 text-green-400" /> : <Cast className="h-4 w-4" />;
-  const castLabel = castState === 'connected' ? 'Transmitindo' : castState === 'connecting' ? 'Conectando...' : 'Espelhar na TV';
 
   return (
     <div className="min-h-screen bg-black text-white">
@@ -487,49 +352,10 @@ export function PlayerPage() {
         )}
       </div>
 
-      {videoUrl && (
-        <div className="px-4 pt-4 max-w-5xl mx-auto">
-          <button
-            onClick={handleCast}
-            className={`flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition ${
-              castState === 'connected'
-                ? 'bg-green-600/20 text-green-400 hover:bg-green-600/30'
-                : 'bg-zinc-800/80 text-zinc-200 hover:bg-zinc-700'
-            }`}
-          >
-            {castIcon}
-            {castLabel}
-          </button>
-        </div>
-      )}
+}
 
 
 
-      {/* Toast / Snackbar de Cast */}
-      {castToast && (
-        <div className="fixed bottom-6 left-1/2 z-[100] -translate-x-1/2 px-4 w-full max-w-md">
-          <div className={`rounded-xl px-4 py-3 text-sm font-medium shadow-2xl backdrop-blur-md border ${
-            castToast.type === 'error'
-              ? 'bg-red-900/90 border-red-700 text-red-100'
-              : 'bg-zinc-900/90 border-zinc-700 text-zinc-100'
-          }`}>
-            <div className="flex items-center gap-3">
-              {castToast.type === 'error' ? (
-                <span className="shrink-0 text-lg">⚠️</span>
-              ) : (
-                <Cast className="h-4 w-4 shrink-0 text-zinc-400" />
-              )}
-              <span className="flex-1">{castToast.msg}</span>
-              <button
-                onClick={() => setCastToast(null)}
-                className="shrink-0 text-xs font-bold uppercase tracking-wider text-zinc-500 hover:text-white transition"
-              >
-                Fechar
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {movie && (
         <div className="px-4 py-6 max-w-5xl mx-auto">
