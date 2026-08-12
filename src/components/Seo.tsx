@@ -1,15 +1,21 @@
 import { useEffect } from 'react';
 import { useLocation, matchPath } from 'react-router-dom';
 
-interface SeoConfig { title: string; description: string; }
+interface SeoConfig {
+  title: string;
+  description: string;
+}
 
 const SITE_NAME = 'MovieFlix';
 
 const DEFAULT_SEO: SeoConfig = {
   title: `${SITE_NAME} — Filmes, Séries, Animes e mais`,
-  description: 'MovieFlix: a sua plataforma de streaming. Filmes, séries, animes, documentários e infantil em um só lugar.',
+  description:
+    'MovieFlix: a sua plataforma de streaming. Filmes, séries, animes, documentários e infantil em um só lugar.',
 };
 
+// Meta tags básicas por rota (rotas em pt-BR). Padrões com ":" são dinâmicos
+// (título, player) e usam o matchPath do react-router.
 const ROUTE_SEO: Array<{ path: string; title: string; description: string }> = [
   { path: '/', title: 'Início — MovieFlix', description: 'Assista filmes, séries, animes, documentários e conteúdo infantil no MovieFlix.' },
   { path: '/filmes', title: 'Filmes — MovieFlix', description: 'Catálogo de filmes para assistir online no MovieFlix.' },
@@ -33,23 +39,35 @@ const ROUTE_SEO: Array<{ path: string; title: string; description: string }> = [
 ];
 
 function setMeta(attr: 'name' | 'property', key: string, content: string) {
-  let el = document.head.querySelector(`meta[${attr}="${key}"]`);
-  if (!el) { el = document.createElement('meta'); el.setAttribute(attr, key); document.head.appendChild(el); }
+  let el = document.head.querySelector<HTMLMetaElement>(`meta[${attr}="${key}"]`);
+  if (!el) {
+    el = document.createElement('meta');
+    el.setAttribute(attr, key);
+    document.head.appendChild(el);
+  }
   el.setAttribute('content', content);
 }
 
 function resolveConfig(pathname: string): SeoConfig {
   const exact = ROUTE_SEO.find((r) => r.path === pathname);
   if (exact) return exact;
+
   const pattern = ROUTE_SEO.find((r) => r.path.includes(':') && matchPath(r.path, pathname));
   if (pattern) return pattern;
+
   return DEFAULT_SEO;
 }
 
+/**
+ * Mantém as meta tags básicas (title, description, og:*) atualizadas de
+ * acordo com a rota atual. Renderiza nada no DOM.
+ */
 export function Seo() {
   const { pathname } = useLocation();
+
   useEffect(() => {
     const config = resolveConfig(pathname);
+
     document.title = config.title;
     setMeta('name', 'description', config.description);
     setMeta('property', 'og:title', config.title);
@@ -58,13 +76,7 @@ export function Seo() {
     setMeta('property', 'og:site_name', SITE_NAME);
     setMeta('property', 'og:locale', 'pt_BR');
     setMeta('property', 'og:url', `${window.location.origin}${pathname}`);
-    setMeta('property', 'og:image', `${window.location.origin}/og-image.jpg`);
-    setMeta('property', 'og:image:width', '1200');
-    setMeta('property', 'og:image:height', '630');
-    setMeta('name', 'twitter:card', 'summary_large_image');
-    setMeta('name', 'twitter:title', config.title);
-    setMeta('name', 'twitter:description', config.description);
-    setMeta('name', 'twitter:image', `${window.location.origin}/og-image.jpg`);
   }, [pathname]);
+
   return null;
 }

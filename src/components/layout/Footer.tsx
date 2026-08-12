@@ -1,5 +1,5 @@
-import { Link } from 'react-router-dom';
-import { Film, Github, Instagram, Twitter, Heart } from 'lucide-react';
+﻿import { Link } from 'react-router-dom';
+import { Film, Github, Instagram, Twitter } from 'lucide-react';
 
 const cols = [
   {
@@ -15,21 +15,19 @@ const cols = [
   {
     title: 'Categorias',
     links: [
-      { label: 'Ação', to: '/filmes?categoria=Ação' },
-      { label: 'Comédia', to: '/filmes?categoria=Comédia' },
-      { label: 'Terror', to: '/filmes?categoria=Terror' },
-      { label: 'Infantil', to: '/filmes?categoria=Infantil' },
-      { label: 'Documentários', to: '/filmes?categoria=Documentário' },
+      { label: 'documentários', to: '/documentarios' },
+      { label: 'Infantil', to: '/infantil' },
+      { label: 'Favoritos', to: '/favoritos' },
+      { label: 'Continuar assistindo', to: '/continuar' },
     ],
   },
   {
-    title: 'Minha Conta',
+    title: 'Conta',
     links: [
-      { label: 'Favoritos', to: '/favoritos' },
-      { label: 'Continuar assistindo', to: '/continuar' },
-      { label: 'Histórico', to: '/historico' },
       { label: 'Minha assinatura', to: '/minha-assinatura' },
       { label: 'Configurações', to: '/configuracoes' },
+      { label: 'Histórico', to: '/historico' },
+      { label: 'Entrar', to: '/login' },
     ],
   },
 ];
@@ -61,7 +59,9 @@ export function Footer() {
               <ul className="mt-3 space-y-2">
                 {c.links.map((l) => (
                   <li key={l.to}>
-                    <Link to={l.to} className="text-sm text-ink-400 transition hover:text-white">{l.label}</Link>
+                    <Link to={l.to} className="text-sm text-ink-400 transition hover:text-white">
+                      {l.label}
+                    </Link>
                   </li>
                 ))}
               </ul>
@@ -70,7 +70,7 @@ export function Footer() {
         </div>
         <div className="mt-10 flex flex-col items-center justify-between gap-3 border-t border-white/10 pt-6 text-xs text-ink-500 sm:flex-row">
           <p>© {new Date().getFullYear()} MovieFlix. Todos os direitos reservados.</p>
-          <p className="flex items-center gap-1">Feito com <Heart className="h-3 w-3 text-brand-600" /> no Brasil</p>
+          <p>Dados de filmes fornecidos por TMDb. Este projeto não é afiliado à TMDb.</p>
         </div>
       </div>
     </footer>
@@ -84,3 +84,10 @@ function SocialIcon({ children }: { children: React.ReactNode }) {
     </span>
   );
 }
+
+
+
+
+
+
+

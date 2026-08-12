@@ -1,12 +1,12 @@
-import { useMemo, useRef, useState, useEffect } from 'react';
-import { PosterCard, PosterCardSkeleton } from '@/components/cards/PosterCard';
-import { HeroBanner, HeroBannerSkeleton } from '@/components/home/HeroBanner';
-import { useMovies } from '@/hooks/useMovies';
-import { useWatchHistory } from '@/hooks/useWatchHistory';
-import { useAuth, hasActiveSubscription } from '@/context/AuthContext';
-import { Link } from 'react-router-dom';
-import { Crown, Sparkles, ChevronLeft, ChevronRight, TrendingUp, Clock, Film } from 'lucide-react';
-import { categoriasDoFilme, ehInfantil, ordenarCategorias } from '@/lib/categorias';
+import { useMemo, useRef, useState, useEffect } from "react";
+import { PosterCard, PosterCardSkeleton } from "@/components/cards/PosterCard";
+import { HeroBanner, HeroBannerSkeleton } from "@/components/home/HeroBanner";
+import { useMovies } from "@/hooks/useMovies";
+import { useWatchHistory } from "@/hooks/useWatchHistory";
+import { useAuth, hasActiveSubscription } from "@/context/AuthContext";
+import { Link } from "react-router-dom";
+import { Crown, Sparkles, ChevronLeft, ChevronRight } from "lucide-react";
+import { categoriasDoFilme, ehInfantil, ordenarCategorias } from "@/lib/categorias";
 
 export function HomePage() {
   const { subscription, activeViewerProfile } = useAuth();
@@ -14,9 +14,15 @@ export function HomePage() {
   const movies = useMovies();
   const history = useWatchHistory();
 
-  const visibleMovies = useMemo(() => (isKid ? (movies.data ?? []).filter(ehInfantil) : (movies.data ?? [])), [movies.data, isKid]);
+  const visibleMovies = useMemo(
+    () => (isKid ? (movies.data ?? []).filter(ehInfantil) : (movies.data ?? [])),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [movies.data, isKid],
+  );
+
   const destaques = useMemo(() => visibleMovies.slice(0, 5), [visibleMovies]);
 
+  // Mapa movie_id → % assistido para a barra de progresso nos cards.
   const progressByMovie = useMemo(() => {
     const map: Record<string, number> = {};
     for (const h of history.data ?? []) {
@@ -27,6 +33,8 @@ export function HomePage() {
     return map;
   }, [history.data]);
 
+  // "Continuar assistindo": apenas títulos visíveis (respeita modo infantil),
+  // com progresso relevante e que não chegaram ao fim.
   const continueWatching = useMemo(() => {
     const visivel = new Set(visibleMovies.map((m) => m.id));
     return (history.data ?? [])
@@ -42,39 +50,56 @@ export function HomePage() {
 
   const categorias = useMemo(() => {
     const mapa = new Map<string, any[]>();
+
     for (const movie of visibleMovies) {
       for (const cat of categoriasDoFilme(movie)) {
         if (!mapa.has(cat)) mapa.set(cat, []);
         mapa.get(cat)!.push(movie);
       }
     }
+
     const nomes = ordenarCategorias(Array.from(mapa.keys()));
-    return nomes.map((nome) => ({ nome, lista: mapa.get(nome)!.slice(0, 20) })).filter((c) => c.lista.length > 0);
+
+    return nomes
+      .map((nome) => ({ nome, lista: mapa.get(nome)!.slice(0, 20) }))
+      .filter((c) => c.lista.length > 0);
   }, [visibleMovies]);
 
-  const emAlta = useMemo(() => [...visibleMovies].filter((m) => (m.vote_average || 0) > 0).sort((a, b) => (b.vote_average || 0) - (a.vote_average || 0)).slice(0, 20), [visibleMovies]);
-  const lancamentos = useMemo(() => [...visibleMovies].filter((m) => m.year || m.created_at).sort((a, b) => {
-    const ya = String(b.year || b.created_at?.slice(0, 4) || '0');
-    const yb = String(a.year || a.created_at?.slice(0, 4) || '0');
-    return ya.localeCompare(yb);
-  }).slice(0, 20), [visibleMovies]);
-  const recentes = useMemo(() => visibleMovies.slice(0, 20), [visibleMovies]);
+  const recentes = useMemo(() => visibleMovies.slice(0, 5), [visibleMovies]);
 
   return (
     <div className="pb-16">
       <div className="container-app">
         {movies.isLoading ? <HeroBannerSkeleton /> : <HeroBanner items={destaques} />}
       </div>
-      <div className="container-app space-y-12 pt-6 sm:pt-8">
+
+      <div className="container-app space-y-10 pt-8">
         {!hasActiveSubscription(subscription) && <UpgradeBanner />}
-        {movies.isLoading && <CategoryRowSkeleton count={4} />}
+
+        {movies.isLoading && <CategoryRowSkeleton />}
+
         {!movies.isLoading && (
           <>
-            {continueWatching.length > 0 && <CategoryRow title="Continuar Assistindo" icon={<Clock className="h-5 w-5 text-brand-400" />} items={continueWatching} progressMap={progressByMovie} verMaisTo="/continuar" />}
-            {emAlta.length > 0 && <CategoryRow title="Em Alta" icon={<TrendingUp className="h-5 w-5 text-amber-400" />} items={emAlta} progressMap={progressByMovie} />}
-            {lancamentos.length > 0 && <CategoryRow title="Lançamentos" icon={<Sparkles className="h-5 w-5 text-purple-400" />} items={lancamentos} progressMap={progressByMovie} />}
-            {recentes.length > 0 && <CategoryRow title="Adicionados Recentemente" icon={<Film className="h-5 w-5 text-emerald-400" />} items={recentes} progressMap={progressByMovie} />}
-            {categorias.map((cat) => <CategoryRow key={cat.nome} title={cat.nome} items={cat.lista} category={cat.nome} progressMap={progressByMovie} />)}
+            {continueWatching.length > 0 && (
+              <CategoryRow
+                title="Continuar assistindo"
+                items={continueWatching}
+                progressMap={progressByMovie}
+                verMaisTo="/continuar"
+              />
+            )}
+            {recentes.length > 0 && (
+              <CategoryRow title="Adicionados recentemente" items={recentes} progressMap={progressByMovie} />
+            )}
+            {categorias.map((cat) => (
+              <CategoryRow
+                key={cat.nome}
+                title={cat.nome}
+                items={cat.lista}
+                category={cat.nome}
+                progressMap={progressByMovie}
+              />
+            ))}
           </>
         )}
       </div>
@@ -82,14 +107,30 @@ export function HomePage() {
   );
 }
 
-function CategoryRow({ title, items, icon, category, progressMap, verMaisTo }: {
-  title: string; items: any[]; icon?: React.ReactNode; category?: string;
-  progressMap?: Record<string, number>; verMaisTo?: string;
+/* ---------- Linha de categoria com setas ---------- */
+
+function CategoryRow({
+  title,
+  items,
+  category,
+  progressMap,
+  verMaisTo: verMaisToProp,
+}: {
+  title: string;
+  items: any[];
+  category?: string;
+  /** Mapa movie_id → % assistido, para a barra de "Continuar assistindo". */
+  progressMap?: Record<string, number>;
+  /** Destino do botão "Ver mais" (ex.: /continuar). Default: catálogo da categoria. */
+  verMaisTo?: string;
 }) {
   const ref = useRef<HTMLDivElement>(null);
   const [canLeft, setCanLeft] = useState(false);
   const [canRight, setCanRight] = useState(false);
-  const verMaisToComputed = verMaisTo ?? (category ? `/filmes?categoria=${encodeURIComponent(category)}` : '/filmes');
+
+  // "Ver mais" de uma categoria leva à página de catálogo filtrando por ela;
+  // uma obra aparece em todas as categorias a que foi atribuída.
+  const verMaisTo = verMaisToProp ?? (category ? `/filmes?categoria=${encodeURIComponent(category)}` : "/filmes");
 
   const update = () => {
     const el = ref.current;
@@ -102,50 +143,99 @@ function CategoryRow({ title, items, icon, category, progressMap, verMaisTo }: {
     update();
     const el = ref.current;
     if (!el) return;
-    el.addEventListener('scroll', update, { passive: true });
-    window.addEventListener('resize', update);
-    return () => { el.removeEventListener('scroll', update); window.removeEventListener('resize', update); };
+    el.addEventListener("scroll", update, { passive: true });
+    window.addEventListener("resize", update);
+    return () => {
+      el.removeEventListener("scroll", update);
+      window.removeEventListener("resize", update);
+    };
   }, [items.length]);
 
-  const scroll = (dir: 'left' | 'right') => {
+  const scroll = (dir: "left" | "right") => {
     const el = ref.current;
     if (!el) return;
-    el.scrollBy({ left: dir === 'left' ? -el.clientWidth * 0.85 : el.clientWidth * 0.85, behavior: 'smooth' });
+    const amount = el.clientWidth;
+    el.scrollBy({ left: dir === "left" ? -amount : amount, behavior: "smooth" });
   };
 
   return (
     <section className="group/row relative" data-tv-row>
       <div className="mb-4 flex items-center justify-between gap-4">
-        <div className="flex items-center gap-2">{icon}<h2 className="truncate text-lg font-bold text-white sm:text-xl lg:text-2xl">{title}</h2></div>
+        <h2 className="truncate text-lg font-bold text-white sm:text-xl lg:text-2xl">{title}</h2>
+
         <div className="flex shrink-0 items-center gap-2">
-          <Link to={verMaisToComputed} className="rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-medium text-gray-300 transition hover:bg-white/15 hover:text-white sm:text-sm">Ver mais</Link>
-          <button type="button" onClick={() => scroll('left')} disabled={!canLeft} aria-label="Anterior"
-            className="hidden sm:flex h-8 w-8 items-center justify-center rounded-full border border-white/10 bg-white/5 text-gray-200 transition hover:bg-white/15 hover:text-white disabled:opacity-30">
+          <Link
+            to={verMaisTo}
+            className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-gray-300 transition hover:bg-white/15 hover:text-white sm:text-sm"
+          >
+            Ver mais
+          </Link>
+
+          <button
+            type="button"
+            onClick={() => scroll("left")}
+            disabled={!canLeft}
+            aria-label="Anterior"
+            className="flex h-8 w-8 items-center justify-center rounded-full border border-white/10 bg-white/5 text-gray-200 transition hover:bg-white/15 hover:text-white disabled:opacity-30"
+          >
             <ChevronLeft className="h-4 w-4" />
           </button>
-          <button type="button" onClick={() => scroll('right')} disabled={!canRight} aria-label="Próximo"
-            className="hidden sm:flex h-8 w-8 items-center justify-center rounded-full border border-white/10 bg-white/5 text-gray-200 transition hover:bg-white/15 hover:text-white disabled:opacity-30">
+
+          <button
+            type="button"
+            onClick={() => scroll("right")}
+            disabled={!canRight}
+            aria-label="Próximo"
+            className="flex h-8 w-8 items-center justify-center rounded-full border border-white/10 bg-white/5 text-gray-200 transition hover:bg-white/15 hover:text-white disabled:opacity-30"
+          >
             <ChevronRight className="h-4 w-4" />
           </button>
         </div>
       </div>
+
       <div className="relative">
         {canLeft && (
-          <button type="button" onClick={() => scroll('left')} aria-label="Anterior"
-            className="absolute left-0 top-1/2 z-10 hidden h-12 w-12 -translate-y-1/2 items-center justify-center rounded-full bg-black/60 text-white opacity-0 backdrop-blur-sm transition group-hover/row:opacity-100 hover:bg-black/80 lg:flex">
-            <ChevronLeft className="h-6 w-6" />
+          <button
+            type="button"
+            onClick={() => scroll("left")}
+            aria-label="Anterior"
+            className="absolute left-0 top-1/2 z-10 hidden h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full bg-black/70 text-white opacity-0 transition group-hover/row:opacity-100 hover:bg-black sm:flex"
+          >
+            <ChevronLeft className="h-5 w-5" />
           </button>
         )}
+
         {canRight && (
-          <button type="button" onClick={() => scroll('right')} aria-label="Próximo"
-            className="absolute right-0 top-1/2 z-10 hidden h-12 w-12 -translate-y-1/2 items-center justify-center rounded-full bg-black/60 text-white opacity-0 backdrop-blur-sm transition group-hover/row:opacity-100 hover:bg-black/80 lg:flex">
-            <ChevronRight className="h-6 w-6" />
+          <button
+            type="button"
+            onClick={() => scroll("right")}
+            aria-label="Próximo"
+            className="absolute right-0 top-1/2 z-10 hidden h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full bg-black/70 text-white opacity-0 transition group-hover/row:opacity-100 hover:bg-black sm:flex"
+          >
+            <ChevronRight className="h-5 w-5" />
           </button>
         )}
-        <div ref={ref} className="scrollbar-none flex snap-x snap-mandatory gap-3 overflow-x-auto scroll-smooth pb-4 sm:gap-4 lg:gap-5">
+
+        <div
+          ref={ref}
+          className="scrollbar-none flex snap-x snap-mandatory gap-3 overflow-x-auto scroll-smooth pb-4 sm:gap-4 md:gap-4 lg:gap-5"
+        >
           {items.map((movie) => (
-            <div key={movie.id} className="shrink-0 snap-start basis-[calc((100%-1.5rem)/3)] sm:basis-[calc((100%-3rem)/4)] md:basis-[calc((100%-4rem)/5)] lg:basis-[calc((100%-5rem)/6)] xl:basis-[calc((100%-6rem)/7)]">
-              <PosterCard title={{ id: movie.id, title: movie.title, description: movie.description, poster_url: movie.poster_url, backdrop_url: movie.backdrop_url, quality: movie.quality ?? 'HD', type: movie.type ?? 'movie', year: movie.year, vote_average: movie.vote_average, category: movie.category }} progress={progressMap?.[movie.id]} />
+            <div
+              key={movie.id}
+              className="shrink-0 snap-start basis-[calc((100%-1.5rem)/3)] sm:basis-[calc((100%-3rem)/4)] md:basis-[calc((100%-4rem)/5)] lg:basis-[calc((100%-5rem)/6)]"
+            >
+              <PosterCard
+                title={{
+                  id: movie.id,
+                  title: movie.title,
+                  description: movie.description,
+                  poster_url: movie.poster_url,
+                  quality: movie.quality ?? "HD",
+                  type: movie.type ?? "movie",
+                }}
+                progress={progressMap?.[movie.id]}
+              />
             </div>
           ))}
         </div>
@@ -154,15 +244,18 @@ function CategoryRow({ title, items, icon, category, progressMap, verMaisTo }: {
   );
 }
 
-function CategoryRowSkeleton({ count = 4 }: { count?: number }) {
+function CategoryRowSkeleton() {
   return (
-    <div className="space-y-12">
-      {Array.from({ length: count }).map((_, idx) => (
-        <section key={`skeleton-${idx}`}>
-          <div className="mb-4 h-7 w-48 animate-pulse rounded-lg bg-white/10" />
+    <div className="space-y-10">
+      {[0, 1, 2].map((row) => (
+        <section key={row}>
+          <div className="mb-4 h-6 w-40 animate-pulse rounded bg-white/10" />
           <div className="flex gap-3 sm:gap-4 lg:gap-5">
-            {Array.from({ length: 6 }).map((_, j) => (
-              <div key={`sk-${idx}-${j}`} className="shrink-0 basis-[calc((100%-1.5rem)/3)] sm:basis-[calc((100%-3rem)/4)] md:basis-[calc((100%-4rem)/5)] lg:basis-[calc((100%-5rem)/6)] xl:basis-[calc((100%-6rem)/7)]">
+            {[0, 1, 2, 3, 4, 5].map((i) => (
+              <div
+                key={i}
+                className="shrink-0 basis-[calc((100%-1.5rem)/3)] sm:basis-[calc((100%-3rem)/4)] md:basis-[calc((100%-4rem)/5)] lg:basis-[calc((100%-5rem)/6)]"
+              >
                 <PosterCardSkeleton />
               </div>
             ))}
@@ -173,15 +266,25 @@ function CategoryRowSkeleton({ count = 4 }: { count?: number }) {
   );
 }
 
+/* ---------- Banner de upgrade ---------- */
+
 function UpgradeBanner() {
   return (
-    <Link to="/minha-assinatura" className="flex items-center gap-4 rounded-2xl border border-brand-600/30 bg-gradient-to-r from-brand-700 via-purple-900 to-black p-5 sm:p-6 card-lift">
-      <div className="rounded-xl bg-brand-600 p-3 shadow-lg shadow-brand-900/30"><Crown className="h-6 w-6 text-white" /></div>
-      <div className="flex-1">
-        <h3 className="text-base font-bold text-white sm:text-lg">Desbloqueie o catálogo completo</h3>
-        <p className="mt-0.5 text-sm text-ink-300">Assine agora e tenha acesso a todos os filmes, séries e animes em alta qualidade.</p>
+    <Link
+      to="/minha-assinatura"
+      className="flex items-center gap-4 rounded-2xl border border-brand-600/30 bg-gradient-to-r from-brand-700 via-purple-900 to-black p-5"
+    >
+      <div className="rounded-xl bg-brand-600 p-3">
+        <Crown />
       </div>
-      <Sparkles className="hidden h-6 w-6 text-brand-300 sm:block" />
+
+      <div>
+        <h3 className="flex gap-2 font-bold text-white">
+          <Sparkles />
+          Desbloqueie todo conteúdo
+        </h3>
+        <p className="text-gray-400">Assine e assista sem limites</p>
+      </div>
     </Link>
   );
 }
