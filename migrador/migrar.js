@@ -10,7 +10,7 @@ const { google } = require("googleapis");
 // ═══════════════════════════════════════════════════════════════════
 const CONFIG = {
   // Google Drive
-  DRIVE_FOLDER_ID: "COLE_AQUI_O_ID_DA_PASTA_DO_DRIVE",
+  DRIVE_FOLDER_ID: "1dLqgWmstRF6k_VTcVFgEd9jigR3207-E",
   // Bunny Stream
   BUNNY_LIBRARY_ID: "COLE_AQUI",
   BUNNY_API_KEY: "COLE_AQUI",
