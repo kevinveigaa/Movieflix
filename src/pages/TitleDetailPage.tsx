@@ -182,7 +182,12 @@ export function TitleDetailPage() {
         .eq("series_id", seriesId)
         .order("season_number", { ascending: true });
 
-      const seasonsList = seasonsData ?? [];
+      // Ordena por season_number crescente e remove duplicatas (mantém a primeira)
+      const seasonsList = (seasonsData ?? [])
+        .sort((a, b) => a.season_number - b.season_number)
+        .filter((s, index, self) => 
+          index === self.findIndex((t) => t.season_number === s.season_number)
+        );
       setSeasons(seasonsList);
 
       if (seasonsList.length > 0) {
