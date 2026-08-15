@@ -84,8 +84,23 @@ export function AdminSeriesPage() {
     setLoading(false);
   }
 
+  // Calcula o próximo número de temporada disponível
+  function getNextSeasonNumber(): number {
+    if (seasons.length === 0) return 1;
+    const maxNum = Math.max(...seasons.map((s) => s.season_number));
+    return maxNum + 1;
+  }
+
   async function addSeason() {
     if (!seriesId) return;
+
+    // Validação: não permite número repetido
+    const exists = seasons.some((s) => s.season_number === newSeasonNumber);
+    if (exists) {
+      setMsg({ tipo: 'erro', texto: `Já existe a Temporada ${newSeasonNumber}! Escolha outro número.` });
+      return;
+    }
+
     const { error } = await supabase.from('seasons').insert({
       series_id: seriesId,
       season_number: newSeasonNumber,
@@ -95,7 +110,9 @@ export function AdminSeriesPage() {
       setMsg({ tipo: 'erro', texto: error.message });
     } else {
       setMsg({ tipo: 'ok', texto: 'Temporada adicionada!' });
-      setNewSeasonNumber((prev) => prev + 1);
+      // Sugere o próximo número disponível após adicionar
+      const nextNum = getNextSeasonNumber();
+      setNewSeasonNumber(nextNum);
       setNewSeasonTitle('');
       await loadSeries();
     }
@@ -253,7 +270,7 @@ export function AdminSeriesPage() {
 
       {/* Temporadas e Episódios */}
       <div className="space-y-4">
-        {seasons.map((season) => (
+        {[...seasons].sort((a, b) => a.season_number - b.season_number).map((season) => (
           <div key={season.id} className="rounded-2xl border border-white/10 bg-ink-900 overflow-hidden">
             {/* Header da Temporada */}
             <div className="flex w-full items-center justify-between p-4 hover:bg-white/5">
