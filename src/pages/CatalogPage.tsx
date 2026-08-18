@@ -4,8 +4,10 @@ import { PosterCard } from '@/components/cards/PosterCard';
 import { FullScreenLoader } from '@/components/ui/Feedback';
 import { useMovies } from '@/hooks/useMovies';
 import { useWatchHistory } from '@/hooks/useWatchHistory';
+import { useSeriesHidden } from '@/hooks/useSeriesHidden';
 import { useAuth } from '@/context/AuthContext';
 import { ehInfantil, isCategoriaKids, temCategoria } from '@/lib/categorias';
+import { ehSerie } from '@/lib/media';
 
 type CatalogKind = 'filmes' | 'series' | 'animes';
 
@@ -30,6 +32,7 @@ const CATEGORIAS_DA_SECAO: Record<CatalogKind, string[]> = {
 export function CatalogPage({ kind }: { kind: CatalogKind }) {
   const movies = useMovies();
   const history = useWatchHistory();
+  const { seriesHidden } = useSeriesHidden();
   const { activeViewerProfile } = useAuth();
   const isKid = activeViewerProfile?.is_kid ?? false;
   const [search, setSearch] = useState('');
@@ -52,6 +55,7 @@ export function CatalogPage({ kind }: { kind: CatalogKind }) {
 
     return (movies.data ?? []).filter((movie: any) => {
       if (isKid && !ehInfantil(movie)) return false;
+      if (seriesHidden && ehSerie(movie)) return false;
 
       const tituloOk = !termo || String(movie.title ?? '').toLowerCase().includes(termo);
       if (!tituloOk) return false;
@@ -67,7 +71,7 @@ export function CatalogPage({ kind }: { kind: CatalogKind }) {
 
       return CATEGORIAS_DA_SECAO[kind].some((c) => temCategoria(movie, c));
     });
-  }, [movies.data, search, categoria, kind, isKid]);
+  }, [movies.data, search, categoria, kind, isKid, seriesHidden]);
 
   return (
     <div className="container-app pt-24 pb-16">

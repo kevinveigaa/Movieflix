@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom';
 import { Heart } from 'lucide-react';
 import { useFavorites } from '@/hooks/useFavorite';
+import { useSeriesHidden } from '@/hooks/useSeriesHidden';
 import { useAuth } from '@/context/AuthContext';
 import { PosterCard, PosterCardSkeleton } from '@/components/cards/PosterCard';
 
@@ -8,6 +9,12 @@ import { PosterCard, PosterCardSkeleton } from '@/components/cards/PosterCard';
 export function FavoritesPage() {
   const { user } = useAuth();
   const favs = useFavorites();
+  const { seriesHidden } = useSeriesHidden();
+
+  // Favoritos de séries (media_type 'tv') somem quando as séries estão ocultas.
+  const items = seriesHidden
+    ? (favs.data ?? []).filter((f) => f.media_type !== 'tv')
+    : (favs.data ?? []);
 
 
   if (!user) {
@@ -24,9 +31,9 @@ export function FavoritesPage() {
           <div className="grid grid-cols-2 gap-x-3 gap-y-5 xs:grid-cols-3 sm:grid-cols-4 sm:gap-x-4 sm:gap-y-6 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-7">
             {Array.from({ length: 6 }).map((_, i) => <PosterCardSkeleton key={i} />)}
           </div>
-        ) : favs.data && favs.data.length > 0 ? (
+        ) : items.length > 0 ? (
           <div className="grid grid-cols-2 gap-x-3 gap-y-5 xs:grid-cols-3 sm:grid-cols-4 sm:gap-x-4 sm:gap-y-6 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-7">
-            {favs.data.map((f) => (
+            {items.map((f) => (
               <PosterCard
                 key={f.id}
                 title={{

@@ -4,10 +4,11 @@ import { useAuth } from "@/context/AuthContext";
 import { tmdb, img } from "@/lib/tmdb";
 import {
   Pencil, Trash2, Plus, Search, X, Save, RefreshCw, Layers,
-  ListFilter, ChevronDown, ChevronUp, Film
+  ListFilter, ChevronDown, ChevronUp, Film, Eye, EyeOff
 } from "lucide-react";
 import { CATEGORIAS, categoriasDoFilme, normalizar } from "@/lib/categorias";
 import { useQueryClient } from "@tanstack/react-query";
+import { useSeriesHidden } from "@/hooks/useSeriesHidden";
 
 const ADMIN_EMAIL = "veigakevin71@gmail.com";
 
@@ -59,6 +60,7 @@ interface Episode {
 export function AdminPage() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
+  const { seriesHidden, isLoading: seriesLoading, setSeriesHidden, isToggling, error: seriesError } = useSeriesHidden();
 
   const [aba, setAba] = useState<Aba>("lista");
   const [filtroLista, setFiltroLista] = useState<"todos" | "filmes" | "series">("todos");
@@ -545,6 +547,41 @@ export function AdminPage() {
             <Layers className="h-4 w-4" /> Série
           </button>
         </div>
+      </div>
+
+      {/* Controle global: esconder/reativar séries no site (nada é removido). */}
+      <div className="mb-6 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-white/10 bg-ink-900/70 p-4">
+        <div className="flex items-center gap-3">
+          {seriesHidden ? (
+            <EyeOff className="h-5 w-5 shrink-0 text-amber-400" />
+          ) : (
+            <Eye className="h-5 w-5 shrink-0 text-emerald-400" />
+          )}
+          <div>
+            <p className="text-sm font-semibold text-white">Séries no site</p>
+            <p className="text-xs text-gray-400">
+              {seriesHidden
+                ? "Ocultas — o cliente vê apenas filmes."
+                : "Visíveis — o cliente vê filmes e séries."}
+            </p>
+          </div>
+        </div>
+        <button
+          onClick={() => setSeriesHidden(!seriesHidden)}
+          disabled={seriesLoading || isToggling}
+          className={seriesHidden ? "btn-primary" : "btn-outline"}
+        >
+          {seriesHidden ? (
+            <><Eye className="h-4 w-4" /> Reativar séries</>
+          ) : (
+            <><EyeOff className="h-4 w-4" /> Esconder séries</>
+          )}
+        </button>
+        {seriesError && (
+          <p className="w-full text-xs text-red-400">
+            Não foi possível salvar a configuração: {(seriesError as Error).message}
+          </p>
+        )}
       </div>
 
       {msg && (

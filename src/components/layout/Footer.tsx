@@ -1,5 +1,6 @@
 ﻿import { Link } from 'react-router-dom';
 import { Film, Github, Instagram, Twitter } from 'lucide-react';
+import { useSeriesHidden } from '@/hooks/useSeriesHidden';
 
 const cols = [
   {
@@ -33,6 +34,17 @@ const cols = [
 ];
 
 export function Footer() {
+  const { seriesHidden } = useSeriesHidden();
+
+  // Quando "Esconder séries" está ativo, remove o link "Séries" do rodapé.
+  const colsVisiveis = seriesHidden
+    ? cols.map((c) =>
+        c.title === 'Navegação'
+          ? { ...c, links: c.links.filter((l) => l.to !== '/series') }
+          : c,
+      )
+    : cols;
+
   return (
     <footer className="mt-16 border-t border-white/10 bg-ink-950">
       <div className="container-app py-12">
@@ -45,7 +57,9 @@ export function Footer() {
               <span className="font-display text-xl tracking-wide text-white">MOVIEFLIX</span>
             </Link>
             <p className="mt-3 max-w-xs text-sm text-ink-400">
-              Filmes, Séries, animes, documentários e conteúdo infantil em um só lugar. Assista onde e quando quiser.
+              {seriesHidden
+                ? "Filmes, animes, documentários e conteúdo infantil em um só lugar. Assista onde e quando quiser."
+                : "Filmes, Séries, animes, documentários e conteúdo infantil em um só lugar. Assista onde e quando quiser."}
             </p>
             <div className="mt-4 flex gap-3">
               <SocialIcon><Instagram className="h-4 w-4" /></SocialIcon>
@@ -53,7 +67,7 @@ export function Footer() {
               <SocialIcon><Github className="h-4 w-4" /></SocialIcon>
             </div>
           </div>
-          {cols.map((c) => (
+          {colsVisiveis.map((c) => (
             <div key={c.title}>
               <h4 className="text-sm font-semibold text-white">{c.title}</h4>
               <ul className="mt-3 space-y-2">

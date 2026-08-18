@@ -5,7 +5,9 @@ import { Play, ArrowLeft, Download, Lock, CheckCircle2, XCircle, Loader2, Clock,
 import { useAuth } from "@/context/AuthContext";
 import { useEntitlements } from "@/hooks/useEntitlements";
 import { useWatchHistory } from "@/hooks/useWatchHistory";
+import { useSeriesHidden } from "@/hooks/useSeriesHidden";
 import { hasUnlimitedDownloads } from "@/lib/plans";
+import { ehSerie } from "@/lib/media";
 import { downloadVideo } from "@/lib/hlsDownload";
 import {
   alreadyDownloaded,
@@ -79,6 +81,7 @@ export function TitleDetailPage() {
   const { user } = useAuth();
   const { entitlements } = useEntitlements();
   const history = useWatchHistory();
+  const { seriesHidden } = useSeriesHidden();
 
   // Registro de reprodução deste título (para o botão "Continuar de ...").
   const historyRow = useMemo(
@@ -240,7 +243,11 @@ export function TitleDetailPage() {
   }, [id, user]);
 
 
-  if (naoEncontrado) {
+  // Série oculta pela configuração "Esconder séries": trata como indisponível
+  // para o cliente (a estrutura continua intacta no banco).
+  const indisponivel = naoEncontrado || (seriesHidden && movie !== null && ehSerie(movie));
+
+  if (indisponivel) {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center gap-4 bg-black px-4 text-center text-white">
         <h1 className="text-3xl font-bold">Título não encontrado</h1>

@@ -1,8 +1,12 @@
+import { useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { Play, Trash2, History as HistoryIcon } from 'lucide-react';
 import { useWatchHistory, useRemoveHistory } from '@/hooks/useWatchHistory';
+import { useMovies } from '@/hooks/useMovies';
+import { useSeriesHidden } from '@/hooks/useSeriesHidden';
 import { useAuth } from '@/context/AuthContext';
 import { img } from '@/lib/tmdb';
+import { ehSerie } from '@/lib/media';
 import { FullScreenLoader } from '@/components/ui/Feedback';
 import type { WatchHistoryRow } from '@/types';
 
@@ -15,6 +19,20 @@ export function ContinueWatchingPage() {
   const { user } = useAuth();
   const history = useWatchHistory();
   const remove = useRemoveHistory();
+  const movies = useMovies();
+  const { seriesHidden } = useSeriesHidden();
+
+  const seriesIds = useMemo(
+    () => new Set((movies.data ?? []).filter(ehSerie).map((m) => m.id)),
+    [movies.data],
+  );
+
+  // Séries ocultas: remove do "continuar" os registros de séries (TMDb ou catálogo).
+  const items = useMemo(() => {
+    const all = history.data ?? [];
+    if (!seriesHidden) return all;
+    return all.filter((h) => h.media_type !== 'tv' && !seriesIds.has(h.movie_id));
+  }, [history.data, seriesHidden, seriesIds]);
 
   if (!user) {
     return (
@@ -26,8 +44,6 @@ export function ContinueWatchingPage() {
   }
 
   if (history.isLoading) return <FullScreenLoader label="Carregando" />;
-
-  const items = history.data ?? [];
 
   if (items.length === 0) {
     return (

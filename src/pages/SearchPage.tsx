@@ -3,8 +3,10 @@ import { useSearchParams } from 'react-router-dom';
 import { Search as SearchIcon, X } from 'lucide-react';
 import { PosterCard, PosterCardSkeleton } from '@/components/cards/PosterCard';
 import { useMovies } from '@/hooks/useMovies';
+import { useSeriesHidden } from '@/hooks/useSeriesHidden';
 import { useAuth } from '@/context/AuthContext';
 import { ehInfantil } from '@/lib/categorias';
+import { ehSerie } from '@/lib/media';
 
 interface CatalogMovie {
   id: string;
@@ -18,6 +20,7 @@ export function SearchPage() {
   const initial = params.get('q') ?? '';
   const [q, setQ] = useState(initial);
   const movies = useMovies();
+  const { seriesHidden } = useSeriesHidden();
   const { activeViewerProfile } = useAuth();
   const isKid = activeViewerProfile?.is_kid ?? false;
 
@@ -37,11 +40,12 @@ export function SearchPage() {
 
     return (movies.data ?? []).filter((m: CatalogMovie) => {
       if (isKid && !ehInfantil(m)) return false;
+      if (seriesHidden && ehSerie(m)) return false;
       const titulo = String(m.title ?? '').toLowerCase();
       const categorias = String(m.category ?? '').toLowerCase();
       return titulo.includes(termo) || categorias.includes(termo);
     });
-  }, [movies.data, initial, isKid]);
+  }, [movies.data, initial, isKid, seriesHidden]);
 
   return (
     <div className="container-app py-8">
@@ -52,7 +56,7 @@ export function SearchPage() {
             autoFocus
             value={q}
             onChange={(e) => setQ(e.target.value)}
-            placeholder="Busque filmes, séries, animes..."
+            placeholder={seriesHidden ? "Busque filmes e animes..." : "Busque filmes, séries, animes..."}
             className="w-full rounded-full border border-white/10 bg-ink-800/70 py-3.5 pl-12 pr-12 text-base text-white placeholder:text-ink-400 focus:border-brand-500 focus:outline-none"
           />
           {q && (

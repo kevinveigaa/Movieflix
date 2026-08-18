@@ -6,6 +6,7 @@ import { AppLayout } from '@/components/layout/AppLayout';
 import { Seo } from '@/components/Seo';
 import { FullScreenLoader } from '@/components/ui/Feedback';
 import { useTvNavigation } from '@/hooks/useTvNavigation';
+import { useSeriesHidden } from '@/hooks/useSeriesHidden';
 import type { JSX } from 'react';
 
 // Code splitting por rota: cada página é carregada sob demanda (React.lazy).
@@ -45,6 +46,14 @@ function RequireAuth({ children }: { children: JSX.Element }) {
   return children;
 }
 
+/** Bloqueia a rota de séries quando "Esconder séries" está ativo. */
+function RequireSeries({ children }: { children: JSX.Element }) {
+  const { seriesHidden, isLoading } = useSeriesHidden();
+  if (isLoading) return <FullScreenLoader />;
+  if (seriesHidden) return <Navigate to="/filmes" replace />;
+  return children;
+}
+
 function AppRoutes() {
   // Navegação por controle remoto (setas + OK + Voltar) para TV, TV Box e PC.
   useTvNavigation();
@@ -57,7 +66,7 @@ function AppRoutes() {
           <Route element={<AppLayout />}>
             <Route path="/" element={<HomePage />} />
             <Route path="/filmes" element={<CatalogPage kind="filmes" />} />
-            <Route path="/series" element={<CatalogPage kind="series" />} />
+            <Route path="/series" element={<RequireSeries><CatalogPage kind="series" /></RequireSeries>} />
             <Route path="/animes" element={<CatalogPage kind="animes" />} />
             <Route path="/pesquisa" element={<SearchPage />} />
             <Route path="/baixar-app" element={<DownloadAppPage />} />

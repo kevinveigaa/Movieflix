@@ -2,9 +2,11 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { History as HistoryIcon, Trash2, Film, Check, AlertTriangle } from 'lucide-react';
 import { useWatchHistory, useRemoveHistory, useClearHistory, useMarkAsWatched } from '@/hooks/useWatchHistory';
+import { useSeriesHidden } from '@/hooks/useSeriesHidden';
 import { useAuth } from '@/context/AuthContext';
 import { supabase } from '@/lib/supabase';
 import { img } from '@/lib/tmdb';
+import { ehSerie } from '@/lib/media';
 import type { WatchHistoryRow } from '@/types';
 
 /** Retoma no player do catálogo quando o título é conhecido; senão vai à página do título. */
@@ -33,15 +35,18 @@ export function HistoryPage() {
   const remove = useRemoveHistory();
   const clear = useClearHistory();
   const markWatched = useMarkAsWatched();
+  const { seriesHidden } = useSeriesHidden();
   const [validMovieIds, setValidMovieIds] = useState<Set<string>>(new Set());
+  const [seriesMovieIds, setSeriesMovieIds] = useState<Set<string>>(new Set());
   const [showClearConfirm, setShowClearConfirm] = useState(false);
 
-  // Busca os IDs dos filmes que realmente existem no catálogo
+  // Busca os IDs dos filmes que realmente existem no catálogo (e quais são séries).
   useEffect(() => {
     async function loadValidMovies() {
-      const { data } = await supabase.from('movies').select('id');
+      const { data } = await supabase.from('movies').select('id, type, video_url');
       if (data) {
         setValidMovieIds(new Set(data.map((m: any) => m.id)));
+        setSeriesMovieIds(new Set(data.filter((m: any) => ehSerie(m)).map((m: any) => m.id)));
       }
     }
     loadValidMovies();
@@ -57,8 +62,14 @@ export function HistoryPage() {
   }
 
   const allItems = history.data ?? [];
-  // Filtra apenas filmes que existem no catálogo (têm movie_id válido)
-  const items = allItems.filter((h) => h.movie_id && validMovieIds.has(h.movie_id));
+  // Filtra apenas filmes que existem no catálogo (têm movie_id válido) e, quando
+  // as séries estão ocultas, remove os registros de séries.
+  const items = allItems.filter(
+    (h) =>
+      h.movie_id &&
+      validMovieIds.has(h.movie_id) &&
+      (!seriesHidden || (h.media_type !== 'tv' && !seriesMovieIds.has(h.movie_id))),
+  );
 
   return (
     <div className="container-app py-8">

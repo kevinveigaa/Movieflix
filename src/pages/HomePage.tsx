@@ -3,22 +3,27 @@ import { PosterCard, PosterCardSkeleton } from "@/components/cards/PosterCard";
 import { HeroBanner, HeroBannerSkeleton } from "@/components/home/HeroBanner";
 import { useMovies } from "@/hooks/useMovies";
 import { useWatchHistory } from "@/hooks/useWatchHistory";
+import { useSeriesHidden } from "@/hooks/useSeriesHidden";
 import { useAuth, hasActiveSubscription } from "@/context/AuthContext";
 import { Link } from "react-router-dom";
 import { Crown, Sparkles, ChevronLeft, ChevronRight } from "lucide-react";
 import { categoriasDoFilme, ehInfantil, ordenarCategorias } from "@/lib/categorias";
+import { ehFilme } from "@/lib/media";
 
 export function HomePage() {
   const { subscription, activeViewerProfile } = useAuth();
   const isKid = activeViewerProfile?.is_kid ?? false;
   const movies = useMovies();
   const history = useWatchHistory();
+  const { seriesHidden } = useSeriesHidden();
 
-  const visibleMovies = useMemo(
-    () => (isKid ? (movies.data ?? []).filter(ehInfantil) : (movies.data ?? [])),
+  const visibleMovies = useMemo(() => {
+    let lista = movies.data ?? [];
+    if (seriesHidden) lista = lista.filter(ehFilme);
+    if (isKid) lista = lista.filter(ehInfantil);
+    return lista;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [movies.data, isKid],
-  );
+  }, [movies.data, isKid, seriesHidden]);
 
   const destaques = useMemo(() => visibleMovies.slice(0, 5), [visibleMovies]);
 

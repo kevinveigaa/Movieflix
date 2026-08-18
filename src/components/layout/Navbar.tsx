@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, NavLink, useNavigate, useLocation } from 'react-router-dom';
 import { Search, Menu, X, Bell, User, LogOut, Settings, CreditCard, Shield, Film, Smartphone, ChevronDown, Baby, Users } from 'lucide-react';
 import { useMovies } from '@/hooks/useMovies';
+import { useSeriesHidden } from '@/hooks/useSeriesHidden';
 import { categoriasDoFilme, ehInfantil, ordenarCategorias } from '@/lib/categorias';
 import { useAuth, hasActiveSubscription } from '@/context/AuthContext';
 import { cn } from '@/lib/cn';
@@ -38,9 +39,16 @@ export function Navbar() {
   const { user, profile, subscription, signOut, activeViewerProfile } = useAuth();
   const isKid = activeViewerProfile?.is_kid ?? false;
   const categorias = useCategorias(isKid);
+  const { seriesHidden } = useSeriesHidden();
   const [query, setQuery] = useState('');
   const navigate = useNavigate();
   const location = useLocation();
+
+  // Quando "Esconder séries" está ativo, a aba "Séries" some do menu.
+  const linksVisiveis = useMemo(
+    () => (seriesHidden ? navLinks.filter((l) => l.to !== '/series') : navLinks),
+    [seriesHidden],
+  );
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 20);
@@ -92,7 +100,7 @@ export function Navbar() {
         </Link>
 
         <nav className="hidden items-center gap-1 lg:flex">
-          {navLinks.map((l) => (
+          {linksVisiveis.map((l) => (
             <NavLink
               key={l.to}
               to={l.to}
@@ -238,7 +246,7 @@ export function Navbar() {
                 />
               </div>
             </form>
-            {navLinks.map((l) => (
+            {linksVisiveis.map((l) => (
               <NavLink
                 key={l.to}
                 to={l.to}
