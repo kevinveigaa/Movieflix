@@ -4,6 +4,7 @@ const path = require("path");
 const express = require("express");
 const cors = require("cors");
 const { MercadoPagoConfig, Preference } = require("mercadopago");
+const { registrarPlayerProxy } = require("./player-proxy");
 
 const app = express();
 
@@ -16,6 +17,9 @@ const PORT = process.env.PORT || 5000;
 // Defina TMDB_API_KEY (ou VITE_TMDB_TOKEN) no ambiente do backend.
 const TMDB_API_KEY = process.env.TMDB_API_KEY || process.env.VITE_TMDB_TOKEN;
 const TMDB_API_BASE = "https://api.themoviedb.org/3";
+
+// Reprodução sempre dentro do site (remove bloqueios de exibição em iframe).
+registrarPlayerProxy(app);
 
 // Proxy da API TMDb: o frontend chama /api/tmdb/* e o servidor repassa a
 // chamada com a chave de acesso, mantendo-a fora do navegador.
