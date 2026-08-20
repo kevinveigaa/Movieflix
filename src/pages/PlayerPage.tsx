@@ -75,9 +75,9 @@ export function PlayerPage() {
       const m = url.match(/([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})/i);
       if (m) alvo = 'https://iframe.mediadelivery.net/embed/723294/' + m[1] + '?autoplay=true&muted=false&preload=true&volume=100';
     }
-    const baixo = alvo.toLowerCase();
-    if (EMBEDS_DIRETOS.some((d) => baixo.includes(d))) return alvo;
-    return `/api/player?url=${encodeURIComponent(alvo)}`;
+    // Sempre usar o link do vídeo cadastrado. O proxy /api/player não existe em
+    // produção e devolvia o index.html do site (site dentro do site / loop).
+    return alvo;
   }
 
 
