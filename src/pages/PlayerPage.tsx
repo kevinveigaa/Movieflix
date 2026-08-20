@@ -25,7 +25,7 @@ export function PlayerPage() {
   const movieRef = useRef<any>(null);
   const userRef = useRef<any>(null);
   const profileRef = useRef<any>(null);
-  const isBunnyRef = useRef(false);
+  const isEmbedRef = useRef(false);
   const episodeIdRef = useRef<string | null>(null);
 
   useEffect(() => { movieRef.current = movie; }, [movie]);
@@ -33,18 +33,39 @@ export function PlayerPage() {
   useEffect(() => { profileRef.current = activeViewerProfile; }, [activeViewerProfile]);
 
   const videoUrl = movie?.video_url || '';
-  const isBunny = useMemo(() => {
-    const hasUuid = /([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})/i.test(videoUrl);
-    const isBunnyDomain = videoUrl.includes('bunnycdn') || videoUrl.includes('b-cdn.net') || videoUrl.includes('mediadelivery');
-    const isHls = videoUrl.endsWith('.m3u8') || videoUrl.includes('.m3u8');
-    const result = isBunnyDomain && hasUuid && !isHls;
-    isBunnyRef.current = result;
+
+  // Arquivo de vídeo direto (o player nativo <video> consegue tocar).
+  const ARQUIVO_DIRETO = /\.(mp4|m3u8|webm|mkv)(\?|#|$)/i;
+  // Domínios de embed de terceiros (VDOHide, Bunny, etc.).
+  const DOMINIOS_EMBED = ['vdohide', 'bunnycdn', 'b-cdn.net', 'mediadelivery', 'iframe.'];
+
+  /** Bunny antigo: UUID do vídeo + domínio da Bunny → precisa virar iframe da mediadelivery. */
+  function ehBunnyLegado(url: string) {
+    const temUuid = /([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})/i.test(url);
+    const dominioBunny = url.includes('bunnycdn') || url.includes('b-cdn.net') || url.includes('mediadelivery');
+    return temUuid && dominioBunny;
+  }
+
+  /**
+   * Qualquer embed de terceiro (VDOHide, Bunny, etc.) roda em iframe.
+   * Arquivos diretos (MP4, HLS, WEBM, MKV) continuam no player nativo.
+   */
+  const isEmbed = useMemo(() => {
+    if (!videoUrl) return false;
+    const url = videoUrl.toLowerCase();
+    const arquivoDireto = ARQUIVO_DIRETO.test(url);
+    const result = url.includes('/embed/') || DOMINIOS_EMBED.some((d) => url.includes(d)) || !arquivoDireto;
+    isEmbedRef.current = result;
     return result;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [videoUrl]);
 
-  function getEmbed(url: string) {
-    const m = url.match(/([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})/i);
-    if (m) return 'https://iframe.mediadelivery.net/embed/723294/' + m[1] + '?autoplay=true&muted=false&preload=true&volume=100';
+  /** Bunny legado vira iframe da mediadelivery; os demais embeds já vêm prontos. */
+  function getEmbedUrl(url: string) {
+    if (ehBunnyLegado(url)) {
+      const m = url.match(/([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})/i);
+      if (m) return 'https://iframe.mediadelivery.net/embed/723294/' + m[1] + '?autoplay=true&muted=false&preload=true&volume=100';
+    }
     return url;
   }
 
@@ -291,8 +312,9 @@ export function PlayerPage() {
     return () => video.removeEventListener('canplay', handleCanPlay);
   }, [resumeTime]);
 
-  // Auto-save
+  // Auto-save (só no player nativo: iframes de terceiros não expõem o progresso)
   useEffect(() => {
+    if (isEmbed) return;
     const video = videoRef.current;
     if (!video) return;
     const interval = setInterval(() => { doSave(Math.floor(video.currentTime), Math.floor(video.duration || 0)); }, 10000);
@@ -306,12 +328,12 @@ export function PlayerPage() {
       window.removeEventListener('beforeunload', handleBeforeUnload);
       doSave(Math.floor(video.currentTime), Math.floor(video.duration || 0));
     };
-  }, []);
+  }, [isEmbed]);
 
   // Volume boost
   useEffect(() => {
     const video = videoRef.current;
-    if (!video || !videoUrl || isBunny) return;
+    if (!video || !videoUrl || isEmbed) return;
     try {
       const AudioContextClass = (window as any).AudioContext || (window as any).webkitAudioContext;
       if (!AudioContextClass) return;
@@ -326,14 +348,14 @@ export function PlayerPage() {
       gainNode.gain.value = volumeBoost;
     } catch (e) { video.volume = 1; }
     return () => { if (audioCtxRef.current && audioCtxRef.current.state !== 'closed') audioCtxRef.current.close(); };
-  }, [movie, videoUrl, isBunny, volumeBoost]);
+  }, [movie, videoUrl, isEmbed, volumeBoost]);
 
   useEffect(() => { if (gainNodeRef.current) gainNodeRef.current.gain.value = isMuted ? 0 : volumeBoost; }, [volumeBoost, isMuted]);
 
   // Bunny iframe volume
   useEffect(() => {
     const iframe = iframeRef.current;
-    if (!iframe || !isBunny) return;
+    if (!iframe || !isEmbed || !ehBunnyLegado(videoUrl)) return;
     const handleLoad = () => {
       iframe.contentWindow?.postMessage({ method: 'setVolume', value: 100 }, '*');
       iframe.contentWindow?.postMessage({ method: 'unmute' }, '*');
@@ -342,12 +364,14 @@ export function PlayerPage() {
     const t1 = setTimeout(handleLoad, 1000);
     const t2 = setTimeout(handleLoad, 3000);
     return () => { iframe.removeEventListener('load', handleLoad); clearTimeout(t1); clearTimeout(t2); };
-  }, [movie, isBunny]);
+  }, [movie, isEmbed, videoUrl]);
 
   // Teclas
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') { const video = videoRef.current; if (video) doSave(Math.floor(video.currentTime), Math.floor(video.duration || 0)); navigate(-1); }
+      // Em embeds de terceiros os controles são do próprio player do iframe.
+      if (isEmbedRef.current) return;
       if (e.key === ' ' || e.code === 'Space') { const video = videoRef.current; if (video && document.activeElement === document.body) { e.preventDefault(); video.paused ? video.play() : video.pause(); } }
       if (e.key === 'ArrowRight') { const video = videoRef.current; if (video) { e.preventDefault(); video.currentTime = Math.min(video.duration || Infinity, video.currentTime + 10); } }
       if (e.key === 'ArrowLeft') { const video = videoRef.current; if (video) { e.preventDefault(); video.currentTime = Math.max(0, video.currentTime - 10); } }
@@ -402,9 +426,9 @@ export function PlayerPage() {
       </div>
 
       <div className="relative w-full bg-black pt-14">
-        {isBunny ? (
+        {isEmbed ? (
           <div className="relative w-full bg-black" style={{ aspectRatio: '16/9' }}>
-            <iframe ref={iframeRef} src={getEmbed(videoUrl)} className="absolute inset-0 w-full h-full border-0" allow="autoplay; fullscreen; encrypted-media" allowFullScreen title={movie?.title || 'Video'} />
+            <iframe ref={iframeRef} src={getEmbedUrl(videoUrl)} className="absolute inset-0 w-full h-full border-0" allow="autoplay; fullscreen; encrypted-media" allowFullScreen title={movie?.title || 'Video'} />
           </div>
         ) : videoUrl ? (
           <div className="relative w-full bg-black" style={{ aspectRatio: '16/9' }}>
