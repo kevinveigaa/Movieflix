@@ -84,8 +84,10 @@ export function PlayerPage() {
       const u = new URL(alvo, window.location.href);
       if (u.origin === window.location.origin) return alvo;
     } catch { /* ignora */ }
-    // Demais provedores bloqueiam iframe: servimos pelo nosso domínio.
-    return `/api/player?url=${encodeURIComponent(alvo)}`;
+    // Qualquer outro link http(s) externo vai direto no iframe (o proxy
+    // interno causava o loop de abrir o próprio site dentro do player).
+    if (/^https?:\/\//i.test(alvo)) return alvo;
+    return alvo;
   }
 
 
