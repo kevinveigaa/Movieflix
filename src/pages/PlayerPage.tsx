@@ -75,9 +75,17 @@ export function PlayerPage() {
       const m = url.match(/([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})/i);
       if (m) alvo = 'https://iframe.mediadelivery.net/embed/723294/' + m[1] + '?autoplay=true&muted=false&preload=true&volume=100';
     }
-    // Sempre usar o link do vídeo cadastrado. O proxy /api/player não existe em
-    // produção e devolvia o index.html do site (site dentro do site / loop).
-    return alvo;
+    const baixo = alvo.toLowerCase();
+    // Provedores que já permitem iframe: link direto, sem proxy.
+    if (EMBEDS_DIRETOS.some((d) => baixo.includes(d))) return alvo;
+    // Nunca passar o próprio site pelo proxy (era o que causava o loop
+    // "site dentro do site").
+    try {
+      const u = new URL(alvo, window.location.href);
+      if (u.origin === window.location.origin) return alvo;
+    } catch { /* ignora */ }
+    // Demais provedores bloqueiam iframe: servimos pelo nosso domínio.
+    return `/api/player?url=${encodeURIComponent(alvo)}`;
   }
 
 
