@@ -37,7 +37,7 @@ export function PlayerPage() {
   // Arquivo de vídeo direto (o player nativo <video> consegue tocar).
   const ARQUIVO_DIRETO = /\.(mp4|m3u8|webm|mkv)(\?|#|$)/i;
   // Domínios de embed de terceiros (VDOHide, Bunny, etc.).
-  const DOMINIOS_EMBED = ['vdohide', 'bunnycdn', 'b-cdn.net', 'mediadelivery', 'iframe.'];
+  const DOMINIOS_EMBED = ['vdohide', 'bunnycdn', 'b-cdn.net', 'mediadelivery', 'iframe.', 'domegaembedapi', 'domega'];
 
   /** Bunny antigo: UUID do vídeo + domínio da Bunny → precisa virar iframe da mediadelivery. */
   function ehBunnyLegado(url: string) {
@@ -428,7 +428,16 @@ export function PlayerPage() {
       <div className="relative w-full bg-black pt-14">
         {isEmbed ? (
           <div className="relative w-full bg-black" style={{ aspectRatio: '16/9' }}>
-            <iframe ref={iframeRef} src={getEmbedUrl(videoUrl)} className="absolute inset-0 w-full h-full border-0" allow="autoplay; fullscreen; encrypted-media" allowFullScreen title={movie?.title || 'Video'} />
+            <iframe
+              ref={iframeRef}
+              src={getEmbedUrl(videoUrl)}
+              className="absolute inset-0 w-full h-full border-0"
+              allow="autoplay; fullscreen; encrypted-media; picture-in-picture"
+              allowFullScreen
+              sandbox="allow-scripts allow-same-origin allow-presentation"
+              referrerPolicy="no-referrer"
+              title={movie?.title || 'Video'}
+            />
           </div>
         ) : videoUrl ? (
           <div className="relative w-full bg-black" style={{ aspectRatio: '16/9' }}>
