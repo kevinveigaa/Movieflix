@@ -37,6 +37,8 @@ function urlValida(valor) {
 function paraProxy(valor, base) {
   if (!valor) return valor;
   const bruto = String(valor).trim();
+  // Já está passando pelo proxy: não reescrever de novo (evita loop).
+  if (bruto.startsWith(PROXY_PATH + "?url=")) return bruto;
   if (
     bruto.startsWith("data:") ||
     bruto.startsWith("blob:") ||
@@ -111,6 +113,12 @@ function registrarPlayerProxy(app) {
       return res.status(400).json({ erro: "Endereço de reprodução inválido." });
     }
 
+    // Nunca buscar o próprio site: isso renderizava o site dentro do site.
+    const hostProprio = (req.get("host") || "").toLowerCase();
+    if (alvo.host.toLowerCase() === hostProprio) {
+      return res.status(400).json({ erro: "Endereço de reprodução inválido (mesmo domínio)." });
+    }
+
     try {
       const upstream = await fetch(alvo.toString(), {
         method: req.method === "HEAD" ? "HEAD" : req.method,
@@ -126,6 +134,8 @@ function registrarPlayerProxy(app) {
 
       const tipo = upstream.headers.get("content-type") || "";
       res.status(upstream.status);
+      // Marca a resposta para deixar claro que veio do proxy (facilita depurar).
+      res.set("X-Player-Proxy", "1");
       upstream.headers.forEach((valor, chave) => {
         if (!HEADERS_BLOQUEADOS.has(chave.toLowerCase())) res.set(chave, valor);
       });
