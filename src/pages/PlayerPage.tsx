@@ -62,14 +62,24 @@ export function PlayerPage() {
   }, [videoUrl]);
 
 
-  /** Bunny legado vira iframe da mediadelivery; os demais embeds já vêm prontos. */
+  /**
+   * Provedores que permitem exibição direta dentro do site.
+   * Qualquer outro passa pelo nosso proxy interno (/api/player), que serve o
+   * conteúdo pelo próprio domínio — assim o vídeo nunca abre fora do site.
+   */
+  const EMBEDS_DIRETOS = ['mediadelivery', 'bunnycdn', 'b-cdn.net', 'vdohide'];
+
   function getEmbedUrl(url: string) {
+    let alvo = url;
     if (ehBunnyLegado(url)) {
       const m = url.match(/([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})/i);
-      if (m) return 'https://iframe.mediadelivery.net/embed/723294/' + m[1] + '?autoplay=true&muted=false&preload=true&volume=100';
+      if (m) alvo = 'https://iframe.mediadelivery.net/embed/723294/' + m[1] + '?autoplay=true&muted=false&preload=true&volume=100';
     }
-    return url;
+    const baixo = alvo.toLowerCase();
+    if (EMBEDS_DIRETOS.some((d) => baixo.includes(d))) return alvo;
+    return `/api/player?url=${encodeURIComponent(alvo)}`;
   }
+
 
   async function doSave(positionSeconds: number, durationSeconds: number) {
     const m = movieRef.current;
