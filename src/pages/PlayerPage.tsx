@@ -37,7 +37,10 @@ export function PlayerPage() {
   // Arquivo de vídeo direto (o player nativo <video> consegue tocar).
   const ARQUIVO_DIRETO = /\.(mp4|m3u8|webm|mkv)(\?|#|$)/i;
   // Domínios de embed de terceiros (VDOHide, Bunny, etc.).
-  const DOMINIOS_EMBED = ['vdohide', 'bunnycdn', 'b-cdn.net', 'mediadelivery', 'iframe.', 'megaembedapi', 'domegaembedapi', 'domega'];
+  const DOMINIOS_EMBED = ['vdohide', 'bunnycdn', 'b-cdn.net', 'mediadelivery', 'iframe.'];
+  // Provedores que enviam X-Frame-Options: SAMEORIGIN e não aceitam iframe → abrem em página inteira.
+  const DOMINIOS_SEM_IFRAME = ['megaembedapi', 'domega'];
+
 
   /** Bunny antigo: UUID do vídeo + domínio da Bunny → precisa virar iframe da mediadelivery. */
   function ehBunnyLegado(url: string) {
@@ -58,6 +61,13 @@ export function PlayerPage() {
     isEmbedRef.current = result;
     return result;
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [videoUrl]);
+
+  // Provedores que bloqueiam iframe (X-Frame-Options SAMEORIGIN) → abrem em página inteira.
+  const precisaAbrirDireto = useMemo(() => {
+    if (!videoUrl) return false;
+    const url = videoUrl.toLowerCase();
+    return DOMINIOS_SEM_IFRAME.some((d) => url.includes(d));
   }, [videoUrl]);
 
   /** Bunny legado vira iframe da mediadelivery; os demais embeds já vêm prontos. */
@@ -382,6 +392,23 @@ export function PlayerPage() {
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [navigate]);
 
+  // Redireciona para o player do provedor que não aceita iframe (megaembed/domega).
+  useEffect(() => {
+    if (precisaAbrirDireto && movie && videoUrl) {
+      window.location.replace(getEmbedUrl(videoUrl));
+    }
+  }, [precisaAbrirDireto, movie, videoUrl]);
+
+  if (precisaAbrirDireto) {
+    return (
+      <div className="flex h-screen flex-col items-center justify-center bg-black text-white gap-4">
+        <Film className="h-16 w-16 text-red-600" />
+        <h2 className="text-xl font-bold">Abrindo player...</h2>
+        <p className="text-zinc-400 text-sm">Você será redirecionado para o reprodutor.</p>
+      </div>
+    );
+  }
+
   if (authLoading || loading) {
     return (
       <div className="flex h-screen items-center justify-center bg-black">
@@ -434,8 +461,7 @@ export function PlayerPage() {
               className="absolute inset-0 w-full h-full border-0"
               allow="autoplay; fullscreen; encrypted-media; picture-in-picture"
               allowFullScreen
-              sandbox="allow-scripts allow-same-origin allow-presentation"
-              referrerPolicy="no-referrer"
+              sandbox="allow-scripts allow-same-origin allow-forms allow-presentation allow-popups"
               title={movie?.title || 'Video'}
             />
           </div>
