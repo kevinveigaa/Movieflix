@@ -37,7 +37,7 @@ export function PlayerPage() {
   // Arquivo de vídeo direto (o player nativo <video> consegue tocar).
   const ARQUIVO_DIRETO = /\.(mp4|m3u8|webm|mkv)(\?|#|$)/i;
   // Domínios de embed de terceiros (VDOHide, Bunny, etc.).
-  const DOMINIOS_EMBED = ['vdohide', 'bunnycdn', 'b-cdn.net', 'mediadelivery', 'iframe.', 'domegaembedapi', 'domega'];
+  const DOMINIOS_EMBED = ['vdohide', 'bunnycdn', 'b-cdn.net', 'mediadelivery', 'iframe.', 'megaembedapi', 'domegaembedapi', 'domega'];
 
   /** Bunny antigo: UUID do vídeo + domínio da Bunny → precisa virar iframe da mediadelivery. */
   function ehBunnyLegado(url: string) {
