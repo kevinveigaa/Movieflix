@@ -20,6 +20,7 @@ export type VideoSource = {
 const HOSTS_QUE_BLOQUEIAM_IFRAME = ['megaembedapi.site'];
 
 const HOSTS_QUE_PERMITEM_IFRAME = [
+  'drive.google.com',   // ← linha nova
   'mediadelivery.net',
   'bunnycdn',
   'b-cdn.net',

@@ -100,22 +100,27 @@ export function PlayerPage() {
   const EMBEDS_DIRETOS = ['mediadelivery', 'bunnycdn', 'b-cdn.net', 'vdohide'];
 
   function getEmbedUrl(url: string) {
+    // Google Drive: converte para /preview (evita tela branca)
+    if (/drive\.google\.com/i.test(url)) {
+      const byPath = url.match(/\/file\/d\/([^/?#]+)/);
+      if (byPath) return `https://drive.google.com/file/d/${byPath[1]}/preview`;
+      const byId = url.match(/[?&]id=([^&#]+)/);
+      if (byId) return `https://drive.google.com/file/d/${byId[1]}/preview`;
+      return url;
+    }
+
     let alvo = url;
     if (ehBunnyLegado(url)) {
       const m = url.match(/([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})/i);
       if (m) alvo = 'https://iframe.mediadelivery.net/embed/723294/' + m[1] + '?autoplay=true&muted=false&preload=true&volume=100';
     }
     const baixo = alvo.toLowerCase();
-    // Provedores que já permitem iframe: link direto, sem proxy.
+    const EMBEDS_DIRETOS = ['mediadelivery', 'bunnycdn', 'b-cdn.net', 'vdohide', 'drive.google.com'];
     if (EMBEDS_DIRETOS.some((d) => baixo.includes(d))) return alvo;
-    // Nunca passar o próprio site pelo proxy (era o que causava o loop
-    // "site dentro do site").
     try {
       const u = new URL(alvo, window.location.href);
       if (u.origin === window.location.origin) return alvo;
     } catch { /* ignora */ }
-    // Qualquer outro link http(s) externo vai direto no iframe (o proxy
-    // interno causava o loop de abrir o próprio site dentro do player).
     if (/^https?:\/\//i.test(alvo)) return alvo;
     return alvo;
   }
@@ -498,7 +503,7 @@ export function PlayerPage() {
               )}
 
               {embedStatus === 'loading' && (
-                <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-black/80 pointer-events-none">
+                <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-black pointer-events-none">
                   <div className="h-10 w-10 animate-spin rounded-full border-4 border-red-600 border-t-transparent" />
                   <p className="text-sm text-zinc-300">Carregando player ({fonteAtual.name})...</p>
                 </div>
