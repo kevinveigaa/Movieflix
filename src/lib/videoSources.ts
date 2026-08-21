@@ -1,24 +1,12 @@
 /**
  * Configuração central das fontes de reprodução do MovieFlix.
- *
- * Para trocar/adicionar uma fonte no futuro, mexa SOMENTE neste arquivo.
- *
- * Campos:
- *  - name:      nome exibido ao usuário.
- *  - build:     recebe os identificadores do título e devolve a URL do player
- *               (ou null quando aquele título não tem o id necessário).
- *  - enabled:   liga/desliga a fonte sem apagar o código.
- *  - embeddable: false quando o provedor envia X-Frame-Options / CSP
- *               frame-ancestors e por isso NÃO pode ser exibido dentro de um
- *               iframe. Nesses casos o MovieFlix mostra o aviso e o botão de
- *               abrir em nova aba, em vez de uma tela branca.
  */
 
 export type VideoSourceIds = {
-  /** URL cadastrada no painel admin para o título/episódio. */
   videoUrl?: string | null;
   imdbId?: string | null;
   tmdbId?: string | number | null;
+  mediaType?: string | null; // 'movie' | 'tv' | 'series' | 'anime'
 };
 
 export type VideoSource = {
@@ -29,15 +17,17 @@ export type VideoSource = {
   build: (ids: VideoSourceIds) => string | null;
 };
 
-/** Provedores conhecidos que BLOQUEIAM iframe (X-Frame-Options / CSP). */
 const HOSTS_QUE_BLOQUEIAM_IFRAME = ['megaembedapi.site'];
 
-/** Provedores conhecidos que permitem iframe. */
 const HOSTS_QUE_PERMITEM_IFRAME = [
   'mediadelivery.net',
   'bunnycdn',
   'b-cdn.net',
   'vdohide',
+  'vidsrc.xyz',
+  'vidsrc.to',
+  'vidsrc.me',
+  'vidsrc.net',
 ];
 
 export function hostDaUrl(url: string): string {
@@ -48,13 +38,17 @@ export function hostDaUrl(url: string): string {
   }
 }
 
-/** Heurística: essa URL pode ser exibida dentro de um iframe? */
 export function podeSerIncorporada(url: string): boolean {
   const host = hostDaUrl(url);
   if (!host) return true;
   if (HOSTS_QUE_BLOQUEIAM_IFRAME.some((h) => host.includes(h))) return false;
   if (HOSTS_QUE_PERMITEM_IFRAME.some((h) => host.includes(h))) return true;
-  return true; // desconhecido: tenta o iframe e usa o fallback se falhar
+  return true;
+}
+
+function tipoVidsrc(mediaType?: string | null): 'movie' | 'tv' {
+  if (mediaType === 'tv' || mediaType === 'series' || mediaType === 'anime') return 'tv';
+  return 'movie';
 }
 
 export const videoSources: VideoSource[] = [
@@ -62,22 +56,49 @@ export const videoSources: VideoSource[] = [
     id: 'cadastrada',
     name: 'Fonte cadastrada',
     enabled: true,
-    embeddable: true, // verificado em tempo de execução por podeSerIncorporada()
+    embeddable: true,
     build: ({ videoUrl }) => (videoUrl ? String(videoUrl) : null),
   },
-  // Exemplo de fonte extra (desligada). Habilite apenas fontes autorizadas:
-  // {
-  //   id: 'minha-fonte',
-  //   name: 'Minha Fonte',
-  //   enabled: false,
-  //   embeddable: true,
-  //   build: ({ imdbId }) => (imdbId ? `https://exemplo.com/embed/${imdbId}` : null),
-  // },
+  {
+    id: 'vidsrc-xyz',
+    name: 'VidSrc',
+    enabled: true,
+    embeddable: true,
+    build: ({ imdbId, tmdbId, mediaType }) => {
+      const tipo = tipoVidsrc(mediaType);
+      if (imdbId) return `https://vidsrc.xyz/embed/${tipo}/${imdbId}`;
+      if (tmdbId) return `https://vidsrc.xyz/embed/${tipo}?tmdb=${tmdbId}`;
+      return null;
+    },
+  },
+  {
+    id: 'vidsrc-to',
+    name: 'VidSrc 2',
+    enabled: true,
+    embeddable: true,
+    build: ({ imdbId, tmdbId, mediaType }) => {
+      const tipo = tipoVidsrc(mediaType);
+      if (imdbId) return `https://vidsrc.to/embed/${tipo}/${imdbId}`;
+      if (tmdbId) return `https://vidsrc.to/embed/${tipo}?tmdb=${tmdbId}`;
+      return null;
+    },
+  },
+  {
+    id: 'vidsrc-me',
+    name: 'VidSrc 3',
+    enabled: true,
+    embeddable: true,
+    build: ({ imdbId, tmdbId, mediaType }) => {
+      const tipo = tipoVidsrc(mediaType);
+      if (imdbId) return `https://vidsrc.me/embed/${tipo}?imdb=${imdbId}`;
+      if (tmdbId) return `https://vidsrc.me/embed/${tipo}?tmdb=${tmdbId}`;
+      return null;
+    },
+  },
 ];
 
 export type FonteResolvida = { id: string; name: string; url: string; embeddable: boolean };
 
-/** Lista final de fontes válidas para um título, na ordem de tentativa. */
 export function resolverFontes(ids: VideoSourceIds): FonteResolvida[] {
   const out: FonteResolvida[] = [];
   for (const src of videoSources) {
@@ -94,3 +115,22 @@ export function resolverFontes(ids: VideoSourceIds): FonteResolvida[] {
   }
   return out;
 }
+Arquivo 2: src/pages/PlayerPage.tsx
+Apenas uma linha muda. Procure esta linha (está por volta da linha 47):
+
+() => resolverFontes({ videoUrl, imdbId: movie?.imdb_id, tmdbId: movie?.tmdb_id }),
+[videoUrl, movie?.imdb_id, movie?.tmdb_id]
+Substitua por:
+
+() => resolverFontes({ videoUrl, imdbId: movie?.imdb_id, tmdbId: movie?.tmdb_id, mediaType: movie?.type || movie?.media_type }),
+[videoUrl, movie?.imdb_id, movie?.tmdb_id, movie?.type, movie?.media_type]
+Como aplicar pelo GitHub Web (mais fácil)
+Acesse https://github.com/kevinveigaa/Movieflix/blob/main/src/lib/videoSources.ts
+Clique no ícone de lápis (Edit)
+Seleciona tudo (Ctrl+A) e cola o novo conteúdo
+Clique em Commit changes
+Repita para o PlayerPage.tsx com apenas a pequena troca de linha
+Depois que commitar, o Render vai fazer o deploy automático. Os filmes que tiverem imdb_id ou tmdb_id cadastrados no banco vão aparecer com as fontes VidSrc, VidSrc 2 e VidSrc 3 como opção de fallback.
+
+
+
