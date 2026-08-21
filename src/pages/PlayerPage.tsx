@@ -41,8 +41,8 @@ export function PlayerPage() {
 
   // Fontes de reprodução configuradas (ver src/lib/videoSources.ts)
   const fontes = useMemo(
-    () => resolverFontes({ videoUrl, imdbId: movie?.imdb_id, tmdbId: movie?.tmdb_id }),
-    [videoUrl, movie?.imdb_id, movie?.tmdb_id]
+    () => resolverFontes({ videoUrl, imdbId: movie?.imdb_id, tmdbId: movie?.tmdb_id, mediaType: movie?.type || movie?.media_type }),
+[videoUrl, movie?.imdb_id, movie?.tmdb_id, movie?.type, movie?.media_type]
   );
   const fonteAtual = fontes[fonteIndex] || null;
   const temProximaFonte = fonteIndex < fontes.length - 1;
