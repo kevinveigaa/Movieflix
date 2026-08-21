@@ -2,7 +2,8 @@ import { useEffect, useRef, useState, useMemo } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
 import { supabase } from '@/lib/supabase';
-import { ChevronLeft, Film, Volume2, VolumeX } from 'lucide-react';
+import { ChevronLeft, Film, Volume2, VolumeX, AlertTriangle, ExternalLink, RefreshCw } from 'lucide-react';
+import { resolverFontes } from '@/lib/videoSources';
 import Hls from 'hls.js';
 
 export function PlayerPage() {
@@ -20,6 +21,10 @@ export function PlayerPage() {
   const gainNodeRef = useRef<GainNode | null>(null);
   const [volumeBoost, setVolumeBoost] = useState(1.5);
   const [isMuted, setIsMuted] = useState(false);
+  // Estado do player externo (iframe): carregando | ok | bloqueado
+  const [embedStatus, setEmbedStatus] = useState<'loading' | 'ok' | 'blocked'>('loading');
+  const [fonteIndex, setFonteIndex] = useState(0);
+  const [tentativa, setTentativa] = useState(0);
   const lastSaveRef = useRef(0);
 
   const movieRef = useRef<any>(null);
@@ -33,6 +38,31 @@ export function PlayerPage() {
   useEffect(() => { profileRef.current = activeViewerProfile; }, [activeViewerProfile]);
 
   const videoUrl = movie?.video_url || '';
+
+  // Fontes de reprodução configuradas (ver src/lib/videoSources.ts)
+  const fontes = useMemo(
+    () => resolverFontes({ videoUrl, imdbId: movie?.imdb_id, tmdbId: movie?.tmdb_id }),
+    [videoUrl, movie?.imdb_id, movie?.tmdb_id]
+  );
+  const fonteAtual = fontes[fonteIndex] || null;
+  const temProximaFonte = fonteIndex < fontes.length - 1;
+
+  /**
+   * Detecta se o player externo conseguiu abrir.
+   * Provedores que enviam X-Frame-Options/CSP (ex.: megaembedapi.site) nunca
+   * disparam o evento `load` do iframe — o navegador aborta com
+   * ERR_BLOCKED_BY_RESPONSE. Nesse caso mostramos o aviso, nunca tela branca.
+   */
+  useEffect(() => {
+    if (!fonteAtual) return;
+    if (!fonteAtual.embeddable) { setEmbedStatus('blocked'); return; }
+    setEmbedStatus('loading');
+    const timer = setTimeout(() => {
+      setEmbedStatus((s) => (s === 'loading' ? 'blocked' : s));
+    }, 12000);
+    return () => clearTimeout(timer);
+  }, [fonteAtual?.url, fonteAtual?.embeddable, tentativa]);
+
 
   // Arquivo de vídeo direto (o player nativo <video> consegue tocar).
   const ARQUIVO_DIRETO = /\.(mp4|m3u8|webm|mkv)(\?|#|$)/i;
@@ -448,18 +478,83 @@ export function PlayerPage() {
       </div>
 
       <div className="relative w-full bg-black pt-14">
-        {isEmbed ? (
-          <div className="relative w-full bg-black" style={{ aspectRatio: '16/9' }}>
-            <iframe
-              ref={iframeRef}
-              src={getEmbedUrl(videoUrl)}
-              className="absolute inset-0 w-full h-full border-0"
-              allow="autoplay; fullscreen; encrypted-media; picture-in-picture"
-              allowFullScreen
-              sandbox="allow-scripts allow-same-origin allow-forms allow-presentation"
-              title={movie?.title || 'Video'}
-            />
-          </div>
+        {isEmbed && fonteAtual ? (
+          <>
+            <div className="relative w-full bg-black" style={{ aspectRatio: '16/9' }}>
+              {embedStatus !== 'blocked' && (
+                <iframe
+                  key={`${fonteAtual.url}-${tentativa}`}
+                  ref={iframeRef}
+                  src={getEmbedUrl(fonteAtual.url)}
+                  className="absolute inset-0 w-full h-full border-0"
+                  allow="autoplay; fullscreen; encrypted-media; picture-in-picture"
+                  allowFullScreen
+                  referrerPolicy="no-referrer"
+                  loading="eager"
+                  title={movie?.title || 'Video'}
+                  onLoad={() => setEmbedStatus('ok')}
+                  onError={() => setEmbedStatus('blocked')}
+                />
+              )}
+
+              {embedStatus === 'loading' && (
+                <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-black/80 pointer-events-none">
+                  <div className="h-10 w-10 animate-spin rounded-full border-4 border-red-600 border-t-transparent" />
+                  <p className="text-sm text-zinc-300">Carregando player ({fonteAtual.name})...</p>
+                </div>
+              )}
+
+              {embedStatus === 'blocked' && (
+                <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-zinc-950 px-4 text-center">
+                  <AlertTriangle className="h-12 w-12 text-amber-500" />
+                  <h3 className="text-lg font-bold">Esta fonte não permite reprodução dentro do site</h3>
+                  <p className="max-w-md text-sm text-zinc-400">
+                    O provedor <span className="text-zinc-200">{fonteAtual.name}</span> bloqueia a exibição em outros sites
+                    (X-Frame-Options / CSP). Você pode abrir o player em uma nova aba
+                    {temProximaFonte ? ' ou tentar a próxima fonte disponível.' : '.'}
+                  </p>
+                  <div className="flex flex-wrap items-center justify-center gap-3 pt-1">
+                    <a
+                      href={fonteAtual.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-2 rounded-xl bg-red-600 px-6 py-2.5 text-sm font-semibold"
+                    >
+                      <ExternalLink className="h-4 w-4" /> Abrir player em nova aba
+                    </a>
+                    <button
+                      onClick={() => setTentativa((t) => t + 1)}
+                      className="flex items-center gap-2 rounded-xl bg-white/10 px-5 py-2.5 text-sm font-semibold hover:bg-white/20"
+                    >
+                      <RefreshCw className="h-4 w-4" /> Tentar novamente
+                    </button>
+                    {temProximaFonte && (
+                      <button
+                        onClick={() => { setFonteIndex((i) => i + 1); setTentativa((t) => t + 1); }}
+                        className="rounded-xl bg-white/10 px-5 py-2.5 text-sm font-semibold hover:bg-white/20"
+                      >
+                        Tentar próxima fonte
+                      </button>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {embedStatus !== 'blocked' && (
+              <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-2 text-xs text-zinc-400">
+                <span>Fonte: {fonteAtual.name}</span>
+                <span className="flex items-center gap-3">
+                  <button onClick={() => setEmbedStatus('blocked')} className="underline hover:text-white">
+                    O vídeo não abriu?
+                  </button>
+                  <a href={fonteAtual.url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 underline hover:text-white">
+                    <ExternalLink className="h-3 w-3" /> Abrir em nova aba
+                  </a>
+                </span>
+              </div>
+            )}
+          </>
         ) : videoUrl ? (
           <div className="relative w-full bg-black" style={{ aspectRatio: '16/9' }}>
             <video ref={videoRef} controls playsInline preload="auto" className="w-full h-full" style={{ backgroundColor: '#000', maxHeight: '80vh' }} poster={movie?.backdrop_url || movie?.poster_url}>
