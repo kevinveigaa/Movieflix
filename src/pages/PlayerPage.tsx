@@ -1,9 +1,13 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
 import { supabase } from '@/lib/supabase';
-import { getVidsrcUrl } from '@/lib/videoSources';
-import { ChevronLeft, Film, Loader2, Play } from 'lucide-react';
+import { getVideoSources } from '@/lib/videoSources';
+import { ChevronLeft, Film, Loader2, Play, RefreshCw } from 'lucide-react';
+
+// Tempo máximo (ms) que esperamos o iframe carregar antes de avançar
+// automaticamente para a próxima fonte da cascata.
+const TIMEOUT_TROCA_FONTE = 12000;
 
 export function PlayerPage() {
   const { id } = useParams();
@@ -14,35 +18,75 @@ export function PlayerPage() {
   const [movie, setMovie] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
-  const [watchUrl, setWatchUrl] = useState<string | null>(null);
 
+  // Fontes em ordem de preferência; a atual é a que está no iframe.
+  const [sources, setSources] = useState<string[]>([]);
+  const [sourceIndex, setSourceIndex] = useState(0);
+
+  const iframeRef = useRef<HTMLIFrameElement>(null);
+  const timeoutRef = useRef<number | null>(null);
+
+  const currentUrl = sources[sourceIndex] ?? null;
+
+  const limparTimeout = useCallback(() => {
+    if (timeoutRef.current !== null) {
+      window.clearTimeout(timeoutRef.current);
+      timeoutRef.current = null;
+    }
+  }, []);
+
+  const avancarFonte = useCallback(() => {
+    setSourceIndex((i) => i + 1);
+  }, []);
+
+  // Monta a lista de fontes a partir do banco + IDs (filme ou episódio/série).
   useEffect(() => {
     async function load() {
-      if (!id) { setLoading(false); return; }
+      if (!id) {
+        setLoading(false);
+        return;
+      }
 
       const epRaw = searchParams.get('episode');
       const epId = epRaw ? parseInt(epRaw, 10) : null;
 
       if (epId && !isNaN(epId)) {
         const { data: ep } = await supabase.from('episodes').select('*').eq('id', epId).maybeSingle();
-        if (!ep) { setErrorMsg('Episódio não encontrado.'); setLoading(false); return; }
+        if (!ep) {
+          setErrorMsg('Episódio não encontrado.');
+          setLoading(false);
+          return;
+        }
         const { data: season } = await supabase.from('seasons').select('*').eq('id', ep.season_id).maybeSingle();
         const { data: series } = await supabase.from('movies').select('*').eq('id', season?.series_id || id).maybeSingle();
-        if (!series) { setErrorMsg('Série não encontrada.'); setLoading(false); return; }
+        if (!series) {
+          setErrorMsg('Série não encontrada.');
+          setLoading(false);
+          return;
+        }
         setMovie({ ...series, title: `${series.title} — T${season?.season_number || '?'} E${ep.episode_number}: ${ep.title}` });
-        // Prefere o vídeo real cadastrado no banco (episódio ou série); só monta
-        // URL por ID como último recurso.
-        setWatchUrl(
-          ep.video_url ||
-          series.video_url ||
-          getVidsrcUrl({ imdbId: series.imdb_id, tmdbId: series.tmdb_id, mediaType: 'tv' })
+
+        // Fonte de verdade: video_url cadastrado no banco; depois a cascata.
+        const builtins = getVideoSources({
+          imdbId: series.imdb_id,
+          tmdbId: series.tmdb_id,
+          mediaType: 'tv',
+        });
+        const lista = [ep.video_url, series.video_url, ...builtins].filter(
+          (u): u is string => Boolean(u),
         );
+        setSources(lista);
+        setSourceIndex(0);
         setLoading(false);
         return;
       }
 
       const { data, error } = await supabase.from('movies').select('*').eq('id', id).maybeSingle();
-      if (error || !data) { setErrorMsg(error?.message || 'Título não encontrado.'); setLoading(false); return; }
+      if (error || !data) {
+        setErrorMsg(error?.message || 'Título não encontrado.');
+        setLoading(false);
+        return;
+      }
 
       const isSeries = data.type === 'series' || data.type === 'tv' || data.type === 'anime' || data.media_type === 'tv' || (data.number_of_seasons > 0);
       if (isSeries && !data.video_url) {
@@ -51,11 +95,16 @@ export function PlayerPage() {
           const { data: eps } = await supabase.from('episodes').select('*').eq('season_id', seasons[0].id).not('video_url', 'is', null).order('episode_number', { ascending: true }).limit(1);
           if (eps && eps.length > 0) {
             setMovie({ ...data, title: `${data.title} — T${seasons[0].season_number} E${eps[0].episode_number}: ${eps[0].title}` });
-            setWatchUrl(
-              eps[0].video_url ||
-              data.video_url ||
-              getVidsrcUrl({ imdbId: data.imdb_id, tmdbId: data.tmdb_id, mediaType: 'tv' })
+            const builtins = getVideoSources({
+              imdbId: data.imdb_id,
+              tmdbId: data.tmdb_id,
+              mediaType: 'tv',
+            });
+            const lista = [eps[0].video_url, data.video_url, ...builtins].filter(
+              (u): u is string => Boolean(u),
             );
+            setSources(lista);
+            setSourceIndex(0);
             setLoading(false);
             return;
           }
@@ -63,18 +112,43 @@ export function PlayerPage() {
       }
 
       setMovie(data);
-      // Fonte de verdade: video_url cadastrado no banco (painel admin). Só
-      // monta URL por ID quando não há vídeo cadastrado.
       const tipo = (data.type === 'tv' || data.type === 'series' || data.type === 'anime' || data.media_type === 'tv') ? 'tv' : 'movie';
-      setWatchUrl(
-        data.video_url ||
-        getVidsrcUrl({ imdbId: data.imdb_id, tmdbId: data.tmdb_id, mediaType: tipo })
-      );
+      const builtins = getVideoSources({
+        imdbId: data.imdb_id,
+        tmdbId: data.tmdb_id,
+        mediaType: tipo,
+      });
+      const lista = [data.video_url, ...builtins].filter((u): u is string => Boolean(u));
+      setSources(lista);
+      setSourceIndex(0);
       setLoading(false);
     }
 
     load();
   }, [id, searchParams]);
+
+  // Reinicia o timeout quando a fonte atual muda; se o iframe não confirmar
+  // o carregamento a tempo, avança para a próxima fonte automaticamente.
+  useEffect(() => {
+    limparTimeout();
+    if (!currentUrl) return;
+    timeoutRef.current = window.setTimeout(() => {
+      if (sourceIndex < sources.length - 1) {
+        avancarFonte();
+      }
+    }, TIMEOUT_TROCA_FONTE);
+    return limparTimeout;
+  }, [currentUrl, sourceIndex, sources.length, avancarFonte, limparTimeout]);
+
+  function trocarFonteManual() {
+    limparTimeout();
+    if (sourceIndex < sources.length - 1) {
+      avancarFonte();
+    } else {
+      // Volta para a primeira fonte (recarregar do zero).
+      setSourceIndex(0);
+    }
+  }
 
   if (loading) {
     return (
@@ -111,47 +185,57 @@ export function PlayerPage() {
         <button onClick={() => navigate(-1)} className="flex items-center gap-2 rounded-full bg-white/10 p-2.5 hover:bg-white/20 transition">
           <ChevronLeft className="h-5 w-5" />
         </button>
-        <h1 className="truncate text-base font-semibold">{movie?.title || 'Player'}</h1>
+        <h1 className="truncate text-base font-semibold flex-1">{movie?.title || 'Player'}</h1>
+        {sources.length > 1 && (
+          <button
+            onClick={trocarFonteManual}
+            title="Trocar fonte de vídeo"
+            className="flex items-center gap-2 rounded-full bg-white/10 px-3 py-2 text-xs font-medium hover:bg-white/20 transition"
+          >
+            <RefreshCw className="h-4 w-4" />
+            Fonte {sourceIndex + 1}/{sources.length}
+          </button>
+        )}
       </div>
 
       {/* Conteúdo */}
-      <div className="flex flex-col items-center justify-center min-h-screen px-6 pt-20 pb-10 gap-6">
-        {/* Poster */}
-        {movie?.poster_url ? (
-          <img
-            src={movie.poster_url}
-            alt={movie.title}
-            className="w-48 rounded-xl shadow-2xl shadow-red-900/20"
-          />
-        ) : (
-          <Film className="h-24 w-24 text-zinc-700" />
-        )}
+      <div className="flex flex-col items-center justify-start min-h-screen px-4 sm:px-6 pt-24 pb-10 gap-6">
+        {/* Player em iframe — ocupa a área principal */}
+        {currentUrl ? (
+          <div className="w-full max-w-5xl">
+            <div className="relative w-full aspect-video rounded-xl overflow-hidden bg-black shadow-2xl shadow-red-900/20 ring-1 ring-white/10">
+              <iframe
+                key={currentUrl}
+                ref={iframeRef}
+                src={currentUrl}
+                title={`Player — ${movie?.title || ''}`}
+                className="absolute inset-0 w-full h-full border-0"
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share; fullscreen"
+                allowFullScreen
+                referrerPolicy="origin"
+                onLoad={() => limparTimeout()}
+              />
+            </div>
 
-        {/* Título */}
-        <h2 className="text-2xl font-bold text-center">{movie?.title}</h2>
-
-        {/* Botão Assistir */}
-        {watchUrl ? (
-          <a
-            href={watchUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex items-center gap-3 rounded-xl bg-red-600 px-10 py-4 text-xl font-bold hover:bg-red-700 transition shadow-lg shadow-red-900/30"
-          >
-            <Play className="h-7 w-7" /> Assistir agora
-          </a>
-        ) : (
-          <div className="text-zinc-400 text-center">
-            <p>Vídeo não disponível</p>
-            <p className="text-sm mt-1">ID do IMDB/TMDB não cadastrado</p>
+            <p className="mt-2 text-center text-xs text-zinc-500">
+              Fonte {sourceIndex + 1} de {sources.length}
+              {sourceIndex < sources.length - 1 && (
+                <>
+                  {' '}— se o vídeo não carregar em alguns segundos,{' '}
+                  <button onClick={trocarFonteManual} className="text-red-400 underline hover:text-red-300">
+                    tente a próxima fonte
+                  </button>
+                </>
+              )}
+            </p>
           </div>
-        )}
-
-        {/* Sinopse */}
-        {movie?.description && (
-          <p className="text-zinc-400 text-sm text-center max-w-md leading-relaxed mt-4">
-            {movie.description}
-          </p>
+        ) : (
+          <div className="flex flex-col items-center gap-4 text-zinc-400 text-center mt-10">
+            <Film className="h-20 w-20 text-zinc-700" />
+            <p>Vídeo não disponível</p>
+            <p className="text-sm">Nenhuma fonte de vídeo encontrada para este título.</p>
+            <button onClick={() => navigate(-1)} className="rounded-xl bg-red-600 px-8 py-3 font-semibold">Voltar</button>
+          </div>
         )}
       </div>
     </div>
