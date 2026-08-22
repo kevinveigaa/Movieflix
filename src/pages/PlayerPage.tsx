@@ -67,6 +67,16 @@ export function PlayerPage() {
   // Arquivo de vídeo direto (o player nativo <video> consegue tocar).
   const ARQUIVO_DIRETO = /\.(mp4|m3u8|webm|mkv)(\?|#|$)/i;
   // Domínios de embed de terceiros (VDOHide, Bunny, etc.).
+  /**
+   * Hosts confiáveis (Drive, Bunny, fontes próprias) NÃO recebem sandbox:
+   * esses players recusam rodar dentro de <iframe sandbox>.
+   * Só os embeds de terceiros cheios de anúncio ganham o sandbox
+   * (sem allow-popups / allow-top-navigation = sem abas de anúncio).
+   */
+  const HOSTS_SEM_SANDBOX = ['drive.google.com', 'mediadelivery.net', 'bunnycdn', 'b-cdn.net', 'vdohide'];
+  const precisaSandbox = (url: string) =>
+    !HOSTS_SEM_SANDBOX.some((h) => url.toLowerCase().includes(h));
+
   const DOMINIOS_EMBED = ['vdohide', 'bunnycdn', 'b-cdn.net', 'mediadelivery', 'iframe.'];
 
 
@@ -494,9 +504,9 @@ export function PlayerPage() {
                   className="absolute inset-0 w-full h-full border-0"
                   allow="autoplay; fullscreen; encrypted-media; picture-in-picture"
                   allowFullScreen
-                  /* Sem allow-popups / allow-top-navigation: o iframe não consegue
-                     abrir abas de anúncio nem sequestrar a página. */
-                  sandbox="allow-scripts allow-same-origin allow-forms allow-presentation allow-orientation-lock"
+                  {...(precisaSandbox(fonteAtual.url)
+                    ? { sandbox: 'allow-scripts allow-same-origin allow-forms allow-presentation allow-orientation-lock' }
+                    : {})}
                   allowTransparency
                   referrerPolicy="no-referrer"
                   loading="eager"
