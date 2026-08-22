@@ -8,6 +8,7 @@ export function useMovies(type?: string) {
       let query = supabase
         .from('movies')
         .select('*')
+        .order('year', { ascending: false })
         .order('created_at', { ascending: false });
 
       if (type) {
@@ -22,9 +23,3 @@ export function useMovies(type?: string) {
     },
   });
 }
-
-
-
-
-
-

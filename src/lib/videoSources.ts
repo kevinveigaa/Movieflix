@@ -1,5 +1,5 @@
 /**
- * Fontes de vídeo do MovieFlix — apenas vidsrc
+ * Fontes de vídeo do MovieFlix — vidsrc via proxy interno
  */
 
 export type VideoIds = {
@@ -13,4 +13,9 @@ export function getVidsrcUrl(ids: VideoIds): string | null {
   const id = ids.imdbId || ids.tmdbId;
   if (!id) return null;
   return `https://vidsrc.cc/v2/embed/${tipo}/${id}?autoPlay=true`;
+}
+
+/** URL do proxy interno (mesmo domínio, sem bloqueio de iframe) */
+export function getProxyUrl(vidsrcUrl: string): string {
+  return `/api/player?url=${encodeURIComponent(vidsrcUrl)}`;
 }
