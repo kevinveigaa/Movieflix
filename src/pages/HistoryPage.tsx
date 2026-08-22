@@ -6,7 +6,7 @@ import { useSeriesHidden } from '@/hooks/useSeriesHidden';
 import { useAuth } from '@/context/AuthContext';
 import { supabase } from '@/lib/supabase';
 import { img } from '@/lib/tmdb';
-import { ehSerie } from '@/lib/media';
+import { ehSerie, estaDisponivel } from '@/lib/media';
 import type { WatchHistoryRow } from '@/types';
 
 /** Retoma no player do catálogo quando o título é conhecido; senão vai à página do título. */
@@ -43,10 +43,13 @@ export function HistoryPage() {
   // Busca os IDs dos filmes que realmente existem no catálogo (e quais são séries).
   useEffect(() => {
     async function loadValidMovies() {
-      const { data } = await supabase.from('movies').select('id, type, video_url');
+      const { data } = await supabase.from('movies').select('id, type, video_url, year');
       if (data) {
-        setValidMovieIds(new Set(data.map((m: any) => m.id)));
-        setSeriesMovieIds(new Set(data.filter((m: any) => ehSerie(m)).map((m: any) => m.id)));
+        // Aplica o mesmo filtro do catálogo: títulos não lançados (ano futuro)
+        // ou sem vídeo não aparecem nem no histórico.
+        const validos = (data as any[]).filter(estaDisponivel);
+        setValidMovieIds(new Set(validos.map((m: any) => m.id)));
+        setSeriesMovieIds(new Set(validos.filter((m: any) => ehSerie(m)).map((m: any) => m.id)));
       }
     }
     loadValidMovies();

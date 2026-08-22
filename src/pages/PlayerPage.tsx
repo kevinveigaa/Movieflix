@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
 import { supabase } from '@/lib/supabase';
+import { getVidsrcUrl } from '@/lib/videoSources';
 import { ChevronLeft, Film, Loader2, Play } from 'lucide-react';
 
 export function PlayerPage() {
@@ -29,9 +30,13 @@ export function PlayerPage() {
         const { data: series } = await supabase.from('movies').select('*').eq('id', season?.series_id || id).maybeSingle();
         if (!series) { setErrorMsg('Série não encontrada.'); setLoading(false); return; }
         setMovie({ ...series, title: `${series.title} — T${season?.season_number || '?'} E${ep.episode_number}: ${ep.title}` });
-        const tipo = 'tv';
-        const idVal = series.imdb_id || series.tmdb_id;
-        if (idVal) setWatchUrl(`https://vidsrc.cc/v2/embed/${tipo}/${idVal}?autoPlay=true`);
+        // Prefere o vídeo real cadastrado no banco (episódio ou série); só monta
+        // URL por ID como último recurso.
+        setWatchUrl(
+          ep.video_url ||
+          series.video_url ||
+          getVidsrcUrl({ imdbId: series.imdb_id, tmdbId: series.tmdb_id, mediaType: 'tv' })
+        );
         setLoading(false);
         return;
       }
@@ -46,8 +51,11 @@ export function PlayerPage() {
           const { data: eps } = await supabase.from('episodes').select('*').eq('season_id', seasons[0].id).not('video_url', 'is', null).order('episode_number', { ascending: true }).limit(1);
           if (eps && eps.length > 0) {
             setMovie({ ...data, title: `${data.title} — T${seasons[0].season_number} E${eps[0].episode_number}: ${eps[0].title}` });
-            const idVal = data.imdb_id || data.tmdb_id;
-            if (idVal) setWatchUrl(`https://vidsrc.cc/v2/embed/tv/${idVal}?autoPlay=true`);
+            setWatchUrl(
+              eps[0].video_url ||
+              data.video_url ||
+              getVidsrcUrl({ imdbId: data.imdb_id, tmdbId: data.tmdb_id, mediaType: 'tv' })
+            );
             setLoading(false);
             return;
           }
@@ -55,9 +63,13 @@ export function PlayerPage() {
       }
 
       setMovie(data);
+      // Fonte de verdade: video_url cadastrado no banco (painel admin). Só
+      // monta URL por ID quando não há vídeo cadastrado.
       const tipo = (data.type === 'tv' || data.type === 'series' || data.type === 'anime' || data.media_type === 'tv') ? 'tv' : 'movie';
-      const idVal = data.imdb_id || data.tmdb_id;
-      if (idVal) setWatchUrl(`https://vidsrc.cc/v2/embed/${tipo}/${idVal}?autoPlay=true`);
+      setWatchUrl(
+        data.video_url ||
+        getVidsrcUrl({ imdbId: data.imdb_id, tmdbId: data.tmdb_id, mediaType: tipo })
+      );
       setLoading(false);
     }
 

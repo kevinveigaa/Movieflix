@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
+import { estaDisponivel } from '@/lib/media';
 
 export function useMovies(type?: string) {
   return useQuery({
@@ -19,7 +20,10 @@ export function useMovies(type?: string) {
 
       if (error) throw error;
 
-      return data;
+      // Filtro cliente: remove títulos ainda não lançados (ano futuro) e
+      // filmes sem vídeo disponível. Séries/animes com temporadas/episódios
+      // continuam aparecendo (o vídeo fica nos episódios).
+      return (data ?? []).filter(estaDisponivel);
     },
   });
 }
