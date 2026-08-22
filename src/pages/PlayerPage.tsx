@@ -14,8 +14,7 @@ export function PlayerPage() {
   const [movie, setMovie] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
-  const [vidsrcUrl, setVidsrcUrl] = useState<string | null>(null);
-  const [showButton, setShowButton] = useState(false);
+  const [proxyUrl, setProxyUrl] = useState<string | null>(null);
 
   useEffect(() => {
     async function load() {
@@ -31,8 +30,8 @@ export function PlayerPage() {
         const { data: series } = await supabase.from('movies').select('*').eq('id', season?.series_id || id).maybeSingle();
         if (!series) { setErrorMsg('Série não encontrada.'); setLoading(false); return; }
         setMovie({ ...series, title: `${series.title} — T${season?.season_number || '?'} E${ep.episode_number}: ${ep.title}` });
-        const url = getVidsrcUrl({ imdbId: series.imdb_id, tmdbId: series.tmdb_id, mediaType: 'tv' });
-        setVidsrcUrl(url);
+        const vidsrc = getVidsrcUrl({ imdbId: series.imdb_id, tmdbId: series.tmdb_id, mediaType: 'tv' });
+        if (vidsrc) setProxyUrl(`/api/player?url=${encodeURIComponent(vidsrc)}`);
         setLoading(false);
         return;
       }
@@ -47,8 +46,8 @@ export function PlayerPage() {
           const { data: eps } = await supabase.from('episodes').select('*').eq('season_id', seasons[0].id).not('video_url', 'is', null).order('episode_number', { ascending: true }).limit(1);
           if (eps && eps.length > 0) {
             setMovie({ ...data, title: `${data.title} — T${seasons[0].season_number} E${eps[0].episode_number}: ${eps[0].title}` });
-            const url = getVidsrcUrl({ imdbId: data.imdb_id, tmdbId: data.tmdb_id, mediaType: 'tv' });
-            setVidsrcUrl(url);
+            const vidsrc = getVidsrcUrl({ imdbId: data.imdb_id, tmdbId: data.tmdb_id, mediaType: 'tv' });
+            if (vidsrc) setProxyUrl(`/api/player?url=${encodeURIComponent(vidsrc)}`);
             setLoading(false);
             return;
           }
@@ -56,20 +55,13 @@ export function PlayerPage() {
       }
 
       setMovie(data);
-      const url = getVidsrcUrl({ imdbId: data.imdb_id, tmdbId: data.tmdb_id, mediaType: data.type || data.media_type });
-      setVidsrcUrl(url);
+      const vidsrc = getVidsrcUrl({ imdbId: data.imdb_id, tmdbId: data.tmdb_id, mediaType: data.type || data.media_type });
+      if (vidsrc) setProxyUrl(`/api/player?url=${encodeURIComponent(vidsrc)}`);
       setLoading(false);
     }
 
     load();
   }, [id, searchParams]);
-
-  // Se iframe não carregar em 5s, mostra botão
-  useEffect(() => {
-    if (!vidsrcUrl) return;
-    const timer = setTimeout(() => setShowButton(true), 5000);
-    return () => clearTimeout(timer);
-  }, [vidsrcUrl]);
 
   if (loading) {
     return (
@@ -109,45 +101,21 @@ export function PlayerPage() {
       </div>
 
       <div className="relative w-full bg-black pt-14">
-        {vidsrcUrl ? (
-          <div className="relative w-full bg-black" style={{ aspectRatio: '16/9' }}>
-            {/* IFRAME - tenta vidsrc direto (sempre vai ser bloqueado, mas tenta) */}
-            {!showButton && (
-              <>
-                <iframe
-                  src={vidsrcUrl}
-                  className="absolute inset-0 w-full h-full border-0"
-                  allow="autoplay; fullscreen; encrypted-media; picture-in-picture"
-                  allowFullScreen
-                  referrerPolicy="no-referrer"
-                  loading="eager"
-                  title={movie?.title || 'Vídeo'}
-                />
-                <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-black pointer-events-none">
-                  <Loader2 className="h-10 w-10 animate-spin text-red-600" />
-                  <p className="text-sm text-zinc-300">Carregando player...</p>
-                </div>
-              </>
-            )}
-
-            {/* Botão Assistir — abre vidsrc DIRETO em nova aba (sem proxy) */}
-            {showButton && (
-              <div className="absolute inset-0 flex flex-col items-center justify-center gap-5 bg-zinc-950 px-6 text-center">
-                <Play className="h-16 w-16 text-red-600" />
-                <h3 className="text-xl font-bold">{movie?.title}</h3>
-                <p className="text-sm text-zinc-400 max-w-sm">
-                  Toque no botão abaixo para assistir ao filme.
-                </p>
-                <a
-                  href={vidsrcUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex items-center gap-3 rounded-xl bg-red-600 px-8 py-4 text-lg font-bold hover:bg-red-700 transition"
-                >
-                  <Play className="h-6 w-6" /> Assistir agora
-                </a>
-              </div>
-            )}
+        {proxyUrl ? (
+          <div className="relative w-full bg-black flex flex-col items-center justify-center gap-5 px-6 py-12 text-center" style={{ minHeight: '50vh' }}>
+            <Play className="h-16 w-16 text-red-600" />
+            <h3 className="text-2xl font-bold">{movie?.title}</h3>
+            <p className="text-sm text-zinc-400 max-w-sm">
+              Toque no botão abaixo para assistir ao filme.
+            </p>
+            <a
+              href={proxyUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-3 rounded-xl bg-red-600 px-8 py-4 text-lg font-bold hover:bg-red-700 transition"
+            >
+              <Play className="h-6 w-6" /> Assistir agora
+            </a>
           </div>
         ) : (
           <div className="flex h-[60vh] flex-col items-center justify-center text-center gap-4 px-4">
