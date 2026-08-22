@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
 import { supabase } from '@/lib/supabase';
-import { ChevronLeft, Film, Loader2, Play, ExternalLink } from 'lucide-react';
+import { ChevronLeft, Film, Loader2, Play } from 'lucide-react';
 import { getVidsrcUrl } from '@/lib/videoSources';
 
 export function PlayerPage() {
@@ -14,7 +14,7 @@ export function PlayerPage() {
   const [movie, setMovie] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
-  const [vidsrcUrl, setVidsrcUrl] = useState<string | null>(null);
+  const [proxyUrl, setProxyUrl] = useState<string | null>(null);
   const [showButton, setShowButton] = useState(false);
 
   useEffect(() => {
@@ -31,8 +31,8 @@ export function PlayerPage() {
         const { data: series } = await supabase.from('movies').select('*').eq('id', season?.series_id || id).maybeSingle();
         if (!series) { setErrorMsg('Série não encontrada.'); setLoading(false); return; }
         setMovie({ ...series, title: `${series.title} — T${season?.season_number || '?'} E${ep.episode_number}: ${ep.title}` });
-        const url = getVidsrcUrl({ imdbId: series.imdb_id, tmdbId: series.tmdb_id, mediaType: 'tv' });
-        setVidsrcUrl(url);
+        const vidsrc = getVidsrcUrl({ imdbId: series.imdb_id, tmdbId: series.tmdb_id, mediaType: 'tv' });
+        if (vidsrc) setProxyUrl(`/api/player?url=${encodeURIComponent(vidsrc)}`);
         setLoading(false);
         return;
       }
@@ -47,8 +47,8 @@ export function PlayerPage() {
           const { data: eps } = await supabase.from('episodes').select('*').eq('season_id', seasons[0].id).not('video_url', 'is', null).order('episode_number', { ascending: true }).limit(1);
           if (eps && eps.length > 0) {
             setMovie({ ...data, title: `${data.title} — T${seasons[0].season_number} E${eps[0].episode_number}: ${eps[0].title}` });
-            const url = getVidsrcUrl({ imdbId: data.imdb_id, tmdbId: data.tmdb_id, mediaType: 'tv' });
-            setVidsrcUrl(url);
+            const vidsrc = getVidsrcUrl({ imdbId: data.imdb_id, tmdbId: data.tmdb_id, mediaType: 'tv' });
+            if (vidsrc) setProxyUrl(`/api/player?url=${encodeURIComponent(vidsrc)}`);
             setLoading(false);
             return;
           }
@@ -56,20 +56,20 @@ export function PlayerPage() {
       }
 
       setMovie(data);
-      const url = getVidsrcUrl({ imdbId: data.imdb_id, tmdbId: data.tmdb_id, mediaType: data.type || data.media_type });
-      setVidsrcUrl(url);
+      const vidsrc = getVidsrcUrl({ imdbId: data.imdb_id, tmdbId: data.tmdb_id, mediaType: data.type || data.media_type });
+      if (vidsrc) setProxyUrl(`/api/player?url=${encodeURIComponent(vidsrc)}`);
       setLoading(false);
     }
 
     load();
   }, [id, searchParams]);
 
-  // Mostra botão após 3s se iframe não carregar
+  // Se iframe não carregar em 5s, mostra botão
   useEffect(() => {
-    if (!vidsrcUrl) return;
-    const timer = setTimeout(() => setShowButton(true), 3000);
+    if (!proxyUrl) return;
+    const timer = setTimeout(() => setShowButton(true), 5000);
     return () => clearTimeout(timer);
-  }, [vidsrcUrl]);
+  }, [proxyUrl]);
 
   if (loading) {
     return (
@@ -109,13 +109,13 @@ export function PlayerPage() {
       </div>
 
       <div className="relative w-full bg-black pt-14">
-        {vidsrcUrl ? (
+        {proxyUrl ? (
           <div className="relative w-full bg-black" style={{ aspectRatio: '16/9' }}>
-            {/* IFRAME - tenta carregar direto */}
+            {/* IFRAME via proxy interno (mesmo domínio = sem bloqueio) */}
             {!showButton && (
               <>
                 <iframe
-                  src={vidsrcUrl}
+                  src={proxyUrl}
                   className="absolute inset-0 w-full h-full border-0"
                   allow="autoplay; fullscreen; encrypted-media; picture-in-picture"
                   allowFullScreen
@@ -130,7 +130,7 @@ export function PlayerPage() {
               </>
             )}
 
-            {/* Botão Assistir - aparece após 3s ou se iframe falhar */}
+            {/* Botão Assistir — abre proxy em nova aba (mesmo domínio) */}
             {showButton && (
               <div className="absolute inset-0 flex flex-col items-center justify-center gap-5 bg-zinc-950 px-6 text-center">
                 <Play className="h-16 w-16 text-red-600" />
@@ -139,20 +139,12 @@ export function PlayerPage() {
                   Toque no botão abaixo para iniciar a reprodução.
                 </p>
                 <a
-                  href={vidsrcUrl}
+                  href={proxyUrl}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="flex items-center gap-3 rounded-xl bg-red-600 px-8 py-4 text-lg font-bold hover:bg-red-700 transition"
                 >
                   <Play className="h-6 w-6" /> Assistir agora
-                </a>
-                <a
-                  href={vidsrcUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex items-center gap-2 text-sm text-zinc-400 hover:text-white underline"
-                >
-                  <ExternalLink className="h-4 w-4" /> Abrir em nova aba
                 </a>
               </div>
             )}
