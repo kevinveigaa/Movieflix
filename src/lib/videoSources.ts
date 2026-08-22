@@ -1,229 +1,86 @@
 /**
- * Configuração central das fontes de reprodução do MovieFlix.
- * ATUALIZADO: remove domínios mortos, adiciona fallback automático e fontes estáveis.
+ * Fontes de reprodução do MovieFlix.
+ * Reescrito do zero: fallback automático, domínios mortos ignorados.
  */
 
-export type VideoSourceIds = {
+export type VideoIds = {
   videoUrl?: string | null;
   imdbId?: string | null;
   tmdbId?: string | number | null;
-  mediaType?: string | null; // 'movie' | 'tv' | 'series' | 'anime'
+  mediaType?: string | null;
 };
 
-export type VideoSource = {
+export type Source = {
   id: string;
   name: string;
-  enabled: boolean;
-  embeddable: boolean;
-  build: (ids: VideoSourceIds) => string | null;
+  url: string | null;
 };
 
-// Domínios que bloqueiam iframe (X-Frame-Options / CSP)
-const HOSTS_QUE_BLOQUEIAM_IFRAME = [
-  'megaembedapi.site',
-  'vsembed.ru',        // ← DOMÍNIO MORTO (ERR_NAME_NOT_RESOLVED)
-  'vsembed.net',       // ← DOMÍNIO MORTO
-  'embed.warezcdn.link', // ← instável, frequentemente bloqueia
+const DEAD_DOMAINS = [
+  'vsembed.ru', 'vsembed.net', 'vsembed.com',
+  'superflixapi', 'mixdrop', 'streamtape',
+  'fembed', 'feurl', 'uptostream',
+  'asianload', 'animefire',
 ];
 
-// Domínios que permitem iframe e estão funcionando
-const HOSTS_QUE_PERMITEM_IFRAME = [
-  'drive.google.com',
-  'mediadelivery.net',
-  'bunnycdn',
-  'b-cdn.net',
-  'vdohide',
-  'vidsrc.cc',
-  'vidsrc.xyz',
-  'vidsrc.to',
-  'vidsrc.me',
-  'vidsrc.net',
-  'vidsrc.in',
-  'vidsrc.pm',
-  'vidsrc.icu',
-  'multiembed.mov',
-  'multiembed.xyz',
-  'embed.su',
-  'player.autoembed.cc',
-  '2embed.cc',
-  '2embed.ru',
-  'www.2embed.cc',
-  'fmovies.ps',
-  'fmoviesz.to',
-];
-
-// Domínios mortos ou fora do ar — usados para detectar URLs cadastradas inválidas
-const DOMINIOS_MORTOS = [
-  'vsembed.ru',
-  'vsembed.net',
-  'vsembed.com',
-  'vsmovies.net',
-  'superflixapi.net',
-  'streamtape.com',
-  'mixdrop.co',
-  'uptostream.com',
-  'fembed.com',
-  'feurl.com',
-  'asianload.io',
-  'gogoanime',
-  'animefire.net',
-];
-
-export function hostDaUrl(url: string): string {
-  try {
-    return new URL(url, typeof window !== 'undefined' ? window.location.href : 'https://localhost').hostname.toLowerCase();
-  } catch {
-    return '';
-  }
+function isDeadUrl(url: string): boolean {
+  const u = url.toLowerCase();
+  return DEAD_DOMAINS.some((d) => u.includes(d));
 }
 
-export function podeSerIncorporada(url: string): boolean {
-  const host = hostDaUrl(url);
-  if (!host) return true;
-  if (HOSTS_QUE_BLOQUEIAM_IFRAME.some((h) => host.includes(h))) return false;
-  if (HOSTS_QUE_PERMITEM_IFRAME.some((h) => host.includes(h))) return true;
-  return true; // por padrão, tenta — o PlayerPage cuida do fallback
-}
-
-/** Detecta se uma URL cadastrada aponta para domínio morto. */
-export function urlCadastradaEhMorta(url: string): boolean {
-  const host = hostDaUrl(url);
-  if (!host) return false;
-  return DOMINIOS_MORTOS.some((d) => host.includes(d));
-}
-
-function tipoVidsrc(mediaType?: string | null): 'movie' | 'tv' {
-  if (mediaType === 'tv' || mediaType === 'series' || mediaType === 'anime') return 'tv';
+function mediaType(ids: VideoIds): 'movie' | 'tv' {
+  const t = ids.mediaType;
+  if (t === 'tv' || t === 'series' || t === 'anime') return 'tv';
   return 'movie';
 }
 
-export const videoSources: VideoSource[] = [
-  {
-    id: 'cadastrada',
-    name: 'Fonte cadastrada',
-    enabled: true,
-    embeddable: true,
-    build: ({ videoUrl }) => {
-      if (!videoUrl) return null;
-      // Se a URL cadastrada for de domínio morto, retorna null para pular
-      if (urlCadastradaEhMorta(String(videoUrl))) return null;
-      return String(videoUrl);
-    },
-  },
-  {
-    // Fonte brasileira: costuma trazer o áudio DUBLADO em português por padrão.
-    id: 'warezcdn',
-    name: 'Dublado (PT-BR)',
-    enabled: true,
-    embeddable: true,
-    build: ({ imdbId, mediaType }) => {
-      if (!imdbId) return null;
-      const tipo = tipoVidsrc(mediaType) === 'tv' ? 'serie' : 'filme';
-      return `https://embed.warezcdn.link/${tipo}/${imdbId}`;
-    },
-  },
-  {
-    id: 'vidsrc-cc',
-    name: 'VidSrc PT',
-    enabled: true,
-    embeddable: true,
-    build: ({ imdbId, tmdbId, mediaType }) => {
-      const tipo = tipoVidsrc(mediaType);
-      const id = imdbId || tmdbId;
-      if (!id) return null;
-      return `https://vidsrc.cc/v2/embed/${tipo}/${id}?autoPlay=true&ds_lang=pt`;
-    },
-  },
-  {
-    id: 'vidsrc-xyz',
-    name: 'VidSrc',
-    enabled: true,
-    embeddable: true,
-    build: ({ imdbId, tmdbId, mediaType }) => {
-      const tipo = tipoVidsrc(mediaType);
-      if (imdbId) return `https://vidsrc.xyz/embed/${tipo}/${imdbId}?ds_lang=pt`;
-      if (tmdbId) return `https://vidsrc.xyz/embed/${tipo}?tmdb=${tmdbId}&ds_lang=pt`;
-      return null;
-    },
-  },
-  {
-    id: 'vidsrc-to',
-    name: 'VidSrc 2',
-    enabled: true,
-    embeddable: true,
-    build: ({ imdbId, tmdbId, mediaType }) => {
-      const tipo = tipoVidsrc(mediaType);
-      if (imdbId) return `https://vidsrc.to/embed/${tipo}/${imdbId}?ds_lang=pt`;
-      if (tmdbId) return `https://vidsrc.to/embed/${tipo}?tmdb=${tmdbId}&ds_lang=pt`;
-      return null;
-    },
-  },
-  {
-    id: 'vidsrc-me',
-    name: 'VidSrc 3',
-    enabled: true,
-    embeddable: true,
-    build: ({ imdbId, tmdbId, mediaType }) => {
-      const tipo = tipoVidsrc(mediaType);
-      if (imdbId) return `https://vidsrc.me/embed/${tipo}?imdb=${imdbId}`;
-      if (tmdbId) return `https://vidsrc.me/embed/${tipo}?tmdb=${tmdbId}`;
-      return null;
-    },
-  },
-  {
-    id: 'multiembed',
-    name: 'MultiEmbed',
-    enabled: true,
-    embeddable: true,
-    build: ({ imdbId, tmdbId, mediaType }) => {
-      const tipo = tipoVidsrc(mediaType);
-      if (tmdbId) return `https://multiembed.mov/?video_id=${tmdbId}&tmdb=1&${tipo}=1`;
-      if (imdbId) return `https://multiembed.mov/?video_id=${imdbId}&imdb=1&${tipo}=1`;
-      return null;
-    },
-  },
-  {
-    id: 'autoembed',
-    name: 'AutoEmbed',
-    enabled: true,
-    embeddable: true,
-    build: ({ tmdbId, mediaType }) => {
-      const tipo = tipoVidsrc(mediaType);
-      if (!tmdbId) return null;
-      return `https://player.autoembed.cc/embed/${tipo}/${tmdbId}?server=1`;
-    },
-  },
-  {
-    id: '2embed',
-    name: '2Embed',
-    enabled: true,
-    embeddable: true,
-    build: ({ imdbId, tmdbId, mediaType }) => {
-      const tipo = tipoVidsrc(mediaType);
-      if (tmdbId) return `https://www.2embed.cc/embed/${tipo}/${tmdbId}`;
-      if (imdbId) return `https://www.2embed.cc/embed/${tipo}/imdb?id=${imdbId}`;
-      return null;
-    },
-  },
-];
+export function getSources(ids: VideoIds): Source[] {
+  const sources: Source[] = [];
+  const tipo = mediaType(ids);
 
-export type FonteResolvida = { id: string; name: string; url: string; embeddable: boolean };
-
-export function resolverFontes(ids: VideoSourceIds): FonteResolvida[] {
-  const out: FonteResolvida[] = [];
-  for (const src of videoSources) {
-    if (!src.enabled) continue;
-    const url = src.build(ids);
-    if (!url) continue;
-    if (out.some((f) => f.url === url)) continue;
-    out.push({
-      id: src.id,
-      name: src.name,
-      url,
-      embeddable: src.embeddable && podeSerIncorporada(url),
-    });
+  // 1. Fonte cadastrada (se não for domínio morto)
+  if (ids.videoUrl && !isDeadUrl(ids.videoUrl)) {
+    sources.push({ id: 'cadastrada', name: 'Fonte cadastrada', url: ids.videoUrl });
   }
-  return out;
-}
 
-// Render deploy trigger v2 — force rebuild with correct code
+  // 2. WarezCDN (dublado PT-BR)
+  if (ids.imdbId) {
+    const t = tipo === 'tv' ? 'serie' : 'filme';
+    sources.push({ id: 'warezcdn', name: 'Dublado (PT-BR)', url: `https://embed.warezcdn.link/${t}/${ids.imdbId}` });
+  }
+
+  // 3. VidSrc.cc
+  const id = ids.imdbId || ids.tmdbId;
+  if (id) {
+    sources.push({ id: 'vidsrc-cc', name: 'VidSrc PT', url: `https://vidsrc.cc/v2/embed/${tipo}/${id}?autoPlay=true&ds_lang=pt` });
+    sources.push({ id: 'vidsrc-xyz', name: 'VidSrc', url: `https://vidsrc.xyz/embed/${tipo}/${id}?ds_lang=pt` });
+    sources.push({ id: 'vidsrc-to', name: 'VidSrc 2', url: `https://vidsrc.to/embed/${tipo}/${id}?ds_lang=pt` });
+    sources.push({ id: 'vidsrc-me', name: 'VidSrc 3', url: `https://vidsrc.me/embed/${tipo}?imdb=${ids.imdbId || ids.tmdbId}` });
+  }
+
+  // 4. MultiEmbed
+  if (ids.tmdbId) {
+    sources.push({ id: 'multiembed', name: 'MultiEmbed', url: `https://multiembed.mov/?video_id=${ids.tmdbId}&tmdb=1&${tipo}=1` });
+  }
+
+  // 5. AutoEmbed
+  if (ids.tmdbId) {
+    sources.push({ id: 'autoembed', name: 'AutoEmbed', url: `https://player.autoembed.cc/embed/${tipo}/${ids.tmdbId}?server=1` });
+  }
+
+  // 6. 2Embed
+  if (ids.tmdbId) {
+    sources.push({ id: '2embed', name: '2Embed', url: `https://www.2embed.cc/embed/${tipo}/${ids.tmdbId}` });
+  } else if (ids.imdbId) {
+    sources.push({ id: '2embed', name: '2Embed', url: `https://www.2embed.cc/embed/${tipo}/imdb?id=${ids.imdbId}` });
+  }
+
+  // Remover duplicatas
+  const seen = new Set<string>();
+  return sources.filter((s) => {
+    if (!s.url) return false;
+    if (seen.has(s.url)) return false;
+    seen.add(s.url);
+    return true;
+  });
+}
