@@ -1,5 +1,6 @@
 /**
  * Configuração central das fontes de reprodução do MovieFlix.
+ * ATUALIZADO: remove domínios mortos, adiciona fallback automático e fontes estáveis.
  */
 
 export type VideoSourceIds = {
@@ -17,21 +18,55 @@ export type VideoSource = {
   build: (ids: VideoSourceIds) => string | null;
 };
 
-const HOSTS_QUE_BLOQUEIAM_IFRAME = ['megaembedapi.site'];
+// Domínios que bloqueiam iframe (X-Frame-Options / CSP)
+const HOSTS_QUE_BLOQUEIAM_IFRAME = [
+  'megaembedapi.site',
+  'vsembed.ru',        // ← DOMÍNIO MORTO (ERR_NAME_NOT_RESOLVED)
+  'vsembed.net',       // ← DOMÍNIO MORTO
+  'embed.warezcdn.link', // ← instável, frequentemente bloqueia
+];
 
+// Domínios que permitem iframe e estão funcionando
 const HOSTS_QUE_PERMITEM_IFRAME = [
-  'drive.google.com',   // ← linha nova
+  'drive.google.com',
   'mediadelivery.net',
   'bunnycdn',
   'b-cdn.net',
   'vdohide',
-  'warezcdn.link',
-  'embed.warezcdn.link',
   'vidsrc.cc',
   'vidsrc.xyz',
   'vidsrc.to',
   'vidsrc.me',
   'vidsrc.net',
+  'vidsrc.in',
+  'vidsrc.pm',
+  'vidsrc.icu',
+  'multiembed.mov',
+  'multiembed.xyz',
+  'embed.su',
+  'player.autoembed.cc',
+  '2embed.cc',
+  '2embed.ru',
+  'www.2embed.cc',
+  'fmovies.ps',
+  'fmoviesz.to',
+];
+
+// Domínios mortos ou fora do ar — usados para detectar URLs cadastradas inválidas
+const DOMINIOS_MORTOS = [
+  'vsembed.ru',
+  'vsembed.net',
+  'vsembed.com',
+  'vsmovies.net',
+  'superflixapi.net',
+  'streamtape.com',
+  'mixdrop.co',
+  'uptostream.com',
+  'fembed.com',
+  'feurl.com',
+  'asianload.io',
+  'gogoanime',
+  'animefire.net',
 ];
 
 export function hostDaUrl(url: string): string {
@@ -47,7 +82,14 @@ export function podeSerIncorporada(url: string): boolean {
   if (!host) return true;
   if (HOSTS_QUE_BLOQUEIAM_IFRAME.some((h) => host.includes(h))) return false;
   if (HOSTS_QUE_PERMITEM_IFRAME.some((h) => host.includes(h))) return true;
-  return true;
+  return true; // por padrão, tenta — o PlayerPage cuida do fallback
+}
+
+/** Detecta se uma URL cadastrada aponta para domínio morto. */
+export function urlCadastradaEhMorta(url: string): boolean {
+  const host = hostDaUrl(url);
+  if (!host) return false;
+  return DOMINIOS_MORTOS.some((d) => host.includes(d));
 }
 
 function tipoVidsrc(mediaType?: string | null): 'movie' | 'tv' {
@@ -61,7 +103,12 @@ export const videoSources: VideoSource[] = [
     name: 'Fonte cadastrada',
     enabled: true,
     embeddable: true,
-    build: ({ videoUrl }) => (videoUrl ? String(videoUrl) : null),
+    build: ({ videoUrl }) => {
+      if (!videoUrl) return null;
+      // Se a URL cadastrada for de domínio morto, retorna null para pular
+      if (urlCadastradaEhMorta(String(videoUrl))) return null;
+      return String(videoUrl);
+    },
   },
   {
     // Fonte brasileira: costuma trazer o áudio DUBLADO em português por padrão.
@@ -84,7 +131,6 @@ export const videoSources: VideoSource[] = [
       const tipo = tipoVidsrc(mediaType);
       const id = imdbId || tmdbId;
       if (!id) return null;
-      // ds_lang=pt força a interface/legendas em português e prioriza faixas PT.
       return `https://vidsrc.cc/v2/embed/${tipo}/${id}?autoPlay=true&ds_lang=pt`;
     },
   },
@@ -121,6 +167,41 @@ export const videoSources: VideoSource[] = [
       const tipo = tipoVidsrc(mediaType);
       if (imdbId) return `https://vidsrc.me/embed/${tipo}?imdb=${imdbId}`;
       if (tmdbId) return `https://vidsrc.me/embed/${tipo}?tmdb=${tmdbId}`;
+      return null;
+    },
+  },
+  {
+    id: 'multiembed',
+    name: 'MultiEmbed',
+    enabled: true,
+    embeddable: true,
+    build: ({ imdbId, tmdbId, mediaType }) => {
+      const tipo = tipoVidsrc(mediaType);
+      if (tmdbId) return `https://multiembed.mov/?video_id=${tmdbId}&tmdb=1&${tipo}=1`;
+      if (imdbId) return `https://multiembed.mov/?video_id=${imdbId}&imdb=1&${tipo}=1`;
+      return null;
+    },
+  },
+  {
+    id: 'autoembed',
+    name: 'AutoEmbed',
+    enabled: true,
+    embeddable: true,
+    build: ({ tmdbId, mediaType }) => {
+      const tipo = tipoVidsrc(mediaType);
+      if (!tmdbId) return null;
+      return `https://player.autoembed.cc/embed/${tipo}/${tmdbId}?server=1`;
+    },
+  },
+  {
+    id: '2embed',
+    name: '2Embed',
+    enabled: true,
+    embeddable: true,
+    build: ({ imdbId, tmdbId, mediaType }) => {
+      const tipo = tipoVidsrc(mediaType);
+      if (tmdbId) return `https://www.2embed.cc/embed/${tipo}/${tmdbId}`;
+      if (imdbId) return `https://www.2embed.cc/embed/${tipo}/imdb?id=${imdbId}`;
       return null;
     },
   },

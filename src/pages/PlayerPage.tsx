@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useMemo } from 'react';
+import { useEffect, useRef, useState, useMemo, useCallback } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
 import { supabase } from '@/lib/supabase';
@@ -21,10 +21,11 @@ export function PlayerPage() {
   const gainNodeRef = useRef<GainNode | null>(null);
   const [volumeBoost, setVolumeBoost] = useState(1.5);
   const [isMuted, setIsMuted] = useState(false);
-  // Estado do player externo (iframe): carregando | ok | bloqueado
-  const [embedStatus, setEmbedStatus] = useState<'loading' | 'ok' | 'blocked'>('loading');
+  // Estado do player externo (iframe): carregando | ok | bloqueado | erro_rede
+  const [embedStatus, setEmbedStatus] = useState<'loading' | 'ok' | 'blocked' | 'neterror'>('loading');
   const [fonteIndex, setFonteIndex] = useState(0);
   const [tentativa, setTentativa] = useState(0);
+  const [autoTentando, setAutoTentando] = useState(false);
   const lastSaveRef = useRef(0);
 
   const movieRef = useRef<any>(null);
@@ -32,6 +33,7 @@ export function PlayerPage() {
   const profileRef = useRef<any>(null);
   const isEmbedRef = useRef(false);
   const episodeIdRef = useRef<string | null>(null);
+  const fallbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => { movieRef.current = movie; }, [movie]);
   useEffect(() => { userRef.current = user; }, [user]);
@@ -42,10 +44,40 @@ export function PlayerPage() {
   // Fontes de reprodução configuradas (ver src/lib/videoSources.ts)
   const fontes = useMemo(
     () => resolverFontes({ videoUrl, imdbId: movie?.imdb_id, tmdbId: movie?.tmdb_id, mediaType: movie?.type || movie?.media_type }),
-[videoUrl, movie?.imdb_id, movie?.tmdb_id, movie?.type, movie?.media_type]
+    [videoUrl, movie?.imdb_id, movie?.tmdb_id, movie?.type, movie?.media_type]
   );
   const fonteAtual = fontes[fonteIndex] || null;
   const temProximaFonte = fonteIndex < fontes.length - 1;
+
+  /**
+   * FALLBACK AUTOMÁTICO: quando uma fonte é bloqueada ou dá erro de rede,
+   * tenta a próxima automaticamente em vez de ficar na tela de erro.
+   */
+  const tentarProximaFonte = useCallback(() => {
+    if (temProximaFonte && !autoTentando) {
+      setAutoTentando(true);
+      setFonteIndex((i) => i + 1);
+      setTentativa((t) => t + 1);
+      setEmbedStatus('loading');
+      // Reseta o flag após um tempo para evitar loops rápidos
+      setTimeout(() => setAutoTentando(false), 2000);
+    }
+  }, [temProximaFonte, autoTentando]);
+
+  // Fallback automático quando embedStatus vai para 'blocked' ou 'neterror'
+  useEffect(() => {
+    if (embedStatus === 'blocked' || embedStatus === 'neterror') {
+      if (fallbackTimerRef.current) clearTimeout(fallbackTimerRef.current);
+      fallbackTimerRef.current = setTimeout(() => {
+        if (temProximaFonte) {
+          tentarProximaFonte();
+        }
+      }, 3500); // dá tempo do usuário ver a mensagem, mas troca sozinho
+    }
+    return () => {
+      if (fallbackTimerRef.current) clearTimeout(fallbackTimerRef.current);
+    };
+  }, [embedStatus, temProximaFonte, tentarProximaFonte]);
 
   /**
    * Detecta se o player externo conseguiu abrir.
@@ -496,7 +528,7 @@ export function PlayerPage() {
         {isEmbed && fonteAtual ? (
           <>
             <div className="relative w-full bg-black" style={{ aspectRatio: '16/9' }}>
-              {embedStatus !== 'blocked' && (
+              {embedStatus !== 'blocked' && embedStatus !== 'neterror' && (
                 <iframe
                   key={`${fonteAtual.url}-${tentativa}`}
                   ref={iframeRef}
@@ -520,17 +552,24 @@ export function PlayerPage() {
                 <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-black pointer-events-none">
                   <div className="h-10 w-10 animate-spin rounded-full border-4 border-red-600 border-t-transparent" />
                   <p className="text-sm text-zinc-300">Carregando player ({fonteAtual.name})...</p>
+                  {fontes.length > 1 && (
+                    <p className="text-xs text-zinc-500">
+                      Fonte {fonteIndex + 1} de {fontes.length}
+                      {autoTentando && ' • Tentando próxima em 3s...'}
+                    </p>
+                  )}
                 </div>
               )}
 
-              {embedStatus === 'blocked' && (
+              {(embedStatus === 'blocked' || embedStatus === 'neterror') && (
                 <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-zinc-950 px-4 text-center">
                   <AlertTriangle className="h-12 w-12 text-amber-500" />
-                  <h3 className="text-lg font-bold">Esta fonte não permite reprodução dentro do site</h3>
+                  <h3 className="text-lg font-bold">
+                    {embedStatus === 'neterror' ? 'Erro de conexão com a fonte' : 'Esta fonte não permite reprodução dentro do site'}
+                  </h3>
                   <p className="max-w-md text-sm text-zinc-400">
-                    O provedor <span className="text-zinc-200">{fonteAtual.name}</span> bloqueia a exibição em outros sites
-                    (X-Frame-Options / CSP). Você pode abrir o player em uma nova aba
-                    {temProximaFonte ? ' ou tentar a próxima fonte disponível.' : '.'}
+                    O provedor <span className="text-zinc-200">{fonteAtual.name}</span> {embedStatus === 'neterror' ? 'está fora do ar ou inacessível.' : 'bloqueia a exibição em outros sites (X-Frame-Options / CSP).'}
+                    {temProximaFonte && !autoTentando ? ' Trocando para próxima fonte automaticamente...' : ''}
                   </p>
                   <div className="flex flex-wrap items-center justify-center gap-3 pt-1">
                     <a
@@ -549,7 +588,7 @@ export function PlayerPage() {
                     </button>
                     {temProximaFonte && (
                       <button
-                        onClick={() => { setFonteIndex((i) => i + 1); setTentativa((t) => t + 1); }}
+                        onClick={() => { setFonteIndex((i) => i + 1); setTentativa((t) => t + 1); setAutoTentando(false); }}
                         className="rounded-xl bg-white/10 px-5 py-2.5 text-sm font-semibold hover:bg-white/20"
                       >
                         Tentar próxima fonte
@@ -560,7 +599,7 @@ export function PlayerPage() {
               )}
             </div>
 
-            {embedStatus !== 'blocked' && (
+            {embedStatus !== 'blocked' && embedStatus !== 'neterror' && (
               <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-2 text-xs text-zinc-400">
                 <span>Fonte: {fonteAtual.name}</span>
                 <span className="flex items-center gap-3">
