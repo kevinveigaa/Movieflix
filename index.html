@@ -12,11 +12,11 @@
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="MovieFlix" />
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+    <meta http-equiv="Pragma" content="no-cache" />
+    <meta http-equiv="Expires" content="0" />
     <title>MovieFlix — Filmes, Séries, Animes e mais</title>
-    <meta
-      name="description"
-      content="MovieFlix: a sua plataforma de streaming. Filmes, séries, animes, documentários e infantil em um só lugar."
-    />
+    <meta name="description" content="MovieFlix: a sua plataforma de streaming. Filmes, séries, animes, documentários e infantil em um só lugar." />
     <meta property="og:type" content="website" />
     <meta property="og:site_name" content="MovieFlix" />
     <meta property="og:locale" content="pt_BR" />
@@ -31,6 +31,21 @@
     <meta name="twitter:title" content="MovieFlix — Filmes, Séries, Animes e mais" />
     <meta name="twitter:description" content="A sua plataforma de streaming. Filmes, séries, animes, documentários e infantil em um só lugar." />
     <meta name="twitter:image" content="https://movieflix-bszf.onrender.com/og-image.jpg" />
+    <script>
+      // Limpa service worker antigo e força atualização
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.getRegistrations().then(function(regs) {
+          regs.forEach(function(reg) {
+            reg.unregister();
+          });
+        });
+        caches.keys().then(function(names) {
+          names.forEach(function(name) {
+            caches.delete(name);
+          });
+        });
+      }
+    </script>
   </head>
   <body>
     <div id="root"></div>
