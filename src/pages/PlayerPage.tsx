@@ -3,14 +3,12 @@ import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
 import { supabase } from '@/lib/supabase';
 import { getVideoSources, getTvSource } from '@/lib/videoSources';
-import { ChevronLeft, ExternalLink, Film, Loader2, Play, RefreshCw } from 'lucide-react';
+import { ChevronLeft, ExternalLink, Film, Loader2, RefreshCw } from 'lucide-react';
 
-// Tempo máximo (ms) que esperamos o iframe carregar antes de avançar
-// automaticamente para a próxima fonte da cascata.
-// IMPORTANTE: NÃO é cancelado pelo onLoad do iframe — onLoad dispara mesmo
-// quando o provedor carrega uma página de erro/sem vídeo (ex.: "FETCHING"),
-// então o timeout SEMPRE roda para não travar o fallback em cascata.
-const TIMEOUT_TROCA_FONTE = 10000;
+// O player usa UMA única fonte (fonte 1 — VidZee), validada como a que
+// funciona. Não há mais cascata de fallback: se a fonte não carregar,
+// oferecemos "Abrir no navegador" / "Tentar novamente".
+const TIMEOUT_FONTE = 10000;
 
 export function PlayerPage() {
   const { id } = useParams();
@@ -22,16 +20,15 @@ export function PlayerPage() {
   const [loading, setLoading] = useState(true);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
-  // Fontes em ordem de preferência; a atual é a que está no iframe.
-  const [sources, setSources] = useState<string[]>([]);
-  const [sourceIndex, setSourceIndex] = useState(0);
-  // True quando o timeout expirou na última fonte (nenhuma carregou).
+  // Única fonte de vídeo (fonte 1).
+  const [sourceUrl, setSourceUrl] = useState<string | null>(null);
+  // True quando o timeout expirou (a fonte não carregou de verdade).
   const [esgotado, setEsgotado] = useState(false);
 
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const timeoutRef = useRef<number | null>(null);
 
-  const currentUrl = sources[sourceIndex] ?? null;
+  const currentUrl = sourceUrl;
 
   const limparTimeout = useCallback(() => {
     if (timeoutRef.current !== null) {
@@ -40,11 +37,17 @@ export function PlayerPage() {
     }
   }, []);
 
-  const avancarFonte = useCallback(() => {
-    setSourceIndex((i) => i + 1);
-  }, []);
+  const reiniciarFonte = useCallback(() => {
+    // Recarrega a fonte 1 do zero (nova key no iframe).
+    setEsgotado(false);
+    limparTimeout();
+    if (currentUrl) {
+      setSourceUrl(null);
+      requestAnimationFrame(() => setSourceUrl(currentUrl));
+    }
+  }, [currentUrl, limparTimeout]);
 
-  // Monta a lista de fontes a partir do banco + IDs (filme ou episódio/série).
+  // Monta a URL da fonte 1 a partir do banco + IDs (filme ou episódio/série).
   useEffect(() => {
     async function load() {
       if (!id) {
@@ -71,20 +74,13 @@ export function PlayerPage() {
         }
         setMovie({ ...series, title: `${series.title} — T${season?.season_number || '?'} E${ep.episode_number}: ${ep.title}` });
 
-        // Fonte de verdade: video_url cadastrado no banco (episódio/série); depois VidZee com temporada/episódio reais; depois a cascata.
-        const builtins = [
-          getTvSource(series.tmdb_id, season?.season_number || 1, ep.episode_number || 1),
-          ...getVideoSources({
-            imdbId: series.imdb_id,
-            tmdbId: series.tmdb_id,
-            mediaType: 'tv',
-          }),
-        ];
-        const lista = [ep.video_url, series.video_url, ...builtins].filter(
+        // Fonte de verdade: video_url cadastrado no banco (episódio/série);
+        // senão, VidZee (fonte 1) com temporada/episódio reais.
+        const vidzee = getTvSource(series.tmdb_id, season?.season_number || 1, ep.episode_number || 1);
+        const lista = [ep.video_url, series.video_url, vidzee].filter(
           (u): u is string => Boolean(u),
         );
-        setSources(lista);
-        setSourceIndex(0);
+        setSourceUrl(lista.length > 0 ? lista[0] : null);
         setLoading(false);
         return;
       }
@@ -103,19 +99,11 @@ export function PlayerPage() {
           const { data: eps } = await supabase.from('episodes').select('*').eq('season_id', seasons[0].id).not('video_url', 'is', null).order('episode_number', { ascending: true }).limit(1);
           if (eps && eps.length > 0) {
             setMovie({ ...data, title: `${data.title} — T${seasons[0].season_number} E${eps[0].episode_number}: ${eps[0].title}` });
-            const builtins = [
-              getTvSource(data.tmdb_id, seasons[0].season_number || 1, eps[0].episode_number || 1),
-              ...getVideoSources({
-                imdbId: data.imdb_id,
-                tmdbId: data.tmdb_id,
-                mediaType: 'tv',
-              }),
-            ];
-            const lista = [eps[0].video_url, data.video_url, ...builtins].filter(
+            const vidzee = getTvSource(data.tmdb_id, seasons[0].season_number || 1, eps[0].episode_number || 1);
+            const lista = [eps[0].video_url, data.video_url, vidzee].filter(
               (u): u is string => Boolean(u),
             );
-            setSources(lista);
-            setSourceIndex(0);
+            setSourceUrl(lista.length > 0 ? lista[0] : null);
             setLoading(false);
             return;
           }
@@ -130,45 +118,25 @@ export function PlayerPage() {
         mediaType: tipo,
       });
       const lista = [data.video_url, ...builtins].filter((u): u is string => Boolean(u));
-      setSources(lista);
-      setSourceIndex(0);
+      setSourceUrl(lista.length > 0 ? lista[0] : null);
       setLoading(false);
     }
 
     load();
   }, [id, searchParams]);
 
-  // Reinicia o timeout quando a fonte atual muda; se o iframe não confirmar
-  // o carregamento a tempo, avança para a próxima fonte automaticamente.
-  // O timeout SEMPRE roda (nunca é cancelado pelo onLoad do iframe): quando
-  // uma fonte não carrega de verdade (ex.: o provedor não tem o título e fica
-  // preso em "FETCHING"), avançamos para a próxima fonte automaticamente.
-  // Na última fonte, marcamos como esgotado para oferecer "abrir no navegador"
-  // em vez de deixar o usuário preso numa tela de carregamento infinita.
+  // Reinicia o timeout quando a URL da fonte muda; se o iframe não confirmar
+  // o carregamento a tempo, marcamos como esgotado para oferecer
+  // "Abrir no navegador" em vez de deixar o usuário preso numa tela infinita.
   useEffect(() => {
     limparTimeout();
     setEsgotado(false);
     if (!currentUrl) return;
     timeoutRef.current = window.setTimeout(() => {
-      if (sourceIndex < sources.length - 1) {
-        avancarFonte();
-      } else {
-        setEsgotado(true);
-      }
-    }, TIMEOUT_TROCA_FONTE);
+      setEsgotado(true);
+    }, TIMEOUT_FONTE);
     return limparTimeout;
-  }, [currentUrl, sourceIndex, sources.length, avancarFonte, limparTimeout]);
-
-  function trocarFonteManual() {
-    limparTimeout();
-    setEsgotado(false);
-    if (sourceIndex < sources.length - 1) {
-      avancarFonte();
-    } else {
-      // Volta para a primeira fonte (recarregar do zero).
-      setSourceIndex(0);
-    }
-  }
+  }, [currentUrl, limparTimeout]);
 
   if (loading) {
     return (
@@ -206,16 +174,6 @@ export function PlayerPage() {
           <ChevronLeft className="h-5 w-5" />
         </button>
         <h1 className="truncate text-base font-semibold flex-1">{movie?.title || 'Player'}</h1>
-        {sources.length > 1 && (
-          <button
-            onClick={trocarFonteManual}
-            title="Trocar fonte de vídeo"
-            className="flex items-center gap-2 rounded-full bg-white/10 px-3 py-2 text-xs font-medium hover:bg-white/20 transition"
-          >
-            <RefreshCw className="h-4 w-4" />
-            Fonte {sourceIndex + 1}/{sources.length}
-          </button>
-        )}
         {currentUrl && (
           <button
             onClick={() => window.open(currentUrl, '_blank', 'noopener,noreferrer')}
@@ -249,7 +207,7 @@ export function PlayerPage() {
             {esgotado ? (
               <div className="mt-3 flex flex-col items-center gap-3 rounded-xl border border-white/10 bg-white/5 p-4 text-center">
                 <p className="text-sm text-zinc-300">
-                  O vídeo não carregou em nenhuma das {sources.length} fontes automáticas.
+                  O vídeo não carregou pela fonte principal.
                 </p>
                 <div className="flex flex-wrap items-center justify-center gap-3">
                   <button
@@ -260,9 +218,10 @@ export function PlayerPage() {
                     Abrir no navegador
                   </button>
                   <button
-                    onClick={trocarFonteManual}
-                    className="rounded-lg bg-white/10 px-4 py-2 text-xs font-medium hover:bg-white/20 transition"
+                    onClick={reiniciarFonte}
+                    className="flex items-center gap-2 rounded-lg bg-white/10 px-4 py-2 text-xs font-medium hover:bg-white/20 transition"
                   >
+                    <RefreshCw className="h-4 w-4" />
                     Tentar novamente
                   </button>
                 </div>
@@ -272,14 +231,10 @@ export function PlayerPage() {
               </div>
             ) : (
               <p className="mt-2 text-center text-xs text-zinc-500">
-                Fonte {sourceIndex + 1} de {sources.length}
-                {sourceIndex < sources.length - 1 && (
-                  <>
-                    {' '}— se o vídeo não carregar em alguns segundos,{' '}
-                    <button onClick={trocarFonteManual} className="text-red-400 underline hover:text-red-300">
-                      tente a próxima fonte
-                    </button>
-                  </>
+                {currentUrl && (
+                  <button onClick={reiniciarFonte} className="text-red-400 underline hover:text-red-300">
+                    Recarregar player
+                  </button>
                 )}
               </p>
             )}

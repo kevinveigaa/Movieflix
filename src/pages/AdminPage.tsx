@@ -32,7 +32,7 @@ const FORM_VAZIO: Form = {
   poster_url: "",
   backdrop_url: "",
   video_url: "",
-  language: "Dublado",
+  language: "Dublado (pt-BR)",
   quality: "HD",
   type: "movie",
   category: "",
@@ -215,7 +215,7 @@ export function AdminPage() {
       poster_url: filme.poster_url ?? "",
       backdrop_url: filme.backdrop_url ?? "",
       video_url: filme.video_url ?? "",
-      language: filme.language ?? "Dublado",
+      language: filme.language ?? "Dublado (pt-BR)",
       quality: filme.quality ?? "HD",
       type: filme.type ?? "movie",
       category: filme.category ?? "",
@@ -480,11 +480,6 @@ export function AdminPage() {
         `${API_URL}/api/tmdb/tv/${serie.id}/season/${seasonNum}/episode/${epNum}?language=pt-BR`
       );
       if (!response.ok) {
-        response = await fetch(
-          `${API_URL}/api/tmdb/tv/${serie.id}/season/${seasonNum}/episode/${epNum}?language=en-US`
-        );
-      }
-      if (!response.ok) {
         const seasonResponse = await fetch(
           `${API_URL}/api/tmdb/tv/${serie.id}/season/${seasonNum}?language=pt-BR`
         );
@@ -667,7 +662,17 @@ export function AdminPage() {
           {aba === "form-filme" && campo("video_url", "URL do vídeo")}
 
           <div className="grid gap-4 sm:grid-cols-3">
-            {campo("language", "Idioma")}
+            <label className="block">
+              <span className="mb-1 block text-xs font-medium text-gray-400">Idioma (áudio)</span>
+              <select
+                className="input"
+                value={form.language}
+                onChange={(e) => setForm({ ...form, language: e.target.value })}
+              >
+                <option value="Dublado (pt-BR)">Dublado (pt-BR)</option>
+                <option value="Dublado">Dublado</option>
+              </select>
+            </label>
             {campo("quality", "Qualidade")}
           </div>
 

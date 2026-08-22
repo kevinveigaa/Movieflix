@@ -41,17 +41,8 @@ for(const filme of filmes){
  let encontrado = dados.results?.[0];
 
  if(!encontrado){
-   resposta = await fetch(
-   `https://api.themoviedb.org/3/search/movie?query=${encodeURIComponent(nome)}&language=en-US`,
-   {headers}
-   );
-
-   dados = await resposta.json();
-   encontrado = dados.results?.[0];
- }
-
- if(!encontrado){
-   console.log("N√O ACHOU:", filme.title);
+   // Titulo em pt-BR e obrigatorio (audio dublado pt-BR); sem fallback en-US.
+   console.log("N√ÉO ACHOU:", filme.title);
    continue;
  }
 

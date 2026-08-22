@@ -36,7 +36,7 @@ for (let i = 0; i < linhas.length; i++) {
       filmes.push({
         title,
         video_url,
-        language: "Dublado",
+        language: "Dublado (pt-BR)",
         quality: "1080p",
         type: "movie",
         required_plan: "premium"
@@ -73,4 +73,4 @@ for (let i = 0; i < filmes.length; i += tamanhoLote) {
 }
 
 
-console.log("Importação finalizada!");
+console.log("ImportaÃ§Ã£o finalizada!");

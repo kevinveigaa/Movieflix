@@ -387,7 +387,7 @@ class MovieFlixImporter:
             "poster_url": f"https://image.tmdb.org/t/p/w500{filme.get('poster_path', '')}" if filme.get('poster_path') else None,
             "backdrop_url": f"https://image.tmdb.org/t/p/original{filme.get('backdrop_path', '')}" if filme.get('backdrop_path') else None,
             "video_url": video_url,
-            "language": "pt-BR",
+            "language": "Dublado (pt-BR)",
             "quality": "HD",
             "type": "filme",
             "required_plan": "standard",  # ou "basic", "premium" conforme seu plano

@@ -56,14 +56,14 @@ const linhas = fs.readFileSync("videos.json","utf8").replace(/^\uFEFF/, "")
 .split("\n");
 
 
-console.log("Vídeos encontrados:", linhas.length);
+console.log("VÃ­deos encontrados:", linhas.length);
 
 
 for(const linha of linhas){
 
 const video = JSON.parse(linha);
 
-const titulo = video.title.replace(/\|.*$/,"").replace(/Full Movie/gi,"").replace(/Filme Completo/gi,"").replace(/Em Português/gi,"").replace(/Português/gi,"").replace(/Dublado/gi,"").trim();
+const titulo = video.title.replace(/\|.*$/,"").replace(/Full Movie/gi,"").replace(/Filme Completo/gi,"").replace(/Em PortuguÃªs/gi,"").replace(/PortuguÃªs/gi,"").replace(/Dublado/gi,"").trim();
 const id = video.id;
 
 
@@ -78,7 +78,7 @@ const filme={
 title:titulo,
 
 description:
-tmdb?.overview || "Filme disponível no MovieFlix",
+tmdb?.overview || "Filme disponÃ­vel no MovieFlix",
 
 poster_url:
 tmdb?.poster_path
@@ -100,7 +100,7 @@ video_url:
 `https://www.youtube.com/watch?v=${id}`,
 
 
-language:"Dublado",
+language:"Dublado (pt-BR)",
 
 quality:"1080p",
 

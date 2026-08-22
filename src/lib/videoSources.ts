@@ -5,29 +5,16 @@ export type VideoIds = {
 };
 
 /**
- * Fontes de reprodução para um título do catálogo, em ordem de preferência.
+ * Fonte de reprodução para um título do catálogo.
  *
- * Histórico do que descobrimos testando os provedores (ago/2026, navegador real):
- * - `vidsrc.cc/v2` retorna HTTP 522/403 e nunca reproduz — descartado.
- * - `vidsrc.to/embed/...` retorna 200, mas o player interno (vsembed.ru) abre
- *   em tela preta sem reproduzir em vários títulos — falha na prática.
- * - `vidsrc.me/embed/...` é o MESMO player do vsembed.ru (mesmo HTML/JS) e
- *   sofre do mesmo problema.
- * - `2embed.cc/embed/{tmdb_id}` redireciona para uma página de seleção de
- *   servidor (não reproduz direto em iframe).
- * - `multiembed.mov` / `superembed.stream` ficam presos num challenge
- *   Cloudflare ("Verify you are human") — inviáveis em iframe.
- * - `vidsrc.xyz`, `embed.su`, `vidsrc.net`, `moviesapi.club`, `embed.embedbam.com`
- *   não resolvem DNS / estão fora do ar.
- * - `player.vidzee.wtf/embed/movie/{tmdb_id}` FUNCIONA: reproduz o filme real
- *   (testado com The Matrix TMDB 603 — vídeo carregou com readyState=4 e
- *   duração de 2h16min, autoplay silenciado) e séries
- *   (testado com Breaking Bad TMDB 1396 S1E1 — 58min). Envia
- *   `Content-Security-Policy: frame-ancestors *` e `X-Frame-Options: SAMEORIGIN`,
- *   portanto pode ser embutido em iframe de qualquer site.
+ * Apenas UMA fonte é usada (fonte 1): o provedor VidZee, que foi validado
+ * e funciona (filmes e séries reproduzem de verdade em iframe, com
+ * `Content-Security-Policy: frame-ancestors *`).
  *
- * Por isso a ordem é: video_url do banco (agora VidZee) → vidsrc.to → 2embed.cc → vidsrc.me.
- * A troca automática entre elas acontece no PlayerPage (onLoad/timeout).
+ * Os demais provedores (vidsrc.to, vidsrc.me, 2embed.cc etc.) foram
+ * testados e descartados — falhavam na prática (tela preta, HTTP 522/403,
+ * challenge Cloudflare, servidor de seleção etc.). Por isso a cascata de
+ * fallback foi REMOVIDA: o player usa somente esta fonte.
  */
 export function getVideoSources(ids: VideoIds): string[] {
   const tipo =
@@ -40,7 +27,7 @@ export function getVideoSources(ids: VideoIds): string[] {
 
   if (id) {
     if (ids.tmdbId && tipo === 'movie') {
-      // Provedor principal: VidZee — reproduz filmes/séries de verdade.
+      // Fonte 1 (única): VidZee — reproduz filmes de verdade.
       sources.push(`https://player.vidzee.wtf/embed/movie/${ids.tmdbId}`);
     } else if (ids.tmdbId && tipo === 'tv') {
       // Séries: o PlayerPage monta a URL com temporada/episódio via getTvSource.
@@ -48,13 +35,7 @@ export function getVideoSources(ids: VideoIds): string[] {
     } else if (typeof id === 'string' && id.startsWith('tt')) {
       sources.push(`https://player.vidzee.wtf/embed/movie/${id}`);
     }
-
-    // Fallbacks (mantidos para robustez)
-    sources.push(
-      `https://vidsrc.to/embed/${tipo}/${id}`,
-      `https://2embed.cc/embed/${id}`,
-      `https://vidsrc.me/embed/${tipo}/${id}`,
-    );
+    // Nenhuma outra fonte/fallback — apenas a fonte 1.
   }
 
   return sources;
@@ -72,7 +53,7 @@ export function getTvSource(tmdbId: string | number | null, season: number, epis
 
 /**
  * Mantém compatibilidade com o resto do código que usa getVidsrcUrl:
- * devolve a primeira fonte da cascata (ou null se não houver IDs).
+ * devolve a fonte 1 (ou null se não houver IDs).
  */
 export function getVidsrcUrl(ids: VideoIds): string | null {
   const sources = getVideoSources(ids);
