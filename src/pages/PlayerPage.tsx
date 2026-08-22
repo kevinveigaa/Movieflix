@@ -3,11 +3,14 @@ import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
 import { supabase } from '@/lib/supabase';
 import { getVideoSources, getTvSource } from '@/lib/videoSources';
-import { ChevronLeft, Film, Loader2, Play, RefreshCw } from 'lucide-react';
+import { ChevronLeft, ExternalLink, Film, Loader2, Play, RefreshCw } from 'lucide-react';
 
 // Tempo máximo (ms) que esperamos o iframe carregar antes de avançar
 // automaticamente para a próxima fonte da cascata.
-const TIMEOUT_TROCA_FONTE = 12000;
+// IMPORTANTE: NÃO é cancelado pelo onLoad do iframe — onLoad dispara mesmo
+// quando o provedor carrega uma página de erro/sem vídeo (ex.: "FETCHING"),
+// então o timeout SEMPRE roda para não travar o fallback em cascata.
+const TIMEOUT_TROCA_FONTE = 10000;
 
 export function PlayerPage() {
   const { id } = useParams();
@@ -22,6 +25,8 @@ export function PlayerPage() {
   // Fontes em ordem de preferência; a atual é a que está no iframe.
   const [sources, setSources] = useState<string[]>([]);
   const [sourceIndex, setSourceIndex] = useState(0);
+  // True quando o timeout expirou na última fonte (nenhuma carregou).
+  const [esgotado, setEsgotado] = useState(false);
 
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const timeoutRef = useRef<number | null>(null);
@@ -135,12 +140,20 @@ export function PlayerPage() {
 
   // Reinicia o timeout quando a fonte atual muda; se o iframe não confirmar
   // o carregamento a tempo, avança para a próxima fonte automaticamente.
+  // O timeout SEMPRE roda (nunca é cancelado pelo onLoad do iframe): quando
+  // uma fonte não carrega de verdade (ex.: o provedor não tem o título e fica
+  // preso em "FETCHING"), avançamos para a próxima fonte automaticamente.
+  // Na última fonte, marcamos como esgotado para oferecer "abrir no navegador"
+  // em vez de deixar o usuário preso numa tela de carregamento infinita.
   useEffect(() => {
     limparTimeout();
+    setEsgotado(false);
     if (!currentUrl) return;
     timeoutRef.current = window.setTimeout(() => {
       if (sourceIndex < sources.length - 1) {
         avancarFonte();
+      } else {
+        setEsgotado(true);
       }
     }, TIMEOUT_TROCA_FONTE);
     return limparTimeout;
@@ -148,6 +161,7 @@ export function PlayerPage() {
 
   function trocarFonteManual() {
     limparTimeout();
+    setEsgotado(false);
     if (sourceIndex < sources.length - 1) {
       avancarFonte();
     } else {
@@ -202,6 +216,16 @@ export function PlayerPage() {
             Fonte {sourceIndex + 1}/{sources.length}
           </button>
         )}
+        {currentUrl && (
+          <button
+            onClick={() => window.open(currentUrl, '_blank', 'noopener,noreferrer')}
+            title="Abrir o player em nova aba/navegador (útil se o app bloquear o iframe)"
+            className="flex items-center gap-2 rounded-full bg-red-600 px-3 py-2 text-xs font-medium hover:bg-red-500 transition"
+          >
+            <ExternalLink className="h-4 w-4" />
+            Abrir player
+          </button>
+        )}
       </div>
 
       {/* Conteúdo */}
@@ -219,21 +243,46 @@ export function PlayerPage() {
                 allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share; fullscreen"
                 allowFullScreen
                 referrerPolicy="origin"
-                onLoad={() => limparTimeout()}
               />
             </div>
 
-            <p className="mt-2 text-center text-xs text-zinc-500">
-              Fonte {sourceIndex + 1} de {sources.length}
-              {sourceIndex < sources.length - 1 && (
-                <>
-                  {' '}— se o vídeo não carregar em alguns segundos,{' '}
-                  <button onClick={trocarFonteManual} className="text-red-400 underline hover:text-red-300">
-                    tente a próxima fonte
+            {esgotado ? (
+              <div className="mt-3 flex flex-col items-center gap-3 rounded-xl border border-white/10 bg-white/5 p-4 text-center">
+                <p className="text-sm text-zinc-300">
+                  O vídeo não carregou em nenhuma das {sources.length} fontes automáticas.
+                </p>
+                <div className="flex flex-wrap items-center justify-center gap-3">
+                  <button
+                    onClick={() => window.open(currentUrl, '_blank', 'noopener,noreferrer')}
+                    className="flex items-center gap-2 rounded-lg bg-red-600 px-4 py-2 text-xs font-semibold hover:bg-red-500 transition"
+                  >
+                    <ExternalLink className="h-4 w-4" />
+                    Abrir no navegador
                   </button>
-                </>
-              )}
-            </p>
+                  <button
+                    onClick={trocarFonteManual}
+                    className="rounded-lg bg-white/10 px-4 py-2 text-xs font-medium hover:bg-white/20 transition"
+                  >
+                    Tentar novamente
+                  </button>
+                </div>
+                <p className="text-[11px] text-zinc-500">
+                  Se o app bloquear o player embutido, use "Abrir no navegador" — o vídeo abre no navegador externo do celular.
+                </p>
+              </div>
+            ) : (
+              <p className="mt-2 text-center text-xs text-zinc-500">
+                Fonte {sourceIndex + 1} de {sources.length}
+                {sourceIndex < sources.length - 1 && (
+                  <>
+                    {' '}— se o vídeo não carregar em alguns segundos,{' '}
+                    <button onClick={trocarFonteManual} className="text-red-400 underline hover:text-red-300">
+                      tente a próxima fonte
+                    </button>
+                  </>
+                )}
+              </p>
+            )}
           </div>
         ) : (
           <div className="flex flex-col items-center gap-4 text-zinc-400 text-center mt-10">
