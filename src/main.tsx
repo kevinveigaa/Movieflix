@@ -3,10 +3,13 @@ import { createRoot } from 'react-dom/client';
 import App from './App.tsx';
 import './index.css';
 
+// BUILD_ID: 20260822-1606-force-rebuild-v3
+console.log('[MovieFlix] Build v3 — fallback automático ativado');
+
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <App />
-  </StrictMode>
+  </StrictMode>,
 );
 
 // PWA: registra o service worker apenas em produção (evita cache "preso" no dev).
