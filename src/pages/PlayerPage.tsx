@@ -494,6 +494,10 @@ export function PlayerPage() {
                   className="absolute inset-0 w-full h-full border-0"
                   allow="autoplay; fullscreen; encrypted-media; picture-in-picture"
                   allowFullScreen
+                  /* Sem allow-popups / allow-top-navigation: o iframe não consegue
+                     abrir abas de anúncio nem sequestrar a página. */
+                  sandbox="allow-scripts allow-same-origin allow-forms allow-presentation allow-orientation-lock"
+                  allowTransparency
                   referrerPolicy="no-referrer"
                   loading="eager"
                   title={movie?.title || 'Video'}
