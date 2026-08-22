@@ -77,6 +77,7 @@ export function TitleDetailPage() {
   const [loadingSeries, setLoadingSeries] = useState(false);
   const [firstEpisode, setFirstEpisode] = useState<Episode | null>(null);
   const [lastWatchedEpisode, setLastWatchedEpisode] = useState<Episode | null>(null);
+  const [playMsg, setPlayMsg] = useState<{ tipo: "erro"; texto: string } | null>(null);
 
   const { user } = useAuth();
   const { entitlements } = useEntitlements();
@@ -348,7 +349,7 @@ export function TitleDetailPage() {
                 if (targetEpisode) {
                   navigate('/assistir/' + movie.id + '?episode=' + targetEpisode.id);
                 } else {
-                  setMsg?.({ tipo: "erro", texto: "Nenhum episódio disponível ainda." });
+                  setPlayMsg({ tipo: "erro", texto: "Nenhum episódio disponível ainda." });
                 }
               } else {
                 // Para filmes: continua do histórico ou do início
@@ -373,6 +374,13 @@ export function TitleDetailPage() {
               return "Assistir agora";
             })()}
           </button>
+
+          {playMsg && (
+            <p className="mt-3 flex items-center gap-2 text-sm text-red-400">
+              <XCircle size={16} className="shrink-0 text-red-400" />
+              {playMsg.texto}
+            </p>
+          )}
 
           {/* Modal: Continuar de onde parou? */}
           {showResumeModal && historyRow && (

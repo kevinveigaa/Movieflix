@@ -11,7 +11,7 @@ const IMG_BASE = 'https://image.tmdb.org/t/p';
 const PUBLIC_API_URL = 'https://movieflix-api-udsv.onrender.com';
 const API_URL = (import.meta.env.VITE_API_URL as string) || PUBLIC_API_URL;
 
-export const img = (path: string | null, size: 'w300' | 'w500' | 'w780' | 'w1280' | 'original' = 'w500') =>
+export const img = (path: string | null, size: 'w300' | 'w400' | 'w500' | 'w780' | 'w1280' | 'original' = 'w500') =>
   path ? `${IMG_BASE}/${size}${path}` : '';
 
 export const titleName = (t: TmdbTitle): string => t.title ?? t.name ?? t.original_title ?? t.original_name ?? 'Sem título';
