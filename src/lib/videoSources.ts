@@ -25,6 +25,9 @@ const HOSTS_QUE_PERMITEM_IFRAME = [
   'bunnycdn',
   'b-cdn.net',
   'vdohide',
+  'warezcdn.link',
+  'embed.warezcdn.link',
+  'vidsrc.cc',
   'vidsrc.xyz',
   'vidsrc.to',
   'vidsrc.me',
@@ -61,14 +64,39 @@ export const videoSources: VideoSource[] = [
     build: ({ videoUrl }) => (videoUrl ? String(videoUrl) : null),
   },
   {
+    // Fonte brasileira: costuma trazer o áudio DUBLADO em português por padrão.
+    id: 'warezcdn',
+    name: 'Dublado (PT-BR)',
+    enabled: true,
+    embeddable: true,
+    build: ({ imdbId, mediaType }) => {
+      if (!imdbId) return null;
+      const tipo = tipoVidsrc(mediaType) === 'tv' ? 'serie' : 'filme';
+      return `https://embed.warezcdn.link/${tipo}/${imdbId}`;
+    },
+  },
+  {
+    id: 'vidsrc-cc',
+    name: 'VidSrc PT',
+    enabled: true,
+    embeddable: true,
+    build: ({ imdbId, tmdbId, mediaType }) => {
+      const tipo = tipoVidsrc(mediaType);
+      const id = imdbId || tmdbId;
+      if (!id) return null;
+      // ds_lang=pt força a interface/legendas em português e prioriza faixas PT.
+      return `https://vidsrc.cc/v2/embed/${tipo}/${id}?autoPlay=true&ds_lang=pt`;
+    },
+  },
+  {
     id: 'vidsrc-xyz',
     name: 'VidSrc',
     enabled: true,
     embeddable: true,
     build: ({ imdbId, tmdbId, mediaType }) => {
       const tipo = tipoVidsrc(mediaType);
-      if (imdbId) return `https://vidsrc.xyz/embed/${tipo}/${imdbId}`;
-      if (tmdbId) return `https://vidsrc.xyz/embed/${tipo}?tmdb=${tmdbId}`;
+      if (imdbId) return `https://vidsrc.xyz/embed/${tipo}/${imdbId}?ds_lang=pt`;
+      if (tmdbId) return `https://vidsrc.xyz/embed/${tipo}?tmdb=${tmdbId}&ds_lang=pt`;
       return null;
     },
   },
@@ -79,8 +107,8 @@ export const videoSources: VideoSource[] = [
     embeddable: true,
     build: ({ imdbId, tmdbId, mediaType }) => {
       const tipo = tipoVidsrc(mediaType);
-      if (imdbId) return `https://vidsrc.to/embed/${tipo}/${imdbId}`;
-      if (tmdbId) return `https://vidsrc.to/embed/${tipo}?tmdb=${tmdbId}`;
+      if (imdbId) return `https://vidsrc.to/embed/${tipo}/${imdbId}?ds_lang=pt`;
+      if (tmdbId) return `https://vidsrc.to/embed/${tipo}?tmdb=${tmdbId}&ds_lang=pt`;
       return null;
     },
   },
@@ -116,22 +144,3 @@ export function resolverFontes(ids: VideoSourceIds): FonteResolvida[] {
   }
   return out;
 }
-Arquivo 2: src/pages/PlayerPage.tsx
-Apenas uma linha muda. Procure esta linha (está por volta da linha 47):
-
-() => resolverFontes({ videoUrl, imdbId: movie?.imdb_id, tmdbId: movie?.tmdb_id }),
-[videoUrl, movie?.imdb_id, movie?.tmdb_id]
-Substitua por:
-
-() => resolverFontes({ videoUrl, imdbId: movie?.imdb_id, tmdbId: movie?.tmdb_id, mediaType: movie?.type || movie?.media_type }),
-[videoUrl, movie?.imdb_id, movie?.tmdb_id, movie?.type, movie?.media_type]
-Como aplicar pelo GitHub Web (mais fácil)
-Acesse https://github.com/kevinveigaa/Movieflix/blob/main/src/lib/videoSources.ts
-Clique no ícone de lápis (Edit)
-Seleciona tudo (Ctrl+A) e cola o novo conteúdo
-Clique em Commit changes
-Repita para o PlayerPage.tsx com apenas a pequena troca de linha
-Depois que commitar, o Render vai fazer o deploy automático. Os filmes que tiverem imdb_id ou tmdb_id cadastrados no banco vão aparecer com as fontes VidSrc, VidSrc 2 e VidSrc 3 como opção de fallback.
-
-
-
