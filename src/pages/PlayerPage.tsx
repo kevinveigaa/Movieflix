@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
 import { supabase } from '@/lib/supabase';
-import { getVideoSources } from '@/lib/videoSources';
+import { getVideoSources, getTvSource } from '@/lib/videoSources';
 import { ChevronLeft, Film, Loader2, Play, RefreshCw } from 'lucide-react';
 
 // Tempo máximo (ms) que esperamos o iframe carregar antes de avançar
@@ -66,12 +66,15 @@ export function PlayerPage() {
         }
         setMovie({ ...series, title: `${series.title} — T${season?.season_number || '?'} E${ep.episode_number}: ${ep.title}` });
 
-        // Fonte de verdade: video_url cadastrado no banco; depois a cascata.
-        const builtins = getVideoSources({
-          imdbId: series.imdb_id,
-          tmdbId: series.tmdb_id,
-          mediaType: 'tv',
-        });
+        // Fonte de verdade: video_url cadastrado no banco (episódio/série); depois VidZee com temporada/episódio reais; depois a cascata.
+        const builtins = [
+          getTvSource(series.tmdb_id, season?.season_number || 1, ep.episode_number || 1),
+          ...getVideoSources({
+            imdbId: series.imdb_id,
+            tmdbId: series.tmdb_id,
+            mediaType: 'tv',
+          }),
+        ];
         const lista = [ep.video_url, series.video_url, ...builtins].filter(
           (u): u is string => Boolean(u),
         );
@@ -95,11 +98,14 @@ export function PlayerPage() {
           const { data: eps } = await supabase.from('episodes').select('*').eq('season_id', seasons[0].id).not('video_url', 'is', null).order('episode_number', { ascending: true }).limit(1);
           if (eps && eps.length > 0) {
             setMovie({ ...data, title: `${data.title} — T${seasons[0].season_number} E${eps[0].episode_number}: ${eps[0].title}` });
-            const builtins = getVideoSources({
-              imdbId: data.imdb_id,
-              tmdbId: data.tmdb_id,
-              mediaType: 'tv',
-            });
+            const builtins = [
+              getTvSource(data.tmdb_id, seasons[0].season_number || 1, eps[0].episode_number || 1),
+              ...getVideoSources({
+                imdbId: data.imdb_id,
+                tmdbId: data.tmdb_id,
+                mediaType: 'tv',
+              }),
+            ];
             const lista = [eps[0].video_url, data.video_url, ...builtins].filter(
               (u): u is string => Boolean(u),
             );
