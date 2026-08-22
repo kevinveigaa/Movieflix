@@ -3,7 +3,6 @@ import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
 import { supabase } from '@/lib/supabase';
 import { ChevronLeft, Film, Loader2, Play } from 'lucide-react';
-import { getVidsrcUrl } from '@/lib/videoSources';
 
 export function PlayerPage() {
   const { id } = useParams();
@@ -14,7 +13,7 @@ export function PlayerPage() {
   const [movie, setMovie] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
-  const [proxyUrl, setProxyUrl] = useState<string | null>(null);
+  const [watchUrl, setWatchUrl] = useState<string | null>(null);
 
   useEffect(() => {
     async function load() {
@@ -30,8 +29,9 @@ export function PlayerPage() {
         const { data: series } = await supabase.from('movies').select('*').eq('id', season?.series_id || id).maybeSingle();
         if (!series) { setErrorMsg('Série não encontrada.'); setLoading(false); return; }
         setMovie({ ...series, title: `${series.title} — T${season?.season_number || '?'} E${ep.episode_number}: ${ep.title}` });
-        const vidsrc = getVidsrcUrl({ imdbId: series.imdb_id, tmdbId: series.tmdb_id, mediaType: 'tv' });
-        if (vidsrc) setProxyUrl(`/api/player?url=${encodeURIComponent(vidsrc)}`);
+        const tipo = 'tv';
+        const idVal = series.imdb_id || series.tmdb_id;
+        if (idVal) setWatchUrl(`https://vidsrc.cc/v2/embed/${tipo}/${idVal}?autoPlay=true`);
         setLoading(false);
         return;
       }
@@ -46,8 +46,8 @@ export function PlayerPage() {
           const { data: eps } = await supabase.from('episodes').select('*').eq('season_id', seasons[0].id).not('video_url', 'is', null).order('episode_number', { ascending: true }).limit(1);
           if (eps && eps.length > 0) {
             setMovie({ ...data, title: `${data.title} — T${seasons[0].season_number} E${eps[0].episode_number}: ${eps[0].title}` });
-            const vidsrc = getVidsrcUrl({ imdbId: data.imdb_id, tmdbId: data.tmdb_id, mediaType: 'tv' });
-            if (vidsrc) setProxyUrl(`/api/player?url=${encodeURIComponent(vidsrc)}`);
+            const idVal = data.imdb_id || data.tmdb_id;
+            if (idVal) setWatchUrl(`https://vidsrc.cc/v2/embed/tv/${idVal}?autoPlay=true`);
             setLoading(false);
             return;
           }
@@ -55,8 +55,9 @@ export function PlayerPage() {
       }
 
       setMovie(data);
-      const vidsrc = getVidsrcUrl({ imdbId: data.imdb_id, tmdbId: data.tmdb_id, mediaType: data.type || data.media_type });
-      if (vidsrc) setProxyUrl(`/api/player?url=${encodeURIComponent(vidsrc)}`);
+      const tipo = (data.type === 'tv' || data.type === 'series' || data.type === 'anime' || data.media_type === 'tv') ? 'tv' : 'movie';
+      const idVal = data.imdb_id || data.tmdb_id;
+      if (idVal) setWatchUrl(`https://vidsrc.cc/v2/embed/${tipo}/${idVal}?autoPlay=true`);
       setLoading(false);
     }
 
@@ -93,48 +94,54 @@ export function PlayerPage() {
 
   return (
     <div className="min-h-screen bg-black text-white">
-      <div className="fixed top-0 left-0 right-0 z-50 flex items-center gap-3 bg-gradient-to-b from-black/90 via-black/60 to-transparent p-4">
-        <button onClick={() => navigate(-1)} className="flex items-center gap-2 rounded-full bg-black/50 p-2.5 backdrop-blur transition hover:bg-white/20">
+      {/* Header */}
+      <div className="fixed top-0 left-0 right-0 z-50 flex items-center gap-3 bg-black/80 backdrop-blur p-4">
+        <button onClick={() => navigate(-1)} className="flex items-center gap-2 rounded-full bg-white/10 p-2.5 hover:bg-white/20 transition">
           <ChevronLeft className="h-5 w-5" />
         </button>
         <h1 className="truncate text-base font-semibold">{movie?.title || 'Player'}</h1>
       </div>
 
-      <div className="relative w-full bg-black pt-14">
-        {proxyUrl ? (
-          <div className="relative w-full bg-black flex flex-col items-center justify-center gap-5 px-6 py-12 text-center" style={{ minHeight: '50vh' }}>
-            <Play className="h-16 w-16 text-red-600" />
-            <h3 className="text-2xl font-bold">{movie?.title}</h3>
-            <p className="text-sm text-zinc-400 max-w-sm">
-              Toque no botão abaixo para assistir ao filme.
-            </p>
-            <a
-              href={proxyUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center gap-3 rounded-xl bg-red-600 px-8 py-4 text-lg font-bold hover:bg-red-700 transition"
-            >
-              <Play className="h-6 w-6" /> Assistir agora
-            </a>
-          </div>
+      {/* Conteúdo */}
+      <div className="flex flex-col items-center justify-center min-h-screen px-6 pt-20 pb-10 gap-6">
+        {/* Poster */}
+        {movie?.poster_url ? (
+          <img
+            src={movie.poster_url}
+            alt={movie.title}
+            className="w-48 rounded-xl shadow-2xl shadow-red-900/20"
+          />
         ) : (
-          <div className="flex h-[60vh] flex-col items-center justify-center text-center gap-4 px-4">
-            <Film className="h-16 w-16 text-zinc-600" />
-            <h2 className="text-xl font-bold">Vídeo não disponível</h2>
-            <p className="text-zinc-400 text-sm max-w-md">
-              Este título não possui ID do IMDB ou TMDB cadastrado.
-            </p>
-            <button onClick={() => navigate(-1)} className="rounded-xl bg-red-600 px-6 py-2 font-semibold text-sm">Voltar</button>
+          <Film className="h-24 w-24 text-zinc-700" />
+        )}
+
+        {/* Título */}
+        <h2 className="text-2xl font-bold text-center">{movie?.title}</h2>
+
+        {/* Botão Assistir */}
+        {watchUrl ? (
+          <a
+            href={watchUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center gap-3 rounded-xl bg-red-600 px-10 py-4 text-xl font-bold hover:bg-red-700 transition shadow-lg shadow-red-900/30"
+          >
+            <Play className="h-7 w-7" /> Assistir agora
+          </a>
+        ) : (
+          <div className="text-zinc-400 text-center">
+            <p>Vídeo não disponível</p>
+            <p className="text-sm mt-1">ID do IMDB/TMDB não cadastrado</p>
           </div>
         )}
-      </div>
 
-      {movie && (
-        <div className="px-4 py-6 max-w-5xl mx-auto">
-          <h2 className="text-2xl font-bold mb-2">{movie.title}</h2>
-          <p className="text-zinc-300 leading-relaxed">{movie.description || 'Sem sinopse.'}</p>
-        </div>
-      )}
+        {/* Sinopse */}
+        {movie?.description && (
+          <p className="text-zinc-400 text-sm text-center max-w-md leading-relaxed mt-4">
+            {movie.description}
+          </p>
+        )}
+      </div>
     </div>
   );
 }
