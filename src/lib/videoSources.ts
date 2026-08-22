@@ -225,3 +225,5 @@ export function resolverFontes(ids: VideoSourceIds): FonteResolvida[] {
   }
   return out;
 }
+
+// Render deploy trigger v2 — force rebuild with correct code
