@@ -1,8 +1,10 @@
 import { supabase } from '@/lib/supabase';
 
 interface FavoritesColumns {
-  /** A tabela tem a coluna viewer_profile_id? (migration 20260823120000) */
+  /** A tabela tem a columna viewer_profile_id? (migration 20260823120000) */
   viewerProfileId: boolean;
+  /** A tabela tem a columna movie_id? (migration 20260823130000) */
+  movieId: boolean;
 }
 
 let cached: FavoritesColumns | null = null;
@@ -16,9 +18,10 @@ function isMissingColumn(error: { code?: string; message?: string } | null): boo
 }
 
 /**
- * Detecta (uma única vez, com cache) se o banco já foi migrado com a coluna
- * de perfil dos favoritos. Permite que o app funcione antes e depois de rodar
- * `supabase/migrations/20260823120000_favorites_profile_columns.sql`.
+ * Detecta (uma única vez, com cache) se o banco já foi migrado com as colunas
+ * de perfil/título dos favoritos. Permite que o app funcione antes e depois de
+ * rodar `supabase/migrations/20260823120000_favorites_profile_columns.sql` e
+ * `20260823130000_favorites_movie_id.sql`.
  */
 export async function favoritesColumns(): Promise<FavoritesColumns> {
   if (cached) return cached;
@@ -30,6 +33,7 @@ export async function favoritesColumns(): Promise<FavoritesColumns> {
 
   cached = {
     viewerProfileId: await probe('viewer_profile_id'),
+    movieId: await probe('movie_id'),
   };
   return cached;
 }

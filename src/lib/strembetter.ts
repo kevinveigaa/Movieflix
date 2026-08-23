@@ -48,16 +48,17 @@ export const AUDIO_PTBR = 'pt-BR';
  */
 const STREAMBETTER_KEY = (import.meta.env.VITE_STREAMBETTER_KEY as string) || '';
 
-function withLangAndKey(url: string): string {
+function withLangAndKey(url: string, startSeconds?: number): string {
   const params = new URLSearchParams({ lang: AUDIO_PTBR });
   if (STREAMBETTER_KEY) params.set('key', STREAMBETTER_KEY);
+  if (startSeconds && startSeconds > 0) params.set('t', String(startSeconds));
   return `${url}?${params.toString()}`;
 }
 
 /** URL do player do StreamBetter para um filme, com áudio pt-BR preferido. */
-export function streamBetterMovieUrl(tmdbId: number | string | null | undefined): string {
+export function streamBetterMovieUrl(tmdbId: number | string | null | undefined, startSeconds?: number): string {
   if (tmdbId == null) return '';
-  return withLangAndKey(`${STREAMBETTER_BASE}/filme/${tmdbId}`);
+  return withLangAndKey(`${STREAMBETTER_BASE}/filme/${tmdbId}`, startSeconds);
 }
 
 /** URL do player do StreamBetter para um episódio de série, com áudio pt-BR. */
@@ -65,9 +66,10 @@ export function streamBetterSeriesUrl(
   tmdbId: number | string | null | undefined,
   season: number,
   episode: number,
+  startSeconds?: number,
 ): string {
   if (tmdbId == null) return '';
-  return withLangAndKey(`${STREAMBETTER_BASE}/serie/${tmdbId}/${season}/${episode}`);
+  return withLangAndKey(`${STREAMBETTER_BASE}/serie/${tmdbId}/${season}/${episode}`, startSeconds);
 }
 
 /**

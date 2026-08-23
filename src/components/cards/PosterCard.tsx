@@ -1,7 +1,9 @@
 import { Link } from "react-router-dom";
-import { Play, Mic2 } from "lucide-react";
+import { Play, Mic2, Heart } from "lucide-react";
 
 import { cn } from "@/lib/cn";
+import { useAuth } from "@/context/AuthContext";
+import { useFavoriteByMovieId } from "@/hooks/useFavorite";
 
 interface MovieCardProps {
   title: any;
@@ -22,6 +24,11 @@ export function PosterCard({
   const tipo = title?.type === "series" || title?.type === "tv" ? "tv" : "movie";
   const linkType = forceType || (tipo === "tv" ? "tv" : "movie");
   const ano = title?.year ? String(title.year) : "";
+
+  // Botão de favorito (corazón) en los cards del catálogo.
+  const { user } = useAuth();
+  const movieId = title?.id ? String(title.id) : null;
+  const fav = useFavoriteByMovieId(movieId ?? "", linkType);
 
   return (
     <Link
@@ -54,6 +61,34 @@ export function PosterCard({
           <span className="absolute right-1.5 top-1.5 rounded-md bg-black/70 px-1.5 py-0.5 text-[9px] font-semibold text-white backdrop-blur sm:right-2 sm:top-2 sm:px-2 sm:py-1 sm:text-[10px]">
             {ano}
           </span>
+        )}
+
+        {/* Botón de favorito (corazón) */}
+        {movieId && (
+          <button
+            type="button"
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              if (!user) {
+                window.location.hash = "#/login";
+                return;
+              }
+              fav.toggle();
+            }}
+            aria-label={fav.isFavorite ? "Quitar de favoritos" : "Agregar a favoritos"}
+            title={fav.isFavorite ? "Quitar de favoritos" : "Agregar a favoritos"}
+            className={cn(
+              "absolute bottom-1.5 right-1.5 z-10 flex h-7 w-7 items-center justify-center rounded-full transition sm:bottom-2 sm:right-2 sm:h-8 sm:w-8",
+              fav.isFavorite
+                ? "bg-red-600 text-white shadow-lg"
+                : "bg-black/60 text-white/80 backdrop-blur hover:bg-red-600/80 hover:text-white",
+            )}
+          >
+            <Heart
+              className={cn("h-3.5 w-3.5 sm:h-4 sm:w-4", fav.isFavorite && "fill-current")}
+            />
+          </button>
         )}
 
         {/* Série: indicador */}

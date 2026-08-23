@@ -77,39 +77,34 @@ export function useFavorite(tmdbId: number, mediaType: MediaType) {
   return { isFavorite, toggle: toggle.mutate, loading: toggle.isPending };
 }
 
-export function useToggleFavoriteByTitle() {
+/**
+ * Favorito por título del catálogo (movies.id). Los cards del catálogo apuntan
+ * a movies.id (UUID), así que este hook es el que usan para el botón de
+ * corazón. Guarda también tmdb_id/media_type cuando están disponibles.
+ */
+export function useFavoriteByMovieId(movieId: string, mediaType: MediaType) {
   const { user, activeViewerProfile } = useAuth();
   const profileId = activeViewerProfile?.id;
   const qc = useQueryClient();
-  return useMutation({
-    mutationFn: async (t: TmdbTitle) => {
+  const favs = useFavorites();
+  const row = favs.data?.find((f) => f.movie_id === movieId);
+  const isFavorite = !!row;
+
+  const toggle = useMutation({
+    mutationFn: async () => {
       if (!user) throw new Error('Faça login para favoritar.');
       const cols = await favoritesColumns();
-      const type: MediaType = t.media_type === 'tv' || t.first_air_date || t.name ? 'tv' : 'movie';
-      let find = supabase
-        .from('favorites')
-        .select('id')
-        .eq('user_id', user.id)
-        .eq('tmdb_id', t.id)
-        .eq('media_type', type);
-
-      if (cols.viewerProfileId) {
-        if (profileId) find = find.eq('viewer_profile_id', profileId);
-        else find = find.is('viewer_profile_id', null);
-      }
-
-      const { data: existing } = await find.maybeSingle();
-      if (existing) {
-        await supabase.from('favorites').delete().eq('id', existing.id);
+      if (row) {
+        await supabase.from('favorites').delete().eq('id', row.id);
       } else {
         const insert: Record<string, unknown> = {
           user_id: user.id,
-          tmdb_id: t.id,
-          media_type: type,
-          title: titleName(t),
-          poster_path: t.poster_path,
-          backdrop_path: t.backdrop_path,
-          vote_average: t.vote_average,
+          movie_id: movieId,
+          media_type: mediaType,
+          title: "",
+          poster_path: "",
+          backdrop_path: "",
+          vote_average: 0,
         };
         if (cols.viewerProfileId) insert.viewer_profile_id = profileId;
         await supabase.from('favorites').insert(insert);
@@ -117,15 +112,13 @@ export function useToggleFavoriteByTitle() {
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: [FAV_KEY, user?.id] }),
   });
+
+  return { isFavorite, toggle: toggle.mutate, loading: toggle.isPending };
 }
 
-export function useIsFavorite(tmdbId: number, mediaType: MediaType) {
+export function useIsFavoriteByMovieId(movieId: string) {
   const favs = useFavorites();
-
-  const row = favs.data?.find(
-    (f) => f.tmdb_id === tmdbId && f.media_type === mediaType
-  );
-
+  const row = favs.data?.find((f) => f.movie_id === movieId);
   return !!row;
 }
 
