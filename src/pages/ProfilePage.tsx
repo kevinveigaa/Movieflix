@@ -47,8 +47,8 @@ export function ProfilePage() {
     );
   }
 
-  const maxProfiles = entitlements.maxProfiles;
-  const remaining = Math.max(0, maxProfiles - profiles.length);
+  const maxProfiles = entitlements?.maxProfiles ?? 1;
+  const remaining = Math.max(0, maxProfiles - (profiles?.length ?? 0));
 
   const save = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -160,7 +160,7 @@ export function ProfilePage() {
               </p>
             ) : (
               <div className="mt-5 flex flex-wrap gap-4">
-                {profiles.map((p) => {
+                {(profiles ?? []).map((p) => {
                   const isActive = activeViewerProfile?.id === p.id;
                   return (
                     <div

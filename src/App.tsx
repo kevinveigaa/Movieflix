@@ -5,6 +5,7 @@ import { AuthProvider, useAuth } from '@/context/AuthContext';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Seo } from '@/components/Seo';
 import { FullScreenLoader } from '@/components/ui/Feedback';
+import { ErrorBoundary } from '@/components/ui/ErrorBoundary';
 import { useTvNavigation } from '@/hooks/useTvNavigation';
 import { useSeriesHidden } from '@/hooks/useSeriesHidden';
 import type { JSX } from 'react';
@@ -62,7 +63,8 @@ function AppRoutes() {
     <>
       <Seo />
       <Suspense fallback={<FullScreenLoader />}>
-        <Routes>
+        <ErrorBoundary titulo="Algo deu errado ao carregar esta página.">
+          <Routes>
           <Route element={<AppLayout />}>
             <Route path="/" element={<HomePage />} />
             <Route path="/filmes" element={<CatalogPage kind="filmes" />} />
@@ -86,6 +88,7 @@ function AppRoutes() {
           <Route path="/selecionar-perfil" element={<RequireAuth><ProfileSelectPage /></RequireAuth>} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
+        </ErrorBoundary>
       </Suspense>
     </>
   );
