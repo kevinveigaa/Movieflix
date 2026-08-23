@@ -2,20 +2,29 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
 import { supabase } from '@/lib/supabase';
-import { getVideoSources, getTvSource } from '@/lib/videoSources';
+import { getVideoSources, getTvSource, normalizeDubbedSource } from '@/lib/videoSources';
+import Hls from 'hls.js';
 import { ChevronLeft, ExternalLink, Film, Loader2, RefreshCw } from 'lucide-react';
 
-// O player usa UMA única fonte (fonte 1 — VidZee), validada como a que
-// funciona. Não há mais cascata de fallback: se a fonte não carregar,
-// oferecemos "Abrir no navegador" / "Tentar novamente".
+// ─────────────────────────────────────────────────────────────────────────────
+// Player com suporte a DUBLAGEM pt-BR.
 //
-// DUBLAGEM pt-BR: as URLs do VidZee já são montadas em src/lib/videoSources.ts
-// com os hints ?lang=pt-BR&audio=pt-BR&sub=pt-BR&dub=1 (melhor esforço).
-// ⚠️ O VidZee (player de terceiros) IGNORA esses parâmetros hoje — não há
-// como forçar a faixa de áudio dentro do iframe; a trilha é decidida pelo
-// backend dele. O hint é inofensivo e à prova de futuro caso o VidZee passe
-// a aceitar idioma via URL. Ver documentação em src/lib/videoSources.ts.
+// O `video_url` do banco é a fonte de verdade. Quando ele aponta para uma
+// fonte cujo áudio JÁ É dublado em pt-BR (YouTube "Filme Completo em
+// Português", MP4/HLS dublado, Google Drive), o player renderiza a forma
+// adequada:
+//   - YouTube  → iframe oficial (youtube-nocookie) com hl=pt-BR
+//   - MP4/HLS  → <video> nativo + hls.js (sem depender de iframe)
+//   - Drive    → iframe de preview do Google Drive
+//   - demais   → iframe genérico (VidZee etc., com hints pt-BR em
+//                src/lib/videoSources.ts — melhor esforço)
+//
+// Para YouTube o timeout de "não carregou" é DESATIVADO: o iframe oficial
+// nunca dispara eventos de load confiáveis e um vídeo dublado pode demorar
+// para iniciar; mostrar erro falso seria pior do que aguardar.
+// ─────────────────────────────────────────────────────────────────────────────
 const TIMEOUT_FONTE = 10000;
+const YT_TIMEOUT_FONTE = 0; // desativado para YouTube
 
 export function PlayerPage() {
   const { id } = useParams();
@@ -31,8 +40,11 @@ export function PlayerPage() {
   const [sourceUrl, setSourceUrl] = useState<string | null>(null);
   // True quando o timeout expirou (a fonte não carregou de verdade).
   const [esgotado, setEsgotado] = useState(false);
+  // Tipo de reprodução da fonte atual.
+  const [sourceKind, setSourceKind] = useState<'youtube' | 'drive' | 'direct' | 'iframe' | null>(null);
 
-  const iframeRef = useRef<HTMLIFrameElement>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const hlsRef = useRef<Hls | null>(null);
   const timeoutRef = useRef<number | null>(null);
 
   const currentUrl = sourceUrl;
@@ -53,6 +65,16 @@ export function PlayerPage() {
       requestAnimationFrame(() => setSourceUrl(currentUrl));
     }
   }, [currentUrl, limparTimeout]);
+
+  // Destrói o Hls ao trocar de fonte/desmontar.
+  useEffect(() => {
+    return () => {
+      if (hlsRef.current) {
+        hlsRef.current.destroy();
+        hlsRef.current = null;
+      }
+    };
+  }, []);
 
   // Monta a URL da fonte 1 a partir do banco + IDs (filme ou episódio/série).
   useEffect(() => {
@@ -132,18 +154,48 @@ export function PlayerPage() {
     load();
   }, [id, searchParams]);
 
+  // Detecta o tipo de reprodução da fonte atual.
+  useEffect(() => {
+    const norm = currentUrl ? normalizeDubbedSource(currentUrl) : null;
+    setSourceKind(norm ? norm.kind : 'iframe');
+  }, [currentUrl]);
+
+  // Reprodução nativa de MP4/HLS quando a fonte é direta.
+  useEffect(() => {
+    if (sourceKind !== 'direct' || !currentUrl || !videoRef.current) return;
+    const video = videoRef.current;
+    if (hlsRef.current) {
+      hlsRef.current.destroy();
+      hlsRef.current = null;
+    }
+    if (currentUrl.includes('.m3u8') && Hls.isSupported()) {
+      const hls = new Hls();
+      hls.loadSource(currentUrl);
+      hls.attachMedia(video);
+      hlsRef.current = hls;
+      hls.on(Hls.Events.MANIFEST_PARSED, () => {
+        video.play().catch(() => undefined);
+      });
+    } else {
+      video.src = currentUrl;
+      video.play().catch(() => undefined);
+    }
+  }, [sourceKind, currentUrl]);
+
   // Reinicia o timeout quando a URL da fonte muda; se o iframe não confirmar
   // o carregamento a tempo, marcamos como esgotado para oferecer
   // "Abrir no navegador" em vez de deixar o usuário preso numa tela infinita.
+  // Para YouTube o timeout é desativado (o iframe oficial não expõe eventos
+  // confiáveis de load e um vídeo dublado pode demorar a iniciar).
   useEffect(() => {
     limparTimeout();
     setEsgotado(false);
-    if (!currentUrl) return;
+    if (!currentUrl || sourceKind === 'youtube' || sourceKind === 'direct' || sourceKind === 'drive') return;
     timeoutRef.current = window.setTimeout(() => {
       setEsgotado(true);
     }, TIMEOUT_FONTE);
     return limparTimeout;
-  }, [currentUrl, limparTimeout]);
+  }, [currentUrl, sourceKind, limparTimeout]);
 
   if (loading) {
     return (
@@ -195,20 +247,30 @@ export function PlayerPage() {
 
       {/* Conteúdo */}
       <div className="flex flex-col items-center justify-start min-h-screen px-4 sm:px-6 pt-24 pb-10 gap-6">
-        {/* Player em iframe — ocupa a área principal */}
         {currentUrl ? (
           <div className="w-full max-w-5xl">
             <div className="relative w-full aspect-video rounded-xl overflow-hidden bg-black shadow-2xl shadow-red-900/20 ring-1 ring-white/10">
-              <iframe
-                key={currentUrl}
-                ref={iframeRef}
-                src={currentUrl}
-                title={`Player — ${movie?.title || ''}`}
-                className="absolute inset-0 w-full h-full border-0"
-                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share; fullscreen"
-                allowFullScreen
-                referrerPolicy="origin"
-              />
+              {sourceKind === 'direct' ? (
+                <video
+                  key={currentUrl}
+                  ref={videoRef}
+                  controls
+                  autoPlay
+                  playsInline
+                  className="absolute inset-0 w-full h-full"
+                  style={{ backgroundColor: '#000' }}
+                />
+              ) : (
+                <iframe
+                  key={currentUrl}
+                  src={sourceKind === 'youtube' ? currentUrl : currentUrl}
+                  title={`Player — ${movie?.title || ''}`}
+                  className="absolute inset-0 w-full h-full border-0"
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share; fullscreen"
+                  allowFullScreen
+                  referrerPolicy="origin"
+                />
+              )}
             </div>
 
             {esgotado ? (
