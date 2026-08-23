@@ -56,7 +56,7 @@ export function SearchPage() {
             autoFocus
             value={q}
             onChange={(e) => setQ(e.target.value)}
-            placeholder={seriesHidden ? "Busque filmes e animes..." : "Busque filmes, séries, animes..."}
+            placeholder={seriesHidden ? "Busque filmes..." : "Busque filmes e séries..."}
             className="w-full rounded-full border border-white/10 bg-ink-800/70 py-3.5 pl-12 pr-12 text-base text-white placeholder:text-ink-400 focus:border-brand-500 focus:outline-none"
           />
           {q && (

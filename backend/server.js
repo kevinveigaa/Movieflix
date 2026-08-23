@@ -3,12 +3,14 @@ require("dotenv").config();
 const path = require("path");
 const express = require("express");
 const cors = require("cors");
+const compression = require("compression");
 const { MercadoPagoConfig, Preference } = require("mercadopago");
 const { registrarPlayerProxy } = require("./player-proxy");
 
 const app = express();
 
 app.use(cors());
+app.use(compression());
 app.use(express.json());
 
 const PORT = process.env.PORT || 5000;

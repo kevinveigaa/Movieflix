@@ -67,7 +67,6 @@ function AppRoutes() {
             <Route path="/" element={<HomePage />} />
             <Route path="/filmes" element={<CatalogPage kind="filmes" />} />
             <Route path="/series" element={<RequireSeries><CatalogPage kind="series" /></RequireSeries>} />
-            <Route path="/animes" element={<CatalogPage kind="animes" />} />
             <Route path="/pesquisa" element={<SearchPage />} />
             <Route path="/baixar-app" element={<DownloadAppPage />} />
             <Route path="/titulo/:type/:id" element={<TitleDetailPage />} />

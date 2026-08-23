@@ -7,7 +7,7 @@ import {
   getTvSource,
   normalizeDubbedSource,
 } from '@/lib/videoSources';
-import { streamBetterMovieUrl, streamBetterSeriesUrl } from '@/lib/strembetter';
+import { streamBetterMovieUrl, streamBetterSeriesUrl, primeiroEpisodioDisponivel } from '@/lib/strembetter';
 import { ChevronLeft, ExternalLink, Film, Loader2, RefreshCw } from 'lucide-react';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -83,7 +83,8 @@ export function PlayerPage() {
         return;
       }
 
-      // Filme: procura no catálogo do StreamBetter (cache local da query).
+      // Filme ou série: procura no catálogo (JSON estático gerado por
+      // gerar-catalogo.cjs — filmes.json + series.json).
       const data = moviesQuery.data;
       const found = (data ?? []).find(
         (m: any) => String(m.id) === String(id) || String(m.tmdb_id) === String(id),
@@ -91,7 +92,22 @@ export function PlayerPage() {
 
       if (found) {
         setMovie(found);
-        setSourceUrl(found.video_url || streamBetterMovieUrl(found.tmdb_id));
+        const ehSerie =
+          String(found.type ?? '').toLowerCase() === 'series' ||
+          String(found.type ?? '').toLowerCase() === 'tv';
+
+        if (ehSerie) {
+          // Série: usa o primeiro episódio com fonte cadastrada
+          // (episodes_available vem do gerador de catálogo).
+          const ep = primeiroEpisodioDisponivel(found);
+          if (ep) {
+            setSourceUrl(streamBetterSeriesUrl(found.tmdb_id, ep.season, ep.episode));
+          } else {
+            setErrorMsg('Nenhum episódio disponível para esta série no momento.');
+          }
+        } else {
+          setSourceUrl(found.video_url || streamBetterMovieUrl(found.tmdb_id));
+        }
         setLoading(false);
         return;
       }
@@ -231,6 +247,8 @@ export function PlayerPage() {
                   <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
                   Áudio pt-BR preferido · Player StreamBetter
                 </span>
+                <span className="mx-2 text-zinc-600">·</span>
+                <span>Sem anúncios no Movieflix — para 100% livre de anúncios, use o plano StreamBetter Creator</span>
                 {currentUrl && (
                   <button onClick={reiniciarFonte} className="text-red-400 underline hover:text-red-300 ml-3">
                     Recarregar player

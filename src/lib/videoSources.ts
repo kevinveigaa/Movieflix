@@ -22,7 +22,7 @@ export type VideoIds = {
  */
 export function getVideoSources(ids: VideoIds): string[] {
   const tipo =
-    ids.mediaType === 'tv' || ids.mediaType === 'series' || ids.mediaType === 'anime'
+    ids.mediaType === 'tv' || ids.mediaType === 'series'
       ? 'tv'
       : 'movie';
 

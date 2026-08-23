@@ -1,0 +1,13 @@
+{
+  "gerado_em": "2026-08-23T14:50:25.464Z",
+  "fonte": "https://streambetter.shop/api/titles",
+  "regras": [
+    "Somente filmes e séries (sem animes)",
+    "Somente títulos com capa (poster)",
+    "Somente títulos dublados em pt-BR (player StreamBetter seleciona faixa pt)",
+    "Somente títulos com fonte cadastrada; séries com ≥1 episódio",
+    "Sem anúncios próprios; embed gratuito pode exibir anúncio do StreamBetter (Creator = ad-free)"
+  ],
+  "total_filmes": 11334,
+  "total_series": 1256
+}

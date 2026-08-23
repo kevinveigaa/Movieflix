@@ -1,64 +1,40 @@
 /**
- * ─────────────────────────────────────────────────────────────────────────────
- * STREAMBETTER — fonte oficial de filmes do Movieflix
- * ─────────────────────────────────────────────────────────────────────────────
+ * ═══════════════════════════════════════════════════════════════════════════
+ * STREAMBETTER — fonte oficial de filmes e séries do Movieflix
+ * ═══════════════════════════════════════════════════════════════════════════
  *
- * Todos os filmes do catálogo agora vêm de https://streambetter.shop (API de
+ * Todos os títulos do catálogo vêm de https://streambetter.shop (API de
  * streaming com catálogo próprio e player embutível). Nada de players de
- * terceiros (vidlink.pro, megaembedapi, VidZee etc.) — o player do StreamBetter
- * é embutido DENTRO do site Movieflix, via <iframe>.
+ * terceiros (vidlink.pro, megaembedapi, VidZee etc.) — o player do
+ * StreamBetter é embutido DENTRO do site Movieflix, via <iframe>.
  *
  * ── Catálogo ────────────────────────────────────────────────────────────────
- *   GET https://streambetter.shop/api/titles?type=movie&limit=100&page=N
- *   → { success, titles: [{ id, tmdb_id, title, type, poster_path, overview }],
- *       pagination }
- *   A rota é pública e aceita CORS de qualquer domínio (confirmado na doc).
+ *   O catálogo é gerado offline por `node gerar-catalogo.cjs` e publicado em
+ *   filmes/filmes.json + filmes/series.json (importados pelo front). A API
+ *   pública https://streambetter.shop/api/titles continua sendo a fonte
+ *   original dos dados.
  *
  * ── Player embed ────────────────────────────────────────────────────────────
  *   Filmes : https://streambetter.shop/filme/{tmdb_id}?lang=pt-BR
- *   Séries : https://streambetter.shop/serie/{tmdb_id}/{temporada}/{episodio}
+ *   Séries : https://streambetter.shop/serie/{tmdb_id}/{temporada}/{episodio}?lang=pt-BR
  *   O player resolve as fontes, legendas e fallbacks do outro lado.
  *
  * ── Áudio pt-BR ─────────────────────────────────────────────────────────────
  *   O player do StreamBetter seleciona automaticamente a faixa de áudio em
- *   português quando disponível (verificado no bundle do player: ele procura
- *   trilhas cujo lang começa com "pt"/"por" ou cujo nome contém "portug" e
- *   aplica como faixa padrão). Adicionamos `lang=pt-BR` na URL do embed como
- *   sinalizador de preferência — melhor esforço quando a fonte tem múltiplas
- *   faixas.
+ *   português quando disponível (verificado no bundle do player: procura
+ *   trilhas cujo lang começa com "pt"/"por" ou cujo nome contém "portug").
+ *   `lang=pt-BR` na URL reforça a preferência.
  *
  * ── Anúncios ────────────────────────────────────────────────────────────────
- *   O Movieflix não injeta nenhum anúncio próprio. O player embutido segue o
- *   player padrão do StreamBetter; para um embed 100% sem anúncios é preciso
- *   o plano Creator (chave sb_pk_* com trava de domínio) — ver
- *   https://streambetter.shop/planos. NÃO usamos sandbox/blockers no iframe
- *   (o StreamBetter detecta e recusa exibir o conteúdo).
+ *   O Movieflix não injeta nenhum anúncio próprio. O embed gratuito segue o
+ *   player padrão do StreamBetter e pode exibir o anúncio do plano free;
+ *   para um embed 100% sem anúncios é preciso o plano Creator (chave
+ *   sb_pk_* com trava de domínio) — ver https://streambetter.shop/planos.
+ *   NÃO usamos sandbox/blockers no iframe (o StreamBetter detecta e recusa
+ *   exibir o conteúdo).
  */
 
 const STREAMBETTER_BASE = 'https://streambetter.shop';
-const CATALOG_BASE = `${STREAMBETTER_BASE}/api/titles`;
-const LIMITE_PAGINA = 100;
-
-export interface StreamBetterTitle {
-  id: number | string;
-  tmdb_id: number | string;
-  title: string;
-  type?: string;
-  poster_path?: string | null;
-  overview?: string | null;
-  updated_at?: string;
-}
-
-export interface StreamBetterPage {
-  success: boolean;
-  titles: StreamBetterTitle[];
-  pagination?: {
-    totalItems?: number;
-    totalPages?: number;
-    currentPage?: number;
-    limit?: number;
-  };
-}
 
 /** Parâmetro de preferência de idioma no embed (pt-BR). */
 export const AUDIO_PTBR = 'pt-BR';
@@ -95,104 +71,26 @@ export function streamBetterSeriesUrl(
 }
 
 /**
- * Busca uma página do catálogo de filmes do StreamBetter.
- * A rota é pública; aceita `page` (1-based) e `limit` (máx. 100).
+ * Melhor episódio disponível de uma série (usa o primeiro episódio com fonte
+ * cadastrada — dados de filmes/series.json, campo episodes_available).
  */
-export async function fetchStreamBetterMovies(
-  page = 1,
-  limit = LIMITE_PAGINA,
-): Promise<StreamBetterTitle[]> {
-  const params = new URLSearchParams({
-    type: 'movie',
-    page: String(page),
-    limit: String(Math.min(limit, LIMITE_PAGINA)),
-  });
-
-  const res = await fetch(`${CATALOG_BASE}?${params.toString()}`, {
-    headers: { Accept: 'application/json' },
-  });
-
-  if (!res.ok) throw new Error(`StreamBetter ${res.status}`);
-
-  const data = (await res.json()) as StreamBetterPage;
-  return data.titles ?? [];
+export function primeiroEpisodioDisponivel(
+  serie: { episodes_available?: string[]; tmdb_id?: number | string } | null | undefined,
+): { season: number; episode: number } | null {
+  if (!serie) return null;
+  const eps = serie.episodes_available ?? [];
+  if (eps.length === 0) return null;
+  const [seasonStr, epStr] = String(eps[0]).split('/');
+  const season = Number(seasonStr);
+  const episode = Number(epStr);
+  if (!Number.isFinite(season) || !Number.isFinite(episode)) return null;
+  return { season, episode };
 }
 
-/**
- * Busca todas as páginas do catálogo de filmes (até `maxPages` páginas).
- * Usada para popular o catálogo local do app (cache) sem depender de Supabase.
- */
-export async function fetchAllStreamBetterMovies(maxPages = 10): Promise<StreamBetterTitle[]> {
-  const todos: StreamBetterTitle[] = [];
-  const vistos = new Set<string>();
-
-  for (let page = 1; page <= maxPages; page++) {
-    let titulos: StreamBetterTitle[];
-    try {
-      titulos = await fetchStreamBetterMovies(page);
-    } catch {
-      break; // fim do catálogo ou rede indisponível — usa o que já temos
-    }
-    if (titulos.length === 0) break;
-
-    for (const t of titulos) {
-      const chave = String(t.tmdb_id);
-      if (!vistos.has(chave)) {
-        vistos.add(chave);
-        todos.push(t);
-      }
-    }
-    if (titulos.length < LIMITE_PAGINA) break;
-  }
-
-  return todos;
-}
-
-/**
- * Converte um título do StreamBetter no formato que o Movieflix espera
- * (mesma forma da antiga tabela `movies` do Supabase), com os campos
- * extras que as páginas usam (backdrop, votos etc. vêm do TMDb quando
- * houver; senão ficam vazios e a UI degrada com graça).
- */
-export interface MovieflixMovie {
-  id: string;
-  title: string;
-  description?: string | null;
-  year?: string | null;
-  poster_url?: string | null;
-  backdrop_url?: string | null;
-  video_url: string;
-  vote_average?: number | null;
-  category?: string | null;
-  language: string;
-  quality: string;
-  type: string;
-  tmdb_id: number | string;
-  media_type?: 'movie';
-}
-
-export function toMovieflixMovie(t: StreamBetterTitle): MovieflixMovie {
-  const tmdbId = t.tmdb_id;
-  return {
-    id: String(tmdbId),
-    title: t.title ?? 'Sem título',
-    description: t.overview ?? null,
-    year: null,
-    poster_url: t.poster_path ?? null,
-    backdrop_url: null,
-    video_url: streamBetterMovieUrl(tmdbId),
-    vote_average: null,
-    category: null,
-    language: 'Dublado (pt-BR)',
-    quality: 'HD',
-    type: 'movie',
-    tmdb_id: tmdbId,
-    media_type: 'movie',
-  };
-}
-
-/** Atalho: URL de embed do StreamBetter a partir de um filme do catálogo. */
-export function movieEmbedUrl(movie: { video_url?: string; tmdb_id?: number | string } | null | undefined): string {
+/** Atalho: URL de embed do StreamBetter a partir de um título do catálogo. */
+export function movieEmbedUrl(
+  movie: { video_url?: string; tmdb_id?: number | string } | null | undefined,
+): string {
   if (!movie) return '';
   if (movie.video_url) return movie.video_url;
   return streamBetterMovieUrl(movie.tmdb_id);

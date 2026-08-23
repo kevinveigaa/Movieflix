@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import { Play } from "lucide-react";
+import { Play, Mic2 } from "lucide-react";
 
 import { cn } from "@/lib/cn";
 
@@ -19,22 +19,49 @@ export function PosterCard({
   mediaType = "movie",
   progress,
 }: MovieCardProps) {
+  const tipo = title?.type === "series" || title?.type === "tv" ? "tv" : "movie";
+  const linkType = forceType || (tipo === "tv" ? "tv" : "movie");
+  const ano = title?.year ? String(title.year) : "";
+
   return (
     <Link
-      to={`/titulo/${forceType || mediaType}/${title.id}`}
+      to={`/titulo/${linkType}/${title.id}`}
       aria-label={title?.title}
       className={cn(
         "group flex w-full flex-col rounded-xl focus:outline-none",
         className
       )}
     >
-      <div className="relative aspect-[2/3] w-full overflow-hidden rounded-xl bg-zinc-900">
+      <div className="relative aspect-[2/3] w-full overflow-hidden rounded-xl bg-zinc-900 shadow-md shadow-black/30 ring-1 ring-white/5 transition duration-300 lg:group-hover:ring-white/20">
         <img
           src={title?.poster_url}
           alt={title?.title}
           loading="lazy"
+          onError={(e) => {
+            (e.target as HTMLImageElement).style.display = "none";
+          }}
           className="h-full w-full object-cover transition duration-300 lg:group-hover:scale-105"
         />
+
+        {/* Badge superior esquerdo: Dublado pt-BR */}
+        <span className="absolute left-1.5 top-1.5 inline-flex items-center gap-1 rounded-md bg-emerald-600/90 px-1.5 py-0.5 text-[9px] font-bold text-white shadow sm:left-2 sm:top-2 sm:px-2 sm:py-1 sm:text-[10px]">
+          <Mic2 className="h-2.5 w-2.5" />
+          Dublado pt-BR
+        </span>
+
+        {/* Badge superior direito: ano */}
+        {ano && (
+          <span className="absolute right-1.5 top-1.5 rounded-md bg-black/70 px-1.5 py-0.5 text-[9px] font-semibold text-white backdrop-blur sm:right-2 sm:top-2 sm:px-2 sm:py-1 sm:text-[10px]">
+            {ano}
+          </span>
+        )}
+
+        {/* Série: indicador */}
+        {tipo === "tv" && (
+          <span className="absolute bottom-1.5 left-1.5 rounded-md bg-black/70 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-zinc-200 backdrop-blur sm:bottom-2 sm:left-2 sm:px-2 sm:py-1 sm:text-[10px]">
+            Série
+          </span>
+        )}
 
         <div className="pointer-events-none absolute inset-0 flex items-end justify-start bg-gradient-to-t from-black/70 via-black/5 to-transparent p-1.5 opacity-100 transition duration-300 sm:p-2 lg:opacity-0 lg:group-hover:opacity-100 lg:group-focus-visible:opacity-100">
           <span className="flex h-7 w-7 items-center justify-center rounded-full bg-white/95 text-black shadow-lg transition group-hover:scale-110 sm:h-8 sm:w-8">
@@ -57,7 +84,7 @@ export function PosterCard({
           {title?.title}
         </h3>
         <p className="mt-0.5 text-[11px] text-zinc-400 sm:text-xs">
-          {title?.year}
+          {[ano, title?.category?.split(",")?.[0]?.trim()].filter(Boolean).join(" · ")}
         </p>
       </div>
     </Link>

@@ -15,7 +15,7 @@ export function DownloadAppPage() {
           Baixe o app <span className="text-brand-400">MovieFlix</span>
         </h1>
         <p className="mx-auto mt-3 max-w-xl text-sm text-ink-400 sm:text-base">
-          Assista filmes, séries, animes e muito mais direto no seu celular, com uma experiência feita para Android.
+          Assista filmes, séries e muito mais direto no seu celular, com uma experiência feita para Android.
         </p>
 
         <div className="mt-8">

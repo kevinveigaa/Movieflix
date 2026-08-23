@@ -11,7 +11,6 @@ const navLinks = [
   { to: '/', label: 'Início' },
   { to: '/filmes', label: 'Filmes' },
   { to: '/series', label: 'Séries' },
-  { to: '/animes', label: 'Animes' },
 ];
 
 /** Categorias realmente usadas no catálogo, para o menu "Categorias". No modo

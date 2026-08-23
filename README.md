@@ -4,17 +4,19 @@ Plataforma de streaming inspirada em serviços modernos como Netflix, construíd
 
 ## 🎬 Catálogo e reprodução — StreamBetter
 
-Todos os filmes do catálogo vêm de **https://streambetter.shop** (API de streaming com player embutível).
+Todos os filmes e séries do catálogo vêm de **https://streambetter.shop** (API de streaming com player embutível).
 
-- **Catálogo**: `GET https://streambetter.shop/api/titles?type=movie&limit=100&page=N` (público, CORS liberado) — o app busca as páginas e monta a home/catálogo/pesquisa.
+- **Catálogo**: gerado offline por `node gerar-catalogo.cjs` e publicado em `filmes/filmes.json` + `filmes/series.json` (importados direto pelo front — carregamento instantâneo, sem depender de rede/Supabase). A API pública `GET https://streambetter.shop/api/titles` é a fonte original dos dados.
+- **Filtros do catálogo**: somente **Filmes e Séries** (animes removidos), somente títulos com **capa**, somente títulos **dublados em pt-BR** e com **fonte cadastrada** (séries com ≥1 episódio com fonte).
 - **Player**: embutido DENTRO do site Movieflix via `<iframe src="https://streambetter.shop/filme/{tmdb_id}?lang=pt-BR">`.
 - **Áudio pt-BR**: o player do StreamBetter seleciona automaticamente a faixa de áudio em português quando disponível (trilhas "pt"/"por"/"portug"); `lang=pt-BR` reforça a preferência.
 - **Séries**: `https://streambetter.shop/serie/{tmdb_id}/{temporada}/{episodio}`.
 - **Sem players de terceiros**: nada de vidlink.pro, megaembedapi, VidZee etc. — player único do StreamBetter.
+- **Ordenação e categorias**: catálogo ordenável por ano (recentes/antigos), A–Z e nota, com filtro por gênero (categorias TMDb em pt-BR).
 
 ### Sem anúncios
 
-O Movieflix **não injeta nenhum anúncio próprio**. O embed usa o player padrão do StreamBetter; para um player 100% sem anúncios no seu domínio, assine o plano **Creator** em https://streambetter.shop/planos, gere a chave `sb_pk_*`, cadastre o domínio do site e defina `VITE_STREAMBETTER_KEY` no build (a chave vai na URL do iframe, é pública por natureza).
+O Movieflix **não injeta nenhum anúncio próprio** (zero código de ad). O embed usa o player padrão do StreamBetter; para um player 100% sem anúncios no seu domínio, assine o plano **Creator** em https://streambetter.shop/planos, gere a chave `sb_pk_*`, cadastre o domínio do site e defina `VITE_STREAMBETTER_KEY` no build (a chave vai na URL do iframe, é pública por natureza).
 
 > ⚠️ Não use `sandbox`/bloqueadores no iframe — o StreamBetter detecta e recusa exibir o conteúdo.
 
@@ -33,7 +35,7 @@ O Movieflix **não injeta nenhum anúncio próprio**. O embed usa o player padr�
 ## Funcionalidades
 
 - Home com banner em destaque e carrosséis horizontais
-- Catálogos: Filmes, Séries, Animes, Documentários, Infantil
+- Catálogos: Filmes e Séries (com filtro por gênero e ordenação por ano)
 - Pesquisa instantânea em tempo real
 - Página de título com poster, banner, sinopse, nota, gênero, ano, duração e trailer
 - Favoritos, Continuar Assistindo e Histórico

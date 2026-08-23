@@ -6,28 +6,31 @@ import { useMovies } from '@/hooks/useMovies';
 import { useWatchHistory } from '@/hooks/useWatchHistory';
 import { useSeriesHidden } from '@/hooks/useSeriesHidden';
 import { useAuth } from '@/context/AuthContext';
-import { ehInfantil, isCategoriaKids, temCategoria } from '@/lib/categorias';
+import { ehInfantil, isCategoriaKids, temCategoria, categoriasDoFilme, ordenarCategorias } from '@/lib/categorias';
 import { ehSerie } from '@/lib/media';
+import { ArrowDownWideNarrow, ArrowUpNarrowWide, Calendar, Star } from 'lucide-react';
+import { cn } from '@/lib/cn';
 
-type CatalogKind = 'filmes' | 'series' | 'animes';
+type CatalogKind = 'filmes' | 'series';
 
 const TITLES: Record<CatalogKind, string> = {
   filmes: 'Filmes',
-  series: 'Series',
-  animes: 'Animes',
+  series: 'Séries',
 };
 
 const TIPOS: Record<CatalogKind, string[]> = {
   filmes: ['movie'],
   series: ['series', 'serie', 'tv'],
-  animes: ['anime'],
 };
 
-const CATEGORIAS_DA_SECAO: Record<CatalogKind, string[]> = {
-  filmes: [],
-  series: ['Serie', 'Novela'],
-  animes: ['Anime'],
-};
+type Ordenacao = 'recentes' | 'antigos' | 'az' | 'nota';
+
+const ORDENACOES: { id: Ordenacao; label: string }[] = [
+  { id: 'recentes', label: 'Mais recentes' },
+  { id: 'antigos', label: 'Mais antigos' },
+  { id: 'az', label: 'A–Z' },
+  { id: 'nota', label: 'Melhor avaliados' },
+];
 
 export function CatalogPage({ kind }: { kind: CatalogKind }) {
   const movies = useMovies();
@@ -36,7 +39,8 @@ export function CatalogPage({ kind }: { kind: CatalogKind }) {
   const { activeViewerProfile } = useAuth();
   const isKid = activeViewerProfile?.is_kid ?? false;
   const [search, setSearch] = useState('');
-  const [searchParams] = useSearchParams();
+  const [ordenacao, setOrdenacao] = useState<Ordenacao>('recentes');
+  const [searchParams, setSearchParams] = useSearchParams();
   const categoria = searchParams.get('categoria');
 
   // Mapa movie_id → % assistido para a barra de progresso nos cards.
@@ -50,49 +54,140 @@ export function CatalogPage({ kind }: { kind: CatalogKind }) {
     return map;
   }, [history.data]);
 
-  const results = useMemo(() => {
-    const termo = search.trim().toLowerCase();
-
+  // Lista base do tipo (filmes ou séries).
+  const base = useMemo(() => {
     return (movies.data ?? []).filter((movie: any) => {
       if (isKid && !ehInfantil(movie)) return false;
       if (seriesHidden && ehSerie(movie)) return false;
+      const tipo = String(movie.type ?? 'movie').toLowerCase();
+      return TIPOS[kind].includes(tipo);
+    });
+  }, [movies.data, kind, isKid, seriesHidden]);
 
+  // Categorias presentes no catálogo do tipo (para o filtro de gênero).
+  const categoriasDisponiveis = useMemo(() => {
+    const nomes = new Set<string>();
+    for (const movie of base) {
+      for (const cat of categoriasDoFilme(movie)) {
+        if (cat !== 'Outros') nomes.add(cat);
+      }
+    }
+    return ordenarCategorias(Array.from(nomes));
+  }, [base]);
+
+  // Aplica busca + filtro de categoria + ordenação.
+  const results = useMemo(() => {
+    const termo = search.trim().toLowerCase();
+
+    let lista = base.filter((movie: any) => {
       const tituloOk = !termo || String(movie.title ?? '').toLowerCase().includes(termo);
       if (!tituloOk) return false;
-
       if (categoria) {
-        // A categoria "Infantil" agrega todo o conteúdo infantil (Animação,
-        // Família e tipo "kids"), para nunca aparecer vazia.
         return isCategoriaKids(categoria) ? ehInfantil(movie) : temCategoria(movie, categoria);
       }
-
-      const tipo = String(movie.type ?? 'movie').toLowerCase();
-      if (TIPOS[kind].includes(tipo)) return true;
-
-      return CATEGORIAS_DA_SECAO[kind].some((c) => temCategoria(movie, c));
+      return true;
     });
-  }, [movies.data, search, categoria, kind, isKid, seriesHidden]);
+
+    const ano = (m: any) => Number(m.year ?? 0);
+    const nota = (m: any) => Number(m.vote_average ?? 0);
+
+    switch (ordenacao) {
+      case 'recentes':
+        lista = [...lista].sort((a: any, b: any) => ano(b) - ano(a));
+        break;
+      case 'antigos':
+        lista = [...lista].sort((a: any, b: any) => ano(a) - ano(b));
+        break;
+      case 'az':
+        lista = [...lista].sort((a: any, b: any) =>
+          String(a.title ?? '').localeCompare(String(b.title ?? ''), 'pt-BR'),
+        );
+        break;
+      case 'nota':
+        lista = [...lista].sort((a: any, b: any) => nota(b) - nota(a));
+        break;
+    }
+
+    return lista;
+  }, [base, search, categoria, ordenacao]);
+
+  const selecionarCategoria = (nome: string | null) => {
+    if (!nome) setSearchParams({}, { replace: true });
+    else setSearchParams({ categoria: nome }, { replace: true });
+  };
 
   return (
     <div className="container-app pt-24 pb-16">
-      <h1 className="font-display text-2xl sm:text-3xl lg:text-4xl text-white mb-2">
+      <h1 className="font-display text-2xl sm:text-3xl lg:text-4xl text-white mb-1">
         {categoria || TITLES[kind]}
       </h1>
       <p className="mb-6 text-sm text-ink-400">
-        {results.length} {results.length === 1 ? 'titulo' : 'titulos'}
+        {results.length} {results.length === 1 ? 'título' : 'títulos'} · Dublado em pt-BR · Sem anúncios
       </p>
 
-      <input
-        placeholder="Buscar titulos..."
-        value={search}
-        onChange={(e) => setSearch(e.target.value)}
-        className="mb-8 w-full max-w-xl rounded-xl border border-white/10 bg-white/10 px-4 py-3 text-white placeholder:text-zinc-400 outline-none focus:border-brand-500"
-      />
+      {/* Busca + ordenação */}
+      <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center">
+        <input
+          placeholder={`Buscar em ${TITLES[kind].toLowerCase()}...`}
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          className="w-full sm:max-w-md rounded-xl border border-white/10 bg-white/10 px-4 py-2.5 text-sm text-white placeholder:text-zinc-400 outline-none focus:border-brand-500"
+        />
+        <div className="flex flex-wrap items-center gap-2">
+          {ORDENACOES.map((o) => (
+            <button
+              key={o.id}
+              onClick={() => setOrdenacao(o.id)}
+              className={cn(
+                'flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium transition',
+                ordenacao === o.id
+                  ? 'border-brand-500/60 bg-brand-500/15 text-brand-200'
+                  : 'border-white/10 bg-white/5 text-ink-300 hover:text-white',
+              )}
+            >
+              {o.id === 'recentes' && <Calendar className="h-3 w-3" />}
+              {o.id === 'antigos' && <ArrowUpNarrowWide className="h-3 w-3" />}
+              {o.id === 'az' && <ArrowDownWideNarrow className="h-3 w-3" />}
+              {o.id === 'nota' && <Star className="h-3 w-3" />}
+              {o.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Filtro por categoria/gênero */}
+      {categoriasDisponiveis.length > 0 && (
+        <div className="mb-8 flex flex-wrap gap-2">
+          <button
+            onClick={() => selecionarCategoria(null)}
+            className={cn(
+              'rounded-full border px-3 py-1.5 text-xs font-medium transition',
+              !categoria ? 'border-white/40 bg-white/15 text-white' : 'border-white/10 bg-white/5 text-ink-300 hover:text-white',
+            )}
+          >
+            Todas
+          </button>
+          {categoriasDisponiveis.map((c) => (
+            <button
+              key={c}
+              onClick={() => selecionarCategoria(c === categoria ? null : c)}
+              className={cn(
+                'rounded-full border px-3 py-1.5 text-xs font-medium transition',
+                c === categoria
+                  ? 'border-brand-500/60 bg-brand-500/15 text-brand-200'
+                  : 'border-white/10 bg-white/5 text-ink-300 hover:text-white',
+              )}
+            >
+              {c}
+            </button>
+          ))}
+        </div>
+      )}
 
       {movies.isLoading ? (
-        <FullScreenLoader label="Carregando catalogo..." />
+        <FullScreenLoader label="Carregando catálogo..." />
       ) : results.length === 0 ? (
-        <p className="text-ink-400">Nenhum titulo encontrado por aqui ainda.</p>
+        <p className="text-ink-400">Nenhum título encontrado por aqui ainda.</p>
       ) : (
         <div className="grid grid-cols-2 gap-x-3 gap-y-5 xs:grid-cols-3 sm:grid-cols-4 sm:gap-x-4 sm:gap-y-6 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-7">
           {results.map((movie: any) => (

@@ -11,17 +11,17 @@ const SITE_NAME = 'MovieFlix';
 const DEFAULT_SEO: SeoConfig = {
   title: `${SITE_NAME} — Filmes, Séries, Animes e mais`,
   description:
-    'MovieFlix: a sua plataforma de streaming. Filmes, séries, animes, documentários e infantil em um só lugar.',
+    'MovieFlix: a sua plataforma de streaming. Filmes, séries, documentários e infantil em um só lugar.',
 };
 
 // Meta tags básicas por rota (rotas em pt-BR). Padrões com ":" são dinâmicos
 // (título, player) e usam o matchPath do react-router.
 const ROUTE_SEO: Array<{ path: string; title: string; description: string }> = [
-  { path: '/', title: 'Início — MovieFlix', description: 'Assista filmes, séries, animes, documentários e conteúdo infantil no MovieFlix.' },
+  { path: '/', title: 'Início — MovieFlix', description: 'Assista filmes, séries, documentários e conteúdo infantil no MovieFlix.' },
   { path: '/filmes', title: 'Filmes — MovieFlix', description: 'Catálogo de filmes para assistir online no MovieFlix.' },
   { path: '/series', title: 'Séries — MovieFlix', description: 'Catálogo de séries para maratonar no MovieFlix.' },
   { path: '/animes', title: 'Animes — MovieFlix', description: 'Os melhores animes para assistir online no MovieFlix.' },
-  { path: '/pesquisa', title: 'Pesquisa — MovieFlix', description: 'Busque filmes, séries e animes no catálogo do MovieFlix.' },
+  { path: '/pesquisa', title: 'Pesquisa — MovieFlix', description: 'Busque filmes e séries no catálogo do MovieFlix.' },
   { path: '/titulo/:type/:id', title: 'Título — MovieFlix', description: 'Detalhes do título: sinopse, nota, gênero, trailer e onde assistir.' },
   { path: '/assistir/:id', title: 'Assistir — MovieFlix', description: 'Assista agora no MovieFlix.' },
   { path: '/favoritos', title: 'Meus Favoritos — MovieFlix', description: 'Seus títulos favoritos reunidos em um só lugar no MovieFlix.' },

@@ -9,7 +9,7 @@ const cols = [
       { label: 'Início', to: '/' },
       { label: 'Filmes', to: '/filmes' },
       { label: 'Séries', to: '/series' },
-      { label: 'Animes', to: '/animes' },
+      { label: 'Séries', to: '/series' },
       { label: 'Baixar app', to: '/baixar-app' },
     ],
   },
@@ -58,8 +58,8 @@ export function Footer() {
             </Link>
             <p className="mt-3 max-w-xs text-sm text-ink-400">
               {seriesHidden
-                ? "Filmes, animes, documentários e conteúdo infantil em um só lugar. Assista onde e quando quiser."
-                : "Filmes, Séries, animes, documentários e conteúdo infantil em um só lugar. Assista onde e quando quiser."}
+                ? "Filmes, documentários e conteúdo infantil em um só lugar. Assista onde e quando quiser."
+                : "Filmes, séries, documentários e conteúdo infantil em um só lugar. Assista onde e quando quiser."}
             </p>
             <div className="mt-4 flex gap-3">
               <SocialIcon><Instagram className="h-4 w-4" /></SocialIcon>

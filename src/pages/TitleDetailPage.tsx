@@ -93,11 +93,7 @@ export function TitleDetailPage() {
   }
 
   const isSeries = movie?.type === "series" || movie?.type === "tv" || (movie?.type === "anime" && !movie?.video_url);
-  const watchUrl = isSeries
-    ? `/assistir/${movie.id}`
-    : canResume && historyRow
-      ? `/assistir/${movie.id}?t=${historyRow.position_seconds}`
-      : `/assistir/${movie.id}`;
+  const watchUrl = `/assistir/${movie.id}`;
 
   return (
     <div className="min-h-screen bg-black text-white">
@@ -129,6 +125,13 @@ export function TitleDetailPage() {
             {movie.vote_average ? (
               <span>⭐ {movie.vote_average}</span>
             ) : null}
+            {isSeries && (
+              <span className="text-zinc-400">
+                {movie.episodes_available?.length
+                  ? `${movie.episodes_available.length} episódios disponíveis`
+                  : 'Série'}
+              </span>
+            )}
           </div>
 
           {(movie.category || movie.quality || movie.language) && (
