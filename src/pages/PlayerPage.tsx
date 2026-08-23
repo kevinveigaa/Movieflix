@@ -103,10 +103,10 @@ export function PlayerPage() {
         }
         setMovie({ ...series, title: `${series.title} — T${season?.season_number || '?'} E${ep.episode_number}: ${ep.title}` });
 
-        // Fonte de verdade: video_url cadastrado no banco (episódio/série);
-        // senão, VidZee (fonte 1) com temporada/episódio reais.
-        const vidzee = getTvSource(series.tmdb_id, season?.season_number || 1, ep.episode_number || 1);
-        const lista = [ep.video_url, series.video_url, vidzee].filter(
+        // Fonte primária: vidlink.pro (getTvSource) com temporada/episódio reais;
+        // o video_url do banco (se existir) fica como fallback.
+        const vidlink = getTvSource(series.tmdb_id, season?.season_number || 1, ep.episode_number || 1);
+        const lista = [vidlink, ep.video_url, series.video_url].filter(
           (u): u is string => Boolean(u),
         );
         setSourceUrl(lista.length > 0 ? lista[0] : null);
@@ -128,8 +128,8 @@ export function PlayerPage() {
           const { data: eps } = await supabase.from('episodes').select('*').eq('season_id', seasons[0].id).not('video_url', 'is', null).order('episode_number', { ascending: true }).limit(1);
           if (eps && eps.length > 0) {
             setMovie({ ...data, title: `${data.title} — T${seasons[0].season_number} E${eps[0].episode_number}: ${eps[0].title}` });
-            const vidzee = getTvSource(data.tmdb_id, seasons[0].season_number || 1, eps[0].episode_number || 1);
-            const lista = [eps[0].video_url, data.video_url, vidzee].filter(
+            const vidlink = getTvSource(data.tmdb_id, seasons[0].season_number || 1, eps[0].episode_number || 1);
+            const lista = [vidlink, eps[0].video_url, data.video_url].filter(
               (u): u is string => Boolean(u),
             );
             setSourceUrl(lista.length > 0 ? lista[0] : null);
@@ -146,7 +146,9 @@ export function PlayerPage() {
         tmdbId: data.tmdb_id,
         mediaType: tipo,
       });
-      const lista = [data.video_url, ...builtins].filter((u): u is string => Boolean(u));
+      // Fonte primária: vidlink.pro (builtins). O video_url do banco (fontes
+      // antigas) fica apenas como fallback.
+      const lista = [...builtins, data.video_url].filter((u): u is string => Boolean(u));
       setSourceUrl(lista.length > 0 ? lista[0] : null);
       setLoading(false);
     }
@@ -269,6 +271,11 @@ export function PlayerPage() {
                   allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share; fullscreen"
                   allowFullScreen
                   referrerPolicy="origin"
+                  // NOTA: o sandbox NÃO pode ser usado aqui — o vidlink.pro
+                  // detecta iframes com atributo sandbox e recusa carregar
+                  // ("Please Disable Sandbox"). O player é embutido sem
+                  // sandbox para funcionar; a dublagem pt-BR vem do parâmetro
+                  // selectedLanguage=portuguese na URL (src/lib/videoSources.ts).
                 />
               )}
             </div>
