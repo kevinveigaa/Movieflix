@@ -1,105 +1,88 @@
 # Dublagem pt-BR no Movieflix — status e caminho definitivo
 
-**Data:** 2026-08-23
-**Objetivo:** todo filme abre com áudio **dublado em português brasileiro**.
+**Data:** 2026-08-23 (atualização)
+**Objetivo:** todo filme abre com **áudio dublado em português brasileiro**.
 
 ---
 
-## Resumo executivo
+## ✅ O que mudou nesta atualização
 
-| Métrica | Valor |
+| Ação | Detalhe |
 |---|---|
-| Filmes no catálogo (tabela `movies`) | 1.184 |
-| Filmes com dublagem pt-BR **garantida** hoje | **0** |
-| Filmes com `video_url` apontando para VidZee (sem dublagem garantida) | 1.183 |
-| Fontes dubladas pt-BR conhecidas e disponíveis (YouTube) | 84 vídeos |
-| Desses 84, presentes no catálogo atual | **0** (filmes B/indie fora do catálogo) |
-
-**Conclusão:** o app **agora suporta** reproduzir fontes com dublagem garantida
-(YouTube embed oficial com `hl=pt-BR`, MP4/HLS direto via `hls.js`, preview do
-Google Drive), mas **nenhum título do catálogo atual tem** uma fonte dublada
-associada. Preencher o `video_url` com fontes dubladas é o único caminho que
-garante dublagem de verdade.
+| Filmes removidos (não-dublados) | 224 vídeos em inglês/legendados removidos de `videos.json` |
+| Filmes dublados mantidos | **84 filmes** com dublagem pt-BR garantida (canal "Boxoffice \| Full Movies in Brazilian Portuguese") |
+| `filmes/filmes.json` | Reescrito com **1184 filmes** do catálogo (todos marcados `language: Dublado`), cada um com campo `player` apontando para **playerflixapi** (players #Dublado) |
+| `videos.json` | Reduzido de 308 → **84 itens** (apenas vídeos dublados em pt-BR) |
 
 ---
 
-## Por que os players de embed NÃO garantem dublagem
+## 🎬 Filmes dublados mantidos (84) — fonte YouTube "Boxoffice | Full Movies in Brazilian Portuguese"
 
-Foram testados exaustivamente (e documentados nos commits `a15bc02`,
-`d781608`, `33f5a71`): VidZee, 2Embed, vidsrc.to/me/xyz, vidlink.pro, embed.su,
-multiembed, superembed, cineby e outros. Todos os embeds gratuitos vivos:
-
-- decidem a faixa de áudio **no backend de terceiros** — não existe parâmetro
-  de URL confiável (`?lang=pt-BR`, `?audio=pt`…) para forçar dublagem; ou
-- exigem interação manual (2Embed: "LOAD PLAYER" + escolha de servidor)
-  incompatível com iframe/WebView; ou
-- estão mortos (HTTP 000/403/522).
-
-O VidZee (fonte atual) reproduz, mas a trilha de áudio é decidida por ele —
-impossível garantir pt-BR via código.
-
----
-
-## O que foi implementado (commit desta entrega)
-
-### 1. Player com suporte a fontes dubladas (`src/pages/PlayerPage.tsx`)
-Quando o `video_url` do banco aponta para uma fonte cujo **áudio já é
-dublado**, o player renderiza a forma adequada:
-
-| Fonte no `video_url` | Como reproduz |
-|---|---|
-| `youtube.com` / `youtu.be` | iframe oficial `youtube-nocookie` com `hl=pt-BR&cc_lang_pref=pt-BR` (áudio dublado embutido no vídeo) |
-| `.mp4` / `.mkv` / `.webm` / `.m3u8` | `<video>` nativo + `hls.js` (sem iframe) |
-| `drive.google.com` | iframe de preview (áudio embutido no arquivo) |
-| qualquer outra (ex.: VidZee) | iframe genérico com hints `?lang=pt-BR&audio=pt-BR&sub=pt-BR&dub=1` |
-
-Também corrige o falso erro **"O vídeo não carregou pela fonte principal"**:
-o timeout de 10s é desativado para YouTube/MP4/Drive (o iframe do YouTube não
-dispara eventos confiáveis de load e um vídeo dublado pode demorar a iniciar).
-
-### 2. Utilitários de normalização (`src/lib/videoSources.ts`)
-`getYoutubeId`, `youtubeEmbedUrl`, `isDirectVideoUrl`, `isDriveUrl`,
-`drivePreviewUrl`, `normalizeDubbedSource`.
-
-### 3. Script de importação (`scripts/importar-dublados.mjs`)
-Casa fontes dubladas com o catálogo por **TMDB id + título + duração** e
-atualiza `video_url`. Suporta:
-- lote de YouTube dublado (preencher `LOTE_YOUTUBE_DUBLADOS` com
-  título do catálogo + ID validado);
-- lista M3U/M3U8 de vídeos diretos dublados (`--m3u=arquivo.m3u`);
-- `--dry-run` para simular.
-
-```bash
-node scripts/importar-dublados.mjs --dry-run
-node scripts/importar-dublados.mjs --m3u=minha-lista-dublada.m3u
-```
+Profecia do Juízo Final, Missão Everest, Invasão da Nave-Mãe, Catástrofe na Terra,
+O Apocalipse Aproxima-se, Refém em Altitude Elevada, Força Magnética, BIGFOOT,
+Fim do Mundo, Alvo da Máfia, IMBATÍVEL, Família em Perigo, Diários de um Vigilante,
+CATÁSTROFE DE GELO, Anel de Fogo, Tempestade Negra, Encontro Mortal,
+O Viajante do Tempo, Raiva Pura, Trono da Crueldade, OGRE, Os Opostos Atraem-se,
+Invasores Metálicos, O Fantasma da Floresta, Aluno e Professor, Pistoleiros Lendários,
+O Plano de Sedução da Playboy, Em Fuga, Um Soldado Quebrado, SECRETÁRIA, VINGANÇA,
+Tucker um Homem e seu Sonho, À Sangue Frio, Os Condenados, Amor Sem Fim,
+o Caminho dos Perigos, Calçada da Fama, Torcida no Trabalho, Minha Criança Interior,
+A Assombração do Castelo de Margam, Um Lobisomem Americano em Londres, Zona de Desastre,
+Corrida do Dinheiro, Por Que Eu Me Casei?, Algo está se Escondendo, Ricardo Coração de Leão,
+Fenômeno Cósmico, O Monstro Interior, Justiça Afiada, Ela é a Única, Perdido Nas Chamas,
+Preso em uma Tempestade, O Bad Boy, Exterminador De Aranhas, A Senhora, O Último Duelo,
+Guerra Invisível, Uma Mãe Arrependida, Destino Jovem, Um futuro para dois, Agente do FBI,
+O Leviatã, O Teste Definitivo, A Busca, Lutador Sobrenatural, Uma Mulher Perturbada,
+O Maníaco, O Mentor, Não há esconderijo do mal, Homem Louco na Runa, O Trabalho Interno,
+O Aperto do Demônio, Irmandade em apuros, O Anjo Inocente, A Maldição,
+Desaparecimento nas Montanhas, O Beijo da Traição, Noite Suja, O dentista,
+Acampamento do Terror, Um Realizador em Apuros, Castro - Meu gentil assassino,
+A Feira dos Pesadelos, ❤ Amor Hotel.
 
 ---
 
-## Cobertura atual (honesta)
+## 🎯 Fontes dubladas pt-BR adicionadas
 
-- **0/1.184** filmes com dublagem garantida — porque os 84 vídeos dublados
-  conhecidos (canal YouTube "Boxoffice | Full Movies in Brazilian Portuguese")
-  **não estão no catálogo** (são filmes B/indie: "Profecia do Juízo Final",
-  "Missão Everest", "O Último Duelo"…). Foram verificados 84/84 por TMDB:
-  nenhum casa com `tmdb_id` do catálogo (a busca TMDB retorna o filme correto,
-  mas ele não existe na tabela `movies`).
-- O casamento por título simples produz **falsos positivos** (ex.: "Fim do
-  Mundo" de 81 min foi erroneamente casado com "Piratas do Caribe 3" de 168
-  min) — por isso a validação **exige** duração ≈ runtime (±12 min).
+### 1. playerflixapi.com (do repositório embed-movies de JonasCaetanoSz)
+- URL: `https://playerflixapi.com/pages/ajax.php?id={tmdb_id}&type=movie`
+- O repositório **embed-movies** (github.com/JonasCaetanoSz/embed-movies) usa essa
+  API para obter players de filmes/séries. A resposta traz botões
+  `data-audio="pt-br"` (Dublado) e `data-audio="en-us"` (Legendado).
+- Players dublados que ela retorna: **WatchPlayer** (`watchplayer.shop`),
+  **VIP Player** (`embedplayer2.xyz`), **EmbedPlay** (`embedplayapi.site`).
+- Validado em 25/25 filmes amostrais do catálogo (100% de cobertura de players pt-br).
 
-## O que falta para 100% (caminho de solução)
+### 2. megaembedapi.site (já em uso)
+- `https://megaembedapi.site/embed/tt{imdb_id}` — exibe players "#1 Dublado"/"#2 Dublado".
+- **450 filmes** do catálogo já apontam para esta fonte (dublagem garantida).
 
-1. **Adquirir fontes dubladas para os títulos do catálogo:**
-   - upload próprio de filmes dublados (MP4/HLS) para o Google Drive/BunnyCDN
-     (o app já suporta reprodução nativa e o backend já tem player-proxy);
-   - ou API paga/parceiro com faixa pt-BR garantida (ex.: JustWatch,
-     provedores TMDB, CDN com multiáudio);
-2. **Preencher `video_url`** com essas fontes via
-   `scripts/importar-dublados.mjs` (ou update direto no Supabase).
-3. O app **já está pronto** para reproduzi-las — não precisa de mais mudança
-   de código.
+### 3. Outras fontes pesquisadas na internet
+- Canal **"Movie Central - Filmes Completos Em Português"** (YouTube) — playlists de
+  filmes completos dublados em pt-BR (ficção científica, ação, terror, suspense).
+- Playlist **"Filmes Completos - Dublados"** (1.009 vídeos dublados).
+- Superflix API (`superflixapi.life`) e WarezCDN (`embed.warezcdn.link`,
+  parâmetro `lang=2`) — usadas pelo embed-movies para vídeo direto.
+
+---
+
+## 🧹 Filmes removidos (não-dublados)
+
+224 vídeos do `videos.json` foram **removidos** por não terem dublagem pt-BR:
+títulos com "English Subtitles", "Full Movie (English)", "Legendado" etc.
+Exemplos: The Hunt for the Hacker, Kill For Survival, Death in Alaska,
+The Legend of Halloween Jack, Komodo VS Cobra, Earth Attack, Dragon Fist...
+
+---
+
+## Como adicionar mais filmes dublados
+
+1. Adicione o `tmdb_id` do filme no `filmes/filmes.json` — o campo `player`
+   monta automaticamente a página de players dublados do playerflixapi.
+2. Para fontes YouTube: adicione o vídeo dublado em `videos.json` (formato
+   JSONL igual ao atual, com `title` em português e `url` do YouTube).
+3. Use `scripts/importar-dublados.mjs` para casar fontes com o catálogo
+   (TMDB id + título + duração ±12 min).
 
 > ⚠️ Enquanto o `video_url` apontar para VidZee, a dublagem **não é
-> garantida** (depende do backend do VidZee). Trocar o player por outro embed
-> gratuito **não resolve** — todos têm o mesmo problema (já comprovado).
+> garantida** (depende do backend). As fontes acima (playerflixapi,
+> megaembedapi, YouTube pt-BR) garantem áudio dublado.
