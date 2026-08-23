@@ -103,10 +103,12 @@ export function PlayerPage() {
         }
         setMovie({ ...series, title: `${series.title} — T${season?.season_number || '?'} E${ep.episode_number}: ${ep.title}` });
 
-        // Fonte primária: vidlink.pro (getTvSource) com temporada/episódio reais;
-        // o video_url do banco (se existir) fica como fallback.
+        // Fonte primária: `video_url` do banco (fontes comprovadamente dubladas
+        // em pt-BR — YouTube "Filme Completo em Português", M3U, Drive). O
+        // vidlink.pro fica como fallback: ele NÃO garante dublagem (a maioria
+        // dos títulos vem em MP4 com áudio único em inglês — verificado).
         const vidlink = getTvSource(series.tmdb_id, season?.season_number || 1, ep.episode_number || 1);
-        const lista = [vidlink, ep.video_url, series.video_url].filter(
+        const lista = [ep.video_url, series.video_url, vidlink].filter(
           (u): u is string => Boolean(u),
         );
         setSourceUrl(lista.length > 0 ? lista[0] : null);
@@ -129,7 +131,7 @@ export function PlayerPage() {
           if (eps && eps.length > 0) {
             setMovie({ ...data, title: `${data.title} — T${seasons[0].season_number} E${eps[0].episode_number}: ${eps[0].title}` });
             const vidlink = getTvSource(data.tmdb_id, seasons[0].season_number || 1, eps[0].episode_number || 1);
-            const lista = [vidlink, eps[0].video_url, data.video_url].filter(
+            const lista = [eps[0].video_url, data.video_url, vidlink].filter(
               (u): u is string => Boolean(u),
             );
             setSourceUrl(lista.length > 0 ? lista[0] : null);
@@ -146,9 +148,10 @@ export function PlayerPage() {
         tmdbId: data.tmdb_id,
         mediaType: tipo,
       });
-      // Fonte primária: vidlink.pro (builtins). O video_url do banco (fontes
-      // antigas) fica apenas como fallback.
-      const lista = [...builtins, data.video_url].filter((u): u is string => Boolean(u));
+      // Fonte primária: `video_url` do banco (fontes comprovadamente dubladas
+      // em pt-BR). O vidlink.pro (builtins) fica apenas como fallback — ele
+      // não garante dublagem pt-BR (maioria dos títulos em MP4 com áudio EN).
+      const lista = [data.video_url, ...builtins].filter((u): u is string => Boolean(u));
       setSourceUrl(lista.length > 0 ? lista[0] : null);
       setLoading(false);
     }

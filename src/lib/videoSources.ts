@@ -53,20 +53,35 @@ export function getTvSource(tmdbId: string | number | null, season: number, epis
 
 /**
  * Aplica os parâmetros padrão do Movieflix à URL do vidlink.pro:
- *   - autoplay=false           → o usuário decide quando iniciar (evita bloqueio do navegador)
- *   - selectedLanguage=portuguese → força a faixa de áudio pt-BR (dublado) quando disponível
- *   - multiLang=true             → obrigatório! Faz a API do vidlink retornar
+ *   - autoplay=false              → o usuário decide quando iniciar (evita bloqueio do navegador)
+ *   - selectedLanguage=Português  → seleciona a faixa de áudio cujo LABEL NATIVO
+ *     contém "Português". ⚠️ IMPORTANTE: o player do vidlink compara o valor do
+ *     parâmetro com o label da faixa (toLowerCase().includes()), então o valor
+ *     precisa ser o nome NATIVO do idioma ("Português"), não o nome em inglês
+ *     ("portuguese") — "portuguese" NUNCA casa com uma faixa rotulada
+ *     "Português" e o player cai no fallback (última faixa, geralmente inglês).
+ *   - multiLang=true              → obrigatório! Faz a API do vidlink retornar
  *     MÚLTIPLAS faixas de áudio (multiLang=1). Sem este parâmetro o stream vem
  *     com UMA única faixa (geralmente inglês) e o selectedLanguage não tem o
  *     que selecionar — verificado no bundle oficial (page-movie.js): o player
  *     lê `multiLang=true` e chama a API com `multiLang=1`.
- *   - title=true                 → exibe o título no player
- *   - limitAds=true              → desativa o overlay de anúncios do vidlink
+ *   - title=true                  → exibe o título no player
+ *   - limitAds=true               → desativa o overlay de anúncios do vidlink
+ *
+ * ⚠️ LIMITAÇÃO REAL (verificada ao vivo): a maioria dos títulos no vidlink é
+ * entregue como MP4 direto (`deliveryType: "file"`) com UMA única faixa de
+ * áudio embutida (quase sempre inglês) — ex.: Spider-Verse 2 e Fight Club
+ * retornam `Audio English` mesmo com selectedLanguage=Português. O parâmetro
+ * só funciona quando o stream tem MÚLTIPLAS faixas (HLS/DASH com alternates),
+ * o que é raro no catálogo. Ou seja: o vidlink NÃO garante dublagem pt-BR.
+ * Para dublagem garantida, a fonte primária deve ser o `video_url` do banco
+ * (fontes comprovadamente dubladas — YouTube pt-BR, M3U, Drive).
  */
 export function buildVidLinkUrl(url: string): string {
   if (!url || !url.startsWith('https://vidlink.pro/')) return url;
   const sep = url.includes('?') ? '&' : '?';
-  return `${url}${sep}autoplay=false&selectedLanguage=portuguese&multiLang=true&title=true&limitAds=true`;
+  const selectedLanguage = encodeURIComponent('Português');
+  return `${url}${sep}autoplay=false&selectedLanguage=${selectedLanguage}&multiLang=true&title=true&limitAds=true`;
 }
 
 /** Mantém compatibilidade com o resto do código que usa getVidsrcUrl. */
