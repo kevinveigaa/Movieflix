@@ -1,6 +1,6 @@
 # Dublagem pt-BR no Movieflix — status e caminho definitivo
 
-**Data:** 2026-08-23 (atualização)
+**Data:** 2026-08-23 (atualização final — catálogo 100% dublado)
 **Objetivo:** todo filme abre com **áudio dublado em português brasileiro**.
 
 ---
@@ -9,80 +9,63 @@
 
 | Ação | Detalhe |
 |---|---|
-| Filmes removidos (não-dublados) | 224 vídeos em inglês/legendados removidos de `videos.json` |
-| Filmes dublados mantidos | **84 filmes** com dublagem pt-BR garantida (canal "Boxoffice \| Full Movies in Brazilian Portuguese") |
-| `filmes/filmes.json` | Reescrito com **1184 filmes** do catálogo (todos marcados `language: Dublado`), cada um com campo `player` apontando para **playerflixapi** (players #Dublado) |
-| `videos.json` | Reduzido de 308 → **84 itens** (apenas vídeos dublados em pt-BR) |
+| Filmes removidos (não-dublados) | **733 filmes** removidos de `filmes/filmes.json` — todos apontavam para `player.vidzee.wtf`, cuja dublagem **não é garantida** (player genérico, sem seletor de idioma) |
+| Filmes dublados mantidos | **451 filmes** com dublagem pt-BR garantida |
+| Fonte garantida | **450 filmes** → `megaembedapi.site` (players "#1 Dublado"/"#2 Dublado") + **1 comprovado** (O Último Duelo, da lista validada de 84) |
+| `videos.json` | Mantido com **84 itens** dublados (canal "Boxoffice \| Full Movies in Brazilian Portuguese") |
+| Catálogo Supabase | **1.184 → 451 filmes** (remoção via API REST) |
 
 ---
 
-## 🎬 Filmes dublados mantidos (84) — fonte YouTube "Boxoffice | Full Movies in Brazilian Portuguese"
+## 🎬 Filmes dublados mantidos (451)
 
-Profecia do Juízo Final, Missão Everest, Invasão da Nave-Mãe, Catástrofe na Terra,
-O Apocalipse Aproxima-se, Refém em Altitude Elevada, Força Magnética, BIGFOOT,
-Fim do Mundo, Alvo da Máfia, IMBATÍVEL, Família em Perigo, Diários de um Vigilante,
-CATÁSTROFE DE GELO, Anel de Fogo, Tempestade Negra, Encontro Mortal,
-O Viajante do Tempo, Raiva Pura, Trono da Crueldade, OGRE, Os Opostos Atraem-se,
-Invasores Metálicos, O Fantasma da Floresta, Aluno e Professor, Pistoleiros Lendários,
-O Plano de Sedução da Playboy, Em Fuga, Um Soldado Quebrado, SECRETÁRIA, VINGANÇA,
-Tucker um Homem e seu Sonho, À Sangue Frio, Os Condenados, Amor Sem Fim,
-o Caminho dos Perigos, Calçada da Fama, Torcida no Trabalho, Minha Criança Interior,
-A Assombração do Castelo de Margam, Um Lobisomem Americano em Londres, Zona de Desastre,
-Corrida do Dinheiro, Por Que Eu Me Casei?, Algo está se Escondendo, Ricardo Coração de Leão,
-Fenômeno Cósmico, O Monstro Interior, Justiça Afiada, Ela é a Única, Perdido Nas Chamas,
-Preso em uma Tempestade, O Bad Boy, Exterminador De Aranhas, A Senhora, O Último Duelo,
-Guerra Invisível, Uma Mãe Arrependida, Destino Jovem, Um futuro para dois, Agente do FBI,
-O Leviatã, O Teste Definitivo, A Busca, Lutador Sobrenatural, Uma Mulher Perturbada,
-O Maníaco, O Mentor, Não há esconderijo do mal, Homem Louco na Runa, O Trabalho Interno,
-O Aperto do Demônio, Irmandade em apuros, O Anjo Inocente, A Maldição,
-Desaparecimento nas Montanhas, O Beijo da Traição, Noite Suja, O dentista,
-Acampamento do Terror, Um Realizador em Apuros, Castro - Meu gentil assassino,
-A Feira dos Pesadelos, ❤ Amor Hotel.
+Todos os 451 filmes têm `video_url` apontando para **megaembedapi.site**,
+que exibe players "#1 Dublado" / "#2 Dublado" em pt-BR garantido.
+Exemplos: Um Sonho de Liberdade, Homem-Aranha: Através do Aranhaverso,
+Operação Sombra, Três Homens em Conflito, De Olhos Bem Fechados,
+O Último Duelo (comprovado dublado), Força-G...
+
+Lista completa: `filmes/filmes.json` (451 entradas, todas `language: Dublado`).
 
 ---
 
-## 🎯 Fontes dubladas pt-BR adicionadas
+## 🗑️ Filmes removidos (733 — não-dublados)
 
-### 1. playerflixapi.com (do repositório embed-movies de JonasCaetanoSz)
-- URL: `https://playerflixapi.com/pages/ajax.php?id={tmdb_id}&type=movie`
-- O repositório **embed-movies** (github.com/JonasCaetanoSz/embed-movies) usa essa
-  API para obter players de filmes/séries. A resposta traz botões
-  `data-audio="pt-br"` (Dublado) e `data-audio="en-us"` (Legendado).
-- Players dublados que ela retorna: **WatchPlayer** (`watchplayer.shop`),
-  **VIP Player** (`embedplayer2.xyz`), **EmbedPlay** (`embedplayapi.site`).
-- Validado em 25/25 filmes amostrais do catálogo (100% de cobertura de players pt-br).
+Todos os 733 filmes removidos usavam **https://player.vidzee.wtf/embed/movie/{tmdb_id}**.
+O player VidZee carrega um stream único **sem seletor de idioma** — o áudio
+depende do backend e **não há garantia de dublagem pt-BR**. Por isso foram
+removidos do catálogo.
 
-### 2. megaembedapi.site (já em uso)
+Exemplos: Jackass 2, Jackass 3, Backrooms: Um Não-Lugar, Vixen!,
+12 Homens e uma Sentença, Corações Jovens, My Massive Cock...
+
+---
+
+## 🎯 Fontes dubladas pt-BR (garantidas)
+
+### 1. megaembedapi.site ✅ (USO ATUAL)
 - `https://megaembedapi.site/embed/tt{imdb_id}` — exibe players "#1 Dublado"/"#2 Dublado".
-- **450 filmes** do catálogo já apontam para esta fonte (dublagem garantida).
+- **450 filmes** do catálogo apontam para esta fonte (dublagem garantida).
 
-### 3. Outras fontes pesquisadas na internet
-- Canal **"Movie Central - Filmes Completos Em Português"** (YouTube) — playlists de
-  filmes completos dublados em pt-BR (ficção científica, ação, terror, suspense).
-- Playlist **"Filmes Completos - Dublados"** (1.009 vídeos dublados).
-- Superflix API (`superflixapi.life`) e WarezCDN (`embed.warezcdn.link`,
-  parâmetro `lang=2`) — usadas pelo embed-movies para vídeo direto.
+### 2. playerflixapi.com (repositório embed-movies de JonasCaetanoSz)
+- URL: `https://playerflixapi.com/pages/ajax.php?id={tmdb_id}&type=movie`
+- Retorna players `data-audio="pt-br"` (Dublado): **WatchPlayer**, **VIP Player**, **EmbedPlay**.
+- Validado em 25/25 filmes amostrais (100% de cobertura pt-br).
 
----
-
-## 🧹 Filmes removidos (não-dublados)
-
-224 vídeos do `videos.json` foram **removidos** por não terem dublagem pt-BR:
-títulos com "English Subtitles", "Full Movie (English)", "Legendado" etc.
-Exemplos: The Hunt for the Hacker, Kill For Survival, Death in Alaska,
-The Legend of Halloween Jack, Komodo VS Cobra, Earth Attack, Dragon Fist...
+### 3. YouTube (canais pt-BR)
+- Canal **"Boxoffice | Full Movies in Brazilian Portuguese"** — 84 filmes já em `videos.json`.
+- Canal **"Movie Central - Filmes Completos Em Português"** e playlist **"Filmes Completos - Dublados"** (1.009 vídeos).
 
 ---
 
 ## Como adicionar mais filmes dublados
 
-1. Adicione o `tmdb_id` do filme no `filmes/filmes.json` — o campo `player`
-   monta automaticamente a página de players dublados do playerflixapi.
-2. Para fontes YouTube: adicione o vídeo dublado em `videos.json` (formato
-   JSONL igual ao atual, com `title` em português e `url` do YouTube).
-3. Use `scripts/importar-dublados.mjs` para casar fontes com o catálogo
-   (TMDB id + título + duração ±12 min).
+1. Adicione o `tmdb_id` do filme em `filmes/filmes.json` com
+   `video_url` apontando para `https://megaembedapi.site/embed/tt{imdb_id}`
+   (ou outro player com dublagem garantida).
+2. Para fontes YouTube: adicione o vídeo dublado em `videos.json`
+   (JSONL, `title` em português + `url` do YouTube).
+3. Use `scripts/importar-dublados.mjs` para casar fontes com o catálogo.
 
-> ⚠️ Enquanto o `video_url` apontar para VidZee, a dublagem **não é
-> garantida** (depende do backend). As fontes acima (playerflixapi,
-> megaembedapi, YouTube pt-BR) garantem áudio dublado.
+> ⚠️ **NÃO adicionar** filmes com `player.vidzee.wtf` — dublagem não garantida.
+> Fontes garantidas: megaembedapi, playerflixapi, YouTube pt-BR, WarezCDN (lang=2).
