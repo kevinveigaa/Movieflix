@@ -14,6 +14,9 @@ export type VideoIds = {
  *     vidlink seleciona automaticamente a faixa de áudio em português quando
  *     disponível (verificado no bundle oficial do player: o label da audio
  *     track é comparado com o valor do parâmetro).
+ *   - Sem anúncios: parâmetro `limitAds=true` — desativa o overlay de anúncios
+ *     do vidlink (verificado: com o parâmetro, zero iframes/overlays de ads
+ *     no DOM). O popunder não é instanciado por padrão (enableDirectLinks=false).
  *   - O vidlink.pro NÃO envia header X-Frame-Options/CSP — pode ser embutido.
  *     Obs.: o atributo `sandbox` NÃO pode ser usado no iframe (o vidlink
  *     detecta e recusa carregar: "Please Disable Sandbox").
@@ -53,11 +56,12 @@ export function getTvSource(tmdbId: string | number | null, season: number, epis
  *   - autoplay=false           → o usuário decide quando iniciar (evita bloqueio do navegador)
  *   - selectedLanguage=portuguese → força a faixa de áudio pt-BR (dublado) quando disponível
  *   - title=true               → exibe o título no player
+ *   - limitAds=true            → desativa o overlay de anúncios do vidlink
  */
 export function buildVidLinkUrl(url: string): string {
   if (!url || !url.startsWith('https://vidlink.pro/')) return url;
   const sep = url.includes('?') ? '&' : '?';
-  return `${url}${sep}autoplay=false&selectedLanguage=portuguese&title=true`;
+  return `${url}${sep}autoplay=false&selectedLanguage=portuguese&title=true&limitAds=true`;
 }
 
 /** Mantém compatibilidade com o resto do código que usa getVidsrcUrl. */
