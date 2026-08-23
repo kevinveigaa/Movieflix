@@ -87,6 +87,31 @@ export function getVideoSources(ids: VideoIds): string[] {
  * iframe do VidZee a partir do código do Movieflix. Por isso o app envia
  * "hints" (?lang=pt-BR&audio=pt-BR&sub=pt-BR&dub=1) nas URLs — inofensivos
  * hoje (são ignorados) e à prova de futuro caso o VidZee passe a aceitá-los.
+ *
+ * 🔎 BUSCA POR PLAYER ALTERNATIVO QUE FORCE DUBLAGEM pt-BR (2026-08-23):
+ * O usuário autorizou trocar o player caso existisse um que reproduzisse
+ * dublado em pt-BR de forma confiável. Foram testados via HTTP/curl (e
+ * navegador real quando possível) os seguintes candidatos — TODOS descartados:
+ *   - vidsrc.to / vidsrc.fyi / vidsrc.xyz : redirecionam para vsembed.ru com
+ *     ID vazio (embed não monta; sem player reproduzível).
+ *   - vidsrc.me : carrega vsembed.ru, mas NÃO expõe parâmetro de idioma/áudio
+ *     (o HTML/JS não contém ?lang/?audio/?sub funcionais; menu só troca
+ *     servidor). Sem como forçar pt-BR.
+ *   - 2embed.cc : responde 200 mas sem player de vídeo confiável em iframe.
+ *   - vidbinge.dev : retorna apenas "OK" (sem player).
+ *   - vidsrc.nl / embedflix.net : redirecionam para página de challenge
+ *     anti-bot (path aleatório /.IGV0h...) — inutilizáveis como embed.
+ *   - cima4u.tv : página com loader JS vazio, sem player real.
+ *   - embed.9anime.id : página mínima sem player.
+ *   - superflixapi.sbs (API BR): página de verificação/captcha — não serve
+ *     embed direto e não expõe endpoint de player público.
+ *   - multiembed.mov / embed.su / embed.sb / moviesapi.club : HTTP 403/000.
+ * Conclusão da busca: NENHUM player de embed gratuito testado força dublagem
+ * pt-BR via URL de forma confiável e verificável. O VidZee (fonte 1) segue
+ * sendo a ÚNICA fonte que reproduz de verdade; mantê-lo como fonte única é a
+ * decisão correta. A dublagem pt-BR efetiva continua dependendo do backend
+ * do provedor (terceiro) — o app garante todo o resto (rótulo, TMDb pt-BR,
+ * hints, Accept-Language, fonte única).
  */
 export function getTvSource(tmdbId: string | number | null, season: number, episode: number): string {
   if (tmdbId == null) return '';
