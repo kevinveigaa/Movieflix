@@ -20,7 +20,7 @@ function registrarPlayerProxy(app) {
           'User-Agent': req.headers['user-agent'] || 'Mozilla/5.0',
           'Accept': req.headers['accept'] || 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
           'Accept-Language': req.headers['accept-language'] || 'pt-BR,pt;q=0.9,en;q=0.8',
-          'Referer': 'https://player.vidzee.wtf/',
+          'Referer': req.headers['referer'] || 'https://www.2embed.cc/',
         },
         responseType: 'arraybuffer',
         timeout: 15000,
