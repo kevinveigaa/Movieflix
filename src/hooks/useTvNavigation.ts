@@ -192,7 +192,12 @@ export function useTvNavigation() {
       }
 
       if (acao === "ok") {
+        // No player (página com #player-frame), o OK é usado para
+        // play/pause pelo useTvPlayerControls. Só navega para o primeiro
+        // focado se NÃO houver player na tela.
+        const temPlayer = !!document.querySelector("#player-frame");
         if (!ativo || ativo === document.body) {
+          if (temPlayer) return; // deixa o player controlar o OK
           const inicial = primeiroFocavel();
           if (inicial) {
             e.preventDefault();

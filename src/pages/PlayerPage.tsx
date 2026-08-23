@@ -1,16 +1,19 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
 import { useMovies } from '@/hooks/useMovies';
 import {
-  getVideoSources,
-  getTvSource,
   normalizeDubbedSource,
 } from '@/lib/videoSources';
 import { streamBetterMovieUrl, streamBetterSeriesUrl, primeiroEpisodioDisponivel } from '@/lib/strembetter';
+import { instalarBloqueioAnuncios, protegerIframeContraRedirect } from '@/lib/antiAds';
+import { ehTelaDeTv } from '@/lib/tv';
+import { temporadasDisponiveis, type EpisodioRef } from '@/lib/episodes';
+import { useTvPlayerControls } from '@/hooks/useTvPlayerControls';
+import { EpisodioSelector } from '@/components/series/EpisodioSelector';
 import { ChevronLeft, ExternalLink, Film, Loader2, RefreshCw } from 'lucide-react';
 
-// ─────────────────────────────────────────────────────────────────────────────
+// ════════════════════════════════════════════════════════════════════════════════════
 // Player com DUBLAGEM pt-BR — fonte única: StreamBetter.
 //
 // Todos os títulos do catálogo são reproduzidos pelo player do StreamBetter
@@ -20,13 +23,22 @@ import { ChevronLeft, ExternalLink, Film, Loader2, RefreshCw } from 'lucide-reac
 // disponível (o bundle do player procura trilhas "pt"/"por"/"portug").
 //
 // Nenhum player de terceiros (vidlink.pro, megaembedapi, VidZee) é usado.
-// ─────────────────────────────────────────────────────────────────────────────
+//
+// Melhorias integradas:
+//  - SÉRIES: seletor de temporada + episódio (EpisodioSelector) para escolher
+//    qual episódio assistir; a URL ?season=&ep= atualiza a fonte do player.
+//  - ANÚNCIOS: bloqueio de popups (window.open), links externos e guard de
+//    redirect do iframe (restaura o player se um anúncio redirecionar).
+//  - TV BOX / SMART TV: controles de reprodução por controle remoto
+//    (OK/Play = play/pause, Voltar = sair do player) + navegação espacial
+//    global do app (useTvNavigation) para o seletor de episódios e botões.
+// ════════════════════════════════════════════════════════════════════════════════════
 const TIMEOUT_FONTE = 15000;
 
 export function PlayerPage() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { user } = useAuth();
   const moviesQuery = useMovies();
 
@@ -39,7 +51,11 @@ export function PlayerPage() {
   const [esgotado, setEsgotado] = useState(false);
   const [sourceKind, setSourceKind] = useState<'youtube' | 'drive' | 'direct' | 'iframe' | null>(null);
 
+  // Estado de episódio selecionado (séries).
+  const [epAtual, setEpAtual] = useState<EpisodioRef | null>(null);
+
   const timeoutRef = useRef<number | null>(null);
+  const iframeRef = useRef<HTMLIFrameElement | null>(null);
 
   const currentUrl = sourceUrl;
 
@@ -68,15 +84,17 @@ export function PlayerPage() {
       }
 
       const epRaw = searchParams.get('episode');
+      const seasonRaw = searchParams.get('season');
+      const epParam = searchParams.get('ep');
       const epId = epRaw ? parseInt(epRaw, 10) : null;
 
-      // Séries (legado): quando um episode id chega via query, montamos o
-      // embed de série do StreamBetter com temporada/episódio.
+      // Série com episódio explícito via query (?season=&ep=): monta o embed.
       if (epId && !isNaN(epId)) {
         const tituloId = Number(id);
-        const season = Number(searchParams.get('season') || 1);
-        const episode = Number(searchParams.get('ep') || epId);
+        const season = seasonRaw ? Number(seasonRaw) : 1;
+        const episode = epParam ? Number(epParam) : epId;
         setMovie({ title: `Episódio ${episode}`, type: 'series', tmdb_id: tituloId });
+        setEpAtual({ season, episode });
         const src = streamBetterSeriesUrl(tituloId || null, season, episode);
         setSourceUrl(src || null);
         setLoading(false);
@@ -97,11 +115,17 @@ export function PlayerPage() {
           String(found.type ?? '').toLowerCase() === 'tv';
 
         if (ehSerie) {
-          // Série: usa o primeiro episódio com fonte cadastrada
-          // (episodes_available vem do gerador de catálogo).
-          const ep = primeiroEpisodioDisponivel(found);
-          if (ep) {
-            setSourceUrl(streamBetterSeriesUrl(found.tmdb_id, ep.season, ep.episode));
+          // Série: respeita season/ep vindos da URL (navegação pelo seletor),
+          // senão usa o primeiro episódio com fonte cadastrada.
+          const seasonUrl = seasonRaw ? Number(seasonRaw) : null;
+          const epUrl = epParam ? Number(epParam) : null;
+          const episodio = (seasonUrl && epUrl && !isNaN(seasonUrl) && !isNaN(epUrl))
+            ? { season: seasonUrl, episode: epUrl }
+            : primeiroEpisodioDisponivel(found);
+
+          if (episodio) {
+            setEpAtual({ season: episodio.season, episode: episodio.episode });
+            setSourceUrl(streamBetterSeriesUrl(found.tmdb_id, episodio.season, episodio.episode));
           } else {
             setErrorMsg('Nenhum episódio disponível para esta série no momento.');
           }
@@ -147,6 +171,50 @@ export function PlayerPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentUrl, sourceKind]);
 
+  // ─── Bloqueio de anúncios (anti-popup / anti-redirect) ───────────────────
+  useEffect(() => {
+    const limpar = instalarBloqueioAnuncios();
+    return limpar;
+  }, []);
+
+  // Guard de redirect do iframe: restaura o player se um anúncio redirecionar
+  // o documento do iframe para fora.
+  useEffect(() => {
+    if (!currentUrl || !iframeRef.current) return;
+    const limpar = protegerIframeContraRedirect(iframeRef.current, currentUrl);
+    return limpar;
+  }, [currentUrl]);
+
+  // ─── TV Box / Smart TV: controles de reprodução no player ────────────────
+  const emTv = typeof window !== 'undefined' && ehTelaDeTv();
+  const voltarDoPlayer = useCallback(() => {
+    if (window.history.length > 1) navigate(-1);
+    else navigate('/');
+  }, [navigate]);
+  useTvPlayerControls(Boolean(currentUrl) && emTv, voltarDoPlayer);
+
+  // Troca de episódio (séries): atualiza a URL (?season=&ep=) e a fonte.
+  const trocarEpisodio = useCallback(
+    (ep: EpisodioRef) => {
+      if (!movie) return;
+      const params = new URLSearchParams(searchParams);
+      params.set('season', String(ep.season));
+      params.set('ep', String(ep.episode));
+      params.delete('episode'); // formato legado não é mais necessário
+      setSearchParams(params, { replace: true });
+      setEpAtual(ep);
+      const src = streamBetterSeriesUrl(movie.tmdb_id, ep.season, ep.episode);
+      if (src) {
+        setSourceUrl(null);
+        requestAnimationFrame(() => setSourceUrl(src));
+      }
+    },
+    [movie, searchParams, setSearchParams],
+  );
+
+  const ehSerieAtual =
+    movie && (String(movie.type ?? '').toLowerCase() === 'series' || String(movie.type ?? '').toLowerCase() === 'tv');
+
   if (loading) {
     return (
       <div className="flex h-screen items-center justify-center bg-black">
@@ -179,10 +247,17 @@ export function PlayerPage() {
     <div className="min-h-screen bg-black text-white">
       {/* Header */}
       <div className="fixed top-0 left-0 right-0 z-50 flex items-center gap-3 bg-black/80 backdrop-blur p-4">
-        <button onClick={() => navigate(-1)} className="flex items-center gap-2 rounded-full bg-white/10 p-2.5 hover:bg-white/20 transition">
+        <button onClick={voltarDoPlayer} className="flex items-center gap-2 rounded-full bg-white/10 p-2.5 hover:bg-white/20 transition">
           <ChevronLeft className="h-5 w-5" />
         </button>
-        <h1 className="truncate text-base font-semibold flex-1">{movie?.title || 'Player'}</h1>
+        <h1 className="truncate text-base font-semibold flex-1">
+          {movie?.title || 'Player'}
+          {ehSerieAtual && epAtual ? (
+            <span className="ml-2 text-xs font-medium text-zinc-400">
+              T{epAtual.season} E{epAtual.episode}
+            </span>
+          ) : null}
+        </h1>
         {currentUrl && (
           <button
             onClick={() => window.open(currentUrl, '_blank', 'noopener,noreferrer')}
@@ -201,6 +276,8 @@ export function PlayerPage() {
           <div className="w-full max-w-5xl">
             <div className="relative w-full aspect-video rounded-xl overflow-hidden bg-black shadow-2xl shadow-red-900/20 ring-1 ring-white/10">
               <iframe
+                ref={iframeRef}
+                id="player-frame"
                 key={currentUrl}
                 src={currentUrl}
                 title={`Player — ${movie?.title || ''}`}
@@ -212,7 +289,8 @@ export function PlayerPage() {
                 // NOTA: o sandbox NÃO pode ser usado — o StreamBetter detecta
                 // iframes com atributo sandbox e recusa exibir o conteúdo
                 // ("Não bloqueie os anúncios do player"). O player é embutido
-                // sem sandbox para funcionar.
+                // sem sandbox para funcionar; o bloqueio de anúncios é feito
+                // pela janela pai (ver lib/antiAds.ts).
               />
             </div>
 
@@ -248,13 +326,32 @@ export function PlayerPage() {
                   Áudio pt-BR preferido · Player StreamBetter
                 </span>
                 <span className="mx-2 text-zinc-600">·</span>
-                <span>Sem anúncios no Movieflix — para 100% livre de anúncios, use o plano StreamBetter Creator</span>
+                <span>Pop-ups e redirecionamentos de anúncios bloqueados automaticamente</span>
                 {currentUrl && (
                   <button onClick={reiniciarFonte} className="text-red-400 underline hover:text-red-300 ml-3">
                     Recarregar player
                   </button>
                 )}
               </p>
+            )}
+
+            {/* Série: seletor de temporada e episódio */}
+            {ehSerieAtual && movie?.episodes_available && movie.episodes_available.length > 0 && (
+              <div className="mt-6 rounded-2xl border border-white/10 bg-white/5 p-4 sm:p-5">
+                <h2 className="mb-4 flex items-center gap-2 text-sm font-bold uppercase tracking-wide text-zinc-300">
+                  <Film className="h-4 w-4 text-brand-400" />
+                  Episódios
+                  <span className="ml-auto text-xs font-normal normal-case text-zinc-500">
+                    {temporadasDisponiveis(movie.episodes_available).length} temporada(s) ·{' '}
+                    {movie.episodes_available.length} episódio(s)
+                  </span>
+                </h2>
+                <EpisodioSelector
+                  episodes={movie.episodes_available}
+                  current={epAtual}
+                  onSelect={trocarEpisodio}
+                />
+              </div>
             )}
           </div>
         ) : (

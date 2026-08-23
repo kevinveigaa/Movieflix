@@ -1,12 +1,14 @@
 import { useParams, useNavigate } from "react-router-dom";
 import { useMemo, useState } from "react";
-import { Play, ArrowLeft, Clock, RotateCcw, Film } from "lucide-react";
+import { Play, ArrowLeft, Clock, RotateCcw, Film, Layers } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { useWatchHistory } from "@/hooks/useWatchHistory";
 import { useMovies } from "@/hooks/useMovies";
 import { useSeriesHidden } from "@/hooks/useSeriesHidden";
 import { ehSerie } from "@/lib/media";
 import { streamBetterMovieUrl } from "@/lib/strembetter";
+import { primeiroEpisodio, temporadasDisponiveis, totalEpisodios, type EpisodioRef } from "@/lib/episodes";
+import { EpisodioSelector } from "@/components/series/EpisodioSelector";
 
 function formatTime(seconds: number): string {
   if (!Number.isFinite(seconds) || seconds < 0) return "00:00";
@@ -31,6 +33,9 @@ interface Movie {
   quality?: string | null;
   type?: string | null;
   tmdb_id?: number | string;
+  seasons?: number | null;
+  episodes?: number | null;
+  episodes_available?: string[];
 }
 
 export function TitleDetailPage() {
@@ -68,6 +73,21 @@ export function TitleDetailPage() {
 
   const indisponivel = naoEncontrado || (seriesHidden && movie !== null && ehSerie(movie));
 
+  // Primeiro episódio disponível (para o botão "Assistir agora" de séries).
+  const primeiroEp = movie?.episodes_available ? primeiroEpisodio(movie.episodes_available) : null;
+  const isSeries = movie?.type === "series" || movie?.type === "tv" || (movie?.type === "anime" && !movie?.video_url);
+
+  // URL de reprodução: séries → /assistir/{id}?season=S&ep=E; filmes → /assistir/{id}
+  const watchUrl = isSeries
+    ? primeiroEp
+      ? `/assistir/${movie?.id}?season=${primeiroEp.season}&ep=${primeiroEp.episode}`
+      : `/assistir/${movie?.id}`
+    : `/assistir/${movie?.id}`;
+
+  const assistirEpisodio = (ep: EpisodioRef) => {
+    navigate(`/assistir/${movie?.id}?season=${ep.season}&ep=${ep.episode}`);
+  };
+
   if (indisponivel) {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center gap-4 bg-black px-4 text-center text-white">
@@ -91,9 +111,6 @@ export function TitleDetailPage() {
       </div>
     );
   }
-
-  const isSeries = movie?.type === "series" || movie?.type === "tv" || (movie?.type === "anime" && !movie?.video_url);
-  const watchUrl = `/assistir/${movie.id}`;
 
   return (
     <div className="min-h-screen bg-black text-white">
@@ -128,7 +145,7 @@ export function TitleDetailPage() {
             {isSeries && (
               <span className="text-zinc-400">
                 {movie.episodes_available?.length
-                  ? `${movie.episodes_available.length} episódios disponíveis`
+                  ? `${totalEpisodios(movie.episodes_available)} episódios disponíveis`
                   : 'Série'}
               </span>
             )}
@@ -219,6 +236,30 @@ export function TitleDetailPage() {
         </div>
 
       </div>
+
+      {/* Série: seletor de temporada e episódio abaixo do banner */}
+      {isSeries && movie.episodes_available && movie.episodes_available.length > 0 && (
+        <div className="container-app py-8">
+          <div className="mb-4 flex items-center gap-2">
+            <Layers className="h-5 w-5 text-brand-400" />
+            <h2 className="text-lg font-bold">Episódios</h2>
+            <span className="ml-auto text-xs text-zinc-500">
+              {temporadasDisponiveis(movie.episodes_available).length} temporada(s) ·{' '}
+              {totalEpisodios(movie.episodes_available)} episódio(s)
+            </span>
+          </div>
+          <div className="rounded-2xl border border-white/10 bg-white/5 p-4 sm:p-5">
+            <EpisodioSelector
+              episodes={movie.episodes_available}
+              current={primeiroEp}
+              onSelect={assistirEpisodio}
+            />
+          </div>
+          <p className="mt-3 text-xs text-zinc-500">
+            Escolha um episódio para começar a assistir — o player abre direto na temporada e episódio selecionados.
+          </p>
+        </div>
+      )}
 
     </div>
   );
