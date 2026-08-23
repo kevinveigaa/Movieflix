@@ -1,4 +1,4 @@
-import { lazy, Suspense } from 'react';
+import { Suspense } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { HashRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from '@/context/AuthContext';
@@ -9,26 +9,27 @@ import { ErrorBoundary } from '@/components/ui/ErrorBoundary';
 import { useTvNavigation } from '@/hooks/useTvNavigation';
 import { useSeriesHidden } from '@/hooks/useSeriesHidden';
 import type { JSX } from 'react';
+import { lazyWithRetry } from '@/lib/lazyWithRetry';
 
 // Code splitting por rota: cada página é carregada sob demanda (React.lazy).
-const HomePage = lazy(() => import('@/pages/HomePage').then((m) => ({ default: m.HomePage })));
-const CatalogPage = lazy(() => import('@/pages/CatalogPage').then((m) => ({ default: m.CatalogPage })));
-const SearchPage = lazy(() => import('@/pages/SearchPage').then((m) => ({ default: m.SearchPage })));
-const TitleDetailPage = lazy(() => import('@/pages/TitleDetailPage').then((m) => ({ default: m.TitleDetailPage })));
-const FavoritesPage = lazy(() => import('@/pages/FavoritesPage').then((m) => ({ default: m.FavoritesPage })));
-const ContinueWatchingPage = lazy(() => import('@/pages/ContinueWatchingPage').then((m) => ({ default: m.ContinueWatchingPage })));
-const HistoryPage = lazy(() => import('@/pages/HistoryPage').then((m) => ({ default: m.HistoryPage })));
-const ProfilePage = lazy(() => import('@/pages/ProfilePage').then((m) => ({ default: m.ProfilePage })));
-const SettingsPage = lazy(() => import('@/pages/SettingsPage').then((m) => ({ default: m.SettingsPage })));
-const SubscriptionPage = lazy(() => import('@/pages/SubscriptionPage').then((m) => ({ default: m.SubscriptionPage })));
-const AdminPage = lazy(() => import('@/pages/AdminPage').then((m) => ({ default: m.AdminPage })));
-const AdminSeriesPage = lazy(() => import('@/pages/AdminSeriesPage').then((m) => ({ default: m.AdminSeriesPage })));
+const HomePage = lazyWithRetry(() => import('@/pages/HomePage').then((m) => ({ default: m.HomePage })));
+const CatalogPage = lazyWithRetry(() => import('@/pages/CatalogPage').then((m) => ({ default: m.CatalogPage })));
+const SearchPage = lazyWithRetry(() => import('@/pages/SearchPage').then((m) => ({ default: m.SearchPage })));
+const TitleDetailPage = lazyWithRetry(() => import('@/pages/TitleDetailPage').then((m) => ({ default: m.TitleDetailPage })));
+const FavoritesPage = lazyWithRetry(() => import('@/pages/FavoritesPage').then((m) => ({ default: m.FavoritesPage })));
+const ContinueWatchingPage = lazyWithRetry(() => import('@/pages/ContinueWatchingPage').then((m) => ({ default: m.ContinueWatchingPage })));
+const HistoryPage = lazyWithRetry(() => import('@/pages/HistoryPage').then((m) => ({ default: m.HistoryPage })));
+const ProfilePage = lazyWithRetry(() => import('@/pages/ProfilePage').then((m) => ({ default: m.ProfilePage })));
+const SettingsPage = lazyWithRetry(() => import('@/pages/SettingsPage').then((m) => ({ default: m.SettingsPage })));
+const SubscriptionPage = lazyWithRetry(() => import('@/pages/SubscriptionPage').then((m) => ({ default: m.SubscriptionPage })));
+const AdminPage = lazyWithRetry(() => import('@/pages/AdminPage').then((m) => ({ default: m.AdminPage })));
+const AdminSeriesPage = lazyWithRetry(() => import('@/pages/AdminSeriesPage').then((m) => ({ default: m.AdminSeriesPage })));
 import { PlayerPage } from '@/pages/PlayerPage';
-const LoginPage = lazy(() => import('@/pages/auth/LoginPage').then((m) => ({ default: m.LoginPage })));
-const SignupPage = lazy(() => import('@/pages/auth/SignupPage').then((m) => ({ default: m.SignupPage })));
-const ForgotPasswordPage = lazy(() => import('@/pages/auth/ForgotPasswordPage').then((m) => ({ default: m.ForgotPasswordPage })));
-const ProfileSelectPage = lazy(() => import('@/pages/auth/ProfileSelectPage').then((m) => ({ default: m.ProfileSelectPage })));
-const DownloadAppPage = lazy(() => import('@/pages/DownloadAppPage').then((m) => ({ default: m.DownloadAppPage })));
+const LoginPage = lazyWithRetry(() => import('@/pages/auth/LoginPage').then((m) => ({ default: m.LoginPage })));
+const SignupPage = lazyWithRetry(() => import('@/pages/auth/SignupPage').then((m) => ({ default: m.SignupPage })));
+const ForgotPasswordPage = lazyWithRetry(() => import('@/pages/auth/ForgotPasswordPage').then((m) => ({ default: m.ForgotPasswordPage })));
+const ProfileSelectPage = lazyWithRetry(() => import('@/pages/auth/ProfileSelectPage').then((m) => ({ default: m.ProfileSelectPage })));
+const DownloadAppPage = lazyWithRetry(() => import('@/pages/DownloadAppPage').then((m) => ({ default: m.DownloadAppPage })));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -62,8 +63,8 @@ function AppRoutes() {
   return (
     <>
       <Seo />
-      <Suspense fallback={<FullScreenLoader />}>
-        <ErrorBoundary titulo="Algo deu errado ao carregar esta página.">
+      <ErrorBoundary titulo="Algo deu errado ao carregar esta página.">
+        <Suspense fallback={<FullScreenLoader />}>
           <Routes>
           <Route element={<AppLayout />}>
             <Route path="/" element={<HomePage />} />
@@ -88,8 +89,8 @@ function AppRoutes() {
           <Route path="/selecionar-perfil" element={<RequireAuth><ProfileSelectPage /></RequireAuth>} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
-        </ErrorBoundary>
-      </Suspense>
+        </Suspense>
+      </ErrorBoundary>
     </>
   );
 }
