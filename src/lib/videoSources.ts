@@ -7,14 +7,17 @@ export type VideoIds = {
 /**
  * Fonte de reprodução para um título do catálogo.
  *
- * Apenas UMA fonte é usada (fonte 1): o provedor VidZee, que foi validado
- * e funciona (filmes e séries reproduzem de verdade em iframe, com
- * `Content-Security-Policy: frame-ancestors *`).
+ * FONTE 1 (filmes): megaembedapi.site — site de embed que exibe players
+ * "#1 Dublado" / "#2 Dublado" em pt-BR (e também Legendado). Validado na
+ * prática (2026-08-23) com navegador real: Força-G, Homem-Aranha: Através
+ * do Aranhaverso e Um Sonho de Liberdade carregam a tela de escolha com
+ * opções DUBLADAS e o vídeo dublado reproduz dentro do iframe.
+ * O `video_url` do banco foi atualizado em massa por
+ * `scripts/importar-megaembed.mjs` (449 filmes cobertos; os demais não
+ * existem no site e seguem no VidZee).
  *
- * Os demais provedores (vidsrc.to, vidsrc.me, 2embed.cc etc.) foram
- * testados e descartados — falhavam na prática (tela preta, HTTP 522/403,
- * challenge Cloudflare, servidor de seleção etc.). Por isso a cascata de
- * fallback foi REMOVIDA: o player usa somente esta fonte.
+ * FONTE 2 (fallback): VidZee — reproduz filmes/séries de verdade, mas a
+ * dublagem pt-BR não é garantida (backend do provedor decide o áudio).
  */
 export function getVideoSources(ids: VideoIds): string[] {
   const tipo =
@@ -27,16 +30,24 @@ export function getVideoSources(ids: VideoIds): string[] {
 
   if (id) {
     if (ids.tmdbId && tipo === 'movie') {
-      // Fonte 1 (única): VidZee — reproduz filmes de verdade.
-      // Aplica os hints de pt-BR (melhor esforço; veja applyPtBrHints abaixo).
+      // Fonte 1: megaembedapi.site — exibe players "#1 Dublado"/"#2 Dublado"
+      // em pt-BR (validado em 2026-08-23 com navegador real: Força-G,
+      // Homem-Aranha: Através do Aranhaverso, Um Sonho de Liberdade).
+      // Usa o IMDB id quando disponível (o site resolve por tt{imdb}).
+      if (typeof id === 'string' && id.startsWith('tt')) {
+        sources.push(`https://megaembedapi.site/embed/${id}`);
+      } else if (ids.imdbId && String(ids.imdbId).startsWith('tt')) {
+        sources.push(`https://megaembedapi.site/embed/${String(ids.imdbId)}`);
+      }
+      // Fonte 2 (fallback): VidZee — reproduz, mas sem dublagem garantida.
       sources.push(applyPtBrHints(`https://player.vidzee.wtf/embed/movie/${ids.tmdbId}`));
     } else if (ids.tmdbId && tipo === 'tv') {
       // Séries: o PlayerPage monta a URL com temporada/episódio via getTvSource.
       sources.push(applyPtBrHints(`https://player.vidzee.wtf/embed/tv/${ids.tmdbId}/1/1`));
     } else if (typeof id === 'string' && id.startsWith('tt')) {
+      sources.push(`https://megaembedapi.site/embed/${id}`);
       sources.push(applyPtBrHints(`https://player.vidzee.wtf/embed/movie/${id}`));
     }
-    // Nenhuma outra fonte/fallback — apenas a fonte 1.
   }
 
   return sources;
