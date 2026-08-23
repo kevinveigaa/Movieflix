@@ -4,25 +4,30 @@ export interface PlanEntitlements {
   /** Altura máxima de vídeo permitida (px). 480 = SD, 720 = HD, 1080 = Full HD, 2160 = 4K */
   maxHeight: number;
   qualityLabel: string;
-  /** Telas simultâneas permitidas */
+  /** Telas simultáneas permitidas */
   screens: number;
-  /** Quantos downloads o assinante pode manter por mês (0 = não permitido, Infinity = ilimitado) */
+  /** Cuántos downloads puede mantener el suscriptor por mes (0 = no permitido, Infinity = ilimitado) */
   downloads: number;
-  /** Quantos perfis (assistir) o assinante pode criar. Sem plano = 1. */
+  /** Cuántos perfiles (ver) puede crear el suscriptor. Sin plan = 1. */
   maxProfiles: number;
+  /** Cuántos títulos guarda "Continuar viendo" (0 = no disponible, Infinity = ilimitado). */
+  maxHistory: number;
 }
+
+/** Límite usado por los planes con continuar viendo ilimitado. */
+const UNLIMITED_HISTORY = Number.POSITIVE_INFINITY;
 
 /** Limite usado pelos planos com downloads ilimitados. */
 const UNLIMITED_DOWNLOADS = Number.POSITIVE_INFINITY;
 
 const DEFAULT_BY_CODE: Record<string, PlanEntitlements> = {
-  simple: { maxHeight: 720, qualityLabel: 'HD (720p)', screens: 1, downloads: 0, maxProfiles: 2 },
-  basico: { maxHeight: 720, qualityLabel: 'HD (720p)', screens: 1, downloads: 0, maxProfiles: 2 },
-  basic: { maxHeight: 720, qualityLabel: 'HD (720p)', screens: 1, downloads: 0, maxProfiles: 2 },
-  standard: { maxHeight: 1080, qualityLabel: 'Full HD (1080p)', screens: 2, downloads: 5, maxProfiles: 3 },
-  padrao: { maxHeight: 1080, qualityLabel: 'Full HD (1080p)', screens: 2, downloads: 5, maxProfiles: 3 },
-  medio: { maxHeight: 1080, qualityLabel: 'Full HD (1080p)', screens: 2, downloads: 5, maxProfiles: 3 },
-  premium: { maxHeight: 2160, qualityLabel: '4K + HDR', screens: 4, downloads: UNLIMITED_DOWNLOADS, maxProfiles: 5 },
+  simple: { maxHeight: 720, qualityLabel: 'HD (720p)', screens: 1, downloads: 0, maxProfiles: 2, maxHistory: 5 },
+  basico: { maxHeight: 720, qualityLabel: 'HD (720p)', screens: 1, downloads: 0, maxProfiles: 2, maxHistory: 5 },
+  basic: { maxHeight: 720, qualityLabel: 'HD (720p)', screens: 1, downloads: 0, maxProfiles: 2, maxHistory: 5 },
+  standard: { maxHeight: 1080, qualityLabel: 'Full HD (1080p)', screens: 2, downloads: 5, maxProfiles: 3, maxHistory: 15 },
+  padrao: { maxHeight: 1080, qualityLabel: 'Full HD (1080p)', screens: 2, downloads: 5, maxProfiles: 3, maxHistory: 15 },
+  medio: { maxHeight: 1080, qualityLabel: 'Full HD (1080p)', screens: 2, downloads: 5, maxProfiles: 3, maxHistory: 15 },
+  premium: { maxHeight: 2160, qualityLabel: '4K + HDR', screens: 4, downloads: UNLIMITED_DOWNLOADS, maxProfiles: 5, maxHistory: UNLIMITED_HISTORY },
 };
 
 export const FREE_ENTITLEMENTS: PlanEntitlements = {
@@ -31,6 +36,7 @@ export const FREE_ENTITLEMENTS: PlanEntitlements = {
   screens: 0,
   downloads: 0,
   maxProfiles: 1,
+  maxHistory: 3,
 };
 
 /** Normaliza um valor para comparação case-insensitive. */
@@ -86,7 +92,7 @@ export function entitlementsForSubscription(
   return entitlementsForPlan(resolveSubscriptionPlan(sub, plans));
 }
 
-/** true quando o limite de downloads é ilimitado (Infinity). */
+/** true cuando o limite de downloads é ilimitado (Infinity). */
 export function hasUnlimitedDownloads(downloads: number): boolean {
   return !Number.isFinite(downloads);
 }
@@ -98,13 +104,21 @@ export function downloadsLimitLabel(downloads: number): string {
   return `${downloads} downloads por mês`;
 }
 
-/** Lista de benefícios legível para exibir nos cards de plano. */
+/** Rótulo legible del límite de "Continuar viendo" (ex.: '15 títulos en continuar viendo'). */
+export function historyLimitLabel(maxHistory: number): string {
+  if (maxHistory <= 0) return 'Sin continuar viendo';
+  if (hasUnlimitedDownloads(maxHistory)) return 'Continuar viendo ilimitado';
+  return `${maxHistory} títulos en continuar viendo`;
+}
+
+/** Lista de beneficios legible para mostrar en los cards de plan. */
 export function entitlementHighlights(plan: Plan): string[] {
   const e = entitlementsForPlan(plan);
   return [
     `Qualidade até ${e.qualityLabel}`,
-    `${e.screens} ${e.screens === 1 ? 'tela simultânea' : 'telas simultâneas'}`,
+    `${e.screens} ${e.screens === 1 ? 'tela simultánea' : 'telas simultáneas'}`,
     downloadsLimitLabel(e.downloads),
+    historyLimitLabel(e.maxHistory),
     `Até ${e.maxProfiles} ${e.maxProfiles === 1 ? 'perfil' : 'perfis'}`,
     'Catálogo completo liberado',
   ];

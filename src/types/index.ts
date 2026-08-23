@@ -109,6 +109,8 @@ export interface Profile {
 export interface FavoriteRow {
   id: string;
   user_id: string;
+  /** Perfil que favoritou (null = registros antigos, sem perfil). */
+  viewer_profile_id: string | null;
   tmdb_id: number;
   media_type: MediaType;
   title: string;

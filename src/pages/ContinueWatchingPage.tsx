@@ -5,6 +5,7 @@ import { useWatchHistory, useRemoveHistory } from '@/hooks/useWatchHistory';
 import { useMovies } from '@/hooks/useMovies';
 import { useSeriesHidden } from '@/hooks/useSeriesHidden';
 import { useAuth } from '@/context/AuthContext';
+import { useEntitlements } from '@/hooks/useEntitlements';
 import { img } from '@/lib/tmdb';
 import { ehSerie } from '@/lib/media';
 import { FullScreenLoader } from '@/components/ui/Feedback';
@@ -21,6 +22,7 @@ export function ContinueWatchingPage() {
   const remove = useRemoveHistory();
   const movies = useMovies();
   const { seriesHidden } = useSeriesHidden();
+  const { entitlements } = useEntitlements();
 
   const seriesIds = useMemo(
     () => new Set((movies.data ?? []).filter(ehSerie).map((m) => m.id)),
@@ -28,11 +30,16 @@ export function ContinueWatchingPage() {
   );
 
   // Séries ocultas: remove do "continuar" os registros de séries (TMDb ou catálogo).
+  // O limite de títulos guardados depende do plano (maxHistory): Básico 5, Estándar 15, Premium ilimitado.
   const items = useMemo(() => {
     const all = history.data ?? [];
-    if (!seriesHidden) return all;
-    return all.filter((h) => h.media_type !== 'tv' && !(h.movie_id && seriesIds.has(h.movie_id)));
-  }, [history.data, seriesHidden, seriesIds]);
+    let lista = all;
+    if (seriesHidden) {
+      lista = lista.filter((h) => h.media_type !== 'tv' && !(h.movie_id && seriesIds.has(h.movie_id)));
+    }
+    const limite = Number.isFinite(entitlements.maxHistory) ? entitlements.maxHistory : Infinity;
+    return lista.slice(0, limite);
+  }, [history.data, seriesHidden, seriesIds, entitlements.maxHistory]);
 
   if (!user) {
     return (
@@ -99,7 +106,3 @@ export function ContinueWatchingPage() {
     </div>
   );
 }
-
-
-
-

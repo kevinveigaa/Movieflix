@@ -5,6 +5,7 @@ import { useMovies } from "@/hooks/useMovies";
 import { useWatchHistory } from "@/hooks/useWatchHistory";
 import { useSeriesHidden } from "@/hooks/useSeriesHidden";
 import { useAuth, hasActiveSubscription } from "@/context/AuthContext";
+import { useEntitlements } from "@/hooks/useEntitlements";
 import { Link } from "react-router-dom";
 import { Crown, Sparkles, ChevronLeft, ChevronRight } from "lucide-react";
 import { categoriasDoFilme, ehInfantil, ordenarCategorias } from "@/lib/categorias";
@@ -16,6 +17,7 @@ export function HomePage() {
   const movies = useMovies();
   const history = useWatchHistory();
   const { seriesHidden } = useSeriesHidden();
+  const { entitlements } = useEntitlements();
 
   const visibleMovies = useMemo(() => {
     let lista = movies.data ?? [];
@@ -38,10 +40,12 @@ export function HomePage() {
     return map;
   }, [history.data]);
 
-  // "Continuar assistindo": apenas títulos visíveis (respeita modo infantil),
-  // com progresso relevante e que não chegaram ao fim.
+  // "Continuar assistindo": apenas títulos visibles (respeta modo infantil),
+  // con progreso relevante y que no llegaron al fin. El límite de títulos
+  // guardados depende del plan (maxHistory): Básico 5, Estándar 15, Premium ilimitado.
   const continueWatching = useMemo(() => {
     const visivel = new Set(visibleMovies.map((m) => m.id));
+    const limite = Number.isFinite(entitlements.maxHistory) ? entitlements.maxHistory : Infinity;
     return (history.data ?? [])
       .filter((h) => {
         if (!h.movie_id || !visivel.has(h.movie_id)) return false;
@@ -50,8 +54,8 @@ export function HomePage() {
       })
       .map((h) => movies.data?.find((m) => m.id === h.movie_id))
       .filter((m): m is any => Boolean(m))
-      .slice(0, 20);
-  }, [history.data, visibleMovies, movies.data]);
+      .slice(0, limite);
+  }, [history.data, visibleMovies, movies.data, entitlements.maxHistory]);
 
   const categorias = useMemo(() => {
     const mapa = new Map<string, any[]>();
