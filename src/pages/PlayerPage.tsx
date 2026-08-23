@@ -8,6 +8,13 @@ import { ChevronLeft, ExternalLink, Film, Loader2, RefreshCw } from 'lucide-reac
 // O player usa UMA única fonte (fonte 1 — VidZee), validada como a que
 // funciona. Não há mais cascata de fallback: se a fonte não carregar,
 // oferecemos "Abrir no navegador" / "Tentar novamente".
+//
+// DUBLAGEM pt-BR: as URLs do VidZee já são montadas em src/lib/videoSources.ts
+// com os hints ?lang=pt-BR&audio=pt-BR&sub=pt-BR&dub=1 (melhor esforço).
+// ⚠️ O VidZee (player de terceiros) IGNORA esses parâmetros hoje — não há
+// como forçar a faixa de áudio dentro do iframe; a trilha é decidida pelo
+// backend dele. O hint é inofensivo e à prova de futuro caso o VidZee passe
+// a aceitar idioma via URL. Ver documentação em src/lib/videoSources.ts.
 const TIMEOUT_FONTE = 10000;
 
 export function PlayerPage() {
