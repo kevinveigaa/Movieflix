@@ -11,7 +11,11 @@ import { ehTelaDeTv } from '@/lib/tv';
 import { temporadasDisponiveis, type EpisodioRef } from '@/lib/episodes';
 import { useTvPlayerControls } from '@/hooks/useTvPlayerControls';
 import { EpisodioSelector } from '@/components/series/EpisodioSelector';
-import { ChevronLeft, ExternalLink, Film, Loader2, RefreshCw } from 'lucide-react';
+import { useEntitlements } from '@/hooks/useEntitlements';
+import { usePlaybackSession } from '@/hooks/usePlaybackSession';
+import { downloadVideo } from '@/lib/hlsDownload';
+import { downloadsUsed, registerDownload, alreadyDownloaded } from '@/lib/downloads';
+import { ChevronLeft, ExternalLink, Film, Loader2, RefreshCw, Download, MonitorPlay, ShieldAlert } from 'lucide-react';
 
 // ════════════════════════════════════════════════════════════════════════════════════
 // Player com DUBLAGEM pt-BR — fonte única: StreamBetter.
@@ -53,6 +57,54 @@ export function PlayerPage() {
 
   // Estado de episódio selecionado (séries).
   const [epAtual, setEpAtual] = useState<EpisodioRef | null>(null);
+
+  // Entitlements del plan del usuario (calidad, telas, descargas).
+  const { entitlements } = useEntitlements();
+  const { blocked: telasBloqueadas, activeScreens } = usePlaybackSession(
+    user?.id,
+    entitlements.screens,
+    Boolean(user) && entitlements.screens > 0,
+  );
+
+  // Estado de descarga.
+  const [descargando, setDescargando] = useState(false);
+  const [descargaPct, setDescargaPct] = useState(0);
+  const [descargaError, setDescargaError] = useState<string | null>(null);
+
+  const puedeDescargar = entitlements.downloads > 0;
+  const descargasUsadas = user ? downloadsUsed(user.id) : 0;
+  const descargasIlimitadas = !Number.isFinite(entitlements.downloads);
+  const yaDescargado = user && movie ? alreadyDownloaded(user.id, String(movie.id ?? movie.tmdb_id)) : false;
+
+  async function iniciarDescarga() {
+    if (!user || !movie || !currentUrl) return;
+    if (!puedeDescargar) {
+      setDescargaError('Tu plan no incluye descargas. Haz upgrade para descargar.');
+      return;
+    }
+    if (!descargasIlimitadas && descargasUsadas >= entitlements.downloads) {
+      setDescargaError('Alcanzaste el límite de descargas de tu plan este mes.');
+      return;
+    }
+    setDescargando(true);
+    setDescargaError(null);
+    setDescargaPct(0);
+    try {
+      await downloadVideo({
+        url: currentUrl,
+        title: movie.title || 'Movieflix',
+        maxHeight: entitlements.maxHeight,
+        onProgress: (p) => setDescargaPct(p),
+        onStarted: () => {
+          if (user) registerDownload(user.id, String(movie.id ?? movie.tmdb_id));
+        },
+      });
+    } catch (err) {
+      setDescargaError((err as Error).message ?? 'No se pudo descargar el video.');
+    } finally {
+      setDescargando(false);
+    }
+  }
 
   const timeoutRef = useRef<number | null>(null);
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
@@ -261,14 +313,39 @@ export function PlayerPage() {
         {currentUrl && (
           <button
             onClick={() => window.open(currentUrl, '_blank', 'noopener,noreferrer')}
-            title="Abrir o player em nova aba/navegador (útil se o app bloquear o iframe)"
+            title="Abrir el player en nueva pestaña/navegador (útil si el app bloquea el iframe)"
             className="flex items-center gap-2 rounded-full bg-red-600 px-3 py-2 text-xs font-medium hover:bg-red-500 transition"
           >
             <ExternalLink className="h-4 w-4" />
             Abrir player
           </button>
         )}
+        {currentUrl && puedeDescargar && (
+          <button
+            onClick={iniciarDescarga}
+            disabled={descargando}
+            title={descargasIlimitadas ? 'Descargas ilimitadas' : `${entitlements.downloads} descargas por mes`}
+            className="flex items-center gap-2 rounded-full bg-white/10 px-3 py-2 text-xs font-medium hover:bg-white/20 transition disabled:opacity-50"
+          >
+            {descargando ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Download className="h-4 w-4" />
+            )}
+            {descargando ? `Descargando ${descargaPct}%` : 'Descargar'}
+          </button>
+        )}
       </div>
+
+      {/* Aviso de límite de telas simultáneas */}
+      {telasBloqueadas && (
+        <div className="fixed top-20 left-0 right-0 z-50 flex items-center gap-3 bg-red-950/90 backdrop-blur px-4 py-3 text-sm text-white">
+          <ShieldAlert className="h-5 w-5 text-red-400" />
+          <span>
+            Límite de {entitlements.screens} {entitlements.screens === 1 ? 'pantalla simultánea' : 'pantallas simultáneas'} alcanzado ({activeScreens} activas). Cierra la reproducción en otro dispositivo para continuar.
+          </span>
+        </div>
+      )}
 
       {/* Conteúdo */}
       <div className="flex flex-col items-center justify-start min-h-screen px-4 sm:px-6 pt-24 pb-10 gap-6">
@@ -324,6 +401,11 @@ export function PlayerPage() {
                 <span className="inline-flex items-center gap-1.5">
                   <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
                   Áudio pt-BR preferido · Player StreamBetter
+                </span>
+                <span className="mx-2 text-zinc-600">·</span>
+                <span className="inline-flex items-center gap-1.5">
+                  <MonitorPlay className="h-3.5 w-3.5 text-brand-400" />
+                  Calidad {entitlements.qualityLabel}
                 </span>
                 <span className="mx-2 text-zinc-600">·</span>
                 <span>Pop-ups e redirecionamentos de anúncios bloqueados automaticamente</span>
