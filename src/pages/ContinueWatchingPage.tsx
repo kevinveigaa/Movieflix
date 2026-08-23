@@ -31,7 +31,7 @@ export function ContinueWatchingPage() {
   const items = useMemo(() => {
     const all = history.data ?? [];
     if (!seriesHidden) return all;
-    return all.filter((h) => h.media_type !== 'tv' && !seriesIds.has(h.movie_id));
+    return all.filter((h) => h.media_type !== 'tv' && !(h.movie_id && seriesIds.has(h.movie_id)));
   }, [history.data, seriesHidden, seriesIds]);
 
   if (!user) {

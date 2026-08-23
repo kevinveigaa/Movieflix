@@ -2,6 +2,22 @@
 
 Plataforma de streaming inspirada em serviços modernos como Netflix, construída com React, TypeScript, Tailwind CSS, Vite, Supabase, Mercado Pago, React Router e React Query.
 
+## 🎬 Catálogo e reprodução — StreamBetter
+
+Todos os filmes do catálogo vêm de **https://streambetter.shop** (API de streaming com player embutível).
+
+- **Catálogo**: `GET https://streambetter.shop/api/titles?type=movie&limit=100&page=N` (público, CORS liberado) — o app busca as páginas e monta a home/catálogo/pesquisa.
+- **Player**: embutido DENTRO do site Movieflix via `<iframe src="https://streambetter.shop/filme/{tmdb_id}?lang=pt-BR">`.
+- **Áudio pt-BR**: o player do StreamBetter seleciona automaticamente a faixa de áudio em português quando disponível (trilhas "pt"/"por"/"portug"); `lang=pt-BR` reforça a preferência.
+- **Séries**: `https://streambetter.shop/serie/{tmdb_id}/{temporada}/{episodio}`.
+- **Sem players de terceiros**: nada de vidlink.pro, megaembedapi, VidZee etc. — player único do StreamBetter.
+
+### Sem anúncios
+
+O Movieflix **não injeta nenhum anúncio próprio**. O embed usa o player padrão do StreamBetter; para um player 100% sem anúncios no seu domínio, assine o plano **Creator** em https://streambetter.shop/planos, gere a chave `sb_pk_*`, cadastre o domínio do site e defina `VITE_STREAMBETTER_KEY` no build (a chave vai na URL do iframe, é pública por natureza).
+
+> ⚠️ Não use `sandbox`/bloqueadores no iframe — o StreamBetter detecta e recusa exibir o conteúdo.
+
 ## Tecnologias
 
 - **React 18** + **TypeScript**
@@ -11,7 +27,7 @@ Plataforma de streaming inspirada em serviços modernos como Netflix, construíd
 - **Mercado Pago** — pagamentos via Pix com confirmação automática por webhook
 - **React Router** — roteamento
 - **React Query** — cache e estado de dados
-- **TMDb API** — catálogo de filmes, séries, animes, documentários e infantil
+- **StreamBetter API** — catálogo de filmes + player embed
 - **lucide-react** — ícones
 
 ## Funcionalidades
@@ -38,8 +54,8 @@ src/
     layout/          # AppLayout, Navbar, Footer
     ui/              # Feedback, Modal, Rating
   context/           # AuthContext (sessão, perfil, assinatura)
-  hooks/             # useFavorite, useWatchHistory
-  lib/               # supabase, tmdb, mercadopago, cn
+  hooks/             # useMovies (StreamBetter), useFavorite, useWatchHistory
+  lib/               # supabase, strembetter, tmdb, mercadopago, cn
   pages/             # Todas as páginas
     auth/            # Login, Signup, ForgotPassword, ProfileSelect
   types/             # Tipos TypeScript
@@ -49,33 +65,19 @@ supabase/
     mercadopago-webhook/  # Recebe confirmação do Mercado Pago
 ```
 
-## Banco de dados (Supabase)
-
-Tabelas:
-- `profiles` — metadados do usuário + flag de admin
-- `viewer_profiles` — perfis Netflix-style (até 4 por usuário)
-- `plans` — planos de assinatura (Básico, Padrão, Premium)
-- `subscriptions` — assinatura atual do usuário
-- `payments` — registros de pagamento do Mercado Pago
-- `favorites` — títulos favoritados
-- `watch_history` — continuar assistindo + histórico
-
-Todas as tabelas têm RLS (Row Level Security) habilitada com políticas de propriedade.
-
 ## Configuração
 
 As variáveis de ambiente do Supabase já estão em `.env`:
 - `VITE_SUPABASE_URL`
 - `VITE_SUPABASE_ANON_KEY`
 
+Variáveis opcionais:
+- `VITE_STREAMBETTER_KEY` — chave pública do plano Creator do StreamBetter (embed sem anúncios, com trava de domínio)
+
 ## Deploy
 
 O projeto está pronto para deploy na Vercel (`vercel.json` já configurado para SPA).
 
-## Deploy das Edge Functions
-
-As Edge Functions (`mercadopago-pay` e `mercadopago-webhook`) precisam ser deployadas no Supabase. O código está em `supabase/functions/`.
-
 ## Licença
 
-Projeto de demonstração. Dados de filmes fornecidos por TMDb.
+Projeto de demonstração. Dados de filmes fornecidos pela API do StreamBetter (metadados via TMDb).

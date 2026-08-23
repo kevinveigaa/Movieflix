@@ -1,12 +1,12 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { History as HistoryIcon, Trash2, Film, Check, AlertTriangle } from 'lucide-react';
 import { useWatchHistory, useRemoveHistory, useClearHistory, useMarkAsWatched } from '@/hooks/useWatchHistory';
 import { useSeriesHidden } from '@/hooks/useSeriesHidden';
+import { useMovies } from '@/hooks/useMovies';
 import { useAuth } from '@/context/AuthContext';
-import { supabase } from '@/lib/supabase';
 import { img } from '@/lib/tmdb';
-import { ehSerie, estaDisponivel } from '@/lib/media';
+import { ehSerie } from '@/lib/media';
 import type { WatchHistoryRow } from '@/types';
 
 /** Retoma no player do catálogo quando o título é conhecido; senão vai à página do título. */
@@ -36,24 +36,15 @@ export function HistoryPage() {
   const clear = useClearHistory();
   const markWatched = useMarkAsWatched();
   const { seriesHidden } = useSeriesHidden();
-  const [validMovieIds, setValidMovieIds] = useState<Set<string>>(new Set());
-  const [seriesMovieIds, setSeriesMovieIds] = useState<Set<string>>(new Set());
+  const movies = useMovies();
   const [showClearConfirm, setShowClearConfirm] = useState(false);
 
-  // Busca os IDs dos filmes que realmente existem no catálogo (e quais são séries).
-  useEffect(() => {
-    async function loadValidMovies() {
-      const { data } = await supabase.from('movies').select('id, type, video_url, year');
-      if (data) {
-        // Aplica o mesmo filtro do catálogo: títulos não lançados (ano futuro)
-        // ou sem vídeo não aparecem nem no histórico.
-        const validos = (data as any[]).filter(estaDisponivel);
-        setValidMovieIds(new Set(validos.map((m: any) => m.id)));
-        setSeriesMovieIds(new Set(validos.filter((m: any) => ehSerie(m)).map((m: any) => m.id)));
-      }
-    }
-    loadValidMovies();
-  }, []);
+  // IDs dos filmes que existem no catálogo do StreamBetter (e quais são séries).
+  const catalogMovies = movies.data ?? [];
+  const validMovieIds = new Set(catalogMovies.map((m) => String(m.id)));
+  const seriesMovieIds = new Set(
+    catalogMovies.filter((m) => ehSerie(m)).map((m) => String(m.id)),
+  );
 
   if (!user) {
     return (
@@ -70,8 +61,8 @@ export function HistoryPage() {
   const items = allItems.filter(
     (h) =>
       h.movie_id &&
-      validMovieIds.has(h.movie_id) &&
-      (!seriesHidden || (h.media_type !== 'tv' && !seriesMovieIds.has(h.movie_id))),
+      validMovieIds.has(String(h.movie_id)) &&
+      (!seriesHidden || (h.media_type !== 'tv' && !seriesMovieIds.has(String(h.movie_id)))),
   );
 
   return (

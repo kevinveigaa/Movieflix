@@ -1,82 +1,65 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
-import { supabase } from '@/lib/supabase';
-import { getVideoSources, getTvSource, normalizeDubbedSource } from '@/lib/videoSources';
-import Hls from 'hls.js';
+import { useMovies } from '@/hooks/useMovies';
+import {
+  getVideoSources,
+  getTvSource,
+  normalizeDubbedSource,
+} from '@/lib/videoSources';
+import { streamBetterMovieUrl, streamBetterSeriesUrl } from '@/lib/strembetter';
 import { ChevronLeft, ExternalLink, Film, Loader2, RefreshCw } from 'lucide-react';
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Player com suporte a DUBLAGEM pt-BR.
+// Player com DUBLAGEM pt-BR — fonte única: StreamBetter.
 //
-// O `video_url` do banco é a fonte de verdade. Quando ele aponta para uma
-// fonte cujo áudio JÁ É dublado em pt-BR (YouTube "Filme Completo em
-// Português", MP4/HLS dublado, Google Drive), o player renderiza a forma
-// adequada:
-//   - YouTube  → iframe oficial (youtube-nocookie) com hl=pt-BR
-//   - MP4/HLS  → <video> nativo + hls.js (sem depender de iframe)
-//   - Drive    → iframe de preview do Google Drive
-//   - demais   → iframe genérico (VidZee etc., com hints pt-BR em
-//                src/lib/videoSources.ts — melhor esforço)
+// Todos os títulos do catálogo são reproduzidos pelo player do StreamBetter
+// embutido DENTRO do site Movieflix (<iframe src="https://streambetter.shop/
+// filme/{tmdb_id}?lang=pt-BR">). O player resolve as fontes, legendas,
+// fallbacks e seleciona automaticamente a faixa de áudio em português quando
+// disponível (o bundle do player procura trilhas "pt"/"por"/"portug").
 //
-// Para YouTube o timeout de "não carregou" é DESATIVADO: o iframe oficial
-// nunca dispara eventos de load confiáveis e um vídeo dublado pode demorar
-// para iniciar; mostrar erro falso seria pior do que aguardar.
+// Nenhum player de terceiros (vidlink.pro, megaembedapi, VidZee) é usado.
 // ─────────────────────────────────────────────────────────────────────────────
-const TIMEOUT_FONTE = 10000;
-const YT_TIMEOUT_FONTE = 0; // desativado para YouTube
+const TIMEOUT_FONTE = 15000;
 
 export function PlayerPage() {
   const { id } = useParams();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { user } = useAuth();
+  const moviesQuery = useMovies();
 
   const [movie, setMovie] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
-  // Única fonte de vídeo (fonte 1).
+  // Única fonte de vídeo (fonte 1): embed do StreamBetter.
   const [sourceUrl, setSourceUrl] = useState<string | null>(null);
-  // True quando o timeout expirou (a fonte não carregou de verdade).
   const [esgotado, setEsgotado] = useState(false);
-  // Tipo de reprodução da fonte atual.
   const [sourceKind, setSourceKind] = useState<'youtube' | 'drive' | 'direct' | 'iframe' | null>(null);
 
-  const videoRef = useRef<HTMLVideoElement>(null);
-  const hlsRef = useRef<Hls | null>(null);
   const timeoutRef = useRef<number | null>(null);
 
   const currentUrl = sourceUrl;
 
-  const limparTimeout = useCallback(() => {
+  const limparTimeout = () => {
     if (timeoutRef.current !== null) {
       window.clearTimeout(timeoutRef.current);
       timeoutRef.current = null;
     }
-  }, []);
+  };
 
-  const reiniciarFonte = useCallback(() => {
-    // Recarrega a fonte 1 do zero (nova key no iframe).
+  const reiniciarFonte = () => {
     setEsgotado(false);
     limparTimeout();
     if (currentUrl) {
       setSourceUrl(null);
       requestAnimationFrame(() => setSourceUrl(currentUrl));
     }
-  }, [currentUrl, limparTimeout]);
+  };
 
-  // Destrói o Hls ao trocar de fonte/desmontar.
-  useEffect(() => {
-    return () => {
-      if (hlsRef.current) {
-        hlsRef.current.destroy();
-        hlsRef.current = null;
-      }
-    };
-  }, []);
-
-  // Monta a URL da fonte 1 a partir do banco + IDs (filme ou episódio/série).
+  // Monta a URL da fonte a partir do catálogo do StreamBetter (ou TMDB id).
   useEffect(() => {
     async function load() {
       if (!id) {
@@ -87,76 +70,47 @@ export function PlayerPage() {
       const epRaw = searchParams.get('episode');
       const epId = epRaw ? parseInt(epRaw, 10) : null;
 
+      // Séries (legado): quando um episode id chega via query, montamos o
+      // embed de série do StreamBetter com temporada/episódio.
       if (epId && !isNaN(epId)) {
-        const { data: ep } = await supabase.from('episodes').select('*').eq('id', epId).maybeSingle();
-        if (!ep) {
-          setErrorMsg('Episódio não encontrado.');
-          setLoading(false);
-          return;
-        }
-        const { data: season } = await supabase.from('seasons').select('*').eq('id', ep.season_id).maybeSingle();
-        const { data: series } = await supabase.from('movies').select('*').eq('id', season?.series_id || id).maybeSingle();
-        if (!series) {
-          setErrorMsg('Série não encontrada.');
-          setLoading(false);
-          return;
-        }
-        setMovie({ ...series, title: `${series.title} — T${season?.season_number || '?'} E${ep.episode_number}: ${ep.title}` });
-
-        // Fonte primária: `video_url` do banco (fontes comprovadamente dubladas
-        // em pt-BR — YouTube "Filme Completo em Português", M3U, Drive). O
-        // vidlink.pro fica como fallback: ele NÃO garante dublagem (a maioria
-        // dos títulos vem em MP4 com áudio único em inglês — verificado).
-        const vidlink = getTvSource(series.tmdb_id, season?.season_number || 1, ep.episode_number || 1);
-        const lista = [ep.video_url, series.video_url, vidlink].filter(
-          (u): u is string => Boolean(u),
-        );
-        setSourceUrl(lista.length > 0 ? lista[0] : null);
+        const tituloId = Number(id);
+        const season = Number(searchParams.get('season') || 1);
+        const episode = Number(searchParams.get('ep') || epId);
+        setMovie({ title: `Episódio ${episode}`, type: 'series', tmdb_id: tituloId });
+        const src = streamBetterSeriesUrl(tituloId || null, season, episode);
+        setSourceUrl(src || null);
         setLoading(false);
         return;
       }
 
-      const { data, error } = await supabase.from('movies').select('*').eq('id', id).maybeSingle();
-      if (error || !data) {
-        setErrorMsg(error?.message || 'Título não encontrado.');
+      // Filme: procura no catálogo do StreamBetter (cache local da query).
+      const data = moviesQuery.data;
+      const found = (data ?? []).find(
+        (m: any) => String(m.id) === String(id) || String(m.tmdb_id) === String(id),
+      );
+
+      if (found) {
+        setMovie(found);
+        setSourceUrl(found.video_url || streamBetterMovieUrl(found.tmdb_id));
         setLoading(false);
         return;
       }
 
-      const isSeries = data.type === 'series' || data.type === 'tv' || data.type === 'anime' || data.media_type === 'tv' || (data.number_of_seasons > 0);
-      if (isSeries && !data.video_url) {
-        const { data: seasons } = await supabase.from('seasons').select('*').eq('series_id', data.id).order('season_number', { ascending: true });
-        if (seasons && seasons.length > 0) {
-          const { data: eps } = await supabase.from('episodes').select('*').eq('season_id', seasons[0].id).not('video_url', 'is', null).order('episode_number', { ascending: true }).limit(1);
-          if (eps && eps.length > 0) {
-            setMovie({ ...data, title: `${data.title} — T${seasons[0].season_number} E${eps[0].episode_number}: ${eps[0].title}` });
-            const vidlink = getTvSource(data.tmdb_id, seasons[0].season_number || 1, eps[0].episode_number || 1);
-            const lista = [eps[0].video_url, data.video_url, vidlink].filter(
-              (u): u is string => Boolean(u),
-            );
-            setSourceUrl(lista.length > 0 ? lista[0] : null);
-            setLoading(false);
-            return;
-          }
-        }
+      // Não está no catálogo local: tenta pelo TMDB id diretamente.
+      const num = Number(id);
+      if (Number.isFinite(num)) {
+        setMovie({ title: `Título ${id}`, type: 'movie', tmdb_id: num });
+        setSourceUrl(streamBetterMovieUrl(num));
+        setLoading(false);
+        return;
       }
 
-      setMovie(data);
-      const tipo = (data.type === 'tv' || data.type === 'series' || data.type === 'anime' || data.media_type === 'tv') ? 'tv' : 'movie';
-      const builtins = getVideoSources({
-        imdbId: data.imdb_id,
-        tmdbId: data.tmdb_id,
-        mediaType: tipo,
-      });
-      // Fonte primária: `video_url` do banco (fontes comprovadamente dubladas
-      // em pt-BR). O vidlink.pro (builtins) fica apenas como fallback — ele
-      // não garante dublagem pt-BR (maioria dos títulos em MP4 com áudio EN).
-      const lista = [data.video_url, ...builtins].filter((u): u is string => Boolean(u));
-      setSourceUrl(lista.length > 0 ? lista[0] : null);
+      setErrorMsg('Título não encontrado.');
       setLoading(false);
     }
 
     load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id, searchParams]);
 
   // Detecta o tipo de reprodução da fonte atual.
@@ -165,42 +119,17 @@ export function PlayerPage() {
     setSourceKind(norm ? norm.kind : 'iframe');
   }, [currentUrl]);
 
-  // Reprodução nativa de MP4/HLS quando a fonte é direta.
-  useEffect(() => {
-    if (sourceKind !== 'direct' || !currentUrl || !videoRef.current) return;
-    const video = videoRef.current;
-    if (hlsRef.current) {
-      hlsRef.current.destroy();
-      hlsRef.current = null;
-    }
-    if (currentUrl.includes('.m3u8') && Hls.isSupported()) {
-      const hls = new Hls();
-      hls.loadSource(currentUrl);
-      hls.attachMedia(video);
-      hlsRef.current = hls;
-      hls.on(Hls.Events.MANIFEST_PARSED, () => {
-        video.play().catch(() => undefined);
-      });
-    } else {
-      video.src = currentUrl;
-      video.play().catch(() => undefined);
-    }
-  }, [sourceKind, currentUrl]);
-
-  // Reinicia o timeout quando a URL da fonte muda; se o iframe não confirmar
-  // o carregamento a tempo, marcamos como esgotado para oferecer
-  // "Abrir no navegador" em vez de deixar o usuário preso numa tela infinita.
-  // Para YouTube o timeout é desativado (o iframe oficial não expõe eventos
-  // confiáveis de load e um vídeo dublado pode demorar a iniciar).
+  // Reinicia o timeout quando a URL da fonte muda.
   useEffect(() => {
     limparTimeout();
     setEsgotado(false);
-    if (!currentUrl || sourceKind === 'youtube' || sourceKind === 'direct' || sourceKind === 'drive') return;
+    if (!currentUrl || sourceKind !== 'iframe') return;
     timeoutRef.current = window.setTimeout(() => {
       setEsgotado(true);
     }, TIMEOUT_FONTE);
     return limparTimeout;
-  }, [currentUrl, sourceKind, limparTimeout]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentUrl, sourceKind]);
 
   if (loading) {
     return (
@@ -255,32 +184,20 @@ export function PlayerPage() {
         {currentUrl ? (
           <div className="w-full max-w-5xl">
             <div className="relative w-full aspect-video rounded-xl overflow-hidden bg-black shadow-2xl shadow-red-900/20 ring-1 ring-white/10">
-              {sourceKind === 'direct' ? (
-                <video
-                  key={currentUrl}
-                  ref={videoRef}
-                  controls
-                  autoPlay
-                  playsInline
-                  className="absolute inset-0 w-full h-full"
-                  style={{ backgroundColor: '#000' }}
-                />
-              ) : (
-                <iframe
-                  key={currentUrl}
-                  src={sourceKind === 'youtube' ? currentUrl : currentUrl}
-                  title={`Player — ${movie?.title || ''}`}
-                  className="absolute inset-0 w-full h-full border-0"
-                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share; fullscreen"
-                  allowFullScreen
-                  referrerPolicy="origin"
-                  // NOTA: o sandbox NÃO pode ser usado aqui — o vidlink.pro
-                  // detecta iframes com atributo sandbox e recusa carregar
-                  // ("Please Disable Sandbox"). O player é embutido sem
-                  // sandbox para funcionar; a dublagem pt-BR vem do parâmetro
-                  // selectedLanguage=portuguese na URL (src/lib/videoSources.ts).
-                />
-              )}
+              <iframe
+                key={currentUrl}
+                src={currentUrl}
+                title={`Player — ${movie?.title || ''}`}
+                className="absolute inset-0 w-full h-full border-0"
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share; fullscreen"
+                allowFullScreen
+                referrerPolicy="origin"
+                loading="eager"
+                // NOTA: o sandbox NÃO pode ser usado — o StreamBetter detecta
+                // iframes com atributo sandbox e recusa exibir o conteúdo
+                // ("Não bloqueie os anúncios do player"). O player é embutido
+                // sem sandbox para funcionar.
+              />
             </div>
 
             {esgotado ? (
@@ -310,8 +227,12 @@ export function PlayerPage() {
               </div>
             ) : (
               <p className="mt-2 text-center text-xs text-zinc-500">
+                <span className="inline-flex items-center gap-1.5">
+                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                  Áudio pt-BR preferido · Player StreamBetter
+                </span>
                 {currentUrl && (
-                  <button onClick={reiniciarFonte} className="text-red-400 underline hover:text-red-300">
+                  <button onClick={reiniciarFonte} className="text-red-400 underline hover:text-red-300 ml-3">
                     Recarregar player
                   </button>
                 )}

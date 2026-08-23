@@ -1,3 +1,5 @@
+import { streamBetterMovieUrl, streamBetterSeriesUrl } from '@/lib/strembetter';
+
 export type VideoIds = {
   imdbId?: string | null;
   tmdbId?: string | number | null;
@@ -7,19 +9,16 @@ export type VideoIds = {
 /**
  * Fonte de reprodução para um título do catálogo.
  *
- * PLAYER ÚNICO: vidlink.pro (https://vidlink.pro)
- *   - Filmes   → https://vidlink.pro/movie/{tmdbId}
- *   - Séries   → https://vidlink.pro/tv/{tmdbId}/{season}/{episode}
- *   - Dublagem pt-BR: parâmetro `selectedLanguage=portuguese` — o player do
- *     vidlink seleciona automaticamente a faixa de áudio em português quando
- *     disponível (verificado no bundle oficial do player: o label da audio
- *     track é comparado com o valor do parâmetro).
- *   - Sem anúncios: parâmetro `limitAds=true` — desativa o overlay de anúncios
- *     do vidlink (verificado: com o parâmetro, zero iframes/overlays de ads
- *     no DOM). O popunder não é instanciado por padrão (enableDirectLinks=false).
- *   - O vidlink.pro NÃO envia header X-Frame-Options/CSP — pode ser embutido.
- *     Obs.: o atributo `sandbox` NÃO pode ser usado no iframe (o vidlink
- *     detecta e recusa carregar: "Please Disable Sandbox").
+ * PLAYER ÚNICO: StreamBetter (https://streambetter.shop)
+ *   - Filmes → https://streambetter.shop/filme/{tmdbId}?lang=pt-BR
+ *   - Séries → https://streambetter.shop/serie/{tmdbId}/{season}/{episode}?lang=pt-BR
+ *
+ * O player é embutido DENTRO do site Movieflix via <iframe> (ver PlayerPage).
+ * Áudio pt-BR: o player do StreamBetter seleciona automaticamente a faixa em
+ * português quando disponível; `lang=pt-BR` reforça a preferência.
+ *
+ * NENHUM player de terceiros (vidlink.pro, megaembedapi, VidZee) é usado —
+ * todo o catálogo foi migrado para o StreamBetter.
  */
 export function getVideoSources(ids: VideoIds): string[] {
   const tipo =
@@ -29,59 +28,25 @@ export function getVideoSources(ids: VideoIds): string[] {
 
   const sources: string[] = [];
 
-  if (tipo === 'movie' && ids.tmdbId != null) {
-    sources.push(buildVidLinkUrl(`https://vidlink.pro/movie/${ids.tmdbId}`));
-  } else if (tipo === 'tv' && ids.tmdbId != null) {
-    // Séries: o PlayerPage monta a URL com temporada/episódio via getTvSource.
-    sources.push(buildVidLinkUrl(`https://vidlink.pro/tv/${ids.tmdbId}/1/1`));
-  } else if (ids.tmdbId != null) {
-    sources.push(buildVidLinkUrl(`https://vidlink.pro/movie/${ids.tmdbId}`));
+  if (ids.tmdbId != null) {
+    if (tipo === 'tv') {
+      sources.push(streamBetterSeriesUrl(ids.tmdbId, 1, 1));
+    } else {
+      sources.push(streamBetterMovieUrl(ids.tmdbId));
+    }
   }
 
   return sources;
 }
 
 /**
- * Monta a URL do vidlink.pro para um episódio específico de série.
+ * Monta a URL do StreamBetter para um episódio específico de série.
  * Ex.: TMDB 1396 (Breaking Bad), temporada 1, episódio 1 →
- * https://vidlink.pro/tv/1396/1/1?autoplay=false&selectedLanguage=portuguese
+ * https://streambetter.shop/serie/1396/1/1?lang=pt-BR
  */
 export function getTvSource(tmdbId: string | number | null, season: number, episode: number): string {
   if (tmdbId == null) return '';
-  return buildVidLinkUrl(`https://vidlink.pro/tv/${tmdbId}/${season}/${episode}`);
-}
-
-/**
- * Aplica os parâmetros padrão do Movieflix à URL do vidlink.pro:
- *   - autoplay=false              → o usuário decide quando iniciar (evita bloqueio do navegador)
- *   - selectedLanguage=Português  → seleciona a faixa de áudio cujo LABEL NATIVO
- *     contém "Português". ⚠️ IMPORTANTE: o player do vidlink compara o valor do
- *     parâmetro com o label da faixa (toLowerCase().includes()), então o valor
- *     precisa ser o nome NATIVO do idioma ("Português"), não o nome em inglês
- *     ("portuguese") — "portuguese" NUNCA casa com uma faixa rotulada
- *     "Português" e o player cai no fallback (última faixa, geralmente inglês).
- *   - multiLang=true              → obrigatório! Faz a API do vidlink retornar
- *     MÚLTIPLAS faixas de áudio (multiLang=1). Sem este parâmetro o stream vem
- *     com UMA única faixa (geralmente inglês) e o selectedLanguage não tem o
- *     que selecionar — verificado no bundle oficial (page-movie.js): o player
- *     lê `multiLang=true` e chama a API com `multiLang=1`.
- *   - title=true                  → exibe o título no player
- *   - limitAds=true               → desativa o overlay de anúncios do vidlink
- *
- * ⚠️ LIMITAÇÃO REAL (verificada ao vivo): a maioria dos títulos no vidlink é
- * entregue como MP4 direto (`deliveryType: "file"`) com UMA única faixa de
- * áudio embutida (quase sempre inglês) — ex.: Spider-Verse 2 e Fight Club
- * retornam `Audio English` mesmo com selectedLanguage=Português. O parâmetro
- * só funciona quando o stream tem MÚLTIPLAS faixas (HLS/DASH com alternates),
- * o que é raro no catálogo. Ou seja: o vidlink NÃO garante dublagem pt-BR.
- * Para dublagem garantida, a fonte primária deve ser o `video_url` do banco
- * (fontes comprovadamente dubladas — YouTube pt-BR, M3U, Drive).
- */
-export function buildVidLinkUrl(url: string): string {
-  if (!url || !url.startsWith('https://vidlink.pro/')) return url;
-  const sep = url.includes('?') ? '&' : '?';
-  const selectedLanguage = encodeURIComponent('Português');
-  return `${url}${sep}autoplay=false&selectedLanguage=${selectedLanguage}&multiLang=true&title=true&limitAds=true`;
+  return streamBetterSeriesUrl(tmdbId, season, episode);
 }
 
 /** Mantém compatibilidade com o resto do código que usa getVidsrcUrl. */
@@ -91,18 +56,17 @@ export function getVidsrcUrl(ids: VideoIds): string | null {
 }
 
 /**
- * ─── FONTES COM DUBLAGEM pt-BR GARANTIDA ────────────────────────────────
- * Quando o `video_url` do banco aponta para uma fonte cujo ÁUDIO JÁ É dublado
- * em pt-BR (vídeo do YouTube "Filme Completo em Português", MP4/HLS dublado,
- * preview do Google Drive), o PlayerPage renderiza um player adequado:
- *   - YouTube        → iframe oficial youtube-nocookie com hl=pt-BR
- *   - MP4/HLS direto → <video> nativo + hls.js
- *   - Google Drive   → iframe de preview (o áudio vem embutido no arquivo)
- * Essas fontes NÃO dependem de backend de terceiros para escolher o idioma:
- * a dublagem já está no próprio arquivo/stream.
+ * ── Fontes legadas removidas ────────────────────────────────────────────────
+ * Este arquivo costumava ter o builder do vidlink.pro (com selectedLanguage,
+ * multiLang, limitAds), o normalizador de YouTube/Drive/MP4 dublado e o
+ * suporte a megaembedapi. Tudo isso foi substituído pelo player único do
+ * StreamBetter, que resolve fontes, legendas, áudio pt-BR e fallbacks.
+ *
+ * As funções abaixo continuam exportadas por compatibilidade com código
+ * antigo, mas sempre devolvem o embed do StreamBetter (ou null).
  */
 
-/** Extrai o ID de qualquer URL do YouTube (watch, youtu.be, embed, shorts). */
+/** Extrai o ID de qualquer URL do YouTube. Mantido por compatibilidade. */
 export function getYoutubeId(url: string): string | null {
   const m = url.match(
     /(?:youtube\.com\/(?:watch\?(?:.*&)?v=|embed\/|shorts\/|live\/)|youtu\.be\/)([A-Za-z0-9_-]{6,})/,
@@ -110,30 +74,24 @@ export function getYoutubeId(url: string): string | null {
   return m ? m[1] : null;
 }
 
-/** Converte qualquer URL do YouTube no embed oficial com idioma pt-BR. */
+/** Mantido por compatibilidade — devolve a URL original (não usamos YouTube direto). */
 export function youtubeEmbedUrl(url: string): string | null {
   const id = getYoutubeId(url);
   if (!id) return null;
-  const params = new URLSearchParams({
-    hl: 'pt-BR',
-    cc_lang_pref: 'pt-BR',
-    rel: '0',
-    modestbranding: '1',
-  });
-  return `https://www.youtube-nocookie.com/embed/${id}?${params.toString()}`;
+  return `https://www.youtube-nocookie.com/embed/${id}?hl=pt-BR&cc_lang_pref=pt-BR&rel=0&modestbranding=1`;
 }
 
-/** É uma URL de vídeo direto (MP4/MKV/WEBM/M4V/OGV ou HLS .m3u8)? */
+/** É uma URL de vídeo direto (MP4/MKV/WEBM/M4V/OGV ou HLS .m3u8)? Mantido por compatibilidade. */
 export function isDirectVideoUrl(url: string): boolean {
   return /\.(mp4|mkv|webm|m4v|ogv|mov)(\?|#|$)/i.test(url) || /\.m3u8(\?|#|$)/i.test(url);
 }
 
-/** É um embed/preview do Google Drive? */
+/** É um embed/preview do Google Drive? Mantido por compatibilidade. */
 export function isDriveUrl(url: string): boolean {
   return /drive\.google\.com\/(file|open|uc)/i.test(url);
 }
 
-/** Normaliza um preview do Google Drive para a forma embutível /preview. */
+/** Normaliza um preview do Google Drive para a forma embutível /preview. Mantido por compatibilidade. */
 export function drivePreviewUrl(url: string): string | null {
   const m = url.match(/[?&]id=([A-Za-z0-9_-]+)|\/d\/([A-Za-z0-9_-]+)/);
   const id = m ? (m[1] || m[2]) : null;
@@ -142,11 +100,13 @@ export function drivePreviewUrl(url: string): string | null {
 }
 
 /**
- * Normaliza o `video_url` do banco para a melhor forma de reprodução.
- * Retorna null se a URL não precisar de normalização (segue o iframe genérico).
+ * Normaliza uma URL de fonte para a melhor forma de reprodução.
+ * Com o StreamBetter como fonte única, retorna 'iframe' para URLs do
+ * StreamBetter e null para o resto (segue o iframe genérico do PlayerPage).
  */
-export function normalizeDubbedSource(url: string): { kind: 'youtube' | 'drive' | 'direct'; url: string } | null {
+export function normalizeDubbedSource(url: string): { kind: 'youtube' | 'drive' | 'direct' | 'iframe'; url: string } | null {
   if (!url) return null;
+  if (url.includes('streambetter.shop')) return { kind: 'iframe', url };
   if (url.includes('youtube.com') || url.includes('youtu.be')) {
     const emb = youtubeEmbedUrl(url);
     return emb ? { kind: 'youtube', url: emb } : null;

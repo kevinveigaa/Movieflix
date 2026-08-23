@@ -7,13 +7,13 @@ const INTERVALO = 5000;
 export interface HeroItem {
   id: string | number;
   title?: string;
-  description?: string;
-  backdrop_url?: string;
-  poster_url?: string;
-  quality?: string;
-  language?: string;
-  category?: string;
-  type?: string;
+  description?: string | null;
+  backdrop_url?: string | null;
+  poster_url?: string | null;
+  quality?: string | null;
+  language?: string | null;
+  category?: string | null;
+  type?: string | null;
 }
 
 export function HeroBanner({ items }: { items: HeroItem[] }) {
@@ -62,7 +62,7 @@ export function HeroBanner({ items }: { items: HeroItem[] }) {
         {slides.map((s, i) => (
           <img
             key={s.id}
-            src={s.backdrop_url || s.poster_url}
+            src={s.backdrop_url || s.poster_url || ''}
             alt={s.title ?? "Destaque"}
             className={`absolute inset-0 h-full w-full object-cover transition-opacity duration-[900ms] ease-out ${
               i === index ? "opacity-100" : "opacity-0"

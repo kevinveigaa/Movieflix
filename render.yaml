@@ -11,3 +11,5 @@ services:
         value: 20.19.4
       - key: TMDB_API_KEY
         sync: false
+      - key: VITE_STREAMBETTER_KEY
+        sync: false
