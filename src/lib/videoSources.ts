@@ -45,6 +45,26 @@ export function getVideoSources(ids: VideoIds): string[] {
  * Monta a URL do VidZee para um episódio específico de série.
  * Ex.: TMDB 1396 (Breaking Bad), temporada 1, episódio 1 →
  * https://player.vidzee.wtf/embed/tv/1396/1/1
+ *
+ * ⚠️ LIMITAÇÃO CONFIRMADA (áudio/dublagem):
+ * A API pública do VidZee (player.vidzee.wtf) NÃO expõe nenhum parâmetro de
+ * URL para idioma/áudio/legenda. Os endpoints documentados são apenas:
+ *   /embed/movie/{tmdb_id}
+ *   /embed/tv/{tmdb_id}/{season}/{episode}
+ *   /v2/embed/movie/{tmdb_id}  e  /v2/embed/tv/{tmdb_id}/{season}/{episode}
+ * (verificado por inspeção dos bundles JS oficiais do player/site — não há
+ * ?lang=, ?lng=, ?audio=, ?sub= nem ?dub=).
+ *
+ * Isso significa que a trilha de áudio efetivamente reproduzida é decidida
+ * 100% pelo backend do VidZee (terceiro), fora do alcance deste código.
+ * O que este projeto consegue (e faz) para garantir pt-BR:
+ *   - Catálogo/admin/importação rotulam os títulos como "Dublado (pt-BR)"
+ *     (padrão em AdminPage e em todos os scripts de importação);
+ *   - Todas as consultas à TMDb usam language=pt-BR (tmdbFetch, proxy do
+ *     backend e scripts), garantindo que o conteúdo exibido seja o BR;
+ *   - O proxy do player envia Accept-Language: pt-BR ao upstream.
+ * Dentro do player do VidZee o usuário ainda pode trocar manualmente a faixa
+ * de áudio/legenda, mas não há como forçar via URL a partir do Movieflix.
  */
 export function getTvSource(tmdbId: string | number | null, season: number, episode: number): string {
   if (tmdbId == null) return '';
