@@ -275,27 +275,6 @@ export function PlayerPage() {
     });
   }, [currentUrl, sourceKind, movie, user, upsertHistory]);
 
-  // Registra el título en el historial al abrir el player, para que aparezca
-  // en "Continuar assistindo". Con iframe no podemos leer el tiempo exacto de
-  // reproducción; si la URL trae ?t= (retomar), lo guardamos como posición.
-  useEffect(() => {
-    if (!user || !movie) return;
-    const tRaw = searchParams.get('t');
-    const t = tRaw ? Number(tRaw) : 0;
-    const pos = Number.isFinite(t) && t > 0 ? t : 0;
-    upsertHistory.mutate({
-      movieId: movie.id ? String(movie.id) : undefined,
-      tmdbId: movie.tmdb_id ? Number(movie.tmdb_id) : undefined,
-      mediaType: ehSerieAtual ? 'tv' : 'movie',
-      title: movie.title || 'Título',
-      posterPath: movie.poster_url ?? null,
-      backdropPath: movie.backdrop_url ?? null,
-      positionSeconds: pos,
-      durationSeconds: movie.duration ?? 0,
-    });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user?.id, movie?.id, movie?.tmdb_id]);
-
   // Reinicia o timeout quando a URL da fonte muda; se o iframe não confirmar
   // o carregamento a tempo, marcamos como esgotado para oferecer
   // "Abrir no navegador" em vez de deixar o usuário preso numa tela infinita.
