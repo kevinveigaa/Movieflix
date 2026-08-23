@@ -80,11 +80,22 @@ export function primeiroEpisodioDisponivel(
   if (!serie) return null;
   const eps = serie.episodes_available ?? [];
   if (eps.length === 0) return null;
-  const [seasonStr, epStr] = String(eps[0]).split('/');
-  const season = Number(seasonStr);
-  const episode = Number(epStr);
-  if (!Number.isFinite(season) || !Number.isFinite(episode)) return null;
-  return { season, episode };
+  // IMPORTANTE: o catálogo pode trazer episódios em ordem inversa (ex.:
+  // ["1/8","1/7",...]). NUNCA confie em eps[0] — ordene (temporada asc,
+  // episódio asc) e pegue o primeiro de verdade (ex.: 1/1), senão o player
+  // abre o último episódio e parece "quebrado".
+  const ordenados = eps
+    .map((e) => {
+      const [s, ep] = String(e).split('/');
+      const season = Number(s);
+      const episode = Number(ep);
+      if (!Number.isFinite(season) || !Number.isFinite(episode)) return null;
+      return { season, episode };
+    })
+    .filter((e): e is { season: number; episode: number } => e !== null)
+    .sort((a, b) => a.season - b.season || a.episode - b.episode);
+  if (ordenados.length === 0) return null;
+  return ordenados[0];
 }
 
 /** Atalho: URL de embed do StreamBetter a partir de um título do catálogo. */
