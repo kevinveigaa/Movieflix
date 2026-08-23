@@ -55,13 +55,18 @@ export function getTvSource(tmdbId: string | number | null, season: number, epis
  * Aplica os parâmetros padrão do Movieflix à URL do vidlink.pro:
  *   - autoplay=false           → o usuário decide quando iniciar (evita bloqueio do navegador)
  *   - selectedLanguage=portuguese → força a faixa de áudio pt-BR (dublado) quando disponível
- *   - title=true               → exibe o título no player
- *   - limitAds=true            → desativa o overlay de anúncios do vidlink
+ *   - multiLang=true             → obrigatório! Faz a API do vidlink retornar
+ *     MÚLTIPLAS faixas de áudio (multiLang=1). Sem este parâmetro o stream vem
+ *     com UMA única faixa (geralmente inglês) e o selectedLanguage não tem o
+ *     que selecionar — verificado no bundle oficial (page-movie.js): o player
+ *     lê `multiLang=true` e chama a API com `multiLang=1`.
+ *   - title=true                 → exibe o título no player
+ *   - limitAds=true              → desativa o overlay de anúncios do vidlink
  */
 export function buildVidLinkUrl(url: string): string {
   if (!url || !url.startsWith('https://vidlink.pro/')) return url;
   const sep = url.includes('?') ? '&' : '?';
-  return `${url}${sep}autoplay=false&selectedLanguage=portuguese&title=true&limitAds=true`;
+  return `${url}${sep}autoplay=false&selectedLanguage=portuguese&multiLang=true&title=true&limitAds=true`;
 }
 
 /** Mantém compatibilidade com o resto do código que usa getVidsrcUrl. */
