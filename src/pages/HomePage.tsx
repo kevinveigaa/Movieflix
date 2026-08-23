@@ -72,6 +72,24 @@ export function HomePage() {
 
   const recentes = useMemo(() => visibleMovies.slice(0, 5), [visibleMovies]);
 
+  // "Em alta" (tendencias): los mejor valorados del catálogo.
+  const emAlta = useMemo(() => {
+    return [...visibleMovies]
+      .sort((a: any, b: any) => Number(b.vote_average ?? 0) - Number(a.vote_average ?? 0))
+      .slice(0, 20);
+  }, [visibleMovies]);
+
+  // "Populares": mejor valorados con prioridad a los más recientes entre ellos.
+  const populares = useMemo(() => {
+    return [...visibleMovies]
+      .sort((a: any, b: any) => {
+        const nota = Number(b.vote_average ?? 0) - Number(a.vote_average ?? 0);
+        if (nota !== 0) return nota;
+        return Number(b.year ?? 0) - Number(a.year ?? 0);
+      })
+      .slice(0, 20);
+  }, [visibleMovies]);
+
   return (
     <div className="pb-16">
       <div className="container-app">
@@ -92,6 +110,12 @@ export function HomePage() {
                 progressMap={progressByMovie}
                 verMaisTo="/continuar"
               />
+            )}
+            {emAlta.length > 0 && (
+              <CategoryRow title="Em alta" items={emAlta} progressMap={progressByMovie} />
+            )}
+            {populares.length > 0 && (
+              <CategoryRow title="Populares" items={populares} progressMap={progressByMovie} />
             )}
             {recentes.length > 0 && (
               <CategoryRow title="Adicionados recentemente" items={recentes} progressMap={progressByMovie} />

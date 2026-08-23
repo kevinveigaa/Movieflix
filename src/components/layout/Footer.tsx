@@ -1,6 +1,9 @@
-﻿import { Link } from 'react-router-dom';
-import { Film, Github, Instagram, Twitter } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { Film, Github, Instagram, Twitter, MessageCircle } from 'lucide-react';
 import { useSeriesHidden } from '@/hooks/useSeriesHidden';
+
+const WHATSAPP_URL = 'https://wa.me/11943750307';
+const INSTAGRAM_URL = 'https://instagram.com/movieflixplaybr';
 
 const cols = [
   {
@@ -62,7 +65,12 @@ export function Footer() {
                 : "Filmes, séries, documentários e conteúdo infantil em um só lugar. Assista onde e quando quiser."}
             </p>
             <div className="mt-4 flex gap-3">
-              <SocialIcon><Instagram className="h-4 w-4" /></SocialIcon>
+              <a href={WHATSAPP_URL} target="_blank" rel="noopener noreferrer" aria-label="WhatsApp" className="rounded-full border border-white/10 bg-white/5 p-2 text-ink-300 transition hover:bg-emerald-500/20 hover:text-emerald-300">
+                <MessageCircle className="h-4 w-4" />
+              </a>
+              <a href={INSTAGRAM_URL} target="_blank" rel="noopener noreferrer" aria-label="Instagram" className="rounded-full border border-white/10 bg-white/5 p-2 text-ink-300 transition hover:bg-white/10 hover:text-white">
+                <Instagram className="h-4 w-4" />
+              </a>
               <SocialIcon><Twitter className="h-4 w-4" /></SocialIcon>
               <SocialIcon><Github className="h-4 w-4" /></SocialIcon>
             </div>
@@ -98,10 +106,3 @@ function SocialIcon({ children }: { children: React.ReactNode }) {
     </span>
   );
 }
-
-
-
-
-
-
-
