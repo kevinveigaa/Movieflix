@@ -5,18 +5,16 @@ import { supabase } from '@/lib/supabase';
 import { getVideoSources, getTvSource } from '@/lib/videoSources';
 import { ChevronLeft, ExternalLink, Film, Loader2, RefreshCw } from 'lucide-react';
 
-// O player usa o 2Embed como fonte de FILMES com áudio DUBLADO em pt-BR
-// (validado: resolve o TMDB corretamente e prioriza dublagem). Não há mais
-// cascata de fallback: se a fonte não carregar, oferecemos "Abrir no
-// navegador" / "Tentar novamente".
+// O player usa UMA única fonte (fonte 1 — VidZee), validada como a que
+// funciona. Não há mais cascata de fallback: se a fonte não carregar,
+// oferecemos "Abrir no navegador" / "Tentar novamente".
 //
-// DUBLAGEM pt-BR (filmes): as URLs do 2Embed são montadas em
-// src/lib/videoSources.ts com os hints ?lang=pt-BR&audio=pt-BR&sub=pt-BR&dub=1
-// e o player interno do provedor prioriza a faixa de áudio dublada em
-// português quando disponível. O video_url legado do banco (antigo VidZee)
-// fica como FALLBACK para filmes.
-// SÉRIES: o video_url do episódio cadastrado no banco vem primeiro (fonte
-// validada); o 2Embed entra apenas como fallback.
+// DUBLAGEM pt-BR: as URLs do VidZee já são montadas em src/lib/videoSources.ts
+// com os hints ?lang=pt-BR&audio=pt-BR&sub=pt-BR&dub=1 (melhor esforço).
+// ⚠️ O VidZee (player de terceiros) IGNORA esses parâmetros hoje — não há
+// como forçar a faixa de áudio dentro do iframe; a trilha é decidida pelo
+// backend dele. O hint é inofensivo e à prova de futuro caso o VidZee passe
+// a aceitar idioma via URL. Ver documentação em src/lib/videoSources.ts.
 const TIMEOUT_FONTE = 10000;
 
 export function PlayerPage() {
@@ -83,8 +81,8 @@ export function PlayerPage() {
         }
         setMovie({ ...series, title: `${series.title} — T${season?.season_number || '?'} E${ep.episode_number}: ${ep.title}` });
 
-        // Séries: o video_url do episódio cadastrado no banco vem primeiro
-        // (fonte validada); a fonte 2Embed (dublagem pt-BR) é fallback.
+        // Fonte de verdade: video_url cadastrado no banco (episódio/série);
+        // senão, VidZee (fonte 1) com temporada/episódio reais.
         const vidzee = getTvSource(series.tmdb_id, season?.season_number || 1, ep.episode_number || 1);
         const lista = [ep.video_url, series.video_url, vidzee].filter(
           (u): u is string => Boolean(u),
@@ -109,7 +107,6 @@ export function PlayerPage() {
           if (eps && eps.length > 0) {
             setMovie({ ...data, title: `${data.title} — T${seasons[0].season_number} E${eps[0].episode_number}: ${eps[0].title}` });
             const vidzee = getTvSource(data.tmdb_id, seasons[0].season_number || 1, eps[0].episode_number || 1);
-            // Séries: o video_url do episódio do banco vem primeiro; 2Embed é fallback.
             const lista = [eps[0].video_url, data.video_url, vidzee].filter(
               (u): u is string => Boolean(u),
             );
@@ -127,9 +124,7 @@ export function PlayerPage() {
         tmdbId: data.tmdb_id,
         mediaType: tipo,
       });
-      // A fonte DUBLADA (2Embed, via getVideoSources) vem primeiro; o
-      // video_url legado do banco (antigo VidZee) é apenas fallback.
-      const lista = [...builtins, data.video_url].filter((u): u is string => Boolean(u));
+      const lista = [data.video_url, ...builtins].filter((u): u is string => Boolean(u));
       setSourceUrl(lista.length > 0 ? lista[0] : null);
       setLoading(false);
     }

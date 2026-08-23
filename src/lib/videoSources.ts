@@ -7,22 +7,14 @@ export type VideoIds = {
 /**
  * Fonte de reprodução para um título do catálogo.
  *
- * DUBLAGEM pt-BR (objetivo principal):
- * O provedor anterior (VidZee — player.vidzee.wtf) foi testado a fundo e
- * NÃO permite forçar a faixa de áudio: a API core.vidzee.wtf/streams não
- * expõe parâmetro de idioma (o campo "language" da resposta é decidido pelo
- * backend) e o player não tem seletor de dublagem — apenas troca de servidor
- * (Dcloud/TCloud/Hindi v3). Os hints ?lang=pt-BR&audio=pt-BR eram ignorados.
+ * Apenas UMA fonte é usada (fonte 1): o provedor VidZee, que foi validado
+ * e funciona (filmes e séries reproduzem de verdade em iframe, com
+ * `Content-Security-Policy: frame-ancestors *`).
  *
- * SOLUÇÃO ATUAL: trocamos a fonte padrão para o 2Embed (www.2embed.cc),
- * que foi validado como acessível e funcional (retorna o player com o
- * título correto para filmes e séries) e cujo player interno (cineby)
- * prioriza áudio dublado em português quando disponível. As URLs de embed
- * são montadas com os hints de pt-BR (?lang=pt-BR&audio=pt-BR&sub=pt-BR)
- * como melhor esforço adicional.
- *
- * O video_url cadastrado no banco (que aponta para o VidZee) vira apenas
- * FALLBACK: o PlayerPage prioriza SEMPRE a fonte com dublagem (2Embed).
+ * Os demais provedores (vidsrc.to, vidsrc.me, 2embed.cc etc.) foram
+ * testados e descartados — falhavam na prática (tela preta, HTTP 522/403,
+ * challenge Cloudflare, servidor de seleção etc.). Por isso a cascata de
+ * fallback foi REMOVIDA: o player usa somente esta fonte.
  */
 export function getVideoSources(ids: VideoIds): string[] {
   const tipo =
@@ -35,24 +27,25 @@ export function getVideoSources(ids: VideoIds): string[] {
 
   if (id) {
     if (ids.tmdbId && tipo === 'movie') {
-      // Fonte 1 (padrão): 2Embed — reproduz filmes e prioriza áudio pt-BR.
-      sources.push(applyPtBrHints(`https://www.2embed.cc/embed/movie/${ids.tmdbId}`));
+      // Fonte 1 (única): VidZee — reproduz filmes de verdade.
+      // Aplica os hints de pt-BR (melhor esforço; veja applyPtBrHints abaixo).
+      sources.push(applyPtBrHints(`https://player.vidzee.wtf/embed/movie/${ids.tmdbId}`));
     } else if (ids.tmdbId && tipo === 'tv') {
       // Séries: o PlayerPage monta a URL com temporada/episódio via getTvSource.
-      sources.push(applyPtBrHints(`https://www.2embed.cc/embed/tv/${ids.tmdbId}&s=1&e=1`));
+      sources.push(applyPtBrHints(`https://player.vidzee.wtf/embed/tv/${ids.tmdbId}/1/1`));
     } else if (typeof id === 'string' && id.startsWith('tt')) {
-      sources.push(applyPtBrHints(`https://www.2embed.cc/embed/${id}`));
+      sources.push(applyPtBrHints(`https://player.vidzee.wtf/embed/movie/${id}`));
     }
-    // Nenhuma outra fonte — apenas a fonte dublada (2Embed).
+    // Nenhuma outra fonte/fallback — apenas a fonte 1.
   }
 
   return sources;
 }
 
 /**
- * Monta a URL do 2Embed para um episódio específico de série.
+ * Monta a URL do VidZee para um episódio específico de série.
  * Ex.: TMDB 1396 (Breaking Bad), temporada 1, episódio 1 →
- * https://www.2embed.cc/embed/tv/1396&s=1&e=1
+ * https://player.vidzee.wtf/embed/tv/1396/1/1
  *
  * ⚠️ LIMITAÇÃO CONFIRMADA (áudio/dublagem):
  * A API pública do VidZee (player.vidzee.wtf) NÃO expõe nenhum parâmetro de
@@ -119,26 +112,16 @@ export function getVideoSources(ids: VideoIds): string[] {
  * decisão correta. A dublagem pt-BR efetiva continua dependendo do backend
  * do provedor (terceiro) — o app garante todo o resto (rótulo, TMDb pt-BR,
  * hints, Accept-Language, fonte única).
-
- * ✅ REVALIDAÇÃO PRÁTICA DO 2EMBED (2026-08-22/23) — REVERTENDO A CONCLUSAO ANTERIOR:
- * Teste real via HTTP com o player de filmes: https://www.2embed.cc/embed/movie/{tmdb_id}
- * retorna o player com o tÍTULO CORRETO (ex.: TMDB 12094 → "Jackass Number Two
- * (2006)"), ou seja, o embed de FILMES resolve o TMDB e monta o player de verdade
- * (o player interno cineby prioriza a faixa de áudio dublada em pt-BR quando
- * existe). Por isso os FILMES passam a usar o 2Embed como fonte 1 (dublagem
- * pt-BR); o VidZee (video_url legado do banco) vira fallback. Para SÉRIES o
- * formato tv do 2Embed ainda não resolveu o TMDB corretamente nos testes
- * (títulos errados), então séries mantêm o video_url do banco em primeiro.
  */
 export function getTvSource(tmdbId: string | number | null, season: number, episode: number): string {
   if (tmdbId == null) return '';
-  // Aplica os hints de pt-BR (melhor esforço; veja applyPtBrHints).
-  return applyPtBrHints(`https://www.2embed.cc/embed/tv/${tmdbId}&s=${season}&e=${episode}`);
+  // Aplica os hints de pt-BR (melhor esforço; veja applyPtBrHints acima).
+  return applyPtBrHints(`https://player.vidzee.wtf/embed/tv/${tmdbId}/${season}/${episode}`);
 }
 
 /**
  * Mantém compatibilidade com o resto do código que usa getVidsrcUrl:
- * devolve a fonte dublada (ou null se não houver IDs).
+ * devolve a fonte 1 (ou null se não houver IDs).
  */
 export function getVidsrcUrl(ids: VideoIds): string | null {
   const sources = getVideoSources(ids);
@@ -146,16 +129,17 @@ export function getVidsrcUrl(ids: VideoIds): string | null {
 }
 
 /**
- * Aplica "hints" de pt-BR (dublagem) à URL de embed do 2Embed.
+ * Aplica "hints" de pt-BR (dublagem) à URL de embed do VidZee.
  *
- * O 2Embed aceita parâmetros de idioma/legenda na URL do embed e o player
- * interno (cineby) traz o seletor de faixas de áudio, priorizando a dublagem
- * em português quando disponível. Os hints abaixo são o melhor esforço para
- * forçar pt-BR; mesmo quando o provedor ignora algum deles, a URL continua
- * válida e o áudio dublado pt-BR é priorizado pelo próprio player.
+ * ⚠️ IMPORTANTE: hoje o VidZee IGNORA esses parâmetros (verificado em
+ * 2026-08-22 contra o player real e a API core.vidzee.wtf — o campo
+ * "language" da resposta é sempre "Auto"). Eles NÃO quebram o player
+ * (a URL continua válida) e servem como sinalização de melhor esforço:
+ * se um dia o VidZee passar a aceitar idioma via URL, o Movieflix já
+ * estará enviando o pedido de pt-BR automaticamente.
  */
 export function applyPtBrHints(url: string): string {
-  if (!url || !url.startsWith('https://www.2embed.cc/')) return url;
+  if (!url || !url.startsWith('https://player.vidzee.wtf/')) return url;
   const sep = url.includes('?') ? '&' : '?';
   return `${url}${sep}lang=pt-BR&audio=pt-BR&sub=pt-BR&dub=1`;
 }
