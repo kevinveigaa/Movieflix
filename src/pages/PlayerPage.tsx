@@ -7,6 +7,8 @@ import { streamBetterMovieUrl, streamBetterSeriesUrl } from '@/lib/strembetter';
 import { useUpsertHistory, fetchHistoryForMovie } from '@/hooks/useWatchHistory';
 import { useMovies } from '@/hooks/useMovies';
 import { usePlaybackSession } from '@/hooks/usePlaybackSession';
+import { useTvPlayerControls } from '@/hooks/useTvPlayerControls';
+import { ehTelaDeTv } from '@/lib/tv';
 import { useEntitlements } from '@/hooks/useEntitlements';
 import { downloadVideo } from '@/lib/hlsDownload';
 import { registerDownload, alreadyDownloaded } from '@/lib/downloads';
@@ -49,7 +51,7 @@ export function PlayerPage() {
   const { id } = useParams();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const { user } = useAuth();
+  const { user, activeViewerProfile } = useAuth();
   const upsertHistory = useUpsertHistory();
   const { entitlements } = useEntitlements();
   const movies = useMovies();
@@ -92,6 +94,10 @@ export function PlayerPage() {
   const [isResuming, setIsResuming] = useState(true);
 
   const currentUrl = sourceUrl;
+
+  // Controle por controle remoto (TV / TV Box): OK/Enter = play/pause do
+  // vídeo (nativo ou dentro do iframe, quando acessível), Voltar = sair.
+  useTvPlayerControls(Boolean(currentUrl) && ehTelaDeTv(), () => navigate(-1));
 
   const limparTimeout = useCallback(() => {
     if (timeoutRef.current !== null) {
@@ -491,7 +497,7 @@ export function PlayerPage() {
     <div className="min-h-screen bg-black text-white">
       {/* Header */}
       <div className="fixed top-0 left-0 right-0 z-50 flex items-center gap-3 bg-black/80 backdrop-blur p-4">
-        <button onClick={() => navigate(-1)} className="flex items-center gap-2 rounded-full bg-white/10 p-2.5 hover:bg-white/20 transition">
+        <button onClick={() => navigate(-1)} data-tv-focusable className="flex items-center gap-2 rounded-full bg-white/10 p-2.5 hover:bg-white/20 transition">
           <ChevronLeft className="h-5 w-5" />
         </button>
         <h1 className="truncate text-base font-semibold flex-1">{movie?.title || 'Player'}</h1>
@@ -562,6 +568,7 @@ export function PlayerPage() {
                   controls
                   autoPlay
                   playsInline
+                  data-mf-player
                   onTimeUpdate={salvarProgresso}
                   onPause={salvarProgressoFinal}
                   onEnded={salvarProgressoFinal}
@@ -571,6 +578,7 @@ export function PlayerPage() {
               ) : (
                 <iframe
                   key={currentUrl}
+                  id="player-frame"
                   src={sourceKind === 'youtube' ? currentUrl : currentUrl}
                   title={`Player — ${movie?.title || ''}`}
                   className="absolute inset-0 w-full h-full border-0"
