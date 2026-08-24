@@ -3,6 +3,7 @@ import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/context/AuthContext';
 import { watchHistoryColumns } from '@/lib/watchHistoryColumns';
 import { useMovies, type CatalogMovie } from '@/hooks/useMovies';
+import { temProgressoReal, ehProgressoLixo } from '@/lib/watchProgress';
 import type { MediaType, WatchHistoryRow } from '@/types';
 
 const KEY = 'watch_history';
@@ -64,6 +65,11 @@ export function useCatalogWatchHistory() {
     .map((h) => {
       const movie = byTmdb.get(Number(h.tmdb_id));
       if (!movie) return null;
+      // Só progresso REAL: >= 10 min (ou 30% da duração) e nunca "lixo"
+      // (posição 0 / duração 0 gravados por bugs antigos ao simplesmente
+      // abrir o player). Títulos já concluídos (>= 95%) também saem.
+      if (ehProgressoLixo(h.position_seconds, h.duration_seconds)) return null;
+      if (!temProgressoReal(h.position_seconds, h.duration_seconds)) return null;
       return { history: h, movie };
     })
     .filter((x): x is { history: WatchHistoryRow; movie: CatalogMovie } => Boolean(x));
@@ -86,6 +92,9 @@ export interface UpsertHistoryArgs {
   backdropPath?: string | null;
   positionSeconds: number;
   durationSeconds: number;
+  /** Série: temporada/episódio assistidos (para mostrar "T1 · E3" na retomada). */
+  season?: number | null;
+  episode?: number | null;
 }
 
 /** Busca o registro de reprodução de um título do catálogo (para retomar). */
@@ -144,7 +153,7 @@ export function useUpsertHistory() {
 
       const { data: existing } = await find.maybeSingle();
 
-      const patch = {
+      const patch: Record<string, unknown> = {
         position_seconds: args.positionSeconds,
         duration_seconds: args.durationSeconds,
         title: args.title,
@@ -152,6 +161,12 @@ export function useUpsertHistory() {
         backdrop_path: args.backdropPath ?? null,
         updated_at: new Date().toISOString(),
       };
+      // Só grava temporada/episódio quando a coluna existe no banco
+      // (migration 20260824120000 aplicada).
+      if (cols.seasonEpisode) {
+        patch.season_number = args.season ?? null;
+        patch.episode_number = args.episode ?? null;
+      }
 
       if (existing) {
         await supabase.from('watch_history').update(patch).eq('id', existing.id);
@@ -165,9 +180,15 @@ export function useUpsertHistory() {
           backdrop_path: args.backdropPath ?? null,
           position_seconds: args.positionSeconds,
           duration_seconds: args.durationSeconds,
+          season_number: args.season ?? null,
+          episode_number: args.episode ?? null,
         };
         if (cols.movieId && args.movieId) insert.movie_id = args.movieId;
         if (cols.viewerProfileId) insert.viewer_profile_id = profileId;
+        if (cols.seasonEpisode) {
+          insert.season_number = args.season ?? null;
+          insert.episode_number = args.episode ?? null;
+        }
         await supabase.from('watch_history').insert(insert);
       }
     },

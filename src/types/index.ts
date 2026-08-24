@@ -135,5 +135,8 @@ export interface WatchHistoryRow {
   vote_average: number | null;
   position_seconds: number;
   duration_seconds: number;
+  /** Série: temporada/episódio assistidos (migration 20260824120000). */
+  season_number: number | null;
+  episode_number: number | null;
   updated_at: string;
 }

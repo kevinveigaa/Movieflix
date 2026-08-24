@@ -12,6 +12,12 @@ import { ehTelaDeTv } from '@/lib/tv';
 import { useEntitlements } from '@/hooks/useEntitlements';
 import { downloadVideo } from '@/lib/hlsDownload';
 import { registerDownload, alreadyDownloaded } from '@/lib/downloads';
+import {
+  temProgressoReal,
+  ehProgressoLixo,
+  formatarTempoRelogio,
+  rotuloPontoParada,
+} from '@/lib/watchProgress';
 import Hls from 'hls.js';
 import { ChevronLeft, ExternalLink, Film, Loader2, RefreshCw, Download, Lock, CheckCircle2, AlertCircle, RotateCcw, Play, Clock } from 'lucide-react';
 
@@ -32,20 +38,17 @@ import { ChevronLeft, ExternalLink, Film, Loader2, RefreshCw, Download, Lock, Ch
 // nunca dispara eventos de load confiáveis e um vídeo dublado pode demorar
 // para iniciar; mostrar erro falso seria pior do que aguardar.
 //
-// Progresso: o player nativo salva a posição real periodicamente (timeupdate)
-// e ao pausar/terminar, alimentando a tabela watch_history (seção "Continuar
-// assistindo"). Players embed (iframe cross-origin, ex.: StreamBetter) usam um
-// contador local de tempo assistido, salvo a cada 20s, que começa na posição
-// retomada pelo modal "Quer continuar de onde parou?".
-//
-// Download: botão condicionado ao plano (entitlements.downloads > 0). Apenas
-// fontes diretas (MP4/HLS) são baixáveis; iframes mostram o botão bloqueado.
+// PROGRESSO ("Continuar assistindo") — regra nova:
+//   - O prompt de retomada SÓ aparece para títulos com progresso REAL:
+//     posição salva >= 10 minutos (ou >= 30% da duração, p/ títulos curtos).
+//   - A posição é salva a cada 20 s durante a reprodução (nunca no load).
+//   - Ao reabrir, "Sim" retoma do segundo exato via ?t=segundos na URL do
+//     embed do StreamBetter (que aceita o parâmetro `t`).
+//   - Séries: salva temporada/episódio e mostra "T1 · E3" no modal.
 // ─────────────────────────────────────────────────────────────────────────────
 const TIMEOUT_FONTE = 10000;
 const YT_TIMEOUT_FONTE = 0; // desativado para YouTube
 const SAVE_INTERVAL_MS = 20000; // salva progresso a cada 20s
-const EMBED_START_MIN_SECONDS = 20; // mínimo de progresso para oferecer retomada
-const EMBED_RESUME_MAX_PCT = 95; // acima disso o título é considerado concluído
 
 export function PlayerPage() {
   const { id } = useParams();
@@ -92,10 +95,12 @@ export function PlayerPage() {
   const embedLastTickRef = useRef(0);
 
   // Modal "Quer continuar de onde parou?" — mostrado ao reabrir um título que
-  // já tem progresso salvo (embed). "Sim" retoma da posição salva; "Não"
-  // zera o progresso e começa do início.
+  // JÁ TEM progresso real salvo (>= 10 min ou >= 30%). "Sim" retoma da posição
+  // salva (?t=segundos na URL do embed); "Não" zera o progresso e começa do início.
   const [showResumeModal, setShowResumeModal] = useState(false);
   const [resumeSeconds, setResumeSeconds] = useState(0);
+  const [resumeSeason, setResumeSeason] = useState<number | null>(null);
+  const [resumeEpisode, setResumeEpisode] = useState<number | null>(null);
   const [isResuming, setIsResuming] = useState(true);
 
   const currentUrl = sourceUrl;
@@ -153,7 +158,7 @@ export function PlayerPage() {
           const tituloId = Number(id);
           const season = seasonRaw ? Number(seasonRaw) : 1;
           const episode = epParam ? Number(epParam) : epId;
-          setMovie({ title: `Episódio ${episode}`, type: 'series', tmdb_id: tituloId });
+          setMovie({ title: `Episódio ${episode}`, type: 'series', tmdb_id: tituloId, season_number: season, episode_number: episode });
           setEpAtual({ season, episode });
           const src = streamBetterSeriesUrl(tituloId || null, season, episode, startSeconds);
           setSourceUrl(src || null);
@@ -187,7 +192,7 @@ export function PlayerPage() {
           if (seasons && seasons.length > 0) {
             const { data: eps } = await supabase.from('episodes').select('*').eq('season_id', seasons[0].id).not('video_url', 'is', null).order('episode_number', { ascending: true }).limit(1);
             if (eps && eps.length > 0) {
-              setMovie({ ...dataResolved, title: `${dataResolved.title} — T${seasons[0].season_number} E${eps[0].episode_number}: ${eps[0].title}` });
+              setMovie({ ...dataResolved, title: `${dataResolved.title} — T${seasons[0].season_number} E${eps[0].episode_number}: ${eps[0].title}`, season_number: seasons[0].season_number, episode_number: eps[0].episode_number });
               const vidlink = getTvSource(dataResolved.tmdb_id, seasons[0].season_number || 1, eps[0].episode_number || 1);
               const lista = [eps[0].video_url, dataResolved.video_url, vidlink].filter(
                 (u): u is string => Boolean(u),
@@ -275,14 +280,6 @@ export function PlayerPage() {
     trySeek();
   }, [sourceKind, currentUrl, searchParams]);
 
-  // Formata segundos como mm:ss (ex.: 30:00 para 1800s).
-  const formatarTempo = useCallback((secs: number): string => {
-    const s = Math.max(0, Math.floor(secs || 0));
-    const m = Math.floor(s / 60);
-    const r = s % 60;
-    return `${m}:${String(r).padStart(2, '0')}`;
-  }, []);
-
   // ---- Salvar progresso ----
 
   // Grava o progresso do player nativo (MP4/HLS direto).
@@ -302,8 +299,10 @@ export function PlayerPage() {
       backdropPath: movie.backdrop_url,
       positionSeconds: Math.floor(video.currentTime || 0),
       durationSeconds: Math.floor(video.duration || 0),
+      season: movie.season_number ?? epAtual?.season ?? null,
+      episode: movie.episode_number ?? epAtual?.episode ?? null,
     });
-  }, [movie, user, mutateHistory]);
+  }, [movie, user, mutateHistory, epAtual]);
 
   const salvarProgressoFinal = useCallback(() => {
     const video = videoRef.current;
@@ -318,8 +317,10 @@ export function PlayerPage() {
       backdropPath: movie.backdrop_url,
       positionSeconds: Math.floor(video.currentTime || 0),
       durationSeconds: Math.floor(video.duration || 0),
+      season: movie.season_number ?? epAtual?.season ?? null,
+      episode: movie.episode_number ?? epAtual?.episode ?? null,
     });
-  }, [movie, user, mutateHistory]);
+  }, [movie, user, mutateHistory, epAtual]);
 
   // Grava o progresso estimado de players embed (iframe cross-origin):
   // a posição é o tempo salvo + o tempo decorrido desde que o embed carregou.
@@ -340,8 +341,10 @@ export function PlayerPage() {
       backdropPath: movie.backdrop_url,
       positionSeconds: position,
       durationSeconds: duration,
+      season: movie.season_number ?? epAtual?.season ?? null,
+      episode: movie.episode_number ?? epAtual?.episode ?? null,
     });
-  }, [movie, user, mutateHistory]);
+  }, [movie, user, mutateHistory, epAtual]);
 
   // Para o contador do embed (desmontagem, troca de fonte).
   const pararContadorEmbed = useCallback(() => {
@@ -357,9 +360,11 @@ export function PlayerPage() {
 
   // Players embed (iframe cross-origin — YouTube/Drive/StreamBetter):
   //  - Ao carregar, busca o progresso salvo desta obra no banco;
-  //  - Se houver progresso relevante (>= 20s e < 95%), abre o modal
+  //  - Se houver progresso REAL (>= 10 min ou >= 30% da duração), abre o modal
   //    "Quer continuar de onde parou?" — "Sim" inicia o contador na posição
   //    salva; "Não" zera o progresso e começa do início;
+  //  - NUNCA mostra o modal para títulos sem progresso real (não assistidos
+  //    ou com menos de 10 minutos);
   //  - Um contador local (tick a cada segundo) estima a posição (posição base
   //    + tempo decorrido com a aba visível) e salva a cada 20s no histórico.
   useEffect(() => {
@@ -376,22 +381,28 @@ export function PlayerPage() {
 
     (async () => {
       try {
-      if (!movieId || !user) return;
-      const row = await fetchHistoryForMovie(user.id, activeViewerProfile?.id ?? null, movieId);
-      if (cancel) return;
-      const duration = Number(row?.duration_seconds) || 0;
-      const position = Number(row?.position_seconds) || 0;
-      const pct = duration > 0 ? (position / duration) * 100 : 0;
-      if (position >= EMBED_START_MIN_SECONDS && pct < EMBED_RESUME_MAX_PCT) {
-        setResumeSeconds(position);
-        setShowResumeModal(true);
-        setIsResuming(true);
-        resumeBaseRef.current = { position, duration, startedAt: 0 };
-      } else {
-        setIsResuming(false);
-        // Sem retomada: conta do zero a partir de agora.
-        resumeBaseRef.current = { position: 0, duration, startedAt: Date.now() };
-      }
+        if (!movieId || !user) return;
+        const row = await fetchHistoryForMovie(user.id, activeViewerProfile?.id ?? null, movieId);
+        if (cancel) return;
+        const duration = Number(row?.duration_seconds) || 0;
+        const position = Number(row?.position_seconds) || 0;
+        // REGRA NOVA: só oferece retomada para progresso REAL (>= 10 min ou
+        // >= 30% da duração). Progresso "lixo" (posição 0 / duração 0 de
+        // gravações antigas) e títulos sem nunca ter sido assistidos NUNCA
+        // mostram o modal.
+        const temProgresso = !ehProgressoLixo(position, duration) && temProgressoReal(position, duration);
+        if (temProgresso) {
+          setResumeSeconds(position);
+          setResumeSeason(row?.season_number ?? null);
+          setResumeEpisode(row?.episode_number ?? null);
+          setShowResumeModal(true);
+          setIsResuming(true);
+          resumeBaseRef.current = { position, duration, startedAt: 0 };
+        } else {
+          setIsResuming(false);
+          // Sem retomada: conta do zero a partir de agora.
+          resumeBaseRef.current = { position: 0, duration, startedAt: Date.now() };
+        }
       } catch (erro) {
         // Falha ao consultar o histórico (rede/RLS): segue sem modal de
         // retomada e conta do zero — nunca derruba o player.
@@ -602,7 +613,7 @@ export function PlayerPage() {
                 <iframe
                   key={currentUrl}
                   id="player-frame"
-                  src={sourceKind === 'youtube' ? currentUrl : currentUrl}
+                  src={currentUrl}
                   title={`Player — ${movie?.title || ''}`}
                   className="tv-player absolute inset-0 w-full h-full border-0"
                   allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share; fullscreen"
@@ -613,7 +624,7 @@ export function PlayerPage() {
                   // detecta iframes com atributo sandbox e recusa carregar
                   // ("Please Disable Sandbox"). O player é embutido sem
                   // sandbox para funcionar; a dublagem pt-BR vem do parâmetro
-                  // selectedLanguage=portuguese na URL (src/lib/videoSources.ts).
+                  // lang=pt-BR na URL (src/lib/strembetter.ts).
                 />
               )}
             </div>
@@ -621,7 +632,7 @@ export function PlayerPage() {
             {/* Dica de controle remoto: como navegar dentro do player */}
             <p className="mt-2 text-center text-[11px] text-zinc-500">
               Controle remoto: aperte <span className="text-zinc-300 font-medium">OK</span> para
-              controlar o vídeo (play/pause, volume, legendas) e{" "}
+              controlar o vídeo (play/pause, volume, legendas) e{' '}
               <span className="text-zinc-300 font-medium">Voltar</span> para sair do player.
             </p>
 
@@ -679,7 +690,11 @@ export function PlayerPage() {
             <Clock className="mx-auto h-10 w-10 text-brand-400" />
             <h3 className="mt-3 text-lg font-bold text-white">Quer continuar de onde parou?</h3>
             <p className="mt-2 text-sm text-zinc-400">
-              Você parou em <span className="text-white font-semibold">{formatarTempo(resumeSeconds)}</span>.
+              Você parou em{' '}
+              <span className="text-white font-semibold">
+                {rotuloPontoParada({ position: resumeSeconds, duration: 0, season: resumeSeason, episode: resumeEpisode })}
+              </span>
+              .
             </p>
             <div className="mt-5 flex gap-3">
               <button
@@ -698,6 +713,8 @@ export function PlayerPage() {
                       backdropPath: movie.backdrop_url,
                       positionSeconds: 0,
                       durationSeconds: 0,
+                      season: null,
+                      episode: null,
                     });
                   }
                   resumeBaseRef.current = { position: 0, duration: 0, startedAt: Date.now() };
@@ -711,13 +728,24 @@ export function PlayerPage() {
                 onClick={() => {
                   setShowResumeModal(false);
                   setIsResuming(false);
-                  // "Sim": retoma da posição salva.
+                  // "Sim": retoma da posição salva. A URL do embed já foi
+                  // montada com ?t=segundos (streamBetterMovieUrl/SeriesUrl
+                  // recebem startSeconds do query param ?t=). Para o caso de
+                  // o embed já estar carregado sem ?t=, recarregamos com o
+                  // tempo salvo.
                   const base = resumeBaseRef.current;
+                  const pos = base ? base.position : resumeSeconds;
                   resumeBaseRef.current = {
-                    position: base ? base.position : resumeSeconds,
+                    position: pos,
                     duration: base ? base.duration : 0,
                     startedAt: Date.now(),
                   };
+                  // Garante retomada exata: se a URL atual não tem ?t=,
+                  // remonta com o tempo salvo.
+                  if (currentUrl && !currentUrl.includes('t=')) {
+                    const sep = currentUrl.includes('?') ? '&' : '?';
+                    setSourceUrl(`${currentUrl}${sep}t=${Math.floor(pos)}`);
+                  }
                 }}
                 className="flex-1 rounded-lg bg-brand-600 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-brand-500 flex items-center justify-center gap-2"
               >

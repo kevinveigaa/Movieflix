@@ -10,6 +10,7 @@ import { Link } from "react-router-dom";
 import { Crown, Sparkles, ChevronLeft, ChevronRight } from "lucide-react";
 import { categoriasDoFilme, ehInfantil, ordenarCategorias } from "@/lib/categorias";
 import { ehFilme } from "@/lib/media";
+import { temProgressoReal, progressoPercentual } from "@/lib/watchProgress";
 
 export function HomePage() {
   const { subscription, activeViewerProfile } = useAuth();
@@ -30,27 +31,27 @@ export function HomePage() {
   const destaques = useMemo(() => visibleMovies.slice(0, 5), [visibleMovies]);
 
   // Mapa movie_id → % assistido para a barra de progresso nos cards.
+  // Só entra no mapa quem tem progresso REAL (>= 10 min ou >= 30% da duração):
+  // títulos nunca assistidos (ou assistidos por menos de 10 min) não exibem
+  // barra de progresso em lugar nenhum.
   const progressByMovie = useMemo(() => {
     const map: Record<string, number> = {};
     for (const { history: h, movie } of history.items ?? []) {
-      const pct = h.duration_seconds ? Math.min(100, (h.position_seconds / h.duration_seconds) * 100) : 0;
-      map[String(movie.id)] = pct;
+      if (!temProgressoReal(h.position_seconds, h.duration_seconds)) continue;
+      map[String(movie.id)] = progressoPercentual(h.position_seconds, h.duration_seconds);
     }
     return map;
   }, [history.items]);
 
   // "Continuar assistindo": apenas títulos visibles (respeta modo infantil),
-  // con progreso relevante y que no llegaron al fin. El límite de títulos
-  // guardados depende del plan (maxHistory): Básico 5, Estándar 15, Premium ilimitado.
+  // con progreso REAL (>= 10 min o >= 30% de la duración) y que no llegaron al
+  // fin (useCatalogWatchHistory ya filtra esto). El límite de títulos guardados
+  // depende del plan (maxHistory): Básico 5, Estándar 15, Premium ilimitado.
   const continueWatching = useMemo(() => {
     const visivel = new Set(visibleMovies.map((m) => String(m.id)));
     const limite = Number.isFinite(entitlements.maxHistory) ? entitlements.maxHistory : Infinity;
     return (history.items ?? [])
       .filter(({ movie }) => visivel.has(String(movie.id)))
-      .filter(({ history: h }) => {
-        const pct = h.duration_seconds ? (h.position_seconds / h.duration_seconds) * 100 : 0;
-        return pct >= 2 && pct < 95;
-      })
       .map(({ movie }) => movie)
       .slice(0, limite);
   }, [history.items, visibleMovies, entitlements.maxHistory]);

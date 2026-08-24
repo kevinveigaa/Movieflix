@@ -5,6 +5,8 @@ interface WatchHistoryColumns {
   viewerProfileId: boolean;
   /** A tabela tem a coluna movie_id? (migration 20260810140000) */
   movieId: boolean;
+  /** A tabela tem season_number/episode_number? (migration 20260824120000) */
+  seasonEpisode: boolean;
 }
 
 let cached: WatchHistoryColumns | null = null;
@@ -19,8 +21,10 @@ function isMissingColumn(error: { code?: string; message?: string } | null): boo
 
 /**
  * Detecta (uma única vez, com cache) se o banco já foi migrado com as colunas
- * de perfil/título do histórico. Permite que o app funcione antes e depois de
- * rodar `supabase/migrations/20260810140000_watch_history_profile_columns.sql`.
+ * de perfil/título/temporada do histórico. Permite que o app funcione antes e
+ * depois de rodar as migrations:
+ *  - supabase/migrations/20260810140000_watch_history_profile_columns.sql
+ *  - supabase/migrations/20260824120000_watch_history_season_episode.sql
  */
 export async function watchHistoryColumns(): Promise<WatchHistoryColumns> {
   if (cached) return cached;
@@ -40,6 +44,7 @@ export async function watchHistoryColumns(): Promise<WatchHistoryColumns> {
   cached = {
     viewerProfileId: await probe('viewer_profile_id'),
     movieId: await probe('movie_id'),
+    seasonEpisode: await probe('season_number'),
   };
   return cached;
 }

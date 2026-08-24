@@ -6,6 +6,7 @@ import { useSeriesHidden } from '@/hooks/useSeriesHidden';
 import { useAuth } from '@/context/AuthContext';
 import { useEntitlements } from '@/hooks/useEntitlements';
 import { ehSerie } from '@/lib/media';
+import { progressoPercentual, rotuloPontoParada } from '@/lib/watchProgress';
 import { FullScreenLoader } from '@/components/ui/Feedback';
 import type { WatchHistoryRow } from '@/types';
 
@@ -61,8 +62,14 @@ export function ContinueWatchingPage() {
 
       <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {items.map(({ history: h, movie }) => {
-          const pct = h.duration_seconds ? Math.min(100, (h.position_seconds / h.duration_seconds) * 100) : 0;
+          const pct = progressoPercentual(h.position_seconds, h.duration_seconds);
           const poster = movie.poster_url || movie.backdrop_url;
+          const parouEm = rotuloPontoParada({
+            position: h.position_seconds,
+            duration: h.duration_seconds,
+            season: (h as any).season_number ?? null,
+            episode: (h as any).episode_number ?? null,
+          });
           return (
             <div key={h.id} className="group relative overflow-hidden rounded-2xl border border-white/10 bg-ink-900">
               <Link to={historyTarget(h)} className="block">
@@ -79,7 +86,10 @@ export function ContinueWatchingPage() {
                 </div>
                 <div className="p-3">
                   <p className="truncate font-semibold text-white">{movie.title}</p>
-                  <p className="mt-0.5 text-xs text-ink-400">{ehSerie(movie) ? 'Série' : 'Filme'}</p>
+                  <p className="mt-0.5 text-xs text-ink-400">
+                    {ehSerie(movie) ? 'Série' : 'Filme'}
+                    {pct > 0 && <span className="ml-2 text-brand-400">• Parou em {parouEm}</span>}
+                  </p>
                   <div className="mt-2 h-1 w-full overflow-hidden rounded-full bg-ink-700">
                     <div className="h-full rounded-full bg-brand-600" style={{ width: `${pct}%` }} />
                   </div>
