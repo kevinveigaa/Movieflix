@@ -25,3 +25,20 @@ dist-ssr
 .vercel
 .env*
 .catalogo-cache/
+
+# Capacitor / Android / iOS build artifacts (regenerate with npm run apk)
+android/.gradle/
+android/app/build/
+android/build/
+android/capacitor-cordova-android-plugins/build/
+android/app/src/main/assets/public/
+android/app/src/main/assets/capacitor.config.json
+android/.idea/
+android/local.properties
+ios/App/Pods/
+ios/App/App/public/
+ios/App/build/
+ios/DerivedData/
+ios/.idea/
+*.keystore
+*.jks

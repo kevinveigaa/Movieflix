@@ -1,7 +1,6 @@
 import { Link } from 'react-router-dom';
-import { Smartphone, Download, ShieldCheck, Play, Monitor, RotateCcw } from 'lucide-react';
-
-const APK_URL = '/apk/movieflix.apk';
+import { Smartphone, Download, ShieldCheck, Play, Monitor, RotateCcw, Tv } from 'lucide-react';
+import { APP_INFO, APK_URL, APK_SIZE_MB } from '@/lib/appInfo';
 
 export function DownloadAppPage() {
   return (
@@ -15,19 +14,22 @@ export function DownloadAppPage() {
           Baixe o app <span className="text-brand-400">MovieFlix</span>
         </h1>
         <p className="mx-auto mt-3 max-w-xl text-sm text-ink-400 sm:text-base">
-          Assista filmes, séries e muito mais direto no seu celular, com uma experiência feita para Android.
+          O aplicativo oficial do MovieFlix para celular e TV. Assista filmes e
+          séries dublados em pt-BR com navegação completa por controle remoto.
         </p>
 
         <div className="mt-8">
           <a
             href={APK_URL}
-            download
+            download={APP_INFO.apkFileName}
             className="inline-flex items-center gap-3 rounded-2xl bg-brand-600 px-8 py-4 text-lg font-semibold text-white shadow-lg shadow-brand-600/30 transition hover:bg-brand-500"
           >
             <Download className="h-6 w-6" />
             Baixar APK
           </a>
-          <p className="mt-2 text-xs text-ink-500">Arquivo .apk • Instalação fora da Play Store</p>
+          <p className="mt-2 text-xs text-ink-500">
+            {APP_INFO.name} v{APP_INFO.version} • {APK_SIZE_MB} • Arquivo .apk • Instalação fora da Play Store
+          </p>
         </div>
 
         <div className="mt-12 grid gap-4 text-left sm:grid-cols-3">
@@ -39,10 +41,10 @@ export function DownloadAppPage() {
             </p>
           </div>
           <div className="rounded-2xl border border-white/10 bg-ink-900/60 p-5">
-            <Play className="h-7 w-7 text-brand-400" />
+            <Tv className="h-7 w-7 text-brand-400" />
             <h3 className="mt-3 font-semibold text-white">Na TV e no celular</h3>
             <p className="mt-1 text-sm text-ink-400">
-              Assista onde quiser: na TV Android, no tablet ou no smartphone.
+              Android, Android TV, Google TV e TV Box — navegue tudo com o controle remoto.
             </p>
           </div>
           <div className="rounded-2xl border border-white/10 bg-ink-900/60 p-5">
@@ -66,6 +68,11 @@ export function DownloadAppPage() {
             <li>Confirme a instalação e pronto — entre com a sua conta MovieFlix.</li>
           </ol>
           <p className="mt-4 text-xs text-ink-500">
+            <Play className="mr-1 inline h-3.5 w-3.5" />
+            No Android TV / Google TV, o app aparece na tela inicial com banner próprio e
+            funciona 100% com o controle remoto (setas, OK e Voltar).
+          </p>
+          <p className="mt-2 text-xs text-ink-500">
             <Monitor className="mr-1 inline h-3.5 w-3.5" />
             Prefere assistir no computador? Use o site normalmente no navegador.
           </p>
