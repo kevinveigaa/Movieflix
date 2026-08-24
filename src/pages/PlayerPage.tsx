@@ -53,6 +53,11 @@ export function PlayerPage() {
   const [searchParams] = useSearchParams();
   const { user, activeViewerProfile } = useAuth();
   const upsertHistory = useUpsertHistory();
+  // A identidade de `upsertHistory.mutate` é estável entre renders (TanStack
+  // Query v5 mantém a função mutate memoizada). Guardamos a função direto para
+  // que nenhum useCallback/useEffect dependa do objeto do hook (recriado a
+  // cada render) — isso evita loop infinito de renders (React #185).
+  const mutateHistory = upsertHistory.mutate;
   const { entitlements } = useEntitlements();
   const movies = useMovies();
   const { blocked: telasBloqueadas, activeScreens } = usePlaybackSession(
@@ -288,7 +293,7 @@ export function PlayerPage() {
     if (now - lastSavedRef.current < SAVE_INTERVAL_MS) return;
     lastSavedRef.current = now;
     const mediaType = (movie.type === 'series' || movie.type === 'tv' || movie.type === 'anime' || movie.media_type === 'tv') ? 'tv' : 'movie';
-    upsertHistory.mutate({
+    mutateHistory({
       movieId: movie.id,
       tmdbId: Number(movie.tmdb_id ?? 0) || undefined,
       mediaType,
@@ -298,13 +303,13 @@ export function PlayerPage() {
       positionSeconds: Math.floor(video.currentTime || 0),
       durationSeconds: Math.floor(video.duration || 0),
     });
-  }, [movie, user, upsertHistory]);
+  }, [movie, user, mutateHistory]);
 
   const salvarProgressoFinal = useCallback(() => {
     const video = videoRef.current;
     if (!video || !movie || !user) return;
     const mediaType = (movie.type === 'series' || movie.type === 'tv' || movie.type === 'anime' || movie.media_type === 'tv') ? 'tv' : 'movie';
-    upsertHistory.mutate({
+    mutateHistory({
       movieId: movie.id,
       tmdbId: Number(movie.tmdb_id ?? 0) || undefined,
       mediaType,
@@ -314,7 +319,7 @@ export function PlayerPage() {
       positionSeconds: Math.floor(video.currentTime || 0),
       durationSeconds: Math.floor(video.duration || 0),
     });
-  }, [movie, user, upsertHistory]);
+  }, [movie, user, mutateHistory]);
 
   // Grava o progresso estimado de players embed (iframe cross-origin):
   // a posição é o tempo salvo + o tempo decorrido desde que o embed carregou.
@@ -326,7 +331,7 @@ export function PlayerPage() {
     const elapsed = document.hidden ? 0 : Math.floor((Date.now() - base.startedAt) / 1000);
     const position = base.position + elapsed;
     const duration = base.duration > 0 ? base.duration : 0;
-    upsertHistory.mutate({
+    mutateHistory({
       movieId: movie.id,
       tmdbId: Number(movie.tmdb_id ?? 0) || undefined,
       mediaType,
@@ -336,7 +341,7 @@ export function PlayerPage() {
       positionSeconds: position,
       durationSeconds: duration,
     });
-  }, [movie, user, upsertHistory]);
+  }, [movie, user, mutateHistory]);
 
   // Para o contador do embed (desmontagem, troca de fonte).
   const pararContadorEmbed = useCallback(() => {
@@ -703,7 +708,7 @@ export function PlayerPage() {
                   // "Não": zera o progresso salvo e começa do início.
                   if (movie && user) {
                     const mediaType = (movie.type === 'series' || movie.type === 'tv' || movie.type === 'anime' || movie.media_type === 'tv') ? 'tv' : 'movie';
-                    upsertHistory.mutate({
+                    mutateHistory({
                       movieId: movie.id,
                       tmdbId: Number(movie.tmdb_id ?? 0) || undefined,
                       mediaType,
