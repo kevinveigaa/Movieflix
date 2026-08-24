@@ -4,14 +4,14 @@ import { useAuth } from '@/context/AuthContext';
 import { supabase } from '@/lib/supabase';
 import { getVideoSources, getTvSource, normalizeDubbedSource } from '@/lib/videoSources';
 import { streamBetterMovieUrl, streamBetterSeriesUrl } from '@/lib/strembetter';
-import { useUpsertHistory } from '@/hooks/useWatchHistory';
+import { useUpsertHistory, fetchHistoryForMovie } from '@/hooks/useWatchHistory';
 import { useMovies } from '@/hooks/useMovies';
 import { usePlaybackSession } from '@/hooks/usePlaybackSession';
 import { useEntitlements } from '@/hooks/useEntitlements';
 import { downloadVideo } from '@/lib/hlsDownload';
 import { registerDownload, alreadyDownloaded } from '@/lib/downloads';
 import Hls from 'hls.js';
-import { ChevronLeft, ExternalLink, Film, Loader2, RefreshCw, Download, Lock, CheckCircle2, AlertCircle } from 'lucide-react';
+import { ChevronLeft, ExternalLink, Film, Loader2, RefreshCw, Download, Lock, CheckCircle2, AlertCircle, RotateCcw, Play, Clock } from 'lucide-react';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Player com suporte a DUBLAGEM pt-BR.
@@ -30,16 +30,20 @@ import { ChevronLeft, ExternalLink, Film, Loader2, RefreshCw, Download, Lock, Ch
 // nunca dispara eventos de load confiáveis e um vídeo dublado pode demorar
 // para iniciar; mostrar erro falso seria pior do que aguardar.
 //
-// Progresso: o player nativo salva a posição periodicamente (timeupdate) e ao
-// pausar/desmontar, alimentando a tabela watch_history (seção "Continuar
-// assistindo"). Players iframe registram entrada básica no histórico.
+// Progresso: o player nativo salva a posição real periodicamente (timeupdate)
+// e ao pausar/terminar, alimentando a tabela watch_history (seção "Continuar
+// assistindo"). Players embed (iframe cross-origin, ex.: StreamBetter) usam um
+// contador local de tempo assistido, salvo a cada 20s, que começa na posição
+// retomada pelo modal "Quer continuar de onde parou?".
 //
 // Download: botão condicionado ao plano (entitlements.downloads > 0). Apenas
 // fontes diretas (MP4/HLS) são baixáveis; iframes mostram o botão bloqueado.
 // ─────────────────────────────────────────────────────────────────────────────
 const TIMEOUT_FONTE = 10000;
 const YT_TIMEOUT_FONTE = 0; // desativado para YouTube
-const SAVE_INTERVAL_MS = 15000; // salva progresso a cada 15s
+const SAVE_INTERVAL_MS = 20000; // salva progresso a cada 20s
+const EMBED_START_MIN_SECONDS = 20; // mínimo de progresso para oferecer retomada
+const EMBED_RESUME_MAX_PCT = 95; // acima disso o título é considerado concluído
 
 export function PlayerPage() {
   const { id } = useParams();
@@ -77,7 +81,15 @@ export function PlayerPage() {
   const hlsRef = useRef<Hls | null>(null);
   const timeoutRef = useRef<number | null>(null);
   const lastSavedRef = useRef(0);
-  const historyRegisteredRef = useRef(false);
+  const embedTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const embedLastTickRef = useRef(0);
+
+  // Modal "Quer continuar de onde parou?" — mostrado ao reabrir um título que
+  // já tem progresso salvo (embed). "Sim" retoma da posição salva; "Não"
+  // zera o progresso e começa do início.
+  const [showResumeModal, setShowResumeModal] = useState(false);
+  const [resumeSeconds, setResumeSeconds] = useState(0);
+  const [isResuming, setIsResuming] = useState(true);
 
   const currentUrl = sourceUrl;
 
@@ -244,7 +256,17 @@ export function PlayerPage() {
     trySeek();
   }, [sourceKind, currentUrl, searchParams]);
 
-  // Salva o progresso do player nativo (timeupdate com throttle + pause).
+  // Formata segundos como mm:ss (ex.: 30:00 para 1800s).
+  const formatarTempo = useCallback((secs: number): string => {
+    const s = Math.max(0, Math.floor(secs || 0));
+    const m = Math.floor(s / 60);
+    const r = s % 60;
+    return `${m}:${String(r).padStart(2, '0')}`;
+  }, []);
+
+  // ---- Salvar progresso ----
+
+  // Grava o progresso do player nativo (MP4/HLS direto).
   const salvarProgresso = useCallback(() => {
     const video = videoRef.current;
     if (!video || !movie || !user) return;
@@ -280,13 +302,16 @@ export function PlayerPage() {
     });
   }, [movie, user, upsertHistory]);
 
-  // Registra entrada básica no histórico para players iframe (YouTube/Drive/vidlink).
-  useEffect(() => {
-    if (!currentUrl || !movie || !user) return;
-    if (sourceKind === 'direct') return; // o player nativo cuida do progresso
-    if (historyRegisteredRef.current) return;
-    historyRegisteredRef.current = true;
+  // Grava o progresso estimado de players embed (iframe cross-origin):
+  // a posição é o tempo salvo + o tempo decorrido desde que o embed carregou.
+  // O contador só anda com a aba visível (document.hidden === false).
+  const salvarProgressoEmbed = useCallback(() => {
+    if (!movie || !user || !resumeBaseRef.current) return;
     const mediaType = (movie.type === 'series' || movie.type === 'tv' || movie.type === 'anime' || movie.media_type === 'tv') ? 'tv' : 'movie';
+    const base = resumeBaseRef.current;
+    const elapsed = document.hidden ? 0 : Math.floor((Date.now() - base.startedAt) / 1000);
+    const position = base.position + elapsed;
+    const duration = base.duration > 0 ? base.duration : 0;
     upsertHistory.mutate({
       movieId: movie.id,
       tmdbId: Number(movie.tmdb_id ?? 0) || undefined,
@@ -294,10 +319,91 @@ export function PlayerPage() {
       title: movie.title,
       posterPath: movie.poster_url,
       backdropPath: movie.backdrop_url,
-      positionSeconds: 0,
-      durationSeconds: 0,
+      positionSeconds: position,
+      durationSeconds: duration,
     });
-  }, [currentUrl, sourceKind, movie, user, upsertHistory]);
+  }, [movie, user, upsertHistory]);
+
+  // Para o contador do embed (desmontagem, troca de fonte).
+  const pararContadorEmbed = useCallback(() => {
+    if (embedTimerRef.current !== null) {
+      clearInterval(embedTimerRef.current);
+      embedTimerRef.current = null;
+    }
+  }, []);
+
+  // Guarda a base da retomada do embed: posição salva, duração e o instante em
+  // que a contagem começou (0 = contagem pausada, ex.: modal aberto).
+  const resumeBaseRef = useRef<{ position: number; duration: number; startedAt: number } | null>(null);
+
+  // Players embed (iframe cross-origin — YouTube/Drive/StreamBetter):
+  //  - Ao carregar, busca o progresso salvo desta obra no banco;
+  //  - Se houver progresso relevante (>= 20s e < 95%), abre o modal
+  //    "Quer continuar de onde parou?" — "Sim" inicia o contador na posição
+  //    salva; "Não" zera o progresso e começa do início;
+  //  - Um contador local (tick a cada segundo) estima a posição (posição base
+  //    + tempo decorrido com a aba visível) e salva a cada 20s no histórico.
+  useEffect(() => {
+    if (!currentUrl || !movie || !user) return;
+    if (sourceKind === 'direct') return; // o player nativo cuida do progresso
+    pararContadorEmbed();
+
+    // Começa pausado: o contador só anda depois da decisão do modal (ou já
+    // direto, quando não há progresso para retomar).
+    resumeBaseRef.current = { position: 0, duration: 0, startedAt: 0 };
+
+    const movieId = movie.id ? String(movie.id) : null;
+    let cancel = false;
+
+    (async () => {
+      if (!movieId || !user) return;
+      const row = await fetchHistoryForMovie(user.id, activeViewerProfile?.id ?? null, movieId);
+      if (cancel) return;
+      const duration = Number(row?.duration_seconds) || 0;
+      const position = Number(row?.position_seconds) || 0;
+      const pct = duration > 0 ? (position / duration) * 100 : 0;
+      if (position >= EMBED_START_MIN_SECONDS && pct < EMBED_RESUME_MAX_PCT) {
+        setResumeSeconds(position);
+        setShowResumeModal(true);
+        setIsResuming(true);
+        resumeBaseRef.current = { position, duration, startedAt: 0 };
+      } else {
+        setIsResuming(false);
+        // Sem retomada: conta do zero a partir de agora.
+        resumeBaseRef.current = { position: 0, duration, startedAt: Date.now() };
+      }
+    })();
+
+    // Tick de 1s: só conta com a aba visível e salva a cada 20s.
+    embedLastTickRef.current = Date.now();
+    embedTimerRef.current = setInterval(() => {
+      const base = resumeBaseRef.current;
+      if (!base || base.startedAt <= 0 || document.hidden) return;
+      const now = Date.now();
+      if (now - embedLastTickRef.current >= SAVE_INTERVAL_MS) {
+        embedLastTickRef.current = now;
+        salvarProgressoEmbed();
+      }
+    }, 1000);
+
+    return () => {
+      cancel = true;
+      pararContadorEmbed();
+    };
+  }, [currentUrl, sourceKind, movie, user, activeViewerProfile?.id, pararContadorEmbed, salvarProgressoEmbed]);
+
+  // Salva uma última vez ao sair da página (fecha a aba / navega).
+  useEffect(() => {
+    if (!movie || !user) return;
+    const salvar = () => salvarProgressoEmbed();
+    window.addEventListener('pagehide', salvar);
+    window.addEventListener('beforeunload', salvar);
+    return () => {
+      window.removeEventListener('pagehide', salvar);
+      window.removeEventListener('beforeunload', salvar);
+      salvar();
+    };
+  }, [movie, user, salvarProgressoEmbed]);
 
   // Reinicia o timeout quando a URL da fonte muda; se o iframe não confirmar
   // o carregamento a tempo, marcamos como esgotado para oferecer
@@ -554,6 +660,63 @@ export function PlayerPage() {
           </div>
         )}
       </div>
+
+      {/* Modal: Quer continuar de onde parou? (players embed) */}
+      {showResumeModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
+          <div className="w-full max-w-sm rounded-2xl border border-white/10 bg-ink-900 p-6 text-center">
+            <Clock className="mx-auto h-10 w-10 text-brand-400" />
+            <h3 className="mt-3 text-lg font-bold text-white">Quer continuar de onde parou?</h3>
+            <p className="mt-2 text-sm text-zinc-400">
+              Você parou em <span className="text-white font-semibold">{formatarTempo(resumeSeconds)}</span>.
+            </p>
+            <div className="mt-5 flex gap-3">
+              <button
+                onClick={() => {
+                  setShowResumeModal(false);
+                  setIsResuming(false);
+                  // "Não": zera o progresso salvo e começa do início.
+                  if (movie && user) {
+                    const mediaType = (movie.type === 'series' || movie.type === 'tv' || movie.type === 'anime' || movie.media_type === 'tv') ? 'tv' : 'movie';
+                    upsertHistory.mutate({
+                      movieId: movie.id,
+                      tmdbId: Number(movie.tmdb_id ?? 0) || undefined,
+                      mediaType,
+                      title: movie.title,
+                      posterPath: movie.poster_url,
+                      backdropPath: movie.backdrop_url,
+                      positionSeconds: 0,
+                      durationSeconds: 0,
+                    });
+                  }
+                  resumeBaseRef.current = { position: 0, duration: 0, startedAt: Date.now() };
+                }}
+                className="flex-1 rounded-lg bg-white/10 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-white/20 flex items-center justify-center gap-2"
+              >
+                <RotateCcw className="h-4 w-4" />
+                Não
+              </button>
+              <button
+                onClick={() => {
+                  setShowResumeModal(false);
+                  setIsResuming(false);
+                  // "Sim": retoma da posição salva.
+                  const base = resumeBaseRef.current;
+                  resumeBaseRef.current = {
+                    position: base ? base.position : resumeSeconds,
+                    duration: base ? base.duration : 0,
+                    startedAt: Date.now(),
+                  };
+                }}
+                className="flex-1 rounded-lg bg-brand-600 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-brand-500 flex items-center justify-center gap-2"
+              >
+                <Play className="h-4 w-4" fill="white" />
+                Sim
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

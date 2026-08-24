@@ -40,10 +40,13 @@ export function FavoritesPage() {
                   id: movie.id,
                   title: movie.title,
                   name: ehSerie(movie) ? movie.title : undefined,
-                  poster_path: movie.poster_url,
+                  poster_url: movie.poster_url,
                   backdrop_path: movie.backdrop_url,
                   vote_average: Number(movie.vote_average ?? 0),
                   overview: movie.description ?? '',
+                  year: movie.year,
+                  category: movie.category,
+                  type: movie.type ?? (ehSerie(movie) ? 'series' : 'movie'),
                   media_type: ehSerie(movie) ? 'tv' : 'movie',
                 }}
                 forceType={ehSerie(movie) ? 'tv' : 'movie'}
