@@ -62,17 +62,17 @@ export function LoginPage() {
           <label className="flex items-center gap-2 text-ink-300">
             <input type="checkbox" className="rounded border-white/20 bg-ink-800" /> Lembrar-me
           </label>
-          <Link to="/recuperar-senha" className="text-brand-400 hover:text-brand-300">
+          <Link to="/recuperar-senha" data-tv-focusable className="text-brand-400 hover:text-brand-300">
             Esqueceu a senha?
           </Link>
         </div>
-        <button type="submit" disabled={loading} className="btn-primary w-full">
+        <button type="submit" disabled={loading} data-tv-focusable className="btn-primary w-full">
           {loading ? 'Entrando' : 'Entrar'}
         </button>
       </form>
       <p className="mt-6 text-center text-sm text-ink-400">
         No tem conta?{' '}
-        <Link to="/cadastro" className="font-semibold text-brand-400 hover:text-brand-300">
+        <Link to="/cadastro" data-tv-focusable className="font-semibold text-brand-400 hover:text-brand-300">
           Cadastre-se grtis
         </Link>
       </p>

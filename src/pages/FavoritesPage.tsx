@@ -67,7 +67,7 @@ function EmptyState({ message, cta, to }: { message: string; cta: string; to: st
     <div className="container-app flex min-h-[50vh] flex-col items-center justify-center gap-4 text-center">
       <Heart className="h-12 w-12 text-ink-600" />
       <p className="text-ink-400">{message}</p>
-      <Link to={to} className="btn-primary">{cta}</Link>
+      <Link to={to} data-tv-focusable className="btn-primary">{cta}</Link>
     </div>
   );
 }

@@ -198,6 +198,7 @@ function CategoryRow({
         <div className="flex shrink-0 items-center gap-2">
           <Link
             to={verMaisTo}
+            data-tv-focusable
             className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-gray-300 transition hover:bg-white/15 hover:text-white sm:text-sm"
           >
             Ver mais
@@ -250,6 +251,7 @@ function CategoryRow({
 
         <div
           ref={ref}
+          data-tv-scroller
           className="scrollbar-none flex snap-x snap-mandatory gap-3 overflow-x-auto scroll-smooth pb-4 sm:gap-4 md:gap-4 lg:gap-5"
         >
           {items.map((movie) => (

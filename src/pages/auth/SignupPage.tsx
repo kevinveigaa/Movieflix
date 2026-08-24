@@ -67,13 +67,13 @@ export function SignupPage() {
             <input type="password" required value={confirm} onChange={(e) => setConfirm(e.target.value)} placeholder="" className="input pl-10" />
           </span>
         </label>
-        <button type="submit" disabled={loading} className="btn-primary w-full">
+        <button type="submit" disabled={loading} data-tv-focusable className="btn-primary w-full">
           {loading ? 'Criando conta' : 'Criar conta'}
         </button>
       </form>
       <p className="mt-6 text-center text-sm text-ink-400">
         J tem conta?{' '}
-        <Link to="/login" className="font-semibold text-brand-400 hover:text-brand-300">
+        <Link to="/login" data-tv-focusable className="font-semibold text-brand-400 hover:text-brand-300">
           Entrar
         </Link>
       </p>

@@ -14,6 +14,14 @@ export function FullScreenLoader({ label = 'Carregando' }: { label?: string }) {
     <div className="flex min-h-[60vh] flex-col items-center justify-center gap-4 text-ink-300">
       <Spinner className="h-8 w-8 text-brand-500" />
       <p className="text-sm">{label}</p>
+      {/* Fallback de segurança: se a página ficar presa carregando (rede lenta
+          na TV), o usuário sempre tem uma saída — nunca fica em tela preta. */}
+      <button
+        onClick={() => window.location.reload()}
+        className="mt-2 rounded-full border border-white/10 bg-white/5 px-4 py-1.5 text-xs text-ink-300 transition hover:bg-white/10 hover:text-white"
+      >
+        Tentar novamente
+      </button>
     </div>
   );
 }

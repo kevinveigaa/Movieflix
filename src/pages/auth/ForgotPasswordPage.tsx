@@ -33,7 +33,7 @@ export function ForgotPasswordPage() {
           <p className="text-sm text-ink-200">
             Se houver uma conta com <span className="font-semibold text-white">{email}</span>, você receber um link de recuperação em instantes.
           </p>
-          <Link to="/login" className="btn-primary mt-2">Voltar ao login</Link>
+          <Link to="/login" data-tv-focusable className="btn-primary mt-2">Voltar ao login</Link>
         </div>
       ) : (
         <form onSubmit={onSubmit} className="space-y-4">
@@ -45,7 +45,7 @@ export function ForgotPasswordPage() {
               <input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} placeholder="você@email.com" className="input pl-10" />
             </span>
           </label>
-          <button type="submit" disabled={loading} className="btn-primary w-full">
+          <button type="submit" disabled={loading} data-tv-focusable className="btn-primary w-full">
             {loading ? 'Enviando' : 'Enviar link'}
           </button>
         </form>

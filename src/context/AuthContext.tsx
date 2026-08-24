@@ -23,6 +23,26 @@ const AuthContext = createContext<AuthState | undefined>(undefined);
 
 const PROFILE_KEY = 'movieflix_active_profile';
 
+/** Se o Supabase demorar demais (rede lenta/TV), NÃO deixamos a tela presa:
+ *  o app mostra o conteúdo com o que já tem e o profile carrega quando puder. */
+const AUTH_TIMEOUT_MS = 6000;
+
+function comTimeout<T>(promise: Promise<T>, ms: number, fallback: T): Promise<T> {
+  return new Promise<T>((resolve) => {
+    const t = setTimeout(() => resolve(fallback), ms);
+    promise.then(
+      (v) => {
+        clearTimeout(t);
+        resolve(v);
+      },
+      () => {
+        clearTimeout(t);
+        resolve(fallback);
+      },
+    );
+  });
+}
+
 function loadSavedProfile(): ViewerProfile | null {
   try {
     const saved = localStorage.getItem(PROFILE_KEY);
@@ -80,9 +100,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (!mounted) return;
       setSession(data.session);
       if (data.session) {
-        Promise.all([loadProfile(data.session.user.id), loadSubscription(data.session.user.id)]).finally(() =>
-          mounted && setLoading(false),
-        );
+        // Timeout: mesmo que o Supabase trave, o loading termina e a UI aparece.
+        Promise.all([
+          comTimeout(loadProfile(data.session.user.id), AUTH_TIMEOUT_MS, null),
+          comTimeout(loadSubscription(data.session.user.id), AUTH_TIMEOUT_MS, null),
+        ]).finally(() => mounted && setLoading(false));
       } else {
         setLoading(false);
       }
