@@ -202,8 +202,6 @@ export function Navbar() {
                   <MenuLink to="/continuar" icon={<PlayCircle className="h-4 w-4" />}>Continuar assistindo</MenuLink>
                   <MenuLink to="/minha-assinatura" icon={<CreditCard className="h-4 w-4" />}>Minha assinatura</MenuLink>
                   <MenuLink to="/configuracoes" icon={<Settings className="h-4 w-4" />}>Configurações</MenuLink>
-                  <MenuLink to="/favoritos" icon={<Heart className="h-4 w-4" />}>Favoritos</MenuLink>
-                  <MenuLink to="/continuar" icon={<Play className="h-4 w-4" />}>Continuar assistindo</MenuLink>
                   <MenuLink to="/historico" icon={<Bell className="h-4 w-4" />}>Histórico</MenuLink>
                   {profile?.is_admin && (
                     <MenuLink to="/admin" icon={<Shield className="h-4 w-4" />}>Painel Admin</MenuLink>
