@@ -1,7 +1,7 @@
 {
-  "name": "MovieFlix — Filmes, Séries, Animes e mais",
+  "name": "MovieFlix — Filmes e Séries Dublados em pt-BR",
   "short_name": "MovieFlix",
-  "description": "Plataforma de streaming com filmes, séries, animes, documentários e conteúdo infantil.",
+  "description": "Plataforma de streaming com filmes e séries dublados em pt-BR, sem anúncios.",
   "lang": "pt-BR",
   "dir": "ltr",
   "start_url": "/",

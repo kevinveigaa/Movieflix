@@ -4,6 +4,7 @@ import { PosterCard } from '@/components/cards/PosterCard';
 import { FullScreenLoader } from '@/components/ui/Feedback';
 import { useMovies } from '@/hooks/useMovies';
 import { useWatchHistory } from '@/hooks/useWatchHistory';
+import { temProgressoReal } from '@/lib/watchProgress';
 import { useSeriesHidden } from '@/hooks/useSeriesHidden';
 import { useAuth } from '@/context/AuthContext';
 import { ehInfantil, isCategoriaKids, temCategoria, categoriasDoFilme, ordenarCategorias } from '@/lib/categorias';
@@ -44,10 +45,13 @@ export function CatalogPage({ kind }: { kind: CatalogKind }) {
   const categoria = searchParams.get('categoria');
 
   // Mapa movie_id → % assistido para a barra de progresso nos cards.
+  // Só entra no mapa quem tem progresso REAL (>= 10 min ou >= 30% da duração):
+  // títulos nunca assistidos não exibem barra em lugar nenhum.
   const progressByMovie = useMemo(() => {
     const map: Record<string, number> = {};
     for (const h of history.data ?? []) {
       if (!h.movie_id) continue;
+      if (!temProgressoReal(h.position_seconds, h.duration_seconds)) continue;
       const pct = h.duration_seconds ? Math.min(100, (h.position_seconds / h.duration_seconds) * 100) : 0;
       map[h.movie_id] = pct;
     }

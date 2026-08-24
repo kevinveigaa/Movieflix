@@ -145,7 +145,11 @@ export function PlayerPage() {
           return;
         }
 
-        const epRaw = searchParams.get('episode');
+        // Aceita `episode` (URL canônica) OU `ep` (usado por CatalogPage,
+        // HomePage, TitleDetailPage e EpisodioSelector ao navegar para
+        // /assistir/{id}?season=X&ep=Y). Sem isso, séries nunca reproduziam
+        // (o player caía no fluxo de filme e mostrava "Título não encontrado").
+        const epRaw = searchParams.get('episode') ?? searchParams.get('ep');
         const seasonRaw = searchParams.get('season');
         const epParam = searchParams.get('ep');
         const epId = epRaw ? parseInt(epRaw, 10) : null;

@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import { Film, Github, Instagram, Twitter, MessageCircle } from 'lucide-react';
+import { Film, Instagram, MessageCircle } from 'lucide-react';
 import { useSeriesHidden } from '@/hooks/useSeriesHidden';
 
 const WHATSAPP_URL = 'https://wa.me/11943750307';
@@ -12,15 +12,14 @@ const cols = [
       { label: 'Início', to: '/' },
       { label: 'Filmes', to: '/filmes' },
       { label: 'Séries', to: '/series' },
-      { label: 'Séries', to: '/series' },
       { label: 'Baixar app', to: '/baixar-app' },
     ],
   },
   {
     title: 'Categorias',
     links: [
-      { label: 'documentários', to: '/documentarios' },
-      { label: 'Infantil', to: '/infantil' },
+      { label: 'Documentários', to: '/filmes?categoria=Document%C3%A1rio' },
+      { label: 'Infantil', to: '/filmes?categoria=Infantil' },
       { label: 'Favoritos', to: '/favoritos' },
       { label: 'Continuar assistindo', to: '/continuar' },
     ],
@@ -71,8 +70,6 @@ export function Footer() {
               <a href={INSTAGRAM_URL} target="_blank" rel="noopener noreferrer" aria-label="Instagram" className="rounded-full border border-white/10 bg-white/5 p-2 text-ink-300 transition hover:bg-white/10 hover:text-white">
                 <Instagram className="h-4 w-4" />
               </a>
-              <SocialIcon><Twitter className="h-4 w-4" /></SocialIcon>
-              <SocialIcon><Github className="h-4 w-4" /></SocialIcon>
             </div>
           </div>
           {colsVisiveis.map((c) => (
@@ -99,10 +96,3 @@ export function Footer() {
   );
 }
 
-function SocialIcon({ children }: { children: React.ReactNode }) {
-  return (
-    <span className="flex h-9 w-9 items-center justify-center rounded-full border border-white/10 bg-white/5 text-ink-300 transition hover:bg-white/10 hover:text-white">
-      {children}
-    </span>
-  );
-}
