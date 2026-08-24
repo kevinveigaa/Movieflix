@@ -129,88 +129,96 @@ export function PlayerPage() {
   // Monta a URL da fonte 1 a partir do banco + IDs (filme ou episódio/série).
   useEffect(() => {
     async function load() {
-      if (!id) {
-        setLoading(false);
-        return;
-      }
+      try {
+        if (!id) {
+          setLoading(false);
+          return;
+        }
 
-      const epRaw = searchParams.get('episode');
-      const seasonRaw = searchParams.get('season');
-      const epParam = searchParams.get('ep');
-      const epId = epRaw ? parseInt(epRaw, 10) : null;
-      // Tempo de retomada ("Continuar assistindo"): ?t=segundos
-      const tRaw = searchParams.get('t');
-      const startSeconds = tRaw && !isNaN(Number(tRaw)) ? Number(tRaw) : undefined;
+        const epRaw = searchParams.get('episode');
+        const seasonRaw = searchParams.get('season');
+        const epParam = searchParams.get('ep');
+        const epId = epRaw ? parseInt(epRaw, 10) : null;
+        // Tempo de retomada ("Continuar assistindo"): ?t=segundos
+        const tRaw = searchParams.get('t');
+        const startSeconds = tRaw && !isNaN(Number(tRaw)) ? Number(tRaw) : undefined;
 
-      // Série com episódio explícito via query (?season=&ep=): monta o embed.
-      if (epId && !isNaN(epId)) {
-        const tituloId = Number(id);
-        const season = seasonRaw ? Number(seasonRaw) : 1;
-        const episode = epParam ? Number(epParam) : epId;
-        setMovie({ title: `Episódio ${episode}`, type: 'series', tmdb_id: tituloId });
-        setEpAtual({ season, episode });
-        const src = streamBetterSeriesUrl(tituloId || null, season, episode, startSeconds);
-        setSourceUrl(src || null);
-        setLoading(false);
-        return;
-      }
+        // Série com episódio explícito via query (?season=&ep=): monta o embed.
+        if (epId && !isNaN(epId)) {
+          const tituloId = Number(id);
+          const season = seasonRaw ? Number(seasonRaw) : 1;
+          const episode = epParam ? Number(epParam) : epId;
+          setMovie({ title: `Episódio ${episode}`, type: 'series', tmdb_id: tituloId });
+          setEpAtual({ season, episode });
+          const src = streamBetterSeriesUrl(tituloId || null, season, episode, startSeconds);
+          setSourceUrl(src || null);
+          setLoading(false);
+          return;
+        }
 
-      const { data, error } = await supabase.from('movies').select('*').eq('id', id).maybeSingle();
-      // Fallback: o catálogo do front (filmes/filmes.json + filmes/series.json)
-      // usa id = String(tmdb_id), que não corresponde ao id numérico da tabela
-      // `movies`. Quando a tabela não encontra o título, resolvemos pelo
-      // catálogo (a fonte de verdade do front) para que o player funcione e o
-      // histórico de reprodução seja gravado corretamente.
-      let dataResolved: any = data;
-      if (!dataResolved) {
-        const catalog = movies.data ?? [];
-        dataResolved =
-          catalog.find((m) => String(m.id) === String(id)) ||
-          catalog.find((m) => String(m.tmdb_id) === String(id)) ||
-          null;
-      }
-      if (error || !dataResolved) {
-        setErrorMsg(error?.message || 'Título não encontrado.');
-        setLoading(false);
-        return;
-      }
+        const { data, error } = await supabase.from('movies').select('*').eq('id', id).maybeSingle();
+        // Fallback: o catálogo do front (filmes/filmes.json + filmes/series.json)
+        // usa id = String(tmdb_id), que não corresponde ao id numérico da tabela
+        // `movies`. Quando a tabela não encontra o título, resolvemos pelo
+        // catálogo (a fonte de verdade do front) para que o player funcione e o
+        // histórico de reprodução seja gravado corretamente.
+        let dataResolved: any = data;
+        if (!dataResolved) {
+          const catalog = movies.data ?? [];
+          dataResolved =
+            catalog.find((m) => String(m.id) === String(id)) ||
+            catalog.find((m) => String(m.tmdb_id) === String(id)) ||
+            null;
+        }
+        if (error || !dataResolved) {
+          setErrorMsg(error?.message || 'Título não encontrado.');
+          setLoading(false);
+          return;
+        }
 
-      const isSeries = dataResolved.type === 'series' || dataResolved.type === 'tv' || dataResolved.type === 'anime' || dataResolved.media_type === 'tv' || (dataResolved.number_of_seasons > 0);
-      if (isSeries && !dataResolved.video_url) {
-        const { data: seasons } = await supabase.from('seasons').select('*').eq('series_id', dataResolved.id).order('season_number', { ascending: true });
-        if (seasons && seasons.length > 0) {
-          const { data: eps } = await supabase.from('episodes').select('*').eq('season_id', seasons[0].id).not('video_url', 'is', null).order('episode_number', { ascending: true }).limit(1);
-          if (eps && eps.length > 0) {
-            setMovie({ ...dataResolved, title: `${dataResolved.title} — T${seasons[0].season_number} E${eps[0].episode_number}: ${eps[0].title}` });
-            const vidlink = getTvSource(dataResolved.tmdb_id, seasons[0].season_number || 1, eps[0].episode_number || 1);
-            const lista = [eps[0].video_url, dataResolved.video_url, vidlink].filter(
-              (u): u is string => Boolean(u),
-            );
-            setSourceUrl(lista.length > 0 ? lista[0] : null);
-            setLoading(false);
-            return;
+        const isSeries = dataResolved.type === 'series' || dataResolved.type === 'tv' || dataResolved.type === 'anime' || dataResolved.media_type === 'tv' || (dataResolved.number_of_seasons > 0);
+        if (isSeries && !dataResolved.video_url) {
+          const { data: seasons } = await supabase.from('seasons').select('*').eq('series_id', dataResolved.id).order('season_number', { ascending: true });
+          if (seasons && seasons.length > 0) {
+            const { data: eps } = await supabase.from('episodes').select('*').eq('season_id', seasons[0].id).not('video_url', 'is', null).order('episode_number', { ascending: true }).limit(1);
+            if (eps && eps.length > 0) {
+              setMovie({ ...dataResolved, title: `${dataResolved.title} — T${seasons[0].season_number} E${eps[0].episode_number}: ${eps[0].title}` });
+              const vidlink = getTvSource(dataResolved.tmdb_id, seasons[0].season_number || 1, eps[0].episode_number || 1);
+              const lista = [eps[0].video_url, dataResolved.video_url, vidlink].filter(
+                (u): u is string => Boolean(u),
+              );
+              setSourceUrl(lista.length > 0 ? lista[0] : null);
+              setLoading(false);
+              return;
+            }
           }
         }
-      }
 
-      setMovie(dataResolved);
-      const tipo = (dataResolved.type === 'tv' || dataResolved.type === 'series' || dataResolved.type === 'anime' || dataResolved.media_type === 'tv') ? 'tv' : 'movie';
-      const builtins = getVideoSources({
-        imdbId: dataResolved.imdb_id,
-        tmdbId: dataResolved.tmdb_id,
-        mediaType: tipo,
-      });
-      // Fonte primária: `video_url` do banco (fontes comprovadamente dubladas
-      // em pt-BR). O vidlink.pro (builtins) fica apenas como fallback — ele
-      // não garante dublagem pt-BR (maioria dos títulos em MP4 com áudio EN).
-      // Para títulos do catálogo (sem video_url direto), usa o embed do
-      // StreamBetter (streamBetterMovieUrl) como fonte primária.
-      const embedUrl = !dataResolved.video_url && dataResolved.tmdb_id
-        ? streamBetterMovieUrl(dataResolved.tmdb_id, startSeconds)
-        : null;
-      const lista = [dataResolved.video_url, embedUrl, ...builtins].filter((u): u is string => Boolean(u));
-      setSourceUrl(lista.length > 0 ? lista[0] : null);
-      setLoading(false);
+        setMovie(dataResolved);
+        const tipo = (dataResolved.type === 'tv' || dataResolved.type === 'series' || dataResolved.type === 'anime' || dataResolved.media_type === 'tv') ? 'tv' : 'movie';
+        const builtins = getVideoSources({
+          imdbId: dataResolved.imdb_id,
+          tmdbId: dataResolved.tmdb_id,
+          mediaType: tipo,
+        });
+        // Fonte primária: `video_url` do banco (fontes comprovadamente dubladas
+        // em pt-BR). O vidlink.pro (builtins) fica apenas como fallback — ele
+        // não garante dublagem pt-BR (maioria dos títulos em MP4 com áudio EN).
+        // Para títulos do catálogo (sem video_url direto), usa o embed do
+        // StreamBetter (streamBetterMovieUrl) como fonte primária.
+        const embedUrl = !dataResolved.video_url && dataResolved.tmdb_id
+          ? streamBetterMovieUrl(dataResolved.tmdb_id, startSeconds)
+          : null;
+        const lista = [dataResolved.video_url, embedUrl, ...builtins].filter((u): u is string => Boolean(u));
+        setSourceUrl(lista.length > 0 ? lista[0] : null);
+        setLoading(false);
+      } catch (erro) {
+        // Falha de rede/Supabase ao montar a fonte: nunca derruba a página —
+        // mostra a tela de erro do player em vez do ErrorBoundary.
+        console.error('[PlayerPage] falha ao carregar fonte:', erro);
+        setErrorMsg('Não foi possível carregar este título. Verifique sua conexão e tente novamente.');
+        setLoading(false);
+      }
     }
 
     load();
@@ -362,6 +370,7 @@ export function PlayerPage() {
     let cancel = false;
 
     (async () => {
+      try {
       if (!movieId || !user) return;
       const row = await fetchHistoryForMovie(user.id, activeViewerProfile?.id ?? null, movieId);
       if (cancel) return;
@@ -377,6 +386,14 @@ export function PlayerPage() {
         setIsResuming(false);
         // Sem retomada: conta do zero a partir de agora.
         resumeBaseRef.current = { position: 0, duration, startedAt: Date.now() };
+      }
+      } catch (erro) {
+        // Falha ao consultar o histórico (rede/RLS): segue sem modal de
+        // retomada e conta do zero — nunca derruba o player.
+        if (cancel) return;
+        console.error('[PlayerPage] falha ao buscar histórico de retomada:', erro);
+        setIsResuming(false);
+        resumeBaseRef.current = { position: 0, duration: 0, startedAt: Date.now() };
       }
     })();
 

@@ -94,21 +94,27 @@ export async function fetchHistoryForMovie(
   profileId: string | null,
   movieId: string,
 ): Promise<WatchHistoryRow | null> {
-  const cols = await watchHistoryColumns();
+  try {
+    const cols = await watchHistoryColumns();
 
-  let query = supabase.from('watch_history').select('*').eq('user_id', userId);
+    let query = supabase.from('watch_history').select('*').eq('user_id', userId);
 
-  if (cols.movieId && movieId) query = query.eq('movie_id', movieId);
+    if (cols.movieId && movieId) query = query.eq('movie_id', movieId);
 
-  if (cols.viewerProfileId) {
-    if (profileId) query = query.eq('viewer_profile_id', profileId);
-    else query = query.is('viewer_profile_id', null);
+    if (cols.viewerProfileId) {
+      if (profileId) query = query.eq('viewer_profile_id', profileId);
+      else query = query.is('viewer_profile_id', null);
+    }
+
+    query = query.order('updated_at', { ascending: false }).limit(1);
+
+    const { data } = await query.maybeSingle();
+    return (data as WatchHistoryRow | null) ?? null;
+  } catch (erro) {
+    // Falha de rede/RLS/Supabase: sem histórico de retomada, sem crash.
+    console.error('[fetchHistoryForMovie] falha ao buscar histórico:', erro);
+    return null;
   }
-
-  query = query.order('updated_at', { ascending: false }).limit(1);
-
-  const { data } = await query.maybeSingle();
-  return (data as WatchHistoryRow | null) ?? null;
 }
 
 export function useUpsertHistory() {

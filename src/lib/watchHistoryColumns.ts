@@ -26,8 +26,15 @@ export async function watchHistoryColumns(): Promise<WatchHistoryColumns> {
   if (cached) return cached;
 
   const probe = async (col: string): Promise<boolean> => {
-    const { error } = await supabase.from('watch_history').select(col).limit(0);
-    return !isMissingColumn(error);
+    try {
+      const { error } = await supabase.from('watch_history').select(col).limit(0);
+      return !isMissingColumn(error);
+    } catch {
+      // Falha de rede/RLS: assume coluna ausente (fail-safe). O app cai no
+      // caminho sem movie_id/viewer_profile_id, que funciona no schema atual
+      // (retomada e histórico passam a usar tmdb_id).
+      return false;
+    }
   };
 
   cached = {
