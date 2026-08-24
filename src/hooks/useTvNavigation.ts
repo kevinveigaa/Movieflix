@@ -144,10 +144,20 @@ function acaoDaTecla(e: KeyboardEvent): Direcao | "ok" | "back" | null {
   return null;
 }
 
-/** Estamos dentro do iframe do player? (foco dedicado ao vídeo) */
+/** Estamos dentro do iframe do player? (foco dedicado ao vdeo) */
 function noPlayerFrame(): boolean {
   const ativo = document.activeElement as HTMLElement | null;
-  return !!ativo && ativo.tagName === "IFRAME";
+  return !!ativo && (ativo.tagName === "IFRAME" || ativo.tagName === "VIDEO" || !!ativo.closest?.("[data-tv-player-box]"));
+}
+
+/** O modo "CONTROLE DO PLAYER" est ativo? (long-press OK) */
+function playerModeAtivo(): boolean {
+  return document.documentElement.classList.contains("tv-in-player");
+}
+
+/** Sincroniza o estado do modo com o badge/indicador (evento do useTvPlayerControls). */
+function emitirModoPlayer() {
+  window.dispatchEvent(new CustomEvent("mf-player-mode-change"));
 }
 
 export function useTvNavigation() {
@@ -196,10 +206,19 @@ export function useTvNavigation() {
         !!ativo &&
         (ativo.tagName === "INPUT" || ativo.tagName === "TEXTAREA" || ativo.isContentEditable);
 
-      // Voltar: prioridade 1 — se o foco está dentro do player (iframe),
-      // "sai" do player (volta a navegar a página). Senão, navega para trás.
+      // Voltar: prioridade 1  se o foco est dentro do player (iframe),
+      // "sai" do player (volta a navegar a pgina). Se o modo CONTROLE DO
+      // PLAYER estiver ativo, sai do modo antes de navegar a pgina.
       if (acao === "back") {
         if (digitando && (e.key === "Backspace" || e.keyCode === 8)) return; // apagar texto
+        if (playerModeAtivo()) {
+          e.preventDefault();
+          document.documentElement.classList.remove("tv-in-player");
+          emitirModoPlayer();
+          const inicial = primeiroFocavel();
+          if (inicial) focar(inicial);
+          return;
+        }
         e.preventDefault();
         if (noPlayerFrame()) {
           document.documentElement.classList.remove("tv-in-player");
@@ -215,17 +234,17 @@ export function useTvNavigation() {
 
       // OK / Enter.
       if (acao === "ok") {
-        // No player (página com #player-frame), o OK é usado para
-        // play/pause pelo useTvPlayerControls. Só navega para o primeiro
-        // focado se NÃO houver player na tela.
-        const temPlayer = !!document.querySelector("#player-frame");
+        // No player (pgina com #player-frame), o OK  usado para
+        // play/pause pelo useTvPlayerControls. S navega para o primeiro
+        // focado se NO houver player na tela.
+        const temPlayer = !!document.querySelector("#player-frame") || !!document.querySelector("video[data-mf-player]");
         if (noPlayerFrame()) {
-          // Foco no iframe: OK redireciona os controles de volta para a página.
-          e.preventDefault();
-          document.documentElement.classList.remove("tv-in-player");
-          (ativo as HTMLIFrameElement).blur();
-          const inicial = primeiroFocavel();
-          if (inicial) focar(inicial);
+          // Foco no player (iframe/vídeo/contêiner): NÃO intercepta o OK aqui.
+          // O useTvPlayerControls (registrado depois, na mesma fase de captura)
+          // detecta o long-press (~1s) para entrar/sair do modo CONTROLE DO
+          // PLAYER; o toque rápido é o comportamento normal do player (o
+          // WebView/iframe recebe a tecla e executa play/pause).
+          if (playerModeAtivo()) return; // modo player: useTvPlayerControls cuida
           return;
         }
         if (!ativo || ativo === document.body) {
@@ -253,8 +272,9 @@ export function useTvNavigation() {
       // Setas direcionais.
       const dir = acao;
 
-      // Dentro do player (iframe): setas vão para o player (volume/seek etc.).
-      if (noPlayerFrame()) return;
+      // Dentro do player (iframe) OU modo CONTROLE DO PLAYER ativo: as setas
+      // vo para o player (volume/seek etc.)  o useTvPlayerControls trata.
+      if (noPlayerFrame() || playerModeAtivo()) return;
 
       // Caixa de texto: setas esquerda/direita movem o cursor; cima/baixo saem.
       if (digitando) {
@@ -299,9 +319,16 @@ export function useTvNavigation() {
     // componente interno (carrossel, player, modal) também escuta teclado.
     window.addEventListener("keydown", onKeyDown, true);
     document.addEventListener("focusin", onFocusOut);
+
+    // Sincroniza o estado do modo do player (long-press OK) com o badge.
+    function onModeChange() {
+      // O anel de foco do modo player  controlado pelo CSS (.tv-in-player).
+    }
+    window.addEventListener("mf-player-mode-change", onModeChange);
     return () => {
       window.removeEventListener("keydown", onKeyDown, true);
       document.removeEventListener("focusin", onFocusOut);
+      window.removeEventListener("mf-player-mode-change", onModeChange);
       document.documentElement.classList.remove("tv-nav");
       document.documentElement.classList.remove("tv-in-player");
     };

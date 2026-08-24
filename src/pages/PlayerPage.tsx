@@ -7,11 +7,9 @@ import { streamBetterMovieUrl, streamBetterSeriesUrl } from '@/lib/strembetter';
 import { useUpsertHistory, fetchHistoryForMovie } from '@/hooks/useWatchHistory';
 import { useMovies } from '@/hooks/useMovies';
 import { usePlaybackSession } from '@/hooks/usePlaybackSession';
+import { useEntitlements } from '@/hooks/useEntitlements';
 import { useTvPlayerControls } from '@/hooks/useTvPlayerControls';
 import { ehTelaDeTv } from '@/lib/tv';
-import { useEntitlements } from '@/hooks/useEntitlements';
-import { downloadVideo } from '@/lib/hlsDownload';
-import { registerDownload, alreadyDownloaded } from '@/lib/downloads';
 import {
   temProgressoReal,
   ehProgressoLixo,
@@ -19,7 +17,7 @@ import {
   rotuloPontoParada,
 } from '@/lib/watchProgress';
 import Hls from 'hls.js';
-import { ChevronLeft, ExternalLink, Film, Loader2, RefreshCw, Download, Lock, CheckCircle2, AlertCircle, RotateCcw, Play, Clock } from 'lucide-react';
+import { ChevronLeft, Film, Gamepad2, Loader2, RefreshCw, AlertCircle, RotateCcw, Play, Clock } from 'lucide-react';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Player com suporte a DUBLAGEM pt-BR.
@@ -82,11 +80,6 @@ export function PlayerPage() {
   // Tipo de reprodução da fonte atual.
   const [sourceKind, setSourceKind] = useState<'youtube' | 'drive' | 'direct' | 'iframe' | null>(null);
 
-  // Estado do download.
-  const [downloadState, setDownloadState] = useState<'idle' | 'downloading' | 'done' | 'blocked' | 'error'>('idle');
-  const [downloadProgress, setDownloadProgress] = useState(0);
-  const [downloadError, setDownloadError] = useState<string | null>(null);
-
   const videoRef = useRef<HTMLVideoElement>(null);
   const hlsRef = useRef<Hls | null>(null);
   const timeoutRef = useRef<number | null>(null);
@@ -103,11 +96,34 @@ export function PlayerPage() {
   const [resumeEpisode, setResumeEpisode] = useState<number | null>(null);
   const [isResuming, setIsResuming] = useState(true);
 
+  // Modo "CONTROLE DO PLAYER" (TV / TV Box): ativado/desativado segurando OK
+  // ~1s. Quando ativo, as setas do controle operam os controles internos do
+  // player; um toque rápido de OK mantém o comportamento normal do vídeo.
+  const [modoPlayerAtivo, setModoPlayerAtivo] = useState(false);
+
   const currentUrl = sourceUrl;
 
-  // Controle por controle remoto (TV / TV Box): OK/Enter = play/pause do
-  // vídeo (nativo ou dentro do iframe, quando acessível), Voltar = sair.
-  useTvPlayerControls(Boolean(currentUrl) && ehTelaDeTv(), () => navigate(-1));
+  // Controle por controle remoto (TV / TV Box): segurar OK ~1s alterna o modo
+  // "controle do player" (setas = controles internos do vídeo); toque rápido de
+  // OK = ação normal; Voltar = sair da página.
+  const playerFrameRef = useRef<HTMLIFrameElement>(null);
+  const playerBoxRef = useRef<HTMLDivElement>(null);
+  useTvPlayerControls(
+    Boolean(currentUrl) && ehTelaDeTv(),
+    modoPlayerAtivo,
+    playerFrameRef,
+    () => navigate(-1),
+  );
+
+  // Sincroniza o badge "CONTROLE DO PLAYER" com o modo alternado por long-press.
+  useEffect(() => {
+    function onModeChange() {
+      setModoPlayerAtivo(document.documentElement.classList.contains('tv-in-player'));
+    }
+    onModeChange();
+    window.addEventListener('mf-player-mode-change', onModeChange);
+    return () => window.removeEventListener('mf-player-mode-change', onModeChange);
+  }, []);
 
   const limparTimeout = useCallback(() => {
     if (timeoutRef.current !== null) {
@@ -463,44 +479,9 @@ export function PlayerPage() {
     return limparTimeout;
   }, [currentUrl, sourceKind, limparTimeout]);
 
-  // ── Download ──────────────────────────────────────────────────────────────
-  const podeBaixar = (entitlements.downloads ?? 0) > 0;
-  const fonteDireta = sourceKind === 'direct' && Boolean(currentUrl);
-  const jaBaixado = user && movie ? alreadyDownloaded(user.id, movie.id) : false;
-
-  const handleDownloadClick = async () => {
-    if (!user || !movie) return;
-    if (!podeBaixar) {
-      setDownloadState('blocked');
-      return;
-    }
-    if (!fonteDireta) {
-      setDownloadState('error');
-      setDownloadError('Este título usa um player embutido (iframe) e não pode ser baixado diretamente. Escolha um título com fonte direta (MP4/HLS).');
-      return;
-    }
-    if (jaBaixado) {
-      setDownloadState('done');
-      return;
-    }
-    setDownloadState('downloading');
-    setDownloadProgress(0);
-    setDownloadError(null);
-    try {
-      await downloadVideo({
-        url: currentUrl!,
-        title: movie.title,
-        maxHeight: entitlements.maxHeight || 1080,
-        onProgress: (p) => setDownloadProgress(p),
-        onStarted: () => {},
-      });
-      registerDownload(user.id, movie.id);
-      setDownloadState('done');
-    } catch (err) {
-      setDownloadState('error');
-      setDownloadError(err instanceof Error ? err.message : 'Falha ao baixar o vídeo. Tente novamente.');
-    }
-  };
+  // ── Download / player externo removidos ─────────────────────────────────
+  // O conteúdo é reproduzido APENAS dentro do MovieFlix (player embutido),
+  // conforme pedido: não há mais "Baixar" nem "Abrir player externo".
 
   if (loading) {
     return (
@@ -538,66 +519,17 @@ export function PlayerPage() {
           <ChevronLeft className="h-5 w-5" />
         </button>
         <h1 className="truncate text-base font-semibold flex-1">{movie?.title || 'Player'}</h1>
-        {currentUrl && (
-          <>
-            {/* Botão de download — condicionado ao plano */}
-            <button
-              onClick={handleDownloadClick}
-              disabled={downloadState === 'downloading'}
-              title={
-                !podeBaixar
-                  ? 'Disponível nos planos Standard e Premium'
-                  : !fonteDireta
-                    ? 'Disponível apenas para fontes diretas (MP4/HLS)'
-                    : 'Baixar este título'
-              }
-              className={`flex items-center gap-2 rounded-full px-3 py-2 text-xs font-medium transition ${
-                downloadState === 'done'
-                  ? 'bg-emerald-600 text-white'
-                  : podeBaixar && fonteDireta
-                    ? 'bg-white/10 hover:bg-white/20'
-                    : 'bg-white/5 text-zinc-400'
-              }`}
-            >
-              {downloadState === 'downloading' ? (
-                <>
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  {downloadProgress}%
-                </>
-              ) : downloadState === 'done' ? (
-                <>
-                  <CheckCircle2 className="h-4 w-4" />
-                  Baixado
-                </>
-              ) : !podeBaixar ? (
-                <>
-                  <Lock className="h-4 w-4" />
-                  Baixar
-                </>
-              ) : (
-                <>
-                  <Download className="h-4 w-4" />
-                  Baixar
-                </>
-              )}
-            </button>
-            <button
-              onClick={() => window.open(currentUrl, '_blank', 'noopener,noreferrer')}
-              title="Abrir o player em nova aba/navegador (útil se o app bloquear o iframe)"
-              className="flex items-center gap-2 rounded-full bg-red-600 px-3 py-2 text-xs font-medium hover:bg-red-500 transition"
-            >
-              <ExternalLink className="h-4 w-4" />
-              Abrir player
-            </button>
-          </>
-        )}
       </div>
 
       {/* Conteúdo */}
       <div className="flex flex-col items-center justify-start min-h-screen px-4 sm:px-6 pt-24 pb-10 gap-6">
         {currentUrl ? (
           <div className="w-full max-w-5xl">
-            <div className="relative w-full aspect-video rounded-xl overflow-hidden bg-black shadow-2xl shadow-red-900/20 ring-1 ring-white/10">
+            <div
+              ref={playerBoxRef}
+              data-tv-player-box
+              className="relative w-full aspect-video rounded-xl overflow-hidden bg-black shadow-2xl shadow-red-900/20 ring-1 ring-white/10"
+            >
               {sourceKind === 'direct' ? (
                 <video
                   key={currentUrl}
@@ -607,6 +539,7 @@ export function PlayerPage() {
                   playsInline
                   data-mf-player
                   data-tv-focusable
+                  data-tv-player-box
                   onTimeUpdate={salvarProgresso}
                   onPause={salvarProgressoFinal}
                   onEnded={salvarProgressoFinal}
@@ -616,6 +549,7 @@ export function PlayerPage() {
               ) : (
                 <iframe
                   key={currentUrl}
+                  ref={playerFrameRef}
                   id="player-frame"
                   src={currentUrl}
                   title={`Player — ${movie?.title || ''}`}
@@ -633,14 +567,27 @@ export function PlayerPage() {
               )}
             </div>
 
-            {/* Dica de controle remoto: como navegar dentro do player */}
-            <p className="mt-2 text-center text-[11px] text-zinc-500">
-              Controle remoto: aperte <span className="text-zinc-300 font-medium">OK</span> para
-              controlar o vídeo (play/pause, volume, legendas) e{' '}
-              <span className="text-zinc-300 font-medium">Voltar</span> para sair do player.
+            {/* Indicador de modo controle do player (TV / TV Box) */}
+            {modoPlayerAtivo && (
+              <div
+                data-tv-player-mode
+                className="pointer-events-none mx-auto mt-3 flex w-fit items-center gap-2 rounded-full border border-red-500/50 bg-red-600/15 px-3 py-1 text-[11px] font-semibold tracking-wide text-red-300 backdrop-blur"
+              >
+                <Gamepad2 className="h-3.5 w-3.5" />
+                CONTROLE DO PLAYER
+              </div>
+            )}
+
+            {/* Dica de controle remoto: como entrar/sair dos controles do player */}
+            <p className="mt-2 text-center text-[11px] text-zinc-500 sm:text-xs">
+              🎮 Controle remoto:{' '}
+              <span className="font-semibold text-red-400">segure OK</span> para
+              entrar nos controles do player e{' '}
+              <span className="font-semibold text-red-400">segure OK novamente</span>{' '}
+              para sair.
             </p>
 
-            {/* Mensagens de download */}
+            {/* Mensagens de download (removidas) */}
 
             {esgotado ? (
               <div className="mt-3 flex flex-col items-center gap-3 rounded-xl border border-white/10 bg-white/5 p-4 text-center">
@@ -649,22 +596,16 @@ export function PlayerPage() {
                 </p>
                 <div className="flex flex-wrap items-center justify-center gap-3">
                   <button
-                    onClick={() => window.open(currentUrl, '_blank', 'noopener,noreferrer')}
-                    className="flex items-center gap-2 rounded-lg bg-red-600 px-4 py-2 text-xs font-semibold hover:bg-red-500 transition"
-                  >
-                    <ExternalLink className="h-4 w-4" />
-                    Abrir no navegador
-                  </button>
-                  <button
                     onClick={reiniciarFonte}
-                    className="flex items-center gap-2 rounded-lg bg-white/10 px-4 py-2 text-xs font-medium hover:bg-white/20 transition"
+                    className="flex items-center gap-2 rounded-lg bg-red-600 px-4 py-2 text-xs font-semibold hover:bg-red-500 transition"
                   >
                     <RefreshCw className="h-4 w-4" />
                     Tentar novamente
                   </button>
                 </div>
                 <p className="text-[11px] text-zinc-500">
-                  Se o app bloquear o player embutido, use "Abrir no navegador" — o vídeo abre no navegador externo do celular.
+                  O conteúdo é reproduzido dentro do MovieFlix. Se não carregar,
+                  tente novamente em alguns instantes.
                 </p>
               </div>
             ) : (

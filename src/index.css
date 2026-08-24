@@ -94,8 +94,9 @@
   outline: none;
 }
 
-/* Anel de foco bem visível (vermelho, estilo TV) para qualquer elemento
-   navegável: links, botões, inputs, selects, cards, vídeo e iframe. */
+/* Anel de foco discreto e elegante (vermelho fino, estilo TV) para qualquer
+   elemento navegável: links, botões, inputs, selects, cards, vídeo e iframe.
+   Fino (~1.5px), com um brilho suave, transição suave e sem zoom exagerado. */
 .tv-nav a:focus,
 .tv-nav button:focus,
 .tv-nav input:focus,
@@ -106,18 +107,21 @@
 .tv-nav .tv-focus {
   outline: none !important;
   border-radius: 0.5rem;
-  box-shadow: 0 0 0 3px rgba(230, 0, 0, 0.9), 0 0 24px rgba(230, 0, 0, 0.5);
+  box-shadow:
+    0 0 0 1.5px rgba(230, 0, 0, 0.95),
+    0 0 14px rgba(230, 0, 0, 0.35);
+  transition: box-shadow 0.15s ease, transform 0.15s ease;
   z-index: 30;
   position: relative;
 }
 
-/* Card de poster: ao focar, cresce levemente e clareia a borda —
-   feedback inequívoco de "onde está o cursor" para o controle. */
+/* Card de poster: ao focar, cresce LEVEMENTE (1.03) e clareia a borda — feedback
+   claro de "onde está o cursor" sem exagerar no zoom. */
 .tv-nav .group:focus-within,
 .tv-nav .group.tv-focus,
 .tv-nav [data-tv-card]:focus-within,
 .tv-nav [data-tv-card].tv-focus {
-  transform: scale(1.06);
+  transform: scale(1.03);
   transition: transform 0.15s ease;
   z-index: 30;
 }
@@ -125,9 +129,19 @@
 /* Banner / hero: destaque também no contêiner do item. */
 .tv-nav [data-tv-hero-item]:focus-within,
 .tv-nav [data-tv-hero-item].tv-focus {
-  box-shadow: 0 0 0 3px rgba(230, 0, 0, 0.9), 0 0 30px rgba(230, 0, 0, 0.45);
+  box-shadow: 0 0 0 1.5px rgba(230, 0, 0, 0.9), 0 0 18px rgba(230, 0, 0, 0.35);
   border-radius: 1rem;
   z-index: 30;
+}
+
+/* Player embutido (iframe/vídeo): quando o modo CONTROLE DO PLAYER está ativo,
+   mostra um anel fino ao redor do player (indica onde o controle está). */
+.tv-nav.tv-in-player [data-tv-player-box] {
+  box-shadow:
+    0 0 0 2px rgba(230, 0, 0, 0.85),
+    0 0 22px rgba(230, 0, 0, 0.4) !important;
+  border-radius: 0.75rem;
+  transition: box-shadow 0.2s ease;
 }
 
 /* Modo "dentro do player": o anel sai do iframe para não poluir o vídeo. */
@@ -141,6 +155,15 @@
 .tv-nav .group:focus-within .lg\:opacity-0,
 .tv-nav .group.tv-focus .lg\:opacity-0 {
   opacity: 100 !important;
+}
+
+/* Indicador "CONTROLE DO PLAYER" (badge discreto abaixo do player). */
+.tv-nav [data-tv-player-mode] {
+  animation: tv-mode-fade 0.2s ease;
+}
+@keyframes tv-mode-fade {
+  from { opacity: 0; transform: translateY(-2px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
 /* Painel de diagnostico do controle (?tvdebug=1) */
