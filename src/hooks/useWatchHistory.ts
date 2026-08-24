@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/context/AuthContext';
 import { watchHistoryColumns } from '@/lib/watchHistoryColumns';
+import { useMovies, type CatalogMovie } from '@/hooks/useMovies';
 import type { MediaType, WatchHistoryRow } from '@/types';
 
 const KEY = 'watch_history';
@@ -40,6 +41,38 @@ export function useWatchHistory() {
       return (data as WatchHistoryRow[]) ?? [];
     },
   });
+}
+
+/**
+ * Histórico resolvido contra o catálogo real (useMovies). Cada registro é
+ * casado por tmdb_id com um título do catálogo; registros cujo tmdb_id não
+ * existe no catálogo são filtrados (nunca mostram títulos inexistentes).
+ * O retorno usa os dados do catálogo (título, capa, ano) — não o snapshot
+ * possivelmente vazio gravado na tabela.
+ */
+export function useCatalogWatchHistory() {
+  const history = useWatchHistory();
+  const movies = useMovies();
+
+  const byTmdb = new Map<number, CatalogMovie>();
+  for (const m of movies.data ?? []) {
+    const t = Number(m.tmdb_id ?? m.id);
+    if (Number.isFinite(t) && t > 0) byTmdb.set(t, m);
+  }
+
+  const items = (history.data ?? [])
+    .map((h) => {
+      const movie = byTmdb.get(Number(h.tmdb_id));
+      if (!movie) return null;
+      return { history: h, movie };
+    })
+    .filter((x): x is { history: WatchHistoryRow; movie: CatalogMovie } => Boolean(x));
+
+  return {
+    isLoading: history.isLoading || movies.isLoading,
+    items,
+    raw: history.data ?? [],
+  };
 }
 
 export interface UpsertHistoryArgs {

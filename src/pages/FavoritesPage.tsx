@@ -1,21 +1,21 @@
 import { Link } from 'react-router-dom';
 import { Heart } from 'lucide-react';
-import { useFavorites } from '@/hooks/useFavorite';
+import { useCatalogFavorites } from '@/hooks/useFavorite';
 import { useSeriesHidden } from '@/hooks/useSeriesHidden';
 import { useAuth } from '@/context/AuthContext';
 import { PosterCard, PosterCardSkeleton } from '@/components/cards/PosterCard';
-
+import { ehSerie } from '@/lib/media';
 
 export function FavoritesPage() {
   const { user } = useAuth();
-  const favs = useFavorites();
+  const favs = useCatalogFavorites();
   const { seriesHidden } = useSeriesHidden();
 
   // Favoritos de séries (media_type 'tv') somem quando as séries estão ocultas.
+  // Cada item já foi resolvido contra o catálogo real (só existem títulos reais).
   const items = seriesHidden
-    ? (favs.data ?? []).filter((f) => f.media_type !== 'tv')
-    : (favs.data ?? []);
-
+    ? (favs.items ?? []).filter(({ movie }) => !ehSerie(movie))
+    : (favs.items ?? []);
 
   if (!user) {
     return <EmptyState message="Faça login para ver seus favoritos." cta="Entrar" to="/login" />;
@@ -33,20 +33,20 @@ export function FavoritesPage() {
           </div>
         ) : items.length > 0 ? (
           <div className="grid grid-cols-2 gap-x-3 gap-y-5 xs:grid-cols-3 sm:grid-cols-4 sm:gap-x-4 sm:gap-y-6 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-7">
-            {items.map((f) => (
+            {items.map(({ favorite, movie }) => (
               <PosterCard
-                key={f.id}
+                key={favorite.id}
                 title={{
-                  id: f.tmdb_id,
-                  title: f.title,
-                  name: f.media_type === 'tv' ? f.title : undefined,
-                  poster_path: f.poster_path,
-                  backdrop_path: f.backdrop_path,
-                  vote_average: Number(f.vote_average ?? 0),
-                  overview: '',
-                  media_type: f.media_type,
+                  id: movie.id,
+                  title: movie.title,
+                  name: ehSerie(movie) ? movie.title : undefined,
+                  poster_path: movie.poster_url,
+                  backdrop_path: movie.backdrop_url,
+                  vote_average: Number(movie.vote_average ?? 0),
+                  overview: movie.description ?? '',
+                  media_type: ehSerie(movie) ? 'tv' : 'movie',
                 }}
-                forceType={f.media_type}
+                forceType={ehSerie(movie) ? 'tv' : 'movie'}
                 className="w-full"
               />
             ))}
@@ -68,17 +68,3 @@ function EmptyState({ message, cta, to }: { message: string; cta: string; to: st
     </div>
   );
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-

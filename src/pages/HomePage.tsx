@@ -2,7 +2,7 @@ import { useMemo, useRef, useState, useEffect } from "react";
 import { PosterCard, PosterCardSkeleton } from "@/components/cards/PosterCard";
 import { HeroBanner, HeroBannerSkeleton } from "@/components/home/HeroBanner";
 import { useMovies } from "@/hooks/useMovies";
-import { useWatchHistory } from "@/hooks/useWatchHistory";
+import { useCatalogWatchHistory } from "@/hooks/useWatchHistory";
 import { useSeriesHidden } from "@/hooks/useSeriesHidden";
 import { useAuth, hasActiveSubscription } from "@/context/AuthContext";
 import { useEntitlements } from "@/hooks/useEntitlements";
@@ -15,7 +15,7 @@ export function HomePage() {
   const { subscription, activeViewerProfile } = useAuth();
   const isKid = activeViewerProfile?.is_kid ?? false;
   const movies = useMovies();
-  const history = useWatchHistory();
+  const history = useCatalogWatchHistory();
   const { seriesHidden } = useSeriesHidden();
   const { entitlements } = useEntitlements();
 
@@ -32,30 +32,28 @@ export function HomePage() {
   // Mapa movie_id → % assistido para a barra de progresso nos cards.
   const progressByMovie = useMemo(() => {
     const map: Record<string, number> = {};
-    for (const h of history.data ?? []) {
-      if (!h.movie_id) continue;
+    for (const { history: h, movie } of history.items ?? []) {
       const pct = h.duration_seconds ? Math.min(100, (h.position_seconds / h.duration_seconds) * 100) : 0;
-      map[h.movie_id] = pct;
+      map[String(movie.id)] = pct;
     }
     return map;
-  }, [history.data]);
+  }, [history.items]);
 
   // "Continuar assistindo": apenas títulos visibles (respeta modo infantil),
   // con progreso relevante y que no llegaron al fin. El límite de títulos
   // guardados depende del plan (maxHistory): Básico 5, Estándar 15, Premium ilimitado.
   const continueWatching = useMemo(() => {
-    const visivel = new Set(visibleMovies.map((m) => m.id));
+    const visivel = new Set(visibleMovies.map((m) => String(m.id)));
     const limite = Number.isFinite(entitlements.maxHistory) ? entitlements.maxHistory : Infinity;
-    return (history.data ?? [])
-      .filter((h) => {
-        if (!h.movie_id || !visivel.has(h.movie_id)) return false;
+    return (history.items ?? [])
+      .filter(({ movie }) => visivel.has(String(movie.id)))
+      .filter(({ history: h }) => {
         const pct = h.duration_seconds ? (h.position_seconds / h.duration_seconds) * 100 : 0;
         return pct >= 2 && pct < 95;
       })
-      .map((h) => movies.data?.find((m) => m.id === h.movie_id))
-      .filter((m): m is any => Boolean(m))
+      .map(({ movie }) => movie)
       .slice(0, limite);
-  }, [history.data, visibleMovies, movies.data, entitlements.maxHistory]);
+  }, [history.items, visibleMovies, entitlements.maxHistory]);
 
   const categorias = useMemo(() => {
     const mapa = new Map<string, any[]>();

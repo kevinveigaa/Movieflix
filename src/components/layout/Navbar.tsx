@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, NavLink, useNavigate, useLocation } from 'react-router-dom';
-import { Search, Menu, X, Bell, User, LogOut, Settings, CreditCard, Shield, Film, Smartphone, ChevronDown, Baby, Users, Heart, PlayCircle } from 'lucide-react';
+import { Search, Menu, X, User, LogOut, Settings, CreditCard, Shield, Film, Smartphone, ChevronDown, Baby, Users, Heart, PlayCircle } from 'lucide-react';
 import { useMovies } from '@/hooks/useMovies';
 import { useSeriesHidden } from '@/hooks/useSeriesHidden';
 import { categoriasDoFilme, ehInfantil, ordenarCategorias } from '@/lib/categorias';
@@ -202,7 +202,6 @@ export function Navbar() {
                   <MenuLink to="/continuar" icon={<PlayCircle className="h-4 w-4" />}>Continuar assistindo</MenuLink>
                   <MenuLink to="/minha-assinatura" icon={<CreditCard className="h-4 w-4" />}>Minha assinatura</MenuLink>
                   <MenuLink to="/configuracoes" icon={<Settings className="h-4 w-4" />}>Configurações</MenuLink>
-                  <MenuLink to="/historico" icon={<Bell className="h-4 w-4" />}>Histórico</MenuLink>
                   {profile?.is_admin && (
                     <MenuLink to="/admin" icon={<Shield className="h-4 w-4" />}>Painel Admin</MenuLink>
                   )}

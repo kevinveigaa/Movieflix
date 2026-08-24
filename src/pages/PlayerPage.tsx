@@ -3,7 +3,10 @@ import { useParams, useNavigate, useSearchParams, Link } from 'react-router-dom'
 import { useAuth } from '@/context/AuthContext';
 import { supabase } from '@/lib/supabase';
 import { getVideoSources, getTvSource, normalizeDubbedSource } from '@/lib/videoSources';
+import { streamBetterMovieUrl, streamBetterSeriesUrl } from '@/lib/strembetter';
 import { useUpsertHistory } from '@/hooks/useWatchHistory';
+import { useMovies } from '@/hooks/useMovies';
+import { usePlaybackSession } from '@/hooks/usePlaybackSession';
 import { useEntitlements } from '@/hooks/useEntitlements';
 import { downloadVideo } from '@/lib/hlsDownload';
 import { registerDownload, alreadyDownloaded } from '@/lib/downloads';
@@ -45,6 +48,7 @@ export function PlayerPage() {
   const { user } = useAuth();
   const upsertHistory = useUpsertHistory();
   const { entitlements } = useEntitlements();
+  const movies = useMovies();
   const { blocked: telasBloqueadas, activeScreens } = usePlaybackSession(
     user?.id,
     entitlements.screens,
@@ -54,6 +58,8 @@ export function PlayerPage() {
   const [movie, setMovie] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  // Episódio atual (séries com ?season=&ep=).
+  const [epAtual, setEpAtual] = useState<{ season: number; episode: number } | null>(null);
 
   // Única fonte de vídeo (fonte 1).
   const [sourceUrl, setSourceUrl] = useState<string | null>(null);
@@ -132,21 +138,34 @@ export function PlayerPage() {
       }
 
       const { data, error } = await supabase.from('movies').select('*').eq('id', id).maybeSingle();
-      if (error || !data) {
+      // Fallback: o catálogo do front (filmes/filmes.json + filmes/series.json)
+      // usa id = String(tmdb_id), que não corresponde ao id numérico da tabela
+      // `movies`. Quando a tabela não encontra o título, resolvemos pelo
+      // catálogo (a fonte de verdade do front) para que o player funcione e o
+      // histórico de reprodução seja gravado corretamente.
+      let dataResolved: any = data;
+      if (!dataResolved) {
+        const catalog = movies.data ?? [];
+        dataResolved =
+          catalog.find((m) => String(m.id) === String(id)) ||
+          catalog.find((m) => String(m.tmdb_id) === String(id)) ||
+          null;
+      }
+      if (error || !dataResolved) {
         setErrorMsg(error?.message || 'Título não encontrado.');
         setLoading(false);
         return;
       }
 
-      const isSeries = data.type === 'series' || data.type === 'tv' || data.type === 'anime' || data.media_type === 'tv' || (data.number_of_seasons > 0);
-      if (isSeries && !data.video_url) {
-        const { data: seasons } = await supabase.from('seasons').select('*').eq('series_id', data.id).order('season_number', { ascending: true });
+      const isSeries = dataResolved.type === 'series' || dataResolved.type === 'tv' || dataResolved.type === 'anime' || dataResolved.media_type === 'tv' || (dataResolved.number_of_seasons > 0);
+      if (isSeries && !dataResolved.video_url) {
+        const { data: seasons } = await supabase.from('seasons').select('*').eq('series_id', dataResolved.id).order('season_number', { ascending: true });
         if (seasons && seasons.length > 0) {
           const { data: eps } = await supabase.from('episodes').select('*').eq('season_id', seasons[0].id).not('video_url', 'is', null).order('episode_number', { ascending: true }).limit(1);
           if (eps && eps.length > 0) {
-            setMovie({ ...data, title: `${data.title} — T${seasons[0].season_number} E${eps[0].episode_number}: ${eps[0].title}` });
-            const vidlink = getTvSource(data.tmdb_id, seasons[0].season_number || 1, eps[0].episode_number || 1);
-            const lista = [eps[0].video_url, data.video_url, vidlink].filter(
+            setMovie({ ...dataResolved, title: `${dataResolved.title} — T${seasons[0].season_number} E${eps[0].episode_number}: ${eps[0].title}` });
+            const vidlink = getTvSource(dataResolved.tmdb_id, seasons[0].season_number || 1, eps[0].episode_number || 1);
+            const lista = [eps[0].video_url, dataResolved.video_url, vidlink].filter(
               (u): u is string => Boolean(u),
             );
             setSourceUrl(lista.length > 0 ? lista[0] : null);
@@ -156,23 +175,28 @@ export function PlayerPage() {
         }
       }
 
-      setMovie(data);
-      const tipo = (data.type === 'tv' || data.type === 'series' || data.type === 'anime' || data.media_type === 'tv') ? 'tv' : 'movie';
+      setMovie(dataResolved);
+      const tipo = (dataResolved.type === 'tv' || dataResolved.type === 'series' || dataResolved.type === 'anime' || dataResolved.media_type === 'tv') ? 'tv' : 'movie';
       const builtins = getVideoSources({
-        imdbId: data.imdb_id,
-        tmdbId: data.tmdb_id,
+        imdbId: dataResolved.imdb_id,
+        tmdbId: dataResolved.tmdb_id,
         mediaType: tipo,
       });
       // Fonte primária: `video_url` do banco (fontes comprovadamente dubladas
       // em pt-BR). O vidlink.pro (builtins) fica apenas como fallback — ele
       // não garante dublagem pt-BR (maioria dos títulos em MP4 com áudio EN).
-      const lista = [data.video_url, ...builtins].filter((u): u is string => Boolean(u));
+      // Para títulos do catálogo (sem video_url direto), usa o embed do
+      // StreamBetter (streamBetterMovieUrl) como fonte primária.
+      const embedUrl = !dataResolved.video_url && dataResolved.tmdb_id
+        ? streamBetterMovieUrl(dataResolved.tmdb_id, startSeconds)
+        : null;
+      const lista = [dataResolved.video_url, embedUrl, ...builtins].filter((u): u is string => Boolean(u));
       setSourceUrl(lista.length > 0 ? lista[0] : null);
       setLoading(false);
     }
 
     load();
-  }, [id, searchParams]);
+  }, [id, searchParams, movies.data]);
 
   // Detecta o tipo de reprodução da fonte atual.
   useEffect(() => {

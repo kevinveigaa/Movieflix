@@ -1,11 +1,9 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { History as HistoryIcon, Trash2, Film, Check, AlertTriangle, Play } from 'lucide-react';
-import { useWatchHistory, useRemoveHistory, useClearHistory, useMarkAsWatched } from '@/hooks/useWatchHistory';
+import { useCatalogWatchHistory, useRemoveHistory, useClearHistory, useMarkAsWatched } from '@/hooks/useWatchHistory';
 import { useSeriesHidden } from '@/hooks/useSeriesHidden';
-import { useMovies } from '@/hooks/useMovies';
 import { useAuth } from '@/context/AuthContext';
-import { img } from '@/lib/tmdb';
 import { ehSerie } from '@/lib/media';
 import type { WatchHistoryRow } from '@/types';
 
@@ -31,20 +29,12 @@ function isWatched(h: WatchHistoryRow): boolean {
 
 export function HistoryPage() {
   const { user } = useAuth();
-  const history = useWatchHistory();
+  const history = useCatalogWatchHistory();
   const remove = useRemoveHistory();
   const clear = useClearHistory();
   const markWatched = useMarkAsWatched();
   const { seriesHidden } = useSeriesHidden();
-  const movies = useMovies();
   const [showClearConfirm, setShowClearConfirm] = useState(false);
-
-  // IDs dos filmes que existem no catálogo do StreamBetter (e quais são séries).
-  const catalogMovies = movies.data ?? [];
-  const validMovieIds = new Set(catalogMovies.map((m) => String(m.id)));
-  const seriesMovieIds = new Set(
-    catalogMovies.filter((m) => ehSerie(m)).map((m) => String(m.id)),
-  );
 
   if (!user) {
     return (
@@ -55,18 +45,14 @@ export function HistoryPage() {
     );
   }
 
-  const allItems = history.data ?? [];
-  // Filtra apenas filmes que existem no catálogo (têm movie_id válido) e, quando
-  // as séries estão ocultas, remove os registros de séries.
-  const items = allItems.filter(
-    (h) =>
-      h.movie_id &&
-      validMovieIds.has(String(h.movie_id)) &&
-      (!seriesHidden || (h.media_type !== 'tv' && !seriesMovieIds.has(String(h.movie_id)))),
-  );
+  // Só registros que existem no catálogo real (useCatalogWatchHistory já filtra).
+  // Séries ocultas: remove os registros de séries.
+  const items = (history.items ?? [])
+    .filter(({ movie }) => !seriesHidden || !ehSerie(movie))
+    .map(({ history: h, movie }) => ({ h, movie }));
 
   // Títulos que podem ser retomados (progresso entre 2% e 95%).
-  const continuar = items.filter((h) => {
+  const continuar = items.filter(({ h }) => {
     const pct = h.duration_seconds ? h.position_seconds / h.duration_seconds : 0;
     return pct >= 0.02 && pct < 0.95;
   });
@@ -94,18 +80,17 @@ export function HistoryPage() {
           <h2 className="font-display text-xl tracking-wide text-white sm:text-2xl">Continuar assistindo</h2>
           <p className="mt-1 text-sm text-ink-400">Retome de onde você parou.</p>
           <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {continuar.map((h) => {
+            {continuar.map(({ h, movie }) => {
               const pct = h.duration_seconds ? Math.min(100, (h.position_seconds / h.duration_seconds) * 100) : 0;
+              const poster = movie.backdrop_url || movie.poster_url;
               return (
                 <div key={h.id} className="group relative overflow-hidden rounded-2xl border border-white/10 bg-ink-900">
                   <Link to={historyTarget(h)} className="block">
                     <div className="relative aspect-video overflow-hidden bg-ink-800">
-                      {h.backdrop_path ? (
-                        <img src={img(h.backdrop_path, 'w780')} alt={h.title} className="h-full w-full object-cover transition group-hover:scale-105" />
-                      ) : h.poster_path ? (
-                        <img src={img(h.poster_path, 'w780')} alt={h.title} className="h-full w-full object-cover transition group-hover:scale-105" />
+                      {poster ? (
+                        <img src={poster} alt={movie.title} className="h-full w-full object-cover transition group-hover:scale-105" />
                       ) : (
-                        <div className="flex h-full w-full items-center justify-center text-ink-500">{h.title}</div>
+                        <div className="flex h-full w-full items-center justify-center text-ink-500">{movie.title}</div>
                       )}
                       <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent" />
                       <span className="absolute left-3 top-3 flex h-10 w-10 items-center justify-center rounded-full bg-brand-600 text-white opacity-0 transition group-hover:opacity-100">
@@ -113,8 +98,8 @@ export function HistoryPage() {
                       </span>
                     </div>
                     <div className="p-3">
-                      <p className="truncate font-semibold text-white">{h.title}</p>
-                      <p className="mt-0.5 text-xs text-ink-400">{h.media_type === 'tv' ? 'Série' : 'Filme'}</p>
+                      <p className="truncate font-semibold text-white">{movie.title}</p>
+                      <p className="mt-0.5 text-xs text-ink-400">{ehSerie(movie) ? 'Série' : 'Filme'}</p>
                       <div className="mt-2 h-1 w-full overflow-hidden rounded-full bg-ink-700">
                         <div className="h-full rounded-full bg-brand-600" style={{ width: `${pct}%` }} />
                       </div>
@@ -174,17 +159,16 @@ export function HistoryPage() {
         </div>
       ) : (
         <div className="mt-8 divide-y divide-white/5">
-          {items.map((h) => {
+          {items.map(({ h, movie }) => {
             const progress = getProgress(h);
             const watched = isWatched(h);
+            const poster = movie.backdrop_url || movie.poster_url;
             return (
               <div key={h.id} className="flex items-center gap-4 py-4">
                 <Link to={historyTarget(h)} className="flex-shrink-0">
                   <div className="h-16 w-28 overflow-hidden rounded-lg bg-ink-800 relative">
-                    {h.backdrop_path ? (
-                      <img src={img(h.backdrop_path, 'w300')} alt={h.title} className="h-full w-full object-cover" loading="lazy" />
-                    ) : h.poster_path ? (
-                      <img src={img(h.poster_path, 'w300')} alt={h.title} className="h-full w-full object-cover" loading="lazy" />
+                    {poster ? (
+                      <img src={poster} alt={movie.title} className="h-full w-full object-cover" loading="lazy" />
                     ) : (
                       <div className="flex h-full w-full items-center justify-center text-xs text-ink-500">
                         <Film className="h-6 w-6" />
@@ -201,10 +185,10 @@ export function HistoryPage() {
                 </Link>
                 <div className="flex-1 min-w-0">
                   <Link to={historyTarget(h)} className="font-semibold text-white hover:text-brand-300 truncate block">
-                    {h.title}
+                    {movie.title}
                   </Link>
                   <p className="mt-0.5 text-xs text-ink-400">
-                    {h.media_type === 'tv' ? 'Série' : 'Filme'} • {watched ? 'Assistido' : `${progress}% assistido`}
+                    {ehSerie(movie) ? 'Série' : 'Filme'} • {watched ? 'Assistido' : `${progress}% assistido`}
                   </p>
                   <p className="text-xs text-zinc-500">
                     Atualizado em {new Date(h.updated_at).toLocaleDateString('pt-BR')}

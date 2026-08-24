@@ -1,12 +1,10 @@
 import { useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { Play, Trash2, History as HistoryIcon } from 'lucide-react';
-import { useWatchHistory, useRemoveHistory } from '@/hooks/useWatchHistory';
-import { useMovies } from '@/hooks/useMovies';
+import { useCatalogWatchHistory, useRemoveHistory } from '@/hooks/useWatchHistory';
 import { useSeriesHidden } from '@/hooks/useSeriesHidden';
 import { useAuth } from '@/context/AuthContext';
 import { useEntitlements } from '@/hooks/useEntitlements';
-import { img } from '@/lib/tmdb';
 import { ehSerie } from '@/lib/media';
 import { FullScreenLoader } from '@/components/ui/Feedback';
 import type { WatchHistoryRow } from '@/types';
@@ -18,28 +16,22 @@ function historyTarget(h: WatchHistoryRow): string {
 
 export function ContinueWatchingPage() {
   const { user } = useAuth();
-  const history = useWatchHistory();
+  const history = useCatalogWatchHistory();
   const remove = useRemoveHistory();
-  const movies = useMovies();
   const { seriesHidden } = useSeriesHidden();
   const { entitlements } = useEntitlements();
 
-  const seriesIds = useMemo(
-    () => new Set((movies.data ?? []).filter(ehSerie).map((m) => m.id)),
-    [movies.data],
-  );
-
-  // Séries ocultas: remove do "continuar" os registros de séries (TMDb ou catálogo).
+  // Só registros que existem no catálogo real (useCatalogWatchHistory já filtra).
+  // Séries ocultas: remove os registros de séries (TMDb ou catálogo).
   // O limite de títulos guardados depende do plano (maxHistory): Básico 5, Estándar 15, Premium ilimitado.
   const items = useMemo(() => {
-    const all = history.data ?? [];
-    let lista = all;
+    let lista = history.items ?? [];
     if (seriesHidden) {
-      lista = lista.filter((h) => h.media_type !== 'tv' && !(h.movie_id && seriesIds.has(h.movie_id)));
+      lista = lista.filter(({ movie }) => !ehSerie(movie));
     }
     const limite = Number.isFinite(entitlements.maxHistory) ? entitlements.maxHistory : Infinity;
     return lista.slice(0, limite);
-  }, [history.data, seriesHidden, seriesIds, entitlements.maxHistory]);
+  }, [history.items, seriesHidden, entitlements.maxHistory]);
 
   if (!user) {
     return (
@@ -68,16 +60,17 @@ export function ContinueWatchingPage() {
       <p className="mt-1 text-sm text-ink-400">Retome de onde você parou.</p>
 
       <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {items.map((h) => {
+        {items.map(({ history: h, movie }) => {
           const pct = h.duration_seconds ? Math.min(100, (h.position_seconds / h.duration_seconds) * 100) : 0;
+          const poster = movie.poster_url || movie.backdrop_url;
           return (
             <div key={h.id} className="group relative overflow-hidden rounded-2xl border border-white/10 bg-ink-900">
               <Link to={historyTarget(h)} className="block">
                 <div className="relative aspect-video overflow-hidden bg-ink-800">
-                  {h.backdrop_path ? (
-                    <img src={img(h.backdrop_path, 'w780')} alt={h.title} className="h-full w-full object-cover transition group-hover:scale-105" />
+                  {poster ? (
+                    <img src={poster} alt={movie.title} className="h-full w-full object-cover transition group-hover:scale-105" />
                   ) : (
-                    <div className="flex h-full w-full items-center justify-center text-ink-500">{h.title}</div>
+                    <div className="flex h-full w-full items-center justify-center text-ink-500">{movie.title}</div>
                   )}
                   <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent" />
                   <span className="absolute left-3 top-3 flex h-10 w-10 items-center justify-center rounded-full bg-brand-600 text-white opacity-0 transition group-hover:opacity-100">
@@ -85,8 +78,8 @@ export function ContinueWatchingPage() {
                   </span>
                 </div>
                 <div className="p-3">
-                  <p className="truncate font-semibold text-white">{h.title}</p>
-                  <p className="mt-0.5 text-xs text-ink-400">{h.media_type === 'tv' ? 'Série' : 'Filme'}</p>
+                  <p className="truncate font-semibold text-white">{movie.title}</p>
+                  <p className="mt-0.5 text-xs text-ink-400">{ehSerie(movie) ? 'Série' : 'Filme'}</p>
                   <div className="mt-2 h-1 w-full overflow-hidden rounded-full bg-ink-700">
                     <div className="h-full rounded-full bg-brand-600" style={{ width: `${pct}%` }} />
                   </div>
