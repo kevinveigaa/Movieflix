@@ -57,6 +57,7 @@ export function HeroBanner({ items }: { items: HeroItem[] }) {
       className="relative -mx-4 mb-4 overflow-hidden rounded-none sm:-mx-6 lg:-mx-8 lg:rounded-3xl"
       aria-roledescription="carousel"
       aria-label="Filmes em destaque"
+      data-tv-hero-item
     >
       <div className="relative h-[62vw] max-h-[560px] min-h-[300px] w-full">
         {slides.map((s, i) => (

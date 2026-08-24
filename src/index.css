@@ -85,7 +85,17 @@
 }
 
 
-/* ---------- Navegação por controle remoto (TV / TV Box) ---------- */
+/* ============================================================
+   Navegação por controle remoto (TV / TV Box / Android TV Box)
+   ============================================================ */
+
+/* Em TV não existe cursor do mouse: o foco nunca deve ficar invisível. */
+.tv-nav *:focus {
+  outline: none;
+}
+
+/* Anel de foco bem visível (vermelho, estilo TV) para qualquer elemento
+   navegável: links, botões, inputs, selects, cards, vídeo e iframe. */
 .tv-nav a:focus,
 .tv-nav button:focus,
 .tv-nav input:focus,
@@ -96,14 +106,41 @@
 .tv-nav .tv-focus {
   outline: none !important;
   border-radius: 0.5rem;
-  box-shadow: 0 0 0 2px rgba(230, 0, 0, 0.55), 0 0 20px rgba(230, 0, 0, 0.35);
+  box-shadow: 0 0 0 3px rgba(230, 0, 0, 0.9), 0 0 24px rgba(230, 0, 0, 0.5);
   z-index: 30;
   position: relative;
 }
 
-/* Em TV nao existe cursor do mouse: o foco nunca deve ficar invisivel */
-.tv-nav *:focus {
-  outline: none;
+/* Card de poster: ao focar, cresce levemente e clareia a borda —
+   feedback inequívoco de "onde está o cursor" para o controle. */
+.tv-nav .group:focus-within,
+.tv-nav .group.tv-focus,
+.tv-nav [data-tv-card]:focus-within,
+.tv-nav [data-tv-card].tv-focus {
+  transform: scale(1.06);
+  transition: transform 0.15s ease;
+  z-index: 30;
+}
+
+/* Banner / hero: destaque também no contêiner do item. */
+.tv-nav [data-tv-hero-item]:focus-within,
+.tv-nav [data-tv-hero-item].tv-focus {
+  box-shadow: 0 0 0 3px rgba(230, 0, 0, 0.9), 0 0 30px rgba(230, 0, 0, 0.45);
+  border-radius: 1rem;
+  z-index: 30;
+}
+
+/* Modo "dentro do player": o anel sai do iframe para não poluir o vídeo. */
+.tv-nav.tv-in-player iframe.tv-player {
+  box-shadow: none !important;
+  border-radius: 0 !important;
+}
+
+/* Em TVs o hover não existe; mostra o overlay de play sempre que o card
+   estiver focado (não só em hover de mouse). */
+.tv-nav .group:focus-within .lg\:opacity-0,
+.tv-nav .group.tv-focus .lg\:opacity-0 {
+  opacity: 100 !important;
 }
 
 /* Painel de diagnostico do controle (?tvdebug=1) */

@@ -3,16 +3,20 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { ehTelaDeTv } from "@/lib/tv";
 
 /**
- * Navegação espacial por controle remoto / teclado (TV, TV Box, PC).
+ * Navegação espacial por controle remoto / teclado (TV, TV Box, Android TV Box).
  *
  * Compatível com:
- *  - Android TV / Chrome / WebView  (keyCode 37-40, 13, 8)
- *  - Samsung Tizen                  (keyCode 10009 = Voltar)
- *  - LG webOS                       (keyCode 461 = Voltar)
+ *  - Android TV / TV Box (WebView)  keyCode 19-22 (setas), 23 (OK), 4 (Voltar)
+ *  - Chrome / WebView clássico       keyCode 37-40, 13, 8
+ *  - Samsung Tizen                  keyCode 10009 = Voltar
+ *  - LG webOS                       keyCode 461 = Voltar
  *  - Teclas antigas "Left"/"Up"/"Right"/"Down"/"Enter"
  *
  * Muitas TVs enviam e.key === "Unidentified", por isso usamos keyCode como
  * fonte principal e e.key só como reforço.
+ *
+ * O modo TV é controlado por ehTelaDeTv() (ver src/lib/tv.ts) e pode ser
+ * forçado com ?tv=1 — essencial para TV Box Android com user-agent genérico.
  */
 
 const SELETOR_FOCAVEL = [
@@ -22,6 +26,7 @@ const SELETOR_FOCAVEL = [
   "select:not([disabled])",
   "textarea:not([disabled])",
   "video",
+  "iframe",
   "[tabindex]:not([tabindex='-1'])",
   "[data-tv-focusable]",
 ].join(",");
@@ -33,6 +38,8 @@ function visivel(el: HTMLElement) {
   if (r.width === 0 || r.height === 0) return false;
   const estilo = window.getComputedStyle(el);
   if (estilo.visibility === "hidden" || estilo.display === "none" || estilo.opacity === "0") return false;
+  // Elementos sob um modal aberto ficam ocultos da navegação (data-tv-hidden).
+  if (el.closest("[data-tv-hidden]")) return false;
   return true;
 }
 
@@ -78,7 +85,7 @@ function melhorAlvo(atual: HTMLElement, dir: Direcao): HTMLElement | null {
 }
 
 function focar(el: HTMLElement) {
-  if (!el.hasAttribute("tabindex") && !/^(A|BUTTON|INPUT|SELECT|TEXTAREA|VIDEO)$/.test(el.tagName)) {
+  if (!el.hasAttribute("tabindex") && !/^(A|BUTTON|INPUT|SELECT|TEXTAREA|VIDEO|IFRAME)$/.test(el.tagName)) {
     el.setAttribute("tabindex", "0");
   }
   el.focus({ preventScroll: true });
@@ -97,8 +104,8 @@ function primeiroFocavel(): HTMLElement | null {
     return r.top >= 0 && r.top < window.innerHeight;
   });
 
-  // Prefere o conteudo principal (banner/cards) em vez do menu do topo:
-  // numa TV o usuario espera comecar no filme em destaque, nao no logo.
+  // Prefere o conteúdo principal (banner/cards) em vez do menu do topo:
+  // numa TV o usuário espera começar no filme em destaque, não no logo.
   const conteudo = document.querySelector("main");
   if (conteudo) {
     const dentro = naTela.filter((el) => conteudo.contains(el));
@@ -113,10 +120,11 @@ function acaoDaTecla(e: KeyboardEvent): Direcao | "ok" | "back" | null {
   const k = e.key;
   const c = e.keyCode || e.which;
 
-  if (k === "ArrowUp" || k === "Up" || c === 38) return "up";
-  if (k === "ArrowDown" || k === "Down" || c === 40) return "down";
-  if (k === "ArrowLeft" || k === "Left" || c === 37) return "left";
-  if (k === "ArrowRight" || k === "Right" || c === 39) return "right";
+  // Android TV / TV Box: 19=Up 20=Down 21=Left 22=Right 23=Center/OK 4=Back
+  if (k === "ArrowUp" || k === "Up" || c === 38 || c === 19) return "up";
+  if (k === "ArrowDown" || k === "Down" || c === 40 || c === 20) return "down";
+  if (k === "ArrowLeft" || k === "Left" || c === 37 || c === 21) return "left";
+  if (k === "ArrowRight" || k === "Right" || c === 39 || c === 22) return "right";
   if (k === "Enter" || k === "OK" || k === "Select" || c === 13 || c === 32 || c === 23) return "ok";
   if (
     k === "GoBack" ||
@@ -136,12 +144,16 @@ function acaoDaTecla(e: KeyboardEvent): Direcao | "ok" | "back" | null {
   return null;
 }
 
+/** Estamos dentro do iframe do player? (foco dedicado ao vídeo) */
+function noPlayerFrame(): boolean {
+  const ativo = document.activeElement as HTMLElement | null;
+  return !!ativo && ativo.tagName === "IFRAME";
+}
+
 export function useTvNavigation() {
   const navigate = useNavigate();
   const location = useLocation();
 
-  // Só em TV / TV Box. Em celular, tablet e PC a navegação por controle
-  // (e o destaque de foco que ela desenha) fica totalmente desligada.
   const emTv = typeof window !== "undefined" && ehTelaDeTv();
 
   // Foco inicial a cada troca de página (o controle precisa ter "onde começar").
@@ -161,6 +173,7 @@ export function useTvNavigation() {
   useEffect(() => {
     if (!emTv) {
       document.documentElement.classList.remove("tv-nav");
+      document.documentElement.classList.remove("tv-in-player");
       limparFocoVisual();
       return;
     }
@@ -183,19 +196,38 @@ export function useTvNavigation() {
         !!ativo &&
         (ativo.tagName === "INPUT" || ativo.tagName === "TEXTAREA" || ativo.isContentEditable);
 
+      // Voltar: prioridade 1 — se o foco está dentro do player (iframe),
+      // "sai" do player (volta a navegar a página). Senão, navega para trás.
       if (acao === "back") {
         if (digitando && (e.key === "Backspace" || e.keyCode === 8)) return; // apagar texto
         e.preventDefault();
+        if (noPlayerFrame()) {
+          document.documentElement.classList.remove("tv-in-player");
+          (ativo as HTMLIFrameElement).blur();
+          const inicial = primeiroFocavel();
+          if (inicial) focar(inicial);
+          return;
+        }
         if (window.history.length > 1) navigate(-1);
         else navigate("/");
         return;
       }
 
+      // OK / Enter.
       if (acao === "ok") {
         // No player (página com #player-frame), o OK é usado para
         // play/pause pelo useTvPlayerControls. Só navega para o primeiro
         // focado se NÃO houver player na tela.
         const temPlayer = !!document.querySelector("#player-frame");
+        if (noPlayerFrame()) {
+          // Foco no iframe: OK redireciona os controles de volta para a página.
+          e.preventDefault();
+          document.documentElement.classList.remove("tv-in-player");
+          (ativo as HTMLIFrameElement).blur();
+          const inicial = primeiroFocavel();
+          if (inicial) focar(inicial);
+          return;
+        }
         if (!ativo || ativo === document.body) {
           if (temPlayer) return; // deixa o player controlar o OK
           const inicial = primeiroFocavel();
@@ -209,13 +241,26 @@ export function useTvNavigation() {
         if (ativo.tagName === "A" || ativo.tagName === "BUTTON" || ativo.hasAttribute("data-tv-focusable")) {
           e.preventDefault();
           ativo.click();
+        } else if (ativo.tagName === "IFRAME") {
+          // Entrar no player: foca o iframe e esconde o anel (o vídeo assume).
+          e.preventDefault();
+          ativo.focus({ preventScroll: true });
+          document.documentElement.classList.add("tv-in-player");
         }
         return;
       }
 
+      // Setas direcionais.
       const dir = acao;
 
-      if (digitando && (dir === "left" || dir === "right")) return;
+      // Dentro do player (iframe): setas vão para o player (volume/seek etc.).
+      if (noPlayerFrame()) return;
+
+      // Caixa de texto: setas esquerda/direita movem o cursor; cima/baixo saem.
+      if (digitando) {
+        if (dir === "left" || dir === "right") return;
+        (ativo as HTMLElement).blur();
+      }
       if (ativo?.tagName === "SELECT") return;
 
       if (!ativo || ativo === document.body || !visivel(ativo)) {
@@ -244,7 +289,7 @@ export function useTvNavigation() {
     }
 
     function onFocusOut() {
-      // mantém o destaque coerente
+      // Mantém o destaque coerente.
       limparFocoVisual();
       const ativo = document.activeElement as HTMLElement | null;
       if (ativo && ativo !== document.body) ativo.classList.add("tv-focus");
@@ -258,6 +303,7 @@ export function useTvNavigation() {
       window.removeEventListener("keydown", onKeyDown, true);
       document.removeEventListener("focusin", onFocusOut);
       document.documentElement.classList.remove("tv-nav");
+      document.documentElement.classList.remove("tv-in-player");
     };
   }, [navigate, emTv]);
 }

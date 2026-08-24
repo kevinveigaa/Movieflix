@@ -34,6 +34,7 @@ export function PosterCard({
     <Link
       to={`/titulo/${linkType}/${title.id}`}
       aria-label={title?.title}
+      data-tv-card
       className={cn(
         "group flex w-full flex-col rounded-xl focus:outline-none",
         className

@@ -591,6 +591,7 @@ export function PlayerPage() {
                   autoPlay
                   playsInline
                   data-mf-player
+                  data-tv-focusable
                   onTimeUpdate={salvarProgresso}
                   onPause={salvarProgressoFinal}
                   onEnded={salvarProgressoFinal}
@@ -603,10 +604,11 @@ export function PlayerPage() {
                   id="player-frame"
                   src={sourceKind === 'youtube' ? currentUrl : currentUrl}
                   title={`Player — ${movie?.title || ''}`}
-                  className="absolute inset-0 w-full h-full border-0"
+                  className="tv-player absolute inset-0 w-full h-full border-0"
                   allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share; fullscreen"
                   allowFullScreen
                   referrerPolicy="origin"
+                  data-tv-focusable
                   // NOTA: o sandbox NÃO pode ser usado aqui — o vidlink.pro
                   // detecta iframes com atributo sandbox e recusa carregar
                   // ("Please Disable Sandbox"). O player é embutido sem
@@ -616,35 +618,14 @@ export function PlayerPage() {
               )}
             </div>
 
+            {/* Dica de controle remoto: como navegar dentro do player */}
+            <p className="mt-2 text-center text-[11px] text-zinc-500">
+              Controle remoto: aperte <span className="text-zinc-300 font-medium">OK</span> para
+              controlar o vídeo (play/pause, volume, legendas) e{" "}
+              <span className="text-zinc-300 font-medium">Voltar</span> para sair do player.
+            </p>
+
             {/* Mensagens de download */}
-            {downloadState === 'blocked' && (
-              <div className="mt-3 flex flex-col items-center gap-3 rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 text-center">
-                <Lock className="h-6 w-6 text-amber-400" />
-                <p className="text-sm text-amber-200">
-                  Downloads offline estão disponíveis nos planos <strong>Standard</strong> e <strong>Premium</strong>.
-                </p>
-                <Link
-                  to="/minha-assinatura"
-                  className="rounded-lg bg-amber-500 px-4 py-2 text-xs font-semibold text-black hover:bg-amber-400 transition"
-                >
-                  Ver planos
-                </Link>
-              </div>
-            )}
-            {downloadState === 'error' && downloadError && (
-              <div className="mt-3 flex items-center gap-3 rounded-xl border border-red-500/30 bg-red-500/10 p-4 text-center">
-                <AlertCircle className="h-5 w-5 shrink-0 text-red-400" />
-                <p className="text-sm text-red-200">{downloadError}</p>
-              </div>
-            )}
-            {downloadState === 'done' && (
-              <div className="mt-3 flex items-center gap-3 rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-4 text-center">
-                <CheckCircle2 className="h-5 w-5 shrink-0 text-emerald-400" />
-                <p className="text-sm text-emerald-200">
-                  Download concluído! O arquivo foi salvo no seu dispositivo.
-                </p>
-              </div>
-            )}
 
             {esgotado ? (
               <div className="mt-3 flex flex-col items-center gap-3 rounded-xl border border-white/10 bg-white/5 p-4 text-center">

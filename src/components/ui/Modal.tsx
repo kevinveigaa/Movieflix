@@ -24,9 +24,14 @@ export function Modal({ open, onClose, children, className, size = 'md' }: Modal
     const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
     window.addEventListener('keydown', onKey);
     document.body.style.overflow = 'hidden';
+    // Navegação por controle: enquanto o modal está aberto, os elementos de
+    // trás (dentro de #root) ficam fora do alcance das setas do controle.
+    const rootEl = document.getElementById('root');
+    rootEl?.setAttribute('data-tv-hidden', 'true');
     return () => {
       window.removeEventListener('keydown', onKey);
       document.body.style.overflow = '';
+      rootEl?.removeAttribute('data-tv-hidden');
     };
   }, [open, onClose]);
 
