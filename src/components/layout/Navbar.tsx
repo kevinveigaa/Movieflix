@@ -5,6 +5,7 @@ import { useMovies } from '@/hooks/useMovies';
 import { useSeriesHidden } from '@/hooks/useSeriesHidden';
 import { categoriasDoFilme, ehInfantil, ordenarCategorias } from '@/lib/categorias';
 import { useAuth, hasActiveSubscription } from '@/context/AuthContext';
+import { rodandoNoApp } from '@/lib/appShell';
 import { cn } from '@/lib/cn';
 
 const navLinks = [
@@ -34,6 +35,7 @@ export function Navbar() {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [catOpen, setCatOpen] = useState(false);
+  const [isApp, setIsApp] = useState(false);
   const catRef = useRef<HTMLDivElement>(null);
   const { user, profile, subscription, signOut, activeViewerProfile } = useAuth();
   const isKid = activeViewerProfile?.is_kid ?? false;
@@ -42,6 +44,18 @@ export function Navbar() {
   const [query, setQuery] = useState('');
   const navigate = useNavigate();
   const location = useLocation();
+
+  // Detecta se o site roda DENTRO do app nativo (APK) — esconde o botão
+  // "Baixar app" (não faz sentido baixar o app dentro do próprio app).
+  useEffect(() => {
+    let ativo = true;
+    rodandoNoApp().then((v) => {
+      if (ativo) setIsApp(v);
+    });
+    return () => {
+      ativo = false;
+    };
+  }, []);
 
   // Quando "Esconder séries" está ativo, a aba "Séries" some do menu.
   const linksVisiveis = useMemo(
@@ -205,7 +219,9 @@ export function Navbar() {
                   {profile?.is_admin && (
                     <MenuLink to="/admin" icon={<Shield className="h-4 w-4" />}>Painel Admin</MenuLink>
                   )}
-                  <MenuLink to="/baixar-app" icon={<Smartphone className="h-4 w-4" />}>Baixar app</MenuLink>
+                  {!isApp && (
+                    <MenuLink to="/baixar-app" icon={<Smartphone className="h-4 w-4" />}>Baixar app</MenuLink>
+                  )}
                   <button
                     onClick={() => signOut()}
                     className="flex w-full items-center gap-3 px-4 py-2.5 text-sm text-ink-200 transition hover:bg-white/5 hover:text-white"
@@ -278,17 +294,19 @@ export function Navbar() {
               </div>
             )}
 
-            <NavLink
-              to="/baixar-app"
-              className={({ isActive }) =>
-                cn(
-                  'mt-1 flex items-center gap-2 rounded-lg border border-brand-500/30 bg-brand-500/10 px-3 py-2.5 text-sm font-semibold text-brand-300 transition-colors',
-                  isActive ? 'bg-white/10 text-white' : 'hover:bg-brand-500/20 hover:text-brand-200',
-                )
-              }
-            >
-              <Smartphone className="h-4 w-4" /> Baixar app
-            </NavLink>
+            {!isApp && (
+              <NavLink
+                to="/baixar-app"
+                className={({ isActive }) =>
+                  cn(
+                    'mt-1 flex items-center gap-2 rounded-lg border border-brand-500/30 bg-brand-500/10 px-3 py-2.5 text-sm font-semibold text-brand-300 transition-colors',
+                    isActive ? 'bg-white/10 text-white' : 'hover:bg-brand-500/20 hover:text-brand-200',
+                  )
+                }
+              >
+                <Smartphone className="h-4 w-4" /> Baixar app
+              </NavLink>
+            )}
           </div>
         </div>
       )}

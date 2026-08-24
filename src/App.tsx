@@ -1,4 +1,4 @@
-import { Suspense } from 'react';
+import { Suspense, useEffect } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { HashRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from '@/context/AuthContext';
@@ -8,6 +8,7 @@ import { FullScreenLoader } from '@/components/ui/Feedback';
 import { ErrorBoundary } from '@/components/ui/ErrorBoundary';
 import { useTvNavigation } from '@/hooks/useTvNavigation';
 import { useSeriesHidden } from '@/hooks/useSeriesHidden';
+import { aplicarClasseApp } from '@/lib/appShell';
 import type { JSX } from 'react';
 import { lazyWithRetry } from '@/lib/lazyWithRetry';
 
@@ -59,6 +60,12 @@ function RequireSeries({ children }: { children: JSX.Element }) {
 function AppRoutes() {
   // Navegação por controle remoto (setas + OK + Voltar) para TV, TV Box e PC.
   useTvNavigation();
+
+  // Detecta o shell nativo (APK) e aplica a classe `is-native-app` no <html>:
+  // esconde "Baixar app", ativa `tv-nav` e adapta a dica de controle remoto.
+  useEffect(() => {
+    aplicarClasseApp();
+  }, []);
 
   return (
     <>

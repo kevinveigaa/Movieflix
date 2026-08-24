@@ -1,19 +1,29 @@
 import type { CapacitorConfig } from '@capacitor/cli';
 
 /**
- * MovieFlix — Capacitor configuration.
+ * MovieFlix — Capacitor configuration (APP = WebView do site online).
  *
- * The app loads the project's OWN compiled frontend (webDir: "dist") inside
- * the native shell. It NEVER points to a remote URL: `server.androidScheme`
- * is "https" (default) and `android.clearText` stays false, so the WebView
- * serves the bundled assets locally. All API/backend calls continue to use
- * their normal https URLs at runtime.
+ * O app é um shell nativo (Capacitor/Android) que SEMPRE carrega a versão
+ * atual do site MovieFlix hospedada em https://movieflix-bszf.onrender.com.
+ *
+ * - `server.url` aponta para o site online: qualquer mudança no site
+ *   (layout, filmes, categorias, player, textos, configurações, features)
+ *   aparece AUTOMATICAMENTE no app, SEM precisar gerar/instalar um novo APK.
+ * - `server.cleartext` = false: só HTTPS.
+ * - NÃO usamos `webDir` (sem assets locais): o app é 100% remoto.
+ * - `android.captureInput` = true: teclas físicas/DPAD (setas, OK, Voltar)
+ *   chegam como eventos de teclado na página (usados pelo useTvNavigation).
  */
 const config: CapacitorConfig = {
   appId: 'com.movieflix.app',
   appName: 'MovieFlix',
-  webDir: 'dist',
   backgroundColor: '#0a0a0f',
+
+  // WebView remoto — o app NUNCA embute uma cópia antiga do site.
+  server: {
+    url: 'https://movieflix-bszf.onrender.com',
+    cleartext: false,
+  },
 
   android: {
     // TV Box / Android TV: allow fullscreen immersive playback and keep the
