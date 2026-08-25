@@ -18,12 +18,13 @@ export default defineConfig({
         entryFileNames: 'assets/[name]-[hash].js',
         chunkFileNames: 'assets/[name]-[hash].js',
         assetFileNames: 'assets/[name]-[hash][extname]',
-        manualChunks: {
-          'react-vendor': ['react', 'react-dom', 'react-router-dom'],
-          'query-vendor': ['@tanstack/react-query'],
-          'supabase-vendor': ['@supabase/supabase-js'],
-          hls: ['hls.js'],
-        },
+        // ANTIGO manualChunks removido: o formato de objeto fazia o Rollup
+        // embutir uma SEGUNDA cópia do React dentro do 'query-vendor' (ciclo
+        // react <-> @tanstack/react-query), causando "Class constructor S
+        // cannot be invoked without 'new'" na página de pesquisa e em reload
+        // direto de rotas internas. Sem manualChunks, o Vite/Rollup faz o
+        // code-splitting automático com instância ÚNICA de React.
+        // Prioridade: estabilidade > otimização de nomes de chunk.
       },
     },
   },

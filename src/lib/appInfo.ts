@@ -54,8 +54,8 @@ export const APK_ABSOLUTE_URL = `https://movieflix-bszf.onrender.com${APK_URL}`;
 /** URL absoluta da página de download (usada como fallback do QR em iOS). */
 export const DOWNLOAD_PAGE_URL = 'https://movieflix-bszf.onrender.com/#/baixar-app';
 
-/** Tamanho aproximado do APK em MB (exibido na página de download). */
-export const APK_SIZE_MB = '32 MB';
+/** Tamanho do APK em MB (exibido na página de download). Mantido em sincronia com public/apk/MovieFlix-v2.1.0.apk (3.677.947 bytes ≈ 3.7 MB). */
+export const APK_SIZE_MB = '3.7 MB';
 
 /** Chave usada no localStorage para lembrar a última versão vista pelo usuário. */
 const VERSION_KEY = 'mf_last_seen_version';

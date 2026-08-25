@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { Check, Crown, CreditCard, Loader2, Clock, CheckCircle2, ArrowUpCircle, ArrowDownCircle, AlertTriangle, RefreshCw } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useAuth, hasActiveSubscription } from '@/context/AuthContext';
@@ -11,6 +11,7 @@ import { entitlementHighlights, resolveSubscriptionPlan, diasRestantes, formatar
 
 export function SubscriptionPage() {
   const { user, subscription, refreshSubscription } = useAuth();
+  const navigate = useNavigate();
   const plans = useQuery({
     queryKey: ['plans'],
     queryFn: async () => {
@@ -49,7 +50,7 @@ export function SubscriptionPage() {
   async function subscribe(plan: Plan) {
     setError('');
     if (!user) {
-      window.location.href = '/login';
+      navigate('/login');
       return;
     }
     setBusy(true);

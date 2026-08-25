@@ -1,6 +1,6 @@
 import { Suspense, useEffect } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { HashRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { HashRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { AuthProvider, useAuth } from '@/context/AuthContext';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Seo } from '@/components/Seo';
@@ -94,7 +94,7 @@ function AppRoutes() {
       <Seo />
       {/* Aviso "Nova versão disponível" (compara versão atual com a última vista) */}
       <UpdateChecker />
-      <ErrorBoundary titulo="Algo deu errado ao carregar esta página.">
+      <ErrorBoundary key={location.pathname} titulo="Algo deu errado ao carregar esta página.">
         <Suspense fallback={<FullScreenLoader />}>
           <Routes>
           <Route element={<AppLayout />}>

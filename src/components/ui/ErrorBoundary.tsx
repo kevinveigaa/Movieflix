@@ -12,6 +12,10 @@ interface State {
 /**
  * Evita "tela preta": se algo quebrar dentro deste bloco, mostramos a mensagem
  * do erro no lugar de derrubar o app inteiro.
+ *
+ * IMPORTANTE: o App usa <ErrorBoundary key={location.pathname}> — quando a rota
+ * muda, o React REMONTA o boundary (state resetado), então o erro de uma página
+ * não contamina a próxima. O botão "Tentar de novo" continua funcionando.
  */
 export class ErrorBoundary extends Component<Props, State> {
   state: State = { erro: null };
