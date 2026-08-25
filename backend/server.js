@@ -7,6 +7,7 @@ const compression = require("compression");
 const { MercadoPagoConfig, Preference } = require("mercadopago");
 const { registrarPlayerProxy } = require("./player-proxy");
 const { registrarStreambetterResolver } = require("./streambetter-resolver");
+const { registrarTrialGate } = require("./trial-gate");
 
 const app = express();
 
@@ -27,6 +28,10 @@ registrarPlayerProxy(app);
 // Resolvedor de stream HLS direto do StreamBetter (SEM iframe → SEM anúncios
 // e SEM possibilidade de redirecionamento). Ver streambetter-resolver.js.
 registrarStreambetterResolver(app);
+
+// Teste grátis de 20 segundos — autorização server-side (assinatura ativa OU
+// tempo de teste restante no banco). Ver trial-gate.js.
+registrarTrialGate(app);
 
 // Proxy da API TMDb: o frontend chama /api/tmdb/* e o servidor repassa a
 // chamada com a chave de acesso, mantendo-a fora do navegador.

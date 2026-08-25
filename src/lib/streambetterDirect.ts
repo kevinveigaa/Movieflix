@@ -24,6 +24,12 @@ export interface StreamBetterDirectResult {
   motivo?: string;
   detalhe?: string;
   erro?: string;
+  /** Autorizado pelo servidor? (trial-gate) — ausente no resolve comum. */
+  authorized?: boolean;
+  /** Token de consumo do teste grátis (trial-gate). */
+  trialToken?: string | null;
+  /** Estado do teste grátis devolvido pelo servidor. */
+  trial?: { trialSeconds: number; consumedSeconds: number; remainingSeconds: number } | null;
 }
 
 /**

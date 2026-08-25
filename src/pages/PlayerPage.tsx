@@ -5,6 +5,9 @@ import { supabase } from '@/lib/supabase';
 import { getVideoSources, getTvSource, normalizeDubbedSource } from '@/lib/videoSources';
 import { streamBetterMovieUrl, streamBetterSeriesUrl } from '@/lib/strembetter';
 import { resolverStreamBetterDireto, ehEmbedStreamBetter } from '@/lib/streambetterDirect';
+import { gateStream, consumeTrialTime, fetchTrialInfo } from '@/lib/trialGate';
+import { TrialOverlay } from '@/components/player/TrialOverlay';
+import { hasActiveSubscription } from '@/context/AuthContext';
 import { protegerIframeContraRedirect } from '@/lib/antiAds';
 import { useUpsertHistory, fetchHistoryForMovie } from '@/hooks/useWatchHistory';
 import { useMovies } from '@/hooks/useMovies';
@@ -58,7 +61,10 @@ export function PlayerPage() {
   const { id } = useParams();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const { user, activeViewerProfile } = useAuth();
+  const { user, activeViewerProfile, subscription } = useAuth();
+  // Assinatura ativa? (o servidor também valida — este flag só decide o caminho
+  // de autorização do stream e o comportamento do teste grátis de 20s.)
+  const assinante = hasActiveSubscription(subscription);
   const upsertHistory = useUpsertHistory();
   // A identidade de `upsertHistory.mutate` é estável entre renders (TanStack
   // Query v5 mantém a função mutate memoizada). Guardamos a função direto para
@@ -78,6 +84,19 @@ export function PlayerPage() {
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   // Episódio atual (séries com ?season=&ep=).
   const [epAtual, setEpAtual] = useState<{ season: number; episode: number } | null>(null);
+
+  // ── Teste grátis de 20 segundos (server-side) ────────────────────────────
+  // `trialMode`: 'off' (assinante ou fluxo normal), 'countdown' (teste rodando),
+  // 'blocked' (teste esgotado — overlay não-dispensável cobre o player).
+  const [trialMode, setTrialMode] = useState<'off' | 'countdown' | 'blocked'>('off');
+  const [trialRemaining, setTrialRemaining] = useState(0);
+  const trialTokenRef = useRef<string | null>(null);
+  const trialConsumedRef = useRef(0); // segundos já consumidos NESTE player
+  const trialExpiredRef = useRef(false); // o servidor confirmou esgotamento
+  const trialStartRef = useRef<number | null>(null);
+  const trialLastSentRef = useRef(0);
+  const trialTickRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const trialCheckedRef = useRef(false); // já leu o saldo do banco neste mount
 
   // Única fonte de vídeo (fonte 1).
   const [sourceUrl, setSourceUrl] = useState<string | null>(null);
@@ -297,28 +316,43 @@ export function PlayerPage() {
     setSourceKind(norm ? norm.kind : 'iframe');
   }, [currentUrl]);
 
-  // ── MODO DIRETO StreamBetter (SEM IFRAME → SEM ANÚNCIOS) ────────────────
+  // ── MODO DIRETO StreamBetter (SEM IFRAME → SEM ANÚNCIOS) ──────────────────
   // Quando a fonte é um embed do StreamBetter, pedimos ao backend que resolva
-  // o stream HLS real (https://streambetter.shop/api/proxy?t=...&ext=m3u8) e
-  // reproduzimos num <video> nativo + hls.js. O iframe do StreamBetter no plano
-  // free injeta o overlay "Só mais um passo" DENTRO do iframe cross-origin
-  // (impossível de fechar via JS da página pai) e pode redirecionar — o modo
-  // direto elimina os dois problemas de vez, silenciosamente.
+  // o stream HLS real. A autorização é validada NO SERVIDOR:
+  //   - Assinante      → /api/streambetter-resolve libera direto.
+  //   - Sem assinatura → /api/trial-gate valida o saldo do teste grátis no
+  //     banco (20s por conta) ANTES de devolver o stream; se esgotado, o
+  //     servidor NÃO devolve URL (402) e o player mostra o bloqueio.
   useEffect(() => {
     if (!currentUrl || !ehEmbedStreamBetter(currentUrl)) return;
     let cancelado = false;
+
+    const tRaw = searchParams.get('t');
+    const t = tRaw && !isNaN(Number(tRaw)) ? Number(tRaw) : undefined;
+
     (async () => {
       try {
-        const tRaw = searchParams.get('t');
-        const t = tRaw && !isNaN(Number(tRaw)) ? Number(tRaw) : undefined;
-        const resultado = await resolverStreamBetterDireto(currentUrl, t);
+        const gate =
+          assinante
+            ? await resolverStreamBetterDireto(currentUrl, t)
+            : await gateStream(currentUrl, t);
         if (cancelado) return;
-        if (resultado.success && resultado.url) {
-          setSourceUrl(resultado.url);
-          setSourceKind(resultado.kind === 'mp4' ? 'direct' : 'direct');
+        const autorizado = 'authorized' in gate ? gate.authorized : gate.success;
+        if (autorizado && gate.url) {
+          setSourceUrl(gate.url);
+          setSourceKind(gate.kind === 'mp4' ? 'direct' : 'direct');
+          // Teste grátis: registra o token e inicia o cronômetro de 20s.
+          if (!assinante && 'trialToken' in gate && gate.trialToken) {
+            trialTokenRef.current = gate.trialToken;
+            iniciarCronometroTrial('trial' in gate ? gate.trial?.remainingSeconds : undefined);
+          }
+        } else if (!assinante && gate.motivo === 'assinatura_necessaria') {
+          // Servidor negou por falta de assinatura/teste esgotado → bloqueia já.
+          trialExpiredRef.current = true;
+          setTrialMode('blocked');
+          setTrialRemaining(0);
         }
-        // Se falhar, mantém o iframe (fallback silencioso) — a proteção
-        // antiAds continua ativa.
+        // Se falhar (network/sem stream), mantém o iframe (fallback silencioso).
       } catch (e) {
         console.warn('[PlayerPage] falha no modo direto StreamBetter:', e);
       }
@@ -327,7 +361,7 @@ export function PlayerPage() {
       cancelado = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentUrl, searchParams]);
+  }, [currentUrl, searchParams, assinante]);
 
   // Reprodução nativa de MP4/HLS quando a fonte é direta.
   useEffect(() => {
@@ -369,6 +403,129 @@ export function PlayerPage() {
     };
     trySeek();
   }, [sourceKind, currentUrl, searchParams]);
+
+  // ---- Teste grátis de 20 segundos (server-side) ----
+
+  // Para o cronômetro e o heartbeat do teste (desmontagem / bloqueio).
+  const pararCronometroTrial = useCallback(() => {
+    if (trialTickRef.current !== null) {
+      clearInterval(trialTickRef.current);
+      trialTickRef.current = null;
+    }
+  }, []);
+
+  // Consome no banco o tempo de teste decorrido desde o último envio.
+  const enviarConsumoTrial = useCallback(() => {
+    const token = trialTokenRef.current;
+    if (!token || trialExpiredRef.current) return;
+    const agora = Date.now();
+    if (agora - trialLastSentRef.current < 4000) return;
+    const decorrido = Math.floor((agora - (trialStartRef.current ?? agora)) / 1000) - trialConsumedRef.current;
+    if (decorrido <= 0) return;
+    trialLastSentRef.current = agora;
+    trialConsumedRef.current += decorrido;
+    consumeTrialTime(token, decorrido).then((res) => {
+      // O servidor confirmou que o teste esgotou → bloqueia imediatamente.
+      if (res.expired) {
+        trialExpiredRef.current = true;
+        setTrialMode('blocked');
+        setTrialRemaining(0);
+      }
+    });
+  }, []);
+
+  // Inicia (ou reinicia) o cronômetro do teste com o saldo vindo do servidor.
+  const iniciarCronometroTrial = useCallback(
+    (saldoServidor?: number) => {
+      pararCronometroTrial();
+      const saldo = saldoServidor != null && Number.isFinite(saldoServidor) ? Math.max(0, Math.floor(saldoServidor)) : 20;
+      if (saldo <= 0 || trialExpiredRef.current) {
+        trialExpiredRef.current = true;
+        setTrialMode('blocked');
+        setTrialRemaining(0);
+        return;
+      }
+      setTrialMode('countdown');
+      setTrialRemaining(saldo);
+      trialStartRef.current = Date.now();
+      trialConsumedRef.current = 0;
+      trialLastSentRef.current = Date.now();
+      trialTickRef.current = setInterval(() => {
+        if (trialExpiredRef.current) return;
+        const decorrido = Math.floor((Date.now() - (trialStartRef.current ?? Date.now())) / 1000);
+        const restante = Math.max(0, saldo - decorrido);
+        setTrialRemaining(restante);
+        enviarConsumoTrial();
+        if (restante <= 0) {
+          trialExpiredRef.current = true;
+          pararCronometroTrial();
+          // Última sincronização para fechar o saldo no banco.
+          enviarConsumoTrial();
+          setTrialMode('blocked');
+          setTrialRemaining(0);
+        }
+      }, 1000);
+    },
+    [pararCronometroTrial, enviarConsumoTrial],
+  );
+
+  // Ao montar sem assinatura: consulta o saldo do teste no banco (persistido
+  // por conta). Se já estiver esgotado, bloqueia na hora — recarregar a página
+  // ou trocar de dispositivo NÃO zera o teste.
+  useEffect(() => {
+    if (!user || assinante || trialCheckedRef.current) return;
+    trialCheckedRef.current = true;
+    (async () => {
+      const info = await fetchTrialInfo(user.id);
+      if (!info || trialExpiredRef.current) return;
+      if (info.remainingSeconds <= 0) {
+        trialExpiredRef.current = true;
+        setTrialMode('blocked');
+        setTrialRemaining(0);
+      }
+    })();
+  }, [user, assinante]);
+
+  // Heartbeat + trava: enquanto o teste está rodando, consome o tempo no banco
+  // a cada 5s e salva uma última vez ao sair da página (pagehide/beforeunload)
+  // — fechar a aba também conta como tempo assistido.
+  useEffect(() => {
+    if (trialMode !== 'countdown' || !trialTokenRef.current) return;
+    const beat = setInterval(enviarConsumoTrial, 5000);
+    const salvar = () => {
+      // Força o consumo final ignorando o throttle de 4s.
+      const token = trialTokenRef.current;
+      const agora = Date.now();
+      if (token && !trialExpiredRef.current) {
+        const decorrido = Math.floor((agora - (trialStartRef.current ?? agora)) / 1000) - trialConsumedRef.current;
+        if (decorrido > 0) {
+          trialConsumedRef.current += decorrido;
+          void consumeTrialTime(token, decorrido);
+        }
+      }
+    };
+    window.addEventListener('pagehide', salvar);
+    window.addEventListener('beforeunload', salvar);
+    return () => {
+      clearInterval(beat);
+      window.removeEventListener('pagehide', salvar);
+      window.removeEventListener('beforeunload', salvar);
+    };
+  }, [trialMode, enviarConsumoTrial]);
+
+  // Limpeza ao desmontar o player.
+  useEffect(() => {
+    return () => {
+      pararCronometroTrial();
+      // Registra o tempo de teste restante no momento da saída.
+      const token = trialTokenRef.current;
+      if (token && !trialExpiredRef.current && trialStartRef.current) {
+        const decorrido = Math.floor((Date.now() - trialStartRef.current) / 1000) - trialConsumedRef.current;
+        if (decorrido > 0) void consumeTrialTime(token, decorrido);
+      }
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // ---- Salvar progresso ----
 
@@ -616,8 +773,7 @@ export function PlayerPage() {
                   className="absolute inset-0 w-full h-full"
                   style={{ backgroundColor: '#000' }}
                 />
-              ) : (
-                <iframe
+              ) : (                <iframe
                   key={currentUrl}
                   ref={playerFrameRef}
                   id="player-frame"
@@ -730,6 +886,20 @@ export function PlayerPage() {
         )}
       </div>
 
+      {/* Teste grátis de 20 segundos (sem assinatura): overlay de contagem
+          regressiva e, ao esgotar, bloqueio NÃO-dispensável cobrindo o player. */}
+      {!assinante && trialMode === 'countdown' && (
+        <TrialOverlay mode="countdown" remaining={trialRemaining} total={20} />
+      )}
+      {!assinante && trialMode === 'blocked' && (
+        <>
+          {/* Pausa e silencia o player nativo (MP4/HLS) no momento do bloqueio —
+              não basta cobrir com overlay, o áudio não pode continuar. */}
+          <HardBlockVideoPause videoRef={videoRef} />
+          <TrialOverlay mode="blocked" />
+        </>
+      )}
+
       {/* Modal: Quer continuar de onde parou? (players embed) */}
       {showResumeModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
@@ -805,4 +975,19 @@ export function PlayerPage() {
       )}
     </div>
   );
+}
+
+/** Pausa e silencia o <video> nativo no instante em que o teste grátis esgota. */
+function HardBlockVideoPause({ videoRef }: { videoRef: React.RefObject<HTMLVideoElement | null> }) {
+  useEffect(() => {
+    const v = videoRef.current;
+    if (!v) return;
+    try {
+      v.pause();
+      v.muted = true;
+    } catch {
+      /* ignora */
+    }
+  }, [videoRef]);
+  return null;
 }

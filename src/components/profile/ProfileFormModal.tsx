@@ -9,10 +9,12 @@ interface ProfileFormModalProps {
   onClose: () => void;
   /** Perfil em edição. null = criar novo. */
   editing: ViewerProfile | null;
+  /** Nome sugerido ao criar o primeiro perfil (vindo do cadastro). */
+  defaultName?: string;
   onSubmit: (input: { name: string; avatar: string; is_kid: boolean }) => Promise<void> | void;
 }
 
-export function ProfileFormModal({ open, onClose, editing, onSubmit }: ProfileFormModalProps) {
+export function ProfileFormModal({ open, onClose, editing, defaultName, onSubmit }: ProfileFormModalProps) {
   const [name, setName] = useState('');
   const [avatar, setAvatar] = useState(PROFILE_AVATARS[0]);
   const [isKid, setIsKid] = useState(false);
@@ -21,12 +23,12 @@ export function ProfileFormModal({ open, onClose, editing, onSubmit }: ProfileFo
 
   useEffect(() => {
     if (open) {
-      setName(editing?.name ?? '');
+      setName(editing?.name ?? defaultName ?? '');
       setAvatar(editing?.avatar_url || PROFILE_AVATARS[0]);
       setIsKid(editing?.is_kid ?? false);
       setError('');
     }
-  }, [open, editing]);
+  }, [open, editing, defaultName]);
 
   async function save() {
     if (!name.trim()) {

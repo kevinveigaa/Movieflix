@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Plus, Pencil, Trash2, Check, Film, Baby, Users } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
+import { supabase } from '@/lib/supabase';
 import { useEntitlements } from '@/hooks/useEntitlements';
 import { useViewerProfiles } from '@/hooks/useViewerProfiles';
 import { ProfileFormModal } from '@/components/profile/ProfileFormModal';
@@ -57,6 +58,26 @@ export function ProfileSelectPage() {
     } else {
       const res = await create(input);
       if (res.error) throw new Error(res.error);
+      // Primeiro perfil criado logo após o cadastro: seleciona e vai para a
+      // Home. (Nenhuma assinatura é exigida — o usuário pode navegar pelo
+      // catálogo e assinar quando quiser.)
+      if (profiles.length === 0) {
+        try {
+          const { data } = await supabase
+            .from('viewer_profiles')
+            .select('*')
+            .eq('owner_id', user?.id)
+            .order('created_at', { ascending: false })
+            .limit(1)
+            .maybeSingle();
+          if (data) {
+            setActiveViewerProfile(data as ViewerProfile);
+            navigate('/');
+          }
+        } catch {
+          // Falha ao buscar: segue para a tela de perfis normalmente.
+        }
+      }
     }
   }
 
@@ -161,6 +182,7 @@ export function ProfileSelectPage() {
         open={modalOpen}
         onClose={() => setModalOpen(false)}
         editing={editingProfile}
+        defaultName={!editingProfile ? localStorage.getItem('mf_signup_name') ?? undefined : undefined}
         onSubmit={handleSubmit}
       />
 

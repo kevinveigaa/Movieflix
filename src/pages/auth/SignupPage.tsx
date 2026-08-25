@@ -7,6 +7,7 @@ import { AuthShell, ErrorBanner } from './LoginPage';
 export function SignupPage() {
   const { signUp } = useAuth();
   const navigate = useNavigate();
+  const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');
@@ -27,6 +28,10 @@ export function SignupPage() {
     setLoading(true);
     try {
       await signUp(email, password);
+      // Guarda o nome informado no cadastro como sugestão para o primeiro
+      // perfil (a criação do perfil acontece em /selecionar-perfil logo a
+      // seguir — NENHUMA assinatura é exigida para criar a conta).
+      if (name.trim()) localStorage.setItem('mf_signup_name', name.trim());
       navigate('/selecionar-perfil');
     } catch (err) {
       setError((err as Error).message ?? 'No foi possível cadastrar.');
@@ -43,7 +48,13 @@ export function SignupPage() {
           <span className="mb-1.5 block text-sm font-medium text-ink-200">Nome</span>
           <span className="relative block">
             <UserIcon className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-400" />
-            <input required placeholder="Seu nome" className="input pl-10" />
+            <input
+              required
+              placeholder="Seu nome"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              className="input pl-10"
+            />
           </span>
         </label>
         <label className="block">
@@ -80,7 +91,3 @@ export function SignupPage() {
     </AuthShell>
   );
 }
-
-
-
-
