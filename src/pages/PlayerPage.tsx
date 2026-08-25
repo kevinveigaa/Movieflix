@@ -7,6 +7,7 @@ import { streamBetterMovieUrl, streamBetterSeriesUrl } from '@/lib/strembetter';
 import { resolverStreamBetterDireto, ehEmbedStreamBetter } from '@/lib/streambetterDirect';
 import { gateStream, consumeTrialTime, fetchTrialInfo } from '@/lib/trialGate';
 import { TrialOverlay } from '@/components/player/TrialOverlay';
+import { SubscriptionPaywall } from '@/components/player/SubscriptionPaywall';
 import { hasActiveSubscription } from '@/context/AuthContext';
 import { protegerIframeContraRedirect } from '@/lib/antiAds';
 import { useUpsertHistory, fetchHistoryForMovie } from '@/hooks/useWatchHistory';
@@ -710,7 +711,7 @@ export function PlayerPage() {
   // O conteúdo é reproduzido APENAS dentro do MovieFlix (player embutido),
   // conforme pedido: não há mais "Baixar" nem "Abrir player externo".
 
-  if (loading) {
+  if (loading || authLoading) {
     return (
       <div className="flex h-screen items-center justify-center bg-black">
         <Loader2 className="h-10 w-10 animate-spin text-red-600" />
@@ -726,6 +727,14 @@ export function PlayerPage() {
         <button onClick={() => navigate('/login')} className="rounded-xl bg-red-600 px-8 py-3 font-semibold">Entrar</button>
       </div>
     );
+  }
+
+  // BLOQUEIO DE ASSINATURA (bloqueio imediato): sem NENHUM dos 3 planos
+  // ativos, não há reprodução — nem teste grátis, nem iframe, nem stream.
+  // O trial-gate do servidor (/api/trial-gate) permanece como defesa em
+  // profundidade para streams resolvidos via backend.
+  if (!assinante) {
+    return <SubscriptionPaywall />;
   }
 
   if (errorMsg) {
