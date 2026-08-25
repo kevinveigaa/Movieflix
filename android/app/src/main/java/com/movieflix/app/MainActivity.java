@@ -7,6 +7,8 @@ import android.os.Build;
 import android.os.Bundle;
 import android.view.KeyEvent;
 import android.view.View;
+import android.webkit.GeolocationPermissions;
+import android.webkit.WebChromeClient;
 import android.webkit.WebResourceRequest;
 import android.webkit.WebResourceResponse;
 import android.webkit.WebSettings;
@@ -23,15 +25,22 @@ import com.getcapacitor.BridgeActivity;
  * O app é um WebView remoto que SEMPRE carrega a versão atual do site
  * (https://movieflix-bszf.onrender.com). Este activity configura:
  *
- * 1. WebViewClient que BLOQUEIA popups/abas novas e navegação externa de
- *    anúncios — o usuário de TV nunca fica preso numa página de anúncio.
- *    Navegação interna (o próprio site) continua normal.
- * 2. Voltar (back) inteligente: se o WebView tem histórico, volta uma
- *    página (Player -> filme -> página anterior); se está na raiz, sai.
- * 3. DPAD/controle remoto: o WebView fica focado para receber as teclas
+ * 1. WebViewClient que BLOQUEIA TOTALMENTE popups/abas novas e navegação
+ *    externa de anúncios — o usuário de TV NUNCA fica preso numa página de
+ *    anúncio e o player NUNCA redireciona para outra tela. Navegação interna
+ *    (o próprio site) continua normal.
+ * 2. Guard de redirect NATIVO em onPageCommitVisible/onPageFinished: se o
+ *    WebView navegar para um host de anúncio/externo (mesmo via redirect do
+ *    iframe do player), RESTAURA imediatamente a última página do player (ou
+ *    do site) — silencioso, sem toast/alerta.
+ * 3. Voltar (back) inteligente: se o WebView tem histórico, volta uma página
+ *    (Player -> filme -> página anterior); se está na raiz, sai.
+ * 4. DPAD/controle remoto: o WebView fica focado para receber as teclas
  *    (setas/OK/Voltar) que o site usa para navegação por TV (useTvNavigation).
- * 4. Cache do WebView desabilitado no primeiro load (no-cache) para que o
+ * 5. Cache do WebView desabilitado no primeiro load (no-cache) para que o
  *    app SEMPRE carregue a versão mais recente do site.
+ * 6. Bloqueio de download (downloads de anúncio), geolocalização e janelas
+ *    múltiplas — tudo negado silenciosamente.
  */
 public class MainActivity extends BridgeActivity {
 
@@ -40,7 +49,12 @@ public class MainActivity extends BridgeActivity {
     private boolean primeiraCarga = true;
     // URL do player (última página de /assistir/ vista) — usada para voltar ao
     // player quando um anúncio consegue redirecionar o WebView para fora.
-    private String ultimaUrlPlayer = null;
+    private volatile String ultimaUrlPlayer = null;
+    // Última URL válida (site/player) — para restauração quando bloqueamos.
+    private volatile String ultimaUrlValida = null;
+    // Evita loop de restauração (2 restaurações / 3s).
+    private long ultimaRestauracao = 0;
+    private int restauracoesRecentes = 0;
 
     @SuppressLint("SetJavaScriptEnabled")
     @Override
@@ -59,6 +73,12 @@ public class MainActivity extends BridgeActivity {
             settings.setMediaPlaybackRequiresUserGesture(false);
             settings.setAllowFileAccess(false);
             settings.setAllowContentAccess(false);
+            // Impede downloads de anúncio (arquivos APK/desconhecidos).
+            settings.setAllowFileAccessFromFileURLs(false);
+            settings.setAllowUniversalAccessFromFileURLs(false);
+            // Janelas múltiplas (popups) NUNCA são criadas — tudo no mesmo WebView.
+            settings.setSupportMultipleWindows(false);
+            settings.setJavaScriptCanOpenWindowsAutomatically(false);
             // Mídia (áudio/vídeo) dentro do player embutido.
             settings.setMixedContentMode(WebSettings.MIXED_CONTENT_COMPATIBILITY_MODE);
 
@@ -69,6 +89,14 @@ public class MainActivity extends BridgeActivity {
             webView.setFocusable(true);
             webView.setFocusableInTouchMode(true);
             webView.requestFocus();
+
+            // Bloqueia geolocalização (anúncios pedem) — nega silenciosamente.
+            webView.setWebChromeClient(new WebChromeClient() {
+                @Override
+                public void onGeolocationPermissionsShowPrompt(String origin, GeolocationPermissions.Callback callback) {
+                    callback.invoke(origin, false, false);
+                }
+            });
 
             webView.setWebViewClient(new WebViewClient() {
                 @Override
@@ -85,10 +113,7 @@ public class MainActivity extends BridgeActivity {
                 @Override
                 public void onPageFinished(WebView view, String url) {
                     super.onPageFinished(view, url);
-                    // Rastreia a última página do player para o "voltar" inteligente.
-                    if (url != null && url.contains("/assistir/")) {
-                        ultimaUrlPlayer = url;
-                    }
+                    rastrearUrl(url);
                     if (primeiraCarga) {
                         primeiraCarga = false;
                         view.setBackgroundColor(Color.rgb(10, 10, 15));
@@ -107,9 +132,7 @@ public class MainActivity extends BridgeActivity {
                 @Override
                 public void onPageCommitVisible(WebView view, String url) {
                     super.onPageCommitVisible(view, url);
-                    if (url != null && url.contains("/assistir/")) {
-                        ultimaUrlPlayer = url;
-                    }
+                    rastrearUrl(url);
                 }
 
                 @Override
@@ -117,6 +140,23 @@ public class MainActivity extends BridgeActivity {
                     return super.shouldInterceptRequest(view, request);
                 }
             });
+
+            // Previne o download de arquivos de anúncio (APK, exe, etc.).
+            webView.setDownloadListener((url, userAgent, contentDisposition, mimetype, contentLength) -> {
+                // Bloqueia TODOS os downloads (o app não oferece download de arquivos).
+            });
+        }
+    }
+
+    /** Rastreia a última URL válida (site ou player) para restauração. */
+    private void rastrearUrl(String url) {
+        if (url == null) return;
+        if (url.contains("/assistir/")) {
+            ultimaUrlPlayer = url;
+        }
+        // Qualquer página do site é "válida" para restauração.
+        if (url.startsWith("https://movieflix-bszf.onrender.com")) {
+            ultimaUrlValida = url;
         }
     }
 
@@ -158,14 +198,20 @@ public class MainActivity extends BridgeActivity {
                 || h.endsWith("gstatic.com")
                 || h.endsWith("drive.google.com")
                 || h.endsWith("googlevideo.com")
-                || h.endsWith("ggpht.com")) {
+                || h.endsWith("ggpht.com")
+                || h.endsWith("wa.me")
+                || h.endsWith("whatsapp.com")
+                || h.endsWith("instagram.com")) {
             return false;
         }
 
         // Domínios de anúncio conhecidos — bloqueia (o player tenta abrir).
         if (h.contains("ads") || h.contains("adservice") || h.contains("doubleclick")
                 || h.contains("adsterra") || h.contains("propeller") || h.contains("popads")
-                || h.contains("exoclick") || h.contains("trafficjunky")) {
+                || h.contains("exoclick") || h.contains("trafficjunky")
+                || h.contains("googlesyndication") || h.contains("adnxs")
+                || h.contains("outbrain") || h.contains("taboola")
+                || h.contains("revcontent") || h.contains("mgid")) {
             return true;
         }
 
@@ -186,50 +232,33 @@ public class MainActivity extends BridgeActivity {
      *   é feita com loadUrl — o usuário simplesmente continua vendo o player.
      *
      * Popups (janelas/abas extras) são bloqueados pelo próprio WebView
-     * (setSupportMultipleWindows fica desabilitado) e por shouldBlock acima.
+     * (setSupportMultipleWindows desabilitado) e por shouldBlock acima.
      */
     private boolean tratarNavegacao(WebView view, Uri uri, boolean isMainFrame) {
         if (uri == null) return true;
-        String scheme = uri.getScheme() == null ? "" : uri.getScheme().toLowerCase();
-        if (!scheme.equals("https")) {
-            // Bloqueia esquemas não-https (intent://, tel://, file://, etc.).
-            // Subframe de anúncio: bloqueia em silêncio e restaura o player.
-            if (!isMainFrame && ultimaUrlPlayer != null) {
-                view.post(() -> view.loadUrl(ultimaUrlPlayer));
-            }
+        if (shouldBlock(uri)) {
+            restaurarUltimaPaginaValida(view);
             return true;
         }
-        String host = uri.getHost();
-        if (host == null) return true;
-        String h = host.toLowerCase();
-        if (h.equals("movieflix-bszf.onrender.com")
-                || h.endsWith(".onrender.com")
-                || h.endsWith("streambetter.shop")
-                || h.endsWith("playerflixapi.com")
-                || h.endsWith("megaembedapi.site")
-                || h.endsWith("embedplayapi.site")
-                || h.endsWith("watchplayer.shop")
-                || h.endsWith("embedplayer2.xyz")
-                || h.endsWith("embed.warezcdn.link")
-                || h.endsWith("superflixapi.life")
-                || h.endsWith("youtube.com")
-                || h.endsWith("youtu.be")
-                || h.endsWith("youtube-nocookie.com")
-                || h.endsWith("google.com")
-                || h.endsWith("googleapis.com")
-                || h.endsWith("gstatic.com")
-                || h.endsWith("drive.google.com")
-                || h.endsWith("googlevideo.com")
-                || h.endsWith("ggpht.com")) {
-            return false;
+        return false;
+    }
+
+    /** Restaura a última página válida (player ou site) com anti-loop. */
+    private void restaurarUltimaPaginaValida(WebView view) {
+        long agora = System.currentTimeMillis();
+        if (agora - ultimaRestauracao < 3000) {
+            restauracoesRecentes++;
+            if (restauracoesRecentes > 5) {
+                // Anti-loop: não restaura mais que 5x em 3s — para no site.
+                return;
+            }
+        } else {
+            restauracoesRecentes = 0;
+            ultimaRestauracao = agora;
         }
-        // Anúncio/externo: bloqueia e restaura o player (silencioso).
-        if (!isMainFrame && ultimaUrlPlayer != null) {
-            view.post(() -> view.loadUrl(ultimaUrlPlayer));
-        } else if (isMainFrame && ultimaUrlPlayer != null) {
-            view.post(() -> view.loadUrl(ultimaUrlPlayer));
-        }
-        return true;
+        final String alvo = ultimaUrlPlayer != null ? ultimaUrlPlayer
+                : (ultimaUrlValida != null ? ultimaUrlValida : SITE_URL);
+        view.post(() -> view.loadUrl(alvo));
     }
 
     /**

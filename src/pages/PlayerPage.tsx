@@ -126,10 +126,11 @@ export function PlayerPage() {
     return () => window.removeEventListener('mf-player-mode-change', onModeChange);
   }, []);
 
-  // Guarda de redirect do iframe (antiAds): se um anúncio redirecionar o
-  // DOCUMENTO do iframe para fora do player, restaura a URL original do player
-  // automaticamente e em silêncio (máx. 3 restaurações / 2 min). Nenhuma
-  // mensagem é mostrada ao usuário.
+  // Guarda de redirect do iframe (antiAds REFORÇADO): se um anúncio
+  // redirecionar o DOCUMENTO do iframe para fora do player, restaura a URL
+  // original do player automaticamente e em silêncio (contador global com
+  // janela 2min). Nenhuma mensagem é mostrada ao usuário. YouTube/Drive
+  // navegam legitimamente — não são protegidos.
   useEffect(() => {
     if (sourceKind !== 'iframe' || !currentUrl) return;
     const iframe = playerFrameRef.current;
@@ -145,6 +146,9 @@ export function PlayerPage() {
     })();
     const navegacaoLegitima = host.includes('youtube') || host.includes('youtu.be') || host.includes('drive.google');
     if (navegacaoLegitima) return;
+    // Marca o iframe com a URL original (usada pela sanitização global do
+    // antiAds para restaurar caso um anúncio mude o src).
+    iframe.setAttribute('data-player-src', currentUrl);
     const limpar = protegerIframeContraRedirect(iframe, currentUrl);
     return limpar;
   }, [sourceKind, currentUrl]);
@@ -576,6 +580,7 @@ export function PlayerPage() {
                   ref={playerFrameRef}
                   id="player-frame"
                   src={currentUrl}
+                  data-player-src={currentUrl}
                   title={`Player — ${movie?.title || ''}`}
                   className="tv-player absolute inset-0 w-full h-full border-0"
                   allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share; fullscreen"
@@ -586,7 +591,9 @@ export function PlayerPage() {
                   // detecta iframes com atributo sandbox e recusa carregar
                   // ("Please Disable Sandbox"). O player é embutido sem
                   // sandbox para funcionar; a dublagem pt-BR vem do parâmetro
-                  // lang=pt-BR na URL (src/lib/strembetter.ts).
+                  // lang=pt-BR na URL (src/lib/strembetter.ts). A proteção
+                  // total anti-redirect é feita pela janela pai (antiAds.ts)
+                  // + camada nativa no APK (MainActivity).
                 />
               )}
             </div>

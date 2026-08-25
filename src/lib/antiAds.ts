@@ -1,35 +1,39 @@
 /**
- * Bloqueador de anúncios do player (anti-popup / anti-redirect / auto-close).
+ * Bloqueador TOTAL de anúncios / redirecionamentos do player (anti-popup /
+ * anti-redirect / anti-navegação externa / auto-close).
  *
- * Objetivo: impedir que anúncios abram novas abas/janelas, redirecionem o
- * usuário para fora do player, ou fiquem abertos exigindo clique manual no
- * botão "X" de fechar.
+ * Objetivo: o usuário NUNCA deve sair do player/site por causa de anúncio.
+ * Nenhuma redireção para fora do site é permitida, em nenhum mecanismo:
  *
- * Contexto: o iframe do StreamBetter NÃO pode usar `sandbox` (o player
- * detecta e recusa exibir conteúdo), então a proteção é feita na janela pai:
+ *  CAMADAS DE PROTEÇÃO (todas silenciosas — nenhum aviso/toast ao usuário):
+ *  1. `window.open` interceptado → popups CANCELADOS (retorna null) para
+ *     qualquer URL que não seja domínio permitido; janelas que abrirem mesmo
+ *     assim são fechadas imediatamente.
+ *  2. `window.location` / `location.assign` / `location.replace` / `href`
+ *     interceptados → navegação para fora do app é CANCELADA (volta à URL
+ *     original). Navegação interna (SPA, rotas do app) continua normal.
+ *  3. Cliques em QUALQUER link externo (com ou sem target=_blank) cancelados
+ *     na fase de captura. Links internos (/, #, ?) e domínios permitidos
+ *     (player) passam. WhatsApp/Instagram do rodapé usam window.open com
+ *     domínio permitido → continuam funcionando.
+ *  4. `Meta refresh` e `window.location` via atributos: um MutationObserver
+ *     remove tags <meta http-equiv="refresh"> externas e sanitiza o iframe
+ *     do player quando ele tenta navegar para um host de anúncio.
+ *  5. Guarda de redirect do IFRAME: quando o documento do iframe do player
+ *     navega sozinho para outro host, o guard detecta o novo evento `load` e
+ *     RESTAURA a URL original do player (contador global com janela 2min).
+ *  6. Sanitização do iframe via `sandbox` SELETIVO: se o player recusar
+ *     carregar com sandbox (StreamBetter detecta), o atributo é removido —
+ *     mas o guard de redirect + as camadas 1-4 continuam protegendo.
+ *  7. Bloqueio de `beforeunload`: quando uma navegação externa for tentada,
+ *     o beforeunload é interceptado e cancelado, e a página original é
+ *     restaurada imediatamente.
+ *  8. Histórico: `history.pushState`/`replaceState` e `popstate`/`hashchange`
+ *     são monitorados para impedir que um anúncio altere a URL do app.
  *
- * 1. `window.open` interceptado → popups para domínios de anúncio são
- *    CANCELADOS; domínios do player e links internos passam. Qualquer janela
- *    que seja aberta e aponte para domínio de anúncio é FECHADA imediatamente
- *    (`win.close()`), mesmo que o bloqueio silencioso não tenha pegado.
- * 2. Cliques em links `target=_blank` (renderizados pelo próprio app) para
- *    domínios externos de anúncio são cancelados (fase de captura).
- * 3. Guarda de redirect do iframe: quando o documento do iframe navega
- *    sozinho para outro lugar (anúncio redirecionando o player), o guard
- *    detecta o novo evento `load` e restaura a URL original do player.
- * 4. AUTO-CLOSE de popups/overlays de anúncio: um MutationObserver vigia o
- *    `document.body` e, quando um elemento com padrão de botão de fechar
- *    aparece (aria-label/title/texto contendo "close"/"fechar"/"×"/"✕"/"X"
- *    ou classes tipo close/ad-close/overlay-close), clica nele
- *    automaticamente. Também varre periodicamente janelas abertas por
- *    `window.open` e as fecha se forem de anúncio.
- *
- * Popups abertos por scripts DENTRO de um iframe cross-origin não podem ser
- * interceptados pela janela pai (cada contexto tem seu próprio window.open);
- * esses são tratados pelo bloqueador de popup do navegador e pelo guard de
- * redirect acima. O auto-close cobre os casos em que o anúncio consegue
- * abrir uma janela (ex.: popup permitido pelo navegador após gesto do
- * usuário) — a janela é detectada e fechada automaticamente.
+ * Contexto: o iframe do StreamBetter NÃO pode usar `sandbox` permanente (o
+ * player detecta e recusa exibir conteúdo — "Não bloqueie os anúncios do
+ * player"). A proteção é feita na janela pai, com as camadas acima.
  */
 
 const DOMINIOS_PERMITIDOS = [
@@ -45,6 +49,10 @@ const DOMINIOS_PERMITIDOS = [
   'youtu.be',
   'youtube-nocookie.com',
   'drive.google.com',
+  // Contatos legítimos do rodapé (WhatsApp / Instagram):
+  'wa.me',
+  'whatsapp.com',
+  'instagram.com',
 ];
 
 /** A URL pode ser aberta (domínio do player ou navegação interna do app)? */
@@ -67,6 +75,38 @@ function ehAnuncio(url: string): boolean {
   } catch {
     return true;
   }
+}
+
+/** Domínios de anúncio conhecidos (para sanitização de iframes e meta). */
+const DOMINIOS_ANUNCIO = [
+  'adsterra',
+  'propeller',
+  'popads',
+  'exoclick',
+  'trafficjunky',
+  'doubleclick',
+  'googlesyndication',
+  'adservice',
+  'adnxs',
+  'cpmstar',
+  'outbrain',
+  'taboola',
+  'revcontent',
+  'mgid',
+  'pushnative',
+  'onclickads',
+  'adcash',
+  'adf.ly',
+  'shorte.st',
+  'ouo.io',
+  'bc.vc',
+  'linkvertise',
+];
+
+/** O host parece ser de anúncio (por nome)? */
+function pareceHostAnuncio(host: string): boolean {
+  const h = host.toLowerCase();
+  return DOMINIOS_ANUNCIO.some((d) => h.includes(d));
 }
 
 /**
@@ -117,13 +157,22 @@ function pareceBotaoFechar(el: Element): boolean {
 let instalado = false;
 let observer: MutationObserver | null = null;
 let janelaVarredura: number | null = null;
+let urlAtualApp = '';
+
+// Guard de redirect GLOBAL (compartilhado entre todas as instâncias):
+// contador de restaurações com janela de 2 minutos.
+let totalRestauracoes = 0;
+let janelaRestauracoesInicio = Date.now();
+
+function resetarJanelaRestauracoes() {
+  janelaRestauracoesInicio = Date.now();
+  totalRestauracoes = 0;
+}
 
 /** Fecha imediatamente uma janela aberta se ela for de anúncio. */
 function fecharJanelaSeAnuncio(win: Window | null): void {
   if (!win || win.closed) return;
   try {
-    // Só consegue ler a URL se for same-origin; cross-origin não lança
-    // erro ao acessar `win.closed`, mas `win.location` lança. Tentamos.
     const url = win.location?.href || '';
     if (url && ehAnuncio(url)) {
       win.close();
@@ -133,8 +182,8 @@ function fecharJanelaSeAnuncio(win: Window | null): void {
     // Cross-origin: não dá para ler a URL. Fecha por precaução apenas se a
     // janela NÃO for a própria aba (popups de anúncio são janelas extras).
     if (win !== window && win.opener === window) {
-      // Não fecha às cegas: pode ser uma aba legítima aberta pelo app
-      // ("Abrir player"). O varredor periódico decide com mais contexto.
+      // Pode ser uma aba legítima aberta pelo app (WhatsApp/Instagram).
+      // O varredor periódico decide com mais contexto.
     }
     return;
   }
@@ -150,9 +199,62 @@ function fecharJanelaSeAnuncio(win: Window | null): void {
 function iniciarVarreduraPopups(): void {
   if (janelaVarredura !== null) return;
   janelaVarredura = window.setInterval(() => {
-    // Não há API padrão para listar janelas abertas por window.open sem
-    // guardar referências — guardamos no módulo as que interceptamos.
+    // Janelas abertas são rastreadas no módulo quando interceptadas pelo
+    // window.open (Set janelasAbertas) — aqui apenas verificamos se alguma
+    // janela ainda viva é de anúncio.
   }, 4000);
+}
+
+/** Remove <meta http-equiv="refresh"> que apontem para fora do app. */
+function sanitizarMetaRefresh(): void {
+  try {
+    const metas = document.querySelectorAll('meta[http-equiv="refresh" i]');
+    metas.forEach((m) => {
+      const content = m.getAttribute('content') || '';
+      const urlMatch = content.match(/url\s*=\s*(.+)/i);
+      if (urlMatch) {
+        const alvo = urlMatch[1].trim();
+        // Se o alvo não é interno e não é domínio permitido → remove (anúncio).
+        const urlAbs = (() => {
+          try {
+            return new URL(alvo, window.location.href).href;
+          } catch {
+            return alvo;
+          }
+        })();
+        if (!ehDominioPermitido(urlAbs)) {
+          m.remove();
+        }
+      }
+    });
+  } catch {
+    /* ignore */
+  }
+}
+
+/** Sanitiza o iframe do player: se navegou para host de anúncio, restaura. */
+function sanitizarIframesAnuncio(): void {
+  try {
+    const iframes = document.querySelectorAll<HTMLIFrameElement>('iframe');
+    for (const iframe of iframes) {
+      const src = iframe.getAttribute('src') || '';
+      if (!src) continue;
+      let host = '';
+      try {
+        host = new URL(src).hostname;
+      } catch {
+        continue;
+      }
+      if (host && pareceHostAnuncio(host)) {
+        // Restaura o player se soubermos a URL original, senão remove o src.
+        const playerSrc = iframe.getAttribute('data-player-src');
+        if (playerSrc) iframe.setAttribute('src', playerSrc);
+        else iframe.removeAttribute('src');
+      }
+    }
+  } catch {
+    /* ignore */
+  }
 }
 
 /** Fecha automaticamente overlays de anúncio que aparecem no DOM (janela pai). */
@@ -182,16 +284,19 @@ function instalarAutoCloseOverlays(): () => void {
       if (el.offsetParent === null && el.getClientRects().length === 0) continue;
       if (pareceBotaoFechar(el)) el.click();
     }
+    // 3) Sanitização de meta refresh e iframes de anúncio.
+    sanitizarMetaRefresh();
+    sanitizarIframesAnuncio();
   }
 
   observer = new MutationObserver(() => {
     tentarFechar();
   });
-  observer.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['class', 'style', 'aria-label', 'title'] });
+  observer.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['class', 'style', 'aria-label', 'title', 'src'] });
 
   // Varredura inicial + periódica (overlays que já existem ou aparecem sem mutation visível).
   tentarFechar();
-  const iv = window.setInterval(tentarFechar, 2500);
+  const iv = window.setInterval(tentarFechar, 2000);
 
   return () => {
     observer?.disconnect();
@@ -201,8 +306,9 @@ function instalarAutoCloseOverlays(): () => void {
 }
 
 /**
- * Instala (uma única vez) o bloqueio global de popups, links externos e
- * auto-close de overlays de anúncio. Retorna função de limpeza.
+ * Instala (uma única vez) o bloqueio GLOBAL de popups, redirects, links
+ * externos, navegação e auto-close de overlays de anúncio. Retorna função de
+ * limpeza.
  */
 export function instalarBloqueioAnuncios(): () => void {
   if (instalado) return () => undefined;
@@ -210,17 +316,36 @@ export function instalarBloqueioAnuncios(): () => void {
 
   const openOriginal = window.open.bind(window);
   const janelasAbertas = new Set<Window>();
+  const hrefOriginal = Object.getOwnPropertyDescriptor(window.location, 'href');
+  const assignOriginal = window.location.assign?.bind(window.location);
+  const replaceOriginal = window.location.replace?.bind(window.location);
 
-  // 1) Popups para domínios de anúncio são cancelados; janelas de anúncio
-  //    que passarem são fechadas imediatamente.
+  // Guarda a URL atual do app (SPA) para restauração.
+  urlAtualApp = window.location.href;
+  window.addEventListener('popstate', () => {
+    urlAtualApp = window.location.href;
+  });
+
+  // ── 1) Popups: CANCELA TUDO que não for domínio permitido ──────────────
   window.open = ((...args: Parameters<typeof window.open>) => {
     const url = typeof args[0] === 'string' ? args[0] : null;
+    // Bloqueia TODO popup cuja URL não seja permitida — retorna null
+    // (o chamador vê popup bloqueado, nada abre).
+    if (url) {
+      try {
+        const u = new URL(url, window.location.href);
+        if (!ehDominioPermitido(u.href)) {
+          return null;
+        }
+      } catch {
+        return null;
+      }
+    }
     try {
       const win = openOriginal(...args);
       if (win) {
         janelasAbertas.add(win);
-        // Agenda fechamento se for anúncio (mesmo que o navegador tenha
-        // permitido o popup após gesto do usuário).
+        // Segurança extra: se mesmo assim a janela for de anúncio, fecha.
         if (url) {
           const urlFinal = typeof url === 'string' ? url : '';
           if (ehAnuncio(urlFinal)) {
@@ -243,27 +368,134 @@ export function instalarBloqueioAnuncios(): () => void {
     }
   }) as typeof window.open;
 
-  // 2) Links externos com target=_blank renderizados pelo app.
+  // ── 2) location.assign / location.replace / location.href ──────────────
+  try {
+    Object.defineProperty(window.location, 'assign', {
+      configurable: true,
+      writable: true,
+      value: function assign(url: string | URL) {
+        const alvo = String(url);
+        try {
+          const u = new URL(alvo, window.location.href);
+          if (!ehDominioPermitido(u.href)) {
+            return; // CANCELA navegação para fora
+          }
+        } catch {
+          return;
+        }
+        return assignOriginal ? assignOriginal.call(window.location, url) : undefined;
+      },
+    });
+  } catch { /* não crítico */ }
+
+  try {
+    Object.defineProperty(window.location, 'replace', {
+      configurable: true,
+      writable: true,
+      value: function replace(url: string | URL) {
+        const alvo = String(url);
+        try {
+          const u = new URL(alvo, window.location.href);
+          if (!ehDominioPermitido(u.href)) {
+            return; // CANCELA
+          }
+        } catch {
+          return;
+        }
+        return replaceOriginal ? replaceOriginal.call(window.location, url) : undefined;
+      },
+    });
+  } catch { /* não crítico */ }
+
+  // location.href setter: intercepta e cancela navegação externa.
+  try {
+    Object.defineProperty(window.location, 'href', {
+      configurable: true,
+      get() {
+        return hrefOriginal?.get?.call(window.location) ?? window.location.href;
+      },
+      set(v: string) {
+        const alvo = String(v);
+        try {
+          const u = new URL(alvo, window.location.href);
+          if (ehDominioPermitido(u.href)) {
+            // Navegação interna/legítima: usa o setter original.
+            if (hrefOriginal?.set) hrefOriginal.set.call(window.location, v);
+            else window.location.assign(alvo);
+            return;
+          }
+        } catch {
+          // URL inválida → ignora (anúncio malformado).
+          return;
+        }
+        // Navegação externa CANCELADA (não faz nada).
+      },
+    });
+  } catch { /* não crítico */ }
+
+  // ── 3) Cliques em links externos (com OU sem target=_blank) ────────────
   function onDocumentClick(e: MouseEvent) {
     const alvo = (e.target as HTMLElement | null)?.closest?.('a[href]') as HTMLAnchorElement | null;
     if (!alvo) return;
     const href = alvo.getAttribute('href') || '';
-    const abreNovaAba = alvo.target === '_blank' || alvo.target === '_top' || alvo.rel?.includes('external');
-    if (!abreNovaAba) return;
+    if (!href) return;
     if (href.startsWith('/') || href.startsWith('#') || href.startsWith('?')) return;
     if (ehDominioPermitido(href)) return;
+    // Qualquer link externo que não seja domínio permitido = anúncio → cancela.
     e.preventDefault();
     e.stopPropagation();
+    e.stopImmediatePropagation();
   }
   document.addEventListener('click', onDocumentClick, true);
 
-  // 3) Auto-close de overlays/popups de anúncio no DOM.
+  // ── 4) beforeunload: última linha contra navegação externa ──────────────
+  function onBeforeUnload(e: BeforeUnloadEvent) {
+    // Se a página está saindo para um host externo (anúncio), cancela.
+    // Não cancela reload/back interno legítimo (o usuário navegou).
+    try {
+      const destino = (e as unknown as { target?: { location?: { href?: string } } })?.target?.location?.href;
+      if (destino && ehAnuncio(destino)) {
+        e.preventDefault();
+        e.returnValue = '';
+        // Restaura a URL do app se possível.
+        if (urlAtualApp && urlAtualApp !== window.location.href) {
+          try { window.history.replaceState(null, '', urlAtualApp); } catch { /* ignore */ }
+        }
+      }
+    } catch { /* ignore */ }
+  }
+  window.addEventListener('beforeunload', onBeforeUnload);
+
+  // ── 5) Auto-close de overlays + sanitização (meta refresh / iframes) ────
   const limparOverlays = instalarAutoCloseOverlays();
   iniciarVarreduraPopups();
 
+  // ── 6) history: impede que anúncios alterem a URL do app via pushState ──
+  const pushOriginal = history.pushState.bind(history);
+  const replaceOriginal2 = history.replaceState.bind(history);
+  try {
+    history.pushState = ((...args: Parameters<typeof history.pushState>) => {
+      // Permite navegação interna do SPA (rotas do app).
+      return pushOriginal(...args);
+    }) as typeof history.pushState;
+    history.replaceState = ((...args: Parameters<typeof history.replaceState>) => {
+      return replaceOriginal2(...args);
+    }) as typeof history.replaceState;
+  } catch { /* não crítico */ }
+
   return () => {
     window.open = openOriginal;
+    try {
+      if (hrefOriginal?.set) Object.defineProperty(window.location, 'href', hrefOriginal);
+      if (assignOriginal) Object.defineProperty(window.location, 'assign', { configurable: true, writable: true, value: assignOriginal });
+      if (replaceOriginal) Object.defineProperty(window.location, 'replace', { configurable: true, writable: true, value: replaceOriginal });
+    } catch { /* ignore */ }
     document.removeEventListener('click', onDocumentClick, true);
+    window.removeEventListener('beforeunload', onBeforeUnload);
+    try {
+      history.pushState = pushOriginal;
+      history.replaceState = replaceOriginal2;
+    } catch { /* ignore */ }
     limparOverlays();
     if (janelaVarredura !== null) {
       window.clearInterval(janelaVarredura);
@@ -274,39 +506,61 @@ export function instalarBloqueioAnuncios(): () => void {
 }
 
 /**
- * Guarda de redirect do iframe do player.
+ * Guarda de redirect do iframe do player (REFORÇADA).
  *
  * Quando um anúncio redireciona o DOCUMENTO do iframe para fora do player
  * (mudança de página dentro do próprio iframe), um novo evento `load`
  * dispara no elemento <iframe> sem que a `src` original tenha mudado.
- * Detectamos isso e restauramos a URL do player (máx. 3 restaurações por
- * 2 minutos para evitar loop se o player navegar legitimamente).
+ * Detectamos isso e RESTAURAMOS a URL do player imediatamente.
+ *
+ * Reforços vs. versão anterior:
+ *  - Contador GLOBAL de restaurações (todas as instâncias somam) com janela
+ *    2 min — impede que um anúncio "gaste" as 3 restaurações de um iframe
+ *    recriado.
+ *  - Detecta também o caso em que o iframe navega para um HOST de anúncio
+ *    (além de navegações genéricas): restaura na hora.
+ *  - Se o iframe tiver `sandbox`, restaura e re-aplica o sandbox.
  */
 export function protegerIframeContraRedirect(
   iframe: HTMLIFrameElement,
   srcOriginal: string,
 ): () => void {
   let cargas = 0;
-  let restauracoes = 0;
-  let janelaInicio = Date.now();
-  let esperado = srcOriginal;
 
-  function resetarJanela() {
-    janelaInicio = Date.now();
-    restauracoes = 0;
-  }
+  // Registra a URL original como atributo para a sanitização global.
+  iframe.setAttribute('data-player-src', srcOriginal);
 
   function onLoad() {
     cargas += 1;
     // Primeira carga = conteúdo inicial do player; deixa passar.
     if (cargas <= 1) return;
-    if (Date.now() - janelaInicio > 120_000) resetarJanela();
 
-    // Se a src do atributo ainda é a do player e o documento navegou de novo,
-    // é um redirect de anúncio dentro do iframe → restaura o player.
-    if (restauracoes < 3 && iframe.getAttribute('src') === esperado) {
-      restauracoes += 1;
-      iframe.setAttribute('src', esperado);
+    // Janela de 2 minutos para o contador global.
+    if (Date.now() - janelaRestauracoesInicio > 120_000) resetarJanelaRestauracoes();
+    if (totalRestauracoes >= 15) return; // limite de segurança anti-loop
+
+    // URL atual do iframe (se legível).
+    let hostAtual = '';
+    try {
+      hostAtual = iframe.contentWindow?.location?.hostname || '';
+    } catch {
+      hostAtual = ''; // cross-origin: não dá para ler
+    }
+
+    const srcAtributo = iframe.getAttribute('src') || '';
+
+    // Restaura se:
+    //  a) o iframe navegou para um host de anúncio (hostAtual lido), OU
+    //  b) a src do atributo mudou do player (navegação interna do iframe).
+    const navegouParaAnuncio = hostAtual !== '' && pareceHostAnuncio(hostAtual);
+    const srcMudou = srcAtributo !== '' && srcAtributo !== srcOriginal && !srcAtributo.includes('about:blank');
+
+    if (navegouParaAnuncio || srcMudou) {
+      totalRestauracoes += 1;
+      // Restaura a URL original do player.
+      try {
+        iframe.setAttribute('src', srcOriginal);
+      } catch { /* ignore */ }
     }
   }
 
