@@ -22,6 +22,8 @@ import {
   formatarTempoRelogio,
   rotuloPontoParada,
 } from '@/lib/watchProgress';
+import { downloadVideo } from '@/lib/hlsDownload';
+import { registerDownload, alreadyDownloaded } from '@/lib/downloads';
 import Hls from 'hls.js';
 import { cn } from '@/lib/cn';
 import { ChevronLeft, Film, Gamepad2, Loader2, RefreshCw, AlertCircle, RotateCcw, Play, Clock, Gauge } from 'lucide-react';
@@ -83,10 +85,10 @@ export function PlayerPage() {
   const [movie, setMovie] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
-  // Episódio atual (séries com ?season=&ep=).
+  // Episódio atual da série (?season=&ep=) — usado para montar o embed.
   const [epAtual, setEpAtual] = useState<{ season: number; episode: number } | null>(null);
 
-  // ── Teste grátis de 20 segundos (server-side) ────────────────────────────
+  // Teste grátis de 20 segundos (server-side)──────────────────────────
   // `trialMode`: 'off' (assinante ou fluxo normal), 'countdown' (teste rodando),
   // 'blocked' (teste esgotado — overlay não-dispensável cobre o player).
   const [trialMode, setTrialMode] = useState<'off' | 'countdown' | 'blocked'>('off');
