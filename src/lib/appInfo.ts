@@ -6,7 +6,7 @@
  * (e colocar o novo arquivo em public/apk/).
  *
  * ══ SISTEMA DE VERSÃO (pedido do dono) ══════════════════════════════════
- * - A versão atual é 2.0.0 (versão principal do site + app unificados).
+ * - A versão atual é 2.1.0 (versão principal do site + app unificados).
  * - Regra de incremento:
  *     · Correção pequena (bugfix)  → 2.0.1
  *     · Nova funcionalidade        → 2.1.0
@@ -20,13 +20,14 @@ export const APP_INFO = {
   /** Nome exibido do aplicativo */
   name: 'MovieFlix',
   /** Versão semântica atual (bate com android/app/build.gradle → versionName) */
-  version: '2.0.0',
+  version: '2.1.0',
   /** Código de versão Android (bate com versionCode) */
-  versionCode: 3,
+  versionCode: 4,
   /** Data de lançamento desta versão (AAAA-MM-DD) */
   releaseDate: '2026-08-25',
   /** Resumo das mudanças desta versão (exibido na página de download) */
   changelog: [
+    'Páginas exclusivas de Filmes e Séries com catálogo completo, busca e ordenação',
     'Catálogo prioriza qualidade (1080p/720p/4K/WEB-DL/BluRay), nunca CAM como principal',
     'Filmes ordenados por lançamento (mais recentes primeiro) com filtros (recentes, antigos, populares, avaliados, A-Z, Z-A)',
     'Busca inteligente (fuzzy search): aceita erros de digitação, palavras invertidas, título original, gênero e ano',
@@ -37,11 +38,21 @@ export const APP_INFO = {
   /** Plataformas suportadas */
   platforms: ['Android', 'Android TV', 'Google TV', 'TV Box'],
   /** Nome do arquivo do APK oficial (manter sincronizado com public/apk/) */
-  apkFileName: 'MovieFlix-v2.0.0.apk',
+  apkFileName: 'MovieFlix-v2.1.0.apk',
 } as const;
 
 /** Caminho público do APK oficial dentro do app (servido pelo backend/static). */
 export const APK_URL = `/apk/${APP_INFO.apkFileName}`;
+
+/**
+ * URL ABSOLUTA do APK (usada pelo QR code e por links externos).
+ * O domínio oficial do site/app é a fonte única — se um dia mudar de host,
+ * basta atualizar aqui (e em capacitor.config.ts / MainActivity).
+ */
+export const APK_ABSOLUTE_URL = `https://movieflix-bszf.onrender.com${APK_URL}`;
+
+/** URL absoluta da página de download (usada como fallback do QR em iOS). */
+export const DOWNLOAD_PAGE_URL = 'https://movieflix-bszf.onrender.com/#/baixar-app';
 
 /** Tamanho aproximado do APK em MB (exibido na página de download). */
 export const APK_SIZE_MB = '32 MB';

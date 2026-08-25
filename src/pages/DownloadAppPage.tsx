@@ -1,8 +1,10 @@
 import { Link } from 'react-router-dom';
-import { Smartphone, Download, ShieldCheck, Play, Monitor, RotateCcw, Tv, Apple, CheckCircle2 } from 'lucide-react';
-import { APP_INFO, APK_URL, APK_SIZE_MB } from '@/lib/appInfo';
+import { QRCodeSVG } from 'qrcode.react';
+import { Smartphone, Download, ShieldCheck, Play, Monitor, RotateCcw, Tv, Apple, CheckCircle2, QrCode } from 'lucide-react';
+import { APP_INFO, APK_URL, APK_SIZE_MB, APK_ABSOLUTE_URL, DOWNLOAD_PAGE_URL } from '@/lib/appInfo';
 
 export function DownloadAppPage() {
+  const apkUrl = APK_ABSOLUTE_URL; // URL absoluta usada pelo botão E pelo QR
   return (
     <div className="container-app py-10">
       <div className="mx-auto max-w-3xl text-center">
@@ -18,21 +20,61 @@ export function DownloadAppPage() {
           séries dublados em pt-BR com navegação completa por controle remoto.
         </p>
 
-        <div className="mt-8">
+        {/* Botão de download + QR code */}
+        <div className="mt-8 flex flex-col items-center gap-6 sm:flex-row sm:justify-center sm:gap-8">
+          {/* Botão principal */}
+          <div className="flex flex-col items-center">
+            <a
+              href={apkUrl}
+              download={APP_INFO.apkFileName}
+              data-tv-focusable
+              className="inline-flex items-center gap-3 rounded-2xl bg-brand-600 px-8 py-4 text-lg font-semibold text-white shadow-lg shadow-brand-600/30 transition hover:bg-brand-500"
+            >
+              <Download className="h-6 w-6" />
+              Baixar APK
+            </a>
+            <p className="mt-2 text-xs text-ink-500">
+              {APP_INFO.name} v{APP_INFO.version} • {APK_SIZE_MB} • Arquivo .apk • Instalação fora da Play Store
+            </p>
+            <p className="mt-1 text-[11px] text-ink-500">
+              Lançado em {APP_INFO.releaseDate} • {APP_INFO.platforms.join(' · ')}
+            </p>
+          </div>
+
+          {/* QR code — aponta para a URL direta do APK */}
+          <div className="flex flex-col items-center gap-2 rounded-2xl border border-white/10 bg-white p-4">
+            <QRCodeSVG
+              value={apkUrl}
+              size={176}
+              level="M"
+              bgColor="#ffffff"
+              fgColor="#0a0a0f"
+              title="MovieFlix APK"
+            />
+            <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-ink-900">
+              <QrCode className="h-3.5 w-3.5" />
+              Aponte a câmera para baixar
+            </span>
+          </div>
+        </div>
+
+        {/* Nota honesta: como o QR funciona por plataforma */}
+        <div className="mx-auto mt-5 max-w-xl rounded-xl border border-white/10 bg-ink-900/40 px-4 py-3 text-left text-xs leading-relaxed text-ink-400">
+          <strong className="text-white">Como o QR funciona:</strong> no{' '}
+          <strong className="text-brand-300">Android</strong> (celular, tablet, Android TV, TV Box),
+          o QR inicia o download do APK na hora. No{' '}
+          <strong className="text-white">iPhone/iPad (iOS)</strong>, o iOS não permite instalar
+          APK — então o QR abre esta página de download, onde há o passo a passo
+          para instalar o MovieFlix como PWA direto do Safari (mesma experiência,
+          sempre atualizado).{' '}
           <a
-            href={APK_URL}
-            download={APP_INFO.apkFileName}
-            className="inline-flex items-center gap-3 rounded-2xl bg-brand-600 px-8 py-4 text-lg font-semibold text-white shadow-lg shadow-brand-600/30 transition hover:bg-brand-500"
+            href={DOWNLOAD_PAGE_URL}
+            target="_blank"
+            rel="noreferrer"
+            className="text-brand-300 underline underline-offset-2 hover:text-brand-200"
           >
-            <Download className="h-6 w-6" />
-            Baixar APK
+            Abrir página de download
           </a>
-          <p className="mt-2 text-xs text-ink-500">
-            {APP_INFO.name} v{APP_INFO.version} • {APK_SIZE_MB} • Arquivo .apk • Instalação fora da Play Store
-          </p>
-          <p className="mt-1 text-[11px] text-ink-500">
-            Lançado em {APP_INFO.releaseDate} • {APP_INFO.platforms.join(' · ')}
-          </p>
         </div>
 
         {/* Changelog da versão atual */}
