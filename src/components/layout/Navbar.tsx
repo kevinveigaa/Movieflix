@@ -266,6 +266,8 @@ export function Navbar() {
                 key={l.to}
                 to={l.to}
                 end={l.to === '/'}
+                onClick={() => setMobileOpen(false)}
+                data-tv-focusable
                 className={({ isActive }) =>
                   cn(
                     'rounded-lg px-3 py-2.5 text-sm font-medium transition-colors',
@@ -284,6 +286,8 @@ export function Navbar() {
                     <Link
                       key={c}
                       to={`/filmes?categoria=${encodeURIComponent(c)}`}
+                      onClick={() => setMobileOpen(false)}
+                      data-tv-focusable
                       className="rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-xs text-ink-200 transition hover:bg-white/10 hover:text-white"
                     >
                       {c}
@@ -296,6 +300,8 @@ export function Navbar() {
             {!isApp && (
               <NavLink
                 to="/baixar-app"
+                onClick={() => setMobileOpen(false)}
+                data-tv-focusable
                 className={({ isActive }) =>
                   cn(
                     'mt-1 flex items-center gap-2 rounded-lg border border-brand-500/30 bg-brand-500/10 px-3 py-2.5 text-sm font-semibold text-brand-300 transition-colors',
@@ -321,15 +327,3 @@ function MenuLink({ to, icon, children }: { to: string; icon: React.ReactNode; c
     </Link>
   );
 }
-
-
-
-
-
-
-
-
-
-
-
-

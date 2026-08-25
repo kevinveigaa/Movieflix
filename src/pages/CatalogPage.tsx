@@ -137,7 +137,7 @@ export function CatalogPage({ kind }: { kind: CatalogKind }) {
         {categoria || TITLES[kind]}
       </h1>
       <p className="mb-6 text-sm text-ink-400">
-        {results.length} {results.length === 1 ? 'título' : 'títulos'} · Dublado em pt-BR · Sem anúncios
+        {results.length} {kind === 'filmes' ? (results.length === 1 ? 'filme disponível' : 'filmes disponíveis') : results.length === 1 ? 'série disponível' : 'séries disponíveis'} · Dublado em pt-BR · Sem anúncios
       </p>
 
       {/* Busca + ordenação */}
@@ -209,8 +209,7 @@ export function CatalogPage({ kind }: { kind: CatalogKind }) {
           {results.map((movie: any) => (
             <PosterCard key={movie.id} title={movie} className="w-full" progress={progressByMovie[movie.id]} />
           ))}
-        </div>
-      )}
+        </div>      )}
     </div>
   );
 }
