@@ -16,9 +16,17 @@ Todos os filmes e séries do catálogo vêm de **https://streambetter.shop** (AP
 
 ### Sem anúncios
 
-O Movieflix **não injeta nenhum anúncio próprio** (zero código de ad). O embed usa o player padrão do StreamBetter; para um player 100% sem anúncios no seu domínio, assine o plano **Creator** em https://streambetter.shop/planos, gere a chave `sb_pk_*`, cadastre o domínio do site e defina `VITE_STREAMBETTER_KEY` no build (a chave vai na URL do iframe, é pública por natureza).
+O Movieflix **não injeta nenhum anúncio próprio** (zero código de ad) e agora tem **duas camadas** para garantir que o usuário nunca veja anúncio nem redirecionamento:
 
-> ⚠️ Não use `sandbox`/bloqueadores no iframe — o StreamBetter detecta e recusa exibir o conteúdo.
+1. **Modo direto HLS (padrão, automático):** para títulos do StreamBetter, o backend Movieflix (`backend/streambetter-resolver.js`) resolve o **stream HLS real** (`/api/proxy?t=...&ext=m3u8`) e o player reproduz num `<video>` nativo + hls.js — **sem iframe**. O overlay "Só mais um passo" do plano free vive DENTRO do iframe cross-origin do StreamBetter (impossível de fechar via JS da página pai); sem iframe, ele **não existe**. Também elimina qualquer possibilidade de redirecionamento. Se a resolução falhar, o player volta silenciosamente ao iframe com a proteção antiAds ativa.
+
+2. **Bloqueio silencioso em camadas (`src/lib/antiAds.ts` + CSS global + camada nativa do APK):** intercepta `window.open`, `location.assign/replace/href`, cliques em links externos, meta refresh, iframes de anúncio, `beforeunload` e alterações de histórico — tudo cancelado em silêncio, sem aviso/toast. O CSS global oculta elementos de anúncio conhecidos (AdSense, popads, adsterra etc.).
+
+### ⚠️ OBRIGATÓRIO para eliminar 100% dos anúncios do player
+
+Para um player **100% sem anúncios no seu domínio**, assine o plano **Creator** em https://streambetter.shop/planos, gere a chave `sb_pk_*`, cadastre o domínio do site e defina **`VITE_STREAMBETTER_KEY`** no build (a chave vai na URL do iframe, é pública por natureza — ver `.env.example`). **Sem essa chave**, o plano free do StreamBetter pode exibir o overlay de anúncio quando o modo iframe é usado como fallback; o modo direto HLS (item 1) já evita esse cenário na maioria dos casos.
+
+> ⚠️ Não use `sandbox`/bloqueadores no iframe — o StreamBetter detecta e recusa exibir o conteúdo (mostra "Reprodução bloqueada"). A proteção é feita na janela pai + modo direto HLS.
 
 ## Tecnologias
 

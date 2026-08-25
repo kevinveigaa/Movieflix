@@ -4,6 +4,7 @@ import { useAuth } from '@/context/AuthContext';
 import { supabase } from '@/lib/supabase';
 import { getVideoSources, getTvSource, normalizeDubbedSource } from '@/lib/videoSources';
 import { streamBetterMovieUrl, streamBetterSeriesUrl } from '@/lib/strembetter';
+import { resolverStreamBetterDireto, ehEmbedStreamBetter } from '@/lib/streambetterDirect';
 import { protegerIframeContraRedirect } from '@/lib/antiAds';
 import { useUpsertHistory, fetchHistoryForMovie } from '@/hooks/useWatchHistory';
 import { useMovies } from '@/hooks/useMovies';
@@ -287,6 +288,38 @@ export function PlayerPage() {
     const norm = currentUrl ? normalizeDubbedSource(currentUrl) : null;
     setSourceKind(norm ? norm.kind : 'iframe');
   }, [currentUrl]);
+
+  // ── MODO DIRETO StreamBetter (SEM IFRAME → SEM ANÚNCIOS) ────────────────
+  // Quando a fonte é um embed do StreamBetter, pedimos ao backend que resolva
+  // o stream HLS real (https://streambetter.shop/api/proxy?t=...&ext=m3u8) e
+  // reproduzimos num <video> nativo + hls.js. O iframe do StreamBetter no plano
+  // free injeta o overlay "Só mais um passo" DENTRO do iframe cross-origin
+  // (impossível de fechar via JS da página pai) e pode redirecionar — o modo
+  // direto elimina os dois problemas de vez, silenciosamente.
+  useEffect(() => {
+    if (!currentUrl || !ehEmbedStreamBetter(currentUrl)) return;
+    let cancelado = false;
+    (async () => {
+      try {
+        const tRaw = searchParams.get('t');
+        const t = tRaw && !isNaN(Number(tRaw)) ? Number(tRaw) : undefined;
+        const resultado = await resolverStreamBetterDireto(currentUrl, t);
+        if (cancelado) return;
+        if (resultado.success && resultado.url) {
+          setSourceUrl(resultado.url);
+          setSourceKind(resultado.kind === 'mp4' ? 'direct' : 'direct');
+        }
+        // Se falhar, mantém o iframe (fallback silencioso) — a proteção
+        // antiAds continua ativa.
+      } catch (e) {
+        console.warn('[PlayerPage] falha no modo direto StreamBetter:', e);
+      }
+    })();
+    return () => {
+      cancelado = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentUrl, searchParams]);
 
   // Reprodução nativa de MP4/HLS quando a fonte é direta.
   useEffect(() => {

@@ -170,3 +170,72 @@
 #tv-debug {
   font-variant-numeric: tabular-nums;
 }
+/* ════════════════════════════════════════════════════════════════════
+   BLOQUEIO GLOBAL DE ANÚNCIOS (camada CSS — silenciosa e definitiva)
+   Oculta qualquer elemento de anúncio que apareça no DOM do site
+   (overlays, banners, iframes de ad, popups, ins.adsbygoogle etc.).
+   ════════════════════════════════════════════════════════════════════ */
+
+/* Iframes de domínios de anúncio conhecidos (nunca o player legítimo). */
+iframe[src*="adsterra"],
+iframe[src*="propellerads"],
+iframe[src*="popads"],
+iframe[src*="exoclick"],
+iframe[src*="trafficjunky"],
+iframe[src*="doubleclick"],
+iframe[src*="googlesyndication"],
+iframe[src*="adservice"],
+iframe[src*="adnxs"],
+iframe[src*="cpmstar"],
+iframe[src*="outbrain"],
+iframe[src*="taboola"],
+iframe[src*="revcontent"],
+iframe[src*="mgid"],
+iframe[src*="pushnative"],
+iframe[src*="onclickads"],
+iframe[src*="adcash"],
+iframe[src*="adf.ly"],
+iframe[src*="shorte.st"],
+iframe[src*="ouo.io"],
+iframe[src*="linkvertise"],
+iframe[src*="/ads/"],
+iframe[src*="ad-banner"],
+iframe[class*="ad-"],
+iframe[id*="ad-"] {
+  display: none !important;
+  visibility: hidden !important;
+  width: 0 !important;
+  height: 0 !important;
+  pointer-events: none !important;
+}
+
+/* Anúncios clássicos (Google AdSense e afins). */
+ins.adsbygoogle,
+.adsbygoogle,
+.ad-banner,
+.ad-banner-container,
+.ad-container,
+.ad-slot,
+[class*="advertisement"],
+[class*="ad-placeholder"],
+[class*="adsbygoogle"],
+[id*="google_ads_iframe"],
+[id*="div-gpt-ad"],
+[class*="ad-overlay"],
+[class*="ad-popup"],
+[class*="popup-ad"],
+[data-ad-slot],
+[data-google-query-id] {
+  display: none !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
+}
+
+/* Popups/overlays genéricos de anúncio que o antiAds.ts tenta fechar:
+   se por algum motivo o JS não conseguir, o CSS esconde (silencioso). */
+body > div[class*="modal"][class*="ad"],
+body > div[class*="popup"][class*="ad"],
+div[role="dialog"][aria-label*="ad" i],
+div[aria-modal="true"][class*="advert"] {
+  display: none !important;
+}

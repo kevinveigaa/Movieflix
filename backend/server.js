@@ -6,6 +6,7 @@ const cors = require("cors");
 const compression = require("compression");
 const { MercadoPagoConfig, Preference } = require("mercadopago");
 const { registrarPlayerProxy } = require("./player-proxy");
+const { registrarStreambetterResolver } = require("./streambetter-resolver");
 
 const app = express();
 
@@ -22,6 +23,10 @@ const TMDB_API_BASE = "https://api.themoviedb.org/3";
 
 // Reprodução sempre dentro do site (remove bloqueios de exibição em iframe).
 registrarPlayerProxy(app);
+
+// Resolvedor de stream HLS direto do StreamBetter (SEM iframe → SEM anúncios
+// e SEM possibilidade de redirecionamento). Ver streambetter-resolver.js.
+registrarStreambetterResolver(app);
 
 // Proxy da API TMDb: o frontend chama /api/tmdb/* e o servidor repassa a
 // chamada com a chave de acesso, mantendo-a fora do navegador.
