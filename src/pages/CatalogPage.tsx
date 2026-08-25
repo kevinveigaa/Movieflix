@@ -9,7 +9,7 @@ import { useSeriesHidden } from '@/hooks/useSeriesHidden';
 import { useAuth } from '@/context/AuthContext';
 import { ehInfantil, isCategoriaKids, temCategoria, categoriasDoFilme, ordenarCategorias } from '@/lib/categorias';
 import { ehSerie } from '@/lib/media';
-import { ArrowDownWideNarrow, ArrowUpNarrowWide, Calendar, Star } from 'lucide-react';
+import { ArrowDownWideNarrow, ArrowUpNarrowWide, Calendar, Star, TrendingUp } from 'lucide-react';
 import { cn } from '@/lib/cn';
 
 type CatalogKind = 'filmes' | 'series';
@@ -24,13 +24,15 @@ const TIPOS: Record<CatalogKind, string[]> = {
   series: ['series', 'serie', 'tv'],
 };
 
-type Ordenacao = 'recentes' | 'antigos' | 'az' | 'nota';
+type Ordenacao = 'recentes' | 'antigos' | 'populares' | 'nota' | 'az' | 'za';
 
 const ORDENACOES: { id: Ordenacao; label: string }[] = [
   { id: 'recentes', label: 'Mais recentes' },
   { id: 'antigos', label: 'Mais antigos' },
-  { id: 'az', label: 'A–Z' },
+  { id: 'populares', label: 'Mais populares' },
   { id: 'nota', label: 'Melhor avaliados' },
+  { id: 'az', label: 'A–Z' },
+  { id: 'za', label: 'Z–A' },
 ];
 
 export function CatalogPage({ kind }: { kind: CatalogKind }) {
@@ -94,18 +96,27 @@ export function CatalogPage({ kind }: { kind: CatalogKind }) {
 
     const ano = (m: any) => Number(m.year ?? 0);
     const nota = (m: any) => Number(m.vote_average ?? 0);
+    const popularidade = (m: any) => Number(m.popularity ?? 0);
+    // Data de lançamento completa (release_date) com fallback para o ano:
+    // ordena corretamente títulos do mesmo ano (pedido do dono).
+    const dataLancamento = (m: any) => String(m.release_date ?? m.year ?? '');
+    const titulo = (m: any) => String(m.title ?? '');
 
     switch (ordenacao) {
       case 'recentes':
-        lista = [...lista].sort((a: any, b: any) => ano(b) - ano(a));
+        lista = [...lista].sort((a: any, b: any) => dataLancamento(b).localeCompare(dataLancamento(a)));
         break;
       case 'antigos':
-        lista = [...lista].sort((a: any, b: any) => ano(a) - ano(b));
+        lista = [...lista].sort((a: any, b: any) => dataLancamento(a).localeCompare(dataLancamento(b)));
+        break;
+      case 'populares':
+        lista = [...lista].sort((a: any, b: any) => popularidade(b) - popularidade(a));
         break;
       case 'az':
-        lista = [...lista].sort((a: any, b: any) =>
-          String(a.title ?? '').localeCompare(String(b.title ?? ''), 'pt-BR'),
-        );
+        lista = [...lista].sort((a: any, b: any) => titulo(a).localeCompare(titulo(b), 'pt-BR'));
+        break;
+      case 'za':
+        lista = [...lista].sort((a: any, b: any) => titulo(b).localeCompare(titulo(a), 'pt-BR'));
         break;
       case 'nota':
         lista = [...lista].sort((a: any, b: any) => nota(b) - nota(a));
@@ -151,6 +162,7 @@ export function CatalogPage({ kind }: { kind: CatalogKind }) {
             >
               {o.id === 'recentes' && <Calendar className="h-3 w-3" />}
               {o.id === 'antigos' && <ArrowUpNarrowWide className="h-3 w-3" />}
+              {o.id === 'populares' && <TrendingUp className="h-3 w-3" />}
               {o.id === 'az' && <ArrowDownWideNarrow className="h-3 w-3" />}
               {o.id === 'nota' && <Star className="h-3 w-3" />}
               {o.label}

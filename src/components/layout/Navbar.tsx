@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, NavLink, useNavigate, useLocation } from 'react-router-dom';
-import { Search, Menu, X, User, LogOut, Settings, CreditCard, Shield, Film, Smartphone, ChevronDown, Baby, Users, Heart, PlayCircle } from 'lucide-react';
+import { Search, Menu, X, User, LogOut, Settings, CreditCard, Shield, Film, Smartphone, ChevronDown, Baby, Users, Heart, PlayCircle, Tv } from 'lucide-react';
 import { useMovies } from '@/hooks/useMovies';
 import { useSeriesHidden } from '@/hooks/useSeriesHidden';
 import { categoriasDoFilme, ehInfantil, ordenarCategorias } from '@/lib/categorias';
@@ -12,6 +12,7 @@ const navLinks = [
   { to: '/', label: 'Início' },
   { to: '/filmes', label: 'Filmes' },
   { to: '/series', label: 'Séries' },
+  { to: '/tv-ao-vivo', label: 'TV ao Vivo' },
 ];
 
 /** Categorias realmente usadas no catálogo, para o menu "Categorias". No modo
@@ -62,7 +63,6 @@ export function Navbar() {
     () => (seriesHidden ? navLinks.filter((l) => l.to !== '/series') : navLinks),
     [seriesHidden],
   );
-
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 20);
     onScroll();

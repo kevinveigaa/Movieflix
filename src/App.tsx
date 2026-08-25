@@ -6,6 +6,7 @@ import { AppLayout } from '@/components/layout/AppLayout';
 import { Seo } from '@/components/Seo';
 import { FullScreenLoader } from '@/components/ui/Feedback';
 import { ErrorBoundary } from '@/components/ui/ErrorBoundary';
+import { UpdateChecker } from '@/components/ui/UpdateChecker';
 import { useTvNavigation } from '@/hooks/useTvNavigation';
 import { useSeriesHidden } from '@/hooks/useSeriesHidden';
 import { useDoubleBackExit } from '@/hooks/useDoubleBackExit';
@@ -33,6 +34,7 @@ const SignupPage = lazyWithRetry(() => import('@/pages/auth/SignupPage').then((m
 const ForgotPasswordPage = lazyWithRetry(() => import('@/pages/auth/ForgotPasswordPage').then((m) => ({ default: m.ForgotPasswordPage })));
 const ProfileSelectPage = lazyWithRetry(() => import('@/pages/auth/ProfileSelectPage').then((m) => ({ default: m.ProfileSelectPage })));
 const DownloadAppPage = lazyWithRetry(() => import('@/pages/DownloadAppPage').then((m) => ({ default: m.DownloadAppPage })));
+const TvAoVivoPage = lazyWithRetry(() => import('@/pages/TvAoVivoPage').then((m) => ({ default: m.TvAoVivoPage })));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -90,6 +92,8 @@ function AppRoutes() {
   return (
     <>
       <Seo />
+      {/* Aviso "Nova versão disponível" (compara versão atual com a última vista) */}
+      <UpdateChecker />
       <ErrorBoundary titulo="Algo deu errado ao carregar esta página.">
         <Suspense fallback={<FullScreenLoader />}>
           <Routes>
@@ -97,6 +101,7 @@ function AppRoutes() {
             <Route path="/" element={<HomePage />} />
             <Route path="/filmes" element={<CatalogPage kind="filmes" />} />
             <Route path="/series" element={<RequireSeries><CatalogPage kind="series" /></RequireSeries>} />
+            <Route path="/tv-ao-vivo" element={<TvAoVivoPage />} />
             <Route path="/pesquisa" element={<SearchPage />} />
             <Route path="/baixar-app" element={<DownloadAppPage />} />
             <Route path="/titulo/:type/:id" element={<TitleDetailPage />} />

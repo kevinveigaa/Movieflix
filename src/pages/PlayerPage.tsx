@@ -19,7 +19,11 @@ import {
   rotuloPontoParada,
 } from '@/lib/watchProgress';
 import Hls from 'hls.js';
-import { ChevronLeft, Film, Gamepad2, Loader2, RefreshCw, AlertCircle, RotateCcw, Play, Clock } from 'lucide-react';
+import { cn } from '@/lib/cn';
+import { ChevronLeft, Film, Gamepad2, Loader2, RefreshCw, AlertCircle, RotateCcw, Play, Clock, Gauge } from 'lucide-react';
+
+// Velocidades de reprodução disponíveis no player nativo (MP4/HLS).
+const VELOCIDADES = [0.5, 0.75, 1, 1.25, 1.5, 2];
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Player com suporte a DUBLAGEM pt-BR.
@@ -102,6 +106,9 @@ export function PlayerPage() {
   // ~1s. Quando ativo, as setas do controle operam os controles internos do
   // player; um toque rápido de OK mantém o comportamento normal do vídeo.
   const [modoPlayerAtivo, setModoPlayerAtivo] = useState(false);
+
+  // Velocidade de reprodução (player nativo MP4/HLS).
+  const [velocidade, setVelocidade] = useState(1);
 
   const currentUrl = sourceUrl;
 
@@ -221,6 +228,20 @@ export function PlayerPage() {
         // `movies`. Quando a tabela não encontra o título, resolvemos pelo
         // catálogo (a fonte de verdade do front) para que o player funcione e o
         // histórico de reprodução seja gravado corretamente.
+
+        // TV AO VIVO (?tipo=live): o id referencia um canal (stream direto
+        // .m3u8/.mpd/.mp4). Reproduz no player nativo, sem passar pelo catálogo.
+        if (searchParams.get('tipo') === 'live') {
+          const canal = (await import('@/pages/TvAoVivoPage')).CANAIS_DISPONIVEIS;
+          const urlLive = searchParams.get('stream') || canal.find((c) => String(c.id) === String(id))?.stream_url || '';
+          setMovie({ id: String(id), title: canal.find((c) => String(c.id) === String(id))?.nome || `Canal ${id}`, type: 'live', video_url: urlLive });
+          if (urlLive) {
+            setSourceUrl(urlLive);
+            setSourceKind('direct');
+          }
+          setLoading(false);
+          return;
+        }
         let dataResolved: any = data;
         if (!dataResolved) {
           const catalog = movies.data ?? [];
@@ -329,6 +350,7 @@ export function PlayerPage() {
       hlsRef.current.destroy();
       hlsRef.current = null;
     }
+    video.playbackRate = velocidade;
     if (currentUrl.includes('.m3u8') && Hls.isSupported()) {
       const hls = new Hls();
       hls.loadSource(currentUrl);
@@ -341,7 +363,7 @@ export function PlayerPage() {
       video.src = currentUrl;
       video.play().catch(() => undefined);
     }
-  }, [sourceKind, currentUrl]);
+  }, [sourceKind, currentUrl, velocidade]);
 
   // Retoma de onde parou (?t=segundos) no player nativo.
   useEffect(() => {
@@ -639,6 +661,35 @@ export function PlayerPage() {
               >
                 <Gamepad2 className="h-3.5 w-3.5" />
                 CONTROLE DO PLAYER
+              </div>
+            )}
+
+            {/* Seletor de velocidade (player nativo MP4/HLS) */}
+            {sourceKind === 'direct' && (
+              <div className="mx-auto mt-3 flex w-fit flex-wrap items-center justify-center gap-1.5">
+                <span className="flex items-center gap-1 pr-1 text-[11px] font-semibold uppercase tracking-wide text-zinc-500">
+                  <Gauge className="h-3.5 w-3.5" />
+                  Velocidade
+                </span>
+                {VELOCIDADES.map((v) => (
+                  <button
+                    key={v}
+                    type="button"
+                    data-tv-focusable
+                    onClick={() => {
+                      setVelocidade(v);
+                      if (videoRef.current) videoRef.current.playbackRate = v;
+                    }}
+                    className={cn(
+                      'rounded-full border px-2.5 py-1 text-[11px] font-medium transition',
+                      velocidade === v
+                        ? 'border-brand-500/60 bg-brand-500/15 text-brand-200'
+                        : 'border-white/10 bg-white/5 text-zinc-400 hover:text-white',
+                    )}
+                  >
+                    {v === 1 ? 'Normal' : `${v}×`}
+                  </button>
+                ))}
               </div>
             )}
 

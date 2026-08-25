@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import { Smartphone, Download, ShieldCheck, Play, Monitor, RotateCcw, Tv } from 'lucide-react';
+import { Smartphone, Download, ShieldCheck, Play, Monitor, RotateCcw, Tv, Apple, CheckCircle2 } from 'lucide-react';
 import { APP_INFO, APK_URL, APK_SIZE_MB } from '@/lib/appInfo';
 
 export function DownloadAppPage() {
@@ -30,6 +30,44 @@ export function DownloadAppPage() {
           <p className="mt-2 text-xs text-ink-500">
             {APP_INFO.name} v{APP_INFO.version} • {APK_SIZE_MB} • Arquivo .apk • Instalação fora da Play Store
           </p>
+          <p className="mt-1 text-[11px] text-ink-500">
+            Lançado em {APP_INFO.releaseDate} • {APP_INFO.platforms.join(' · ')}
+          </p>
+        </div>
+
+        {/* Changelog da versão atual */}
+        <div className="mt-8 rounded-2xl border border-white/10 bg-ink-900/60 p-5 text-left">
+          <h2 className="flex items-center gap-2 font-semibold text-white">
+            <RotateCcw className="h-4 w-4 text-brand-400" />
+            O que há de novo na v{APP_INFO.version}
+          </h2>
+          <ul className="mt-3 space-y-1.5">
+            {APP_INFO.changelog.map((item) => (
+              <li key={item} className="flex items-start gap-2 text-sm text-ink-300">
+                <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-400" />
+                {item}
+              </li>
+            ))}
+          </ul>
+        </div>
+
+        {/* iOS */}
+        <div className="mt-6 rounded-2xl border border-white/10 bg-ink-900/60 p-6 text-left">
+          <h2 className="flex items-center gap-2 font-semibold text-white">
+            <Apple className="h-5 w-5 text-zinc-300" />
+            iPhone / iPad (iOS)
+          </h2>
+          <p className="mt-2 text-sm text-ink-400">
+            O MovieFlix é um <strong className="text-white">PWA (Progressive Web App)</strong>:
+            instale direto pelo Safari, sem App Store. Ele funciona igual ao app
+            Android (mesmo catálogo, mesma versão, sempre atualizado).
+          </p>
+          <ol className="mt-3 list-decimal space-y-1.5 pl-5 text-sm text-ink-300">
+            <li>Abra o site <span className="text-brand-300">movieflix-bszf.onrender.com</span> no Safari.</li>
+            <li>Toque no botão <strong className="text-white">Compartilhar</strong> (ícone de seta para cima).</li>
+            <li>Toque em <strong className="text-white">"Adicionar à Tela de Início"</strong>.</li>
+            <li>Pronto: o ícone do MovieFlix aparece na tela inicial, em tela cheia.</li>
+          </ol>
         </div>
 
         <div className="mt-12 grid gap-4 text-left sm:grid-cols-3">

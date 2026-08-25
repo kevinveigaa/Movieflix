@@ -85,7 +85,7 @@ function cacheSet(key, value) {
 /* ---------- StreamBetter ---------- */
 async function coletarTitulos(tipo) {
   const todos = [];
-  const vistos = new Set();
+  const vistos = new Map(); // tmdb_id -> melhor versão (qualidade)
   for (let page = 1; ; page++) {
     let data;
     try {
@@ -97,9 +97,17 @@ async function coletarTitulos(tipo) {
     const lista = data?.titles ?? [];
     if (!lista.length) break;
     for (const t of lista) {
-      if (!vistos.has(t.tmdb_id)) {
-        vistos.add(t.tmdb_id);
+      const chave = String(t.tmdb_id ?? "");
+      if (!chave) continue;
+      const atual = vistos.get(chave);
+      if (!atual) {
+        vistos.set(chave, t);
         todos.push(t);
+      } else if (melhorVersao(t, atual) === t) {
+        // Substitui pela versão de melhor qualidade (nunca duplica o título).
+        const idx = todos.indexOf(atual);
+        if (idx !== -1) todos[idx] = t;
+        vistos.set(chave, t);
       }
     }
     const pag = data?.pagination;
@@ -205,6 +213,69 @@ function genresToCategories(genres) {
     .slice(0, 4);
 }
 
+/* ---------- qualidade (prioridade: melhor versão por título) ----------
+ * O pedido do dono: mostrar somente fontes de qualidade boa (1080p, 720p,
+ * 4K, WEB-DL, WEBRip, BluRay, BDRip) como principal; NUNCA CAM/CAMRip/TS/
+ * Telesync/Telecine como principal se existir versão melhor. A API do
+ * StreamBetter não expõe o label de qualidade por título (o embed resolve a
+ * melhor faixa do lado dele), mas quando um campo de qualidade existir
+ * (quality/label/resolution/tags), usamos o rank abaixo para escolher a
+ * melhor versão entre duplicados do mesmo tmdb_id.
+ */
+const QUALITY_RANK = [
+  ["4k", 100], ["2160", 100], ["uhd", 100],
+  ["1080p", 90], ["fullhd", 90], ["fhd", 90], ["bluray", 90], ["blu-ray", 90],
+  ["web-dl", 88], ["webdl", 88], ["webrip", 86],
+  ["bdrip", 85], ["brrip", 85],
+  ["720p", 80], ["hdtv", 78], ["hdrip", 76], ["dvdrip", 60],
+  ["screener", 20],
+  ["camrip", 10], ["hdcam", 10], ["hdts", 10], ["hd-tc", 10], ["hd-ts", 10],
+  ["cam", 10], ["telesync", 10], ["telecine", 10],
+];
+
+function pontuacaoQualidade(texto) {
+  const s = String(texto || "").toLowerCase();
+  if (!s) return -1; // sem informação de qualidade
+  let melhor = -1;
+  for (const [token, pts] of QUALITY_RANK) {
+    if (s.includes(token)) melhor = Math.max(melhor, pts);
+  }
+  // "ts" sozinho (Telesync) só conta como palavra, não como parte de "fts" etc.
+  if (/(^|[\s_\-.([])ts([\s_\-.)\]]|$)/.test(s)) melhor = Math.max(melhor, 10);
+  return melhor;
+}
+
+/** Rótulo amigável de qualidade a partir dos campos disponíveis no item. */
+function qualidadeDoItem(t) {
+  const bruto = [t.quality, t.label, t.tags, t.resolution, t.quality_label]
+    .filter(Boolean).join(" ");
+  if (!bruto) return "HD";
+  const s = bruto.toLowerCase();
+  if (s.includes("4k") || s.includes("2160") || s.includes("uhd")) return "4K";
+  if (s.includes("1080") || s.includes("bluray") || s.includes("blu-ray") || s.includes("fullhd")) return "1080p";
+  if (s.includes("720")) return "720p";
+  if (s.includes("web")) return "WEB-DL";
+  if (s.includes("cam") || s.includes("telesync") || s.includes("telecine") || /(^|\b)ts(\b|$)/.test(s)) return "CAM";
+  if (s.includes("dvd")) return "DVDRip";
+  return "HD";
+}
+
+/** É qualidade ruim (CAM/TS/Telecine)? */
+function ehQualidadeRuim(t) {
+  const q = (qualidadeDoItem(t) || "").toUpperCase();
+  return q === "CAM" || q === "TELESYNC" || q === "TELECINE" || q === "TS";
+}
+
+/** Retorna a versão de MELHOR qualidade (desempate: mais recente). */
+function melhorVersao(a, b) {
+  const pa = pontuacaoQualidade([a.quality, a.label, a.resolution, a.tags].filter(Boolean).join(" "));
+  const pb = pontuacaoQualidade([b.quality, b.label, b.resolution, b.tags].filter(Boolean).join(" "));
+  if (pa !== pb) return pa > pb ? a : b;
+  const ua = a.updated_at ? new Date(a.updated_at).getTime() : 0;
+  const ub = b.updated_at ? new Date(b.updated_at).getTime() : 0;
+  return ua >= ub ? a : b;
+}
+
 /* ---------- pool de requisições TMDb ---------- */
 async function mapLimit(items, limit, fn) {
   const out = new Array(items.length);
@@ -272,6 +343,8 @@ async function mapLimit(items, limit, fn) {
     aceitos.push(t);
   }
   console.log(`  aceitos: ${aceitos.length} | excluídos: anime=${motivos.anime} semCapa=${motivos.semCapa} semTmdb=${motivos.semTmdb}`);
+  const qRuimUnica = aceitos.filter((t) => ehQualidadeRuim(t)).length;
+  console.log(`  qualidade: ${qRuimUnica} título(s) com CAM/TS/Telecine como ÚNICA versão (sem versão melhor disponível)`);
 
   console.log("[5/5] Montando filmes.json e series.json...");
   function toEntry(t, idx) {
@@ -290,9 +363,11 @@ async function mapLimit(items, limit, fn) {
       video_url: isSerie ? "" : `https://streambetter.shop/filme/${t.tmdb_id}?lang=pt-BR`,
       player: isSerie ? "" : `https://streambetter.shop/filme/${t.tmdb_id}?lang=pt-BR`,
       vote_average: det.vote_average || null,
+      popularity: det.popularity || null,
+      release_date: det.release_date || det.first_air_date || null,
       category: cats,
       language: "Dublado (pt-BR)",
-      quality: "HD",
+      quality: qualidadeDoItem(t),
       type: isSerie ? "series" : "movie",
       media_type: isSerie ? "tv" : "movie",
       tmdb_id: t.tmdb_id,
@@ -309,9 +384,11 @@ async function mapLimit(items, limit, fn) {
   const filmes = aceitos.filter((t) => t.type !== "tv").map((t, i) => toEntry(t, i));
   const series = aceitos.filter((t) => t.type === "tv").map((t, i) => toEntry(t, i));
   // Ordenação padrão: mais recente primeiro (pedido do dono: organizar por ano).
-  const byYear = (a, b) => Number(b.year || 0) - Number(a.year || 0);
-  filmes.sort(byYear);
-  series.sort(byYear);
+  // Usa a DATA de lançamento completa (release_date) quando disponível, com
+  // fallback para o ano — evita ordenar errado títulos do mesmo ano.
+  const byData = (a, b) => String(b.release_date || b.year || "").localeCompare(String(a.release_date || a.year || ""));
+  filmes.sort(byData);
+  series.sort(byData);
 
   // ── TRIM para manter o bundle leve ────────────────────────────────────────
   // O catálogo completo (12.5k+) fica pesado para o front; mantemos TODAS as
