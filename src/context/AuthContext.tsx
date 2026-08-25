@@ -9,6 +9,8 @@ interface AuthState {
   profile: Profile | null;
   subscription: Subscription | null;
   loading: boolean;
+  /** Alias de `loading` — verificação de auth/subscription em andamento. */
+  authLoading: boolean;
   activeViewerProfile: ViewerProfile | null;
   setActiveViewerProfile: (p: ViewerProfile | null) => void;
   signIn: (email: string, password: string) => Promise<void>;
@@ -137,6 +139,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       profile,
       subscription,
       loading,
+      // Alias para leitura explícita: representa o estado de verificação de
+      // auth/subscription (loading do AuthProvider). PlayerPage usa este
+      // valor para NUNCA renderizar o player antes da verificação terminar.
+      authLoading: loading,
       activeViewerProfile,
       setActiveViewerProfile,
       async signIn(email, password) {

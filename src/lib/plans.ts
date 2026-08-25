@@ -129,3 +129,79 @@ export function maxProfilesLabel(maxProfiles: number): string {
   if (maxProfiles <= 1) return '1 perfil';
   return `Até ${maxProfiles} perfis`;
 }
+
+// ─── Utilidades de assinatura (dias restantes / vencimento / avisos) ─────────
+// Usadas pela SubscriptionPage (painel) e pela PlayerPage (gate). Cálculo com
+// datas UTC reais — nunca depende do relógio do dispositivo além do `now()`.
+
+const DIA_MS = 24 * 60 * 60 * 1000;
+
+/** Dias restantes até o vencimento (inteiro, arredondado para cima; 0 = expirado). */
+export function diasRestantes(expiresAt: string | null | undefined): number {
+  if (!expiresAt) return 0;
+  const fim = new Date(expiresAt).getTime();
+  if (!Number.isFinite(fim)) return 0;
+  const agora = Date.now();
+  if (fim <= agora) return 0;
+  return Math.ceil((fim - agora) / DIA_MS);
+}
+
+/** Rótulo de dias restantes ("10 dias restantes", "1 dia restante", "0 dias…"). */
+export function rotuloDiasRestantes(expiresAt: string | null | undefined): string {
+  const dias = diasRestantes(expiresAt);
+  if (dias <= 0) return '0 dias — assinatura expirada';
+  return dias === 1 ? '1 dia restante' : `${dias} dias restantes`;
+}
+
+/** Data de vencimento formatada dd/mm/aaaa (ou '' se ausente). */
+export function formatarVencimento(expiresAt: string | null | undefined): string {
+  if (!expiresAt) return '';
+  const d = new Date(expiresAt);
+  if (Number.isNaN(d.getTime())) return '';
+  const dd = String(d.getDate()).padStart(2, '0');
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  return `${dd}/${mm}/${d.getFullYear()}`;
+}
+
+export interface AvisoVencimento {
+  nivel: '5' | '3' | '1' | null;
+  mensagem: string | null;
+}
+
+/**
+ * Aviso automático de vencimento próximo (baseado em dias reais restantes):
+ *  - <= 5 dias  → "Seu plano termina em X dias. Renove agora…"
+ *  - <= 3 dias  → "Seu plano termina em X dias. Seu acesso está próximo…"
+ *  - <= 1 dia   → "Seu plano termina amanhã! Renove agora…"
+ * Nunca mostra aviso prematuro (>5 dias) nem dias errados (usa diff real).
+ */
+export function avisoVencimento(expiresAt: string | null | undefined): AvisoVencimento {
+  const dias = diasRestantes(expiresAt);
+  if (dias <= 0) return { nivel: null, mensagem: null };
+  const venc = formatarVencimento(expiresAt);
+  if (dias <= 1) {
+    return {
+      nivel: '1',
+      mensagem: `🔔 Seu plano termina amanhã! Renove agora para não perder o acesso ao MovieFlix.${
+        venc ? ` Seu plano vence em ${venc}.` : ''
+      }`,
+    };
+  }
+  if (dias <= 3) {
+    return {
+      nivel: '3',
+      mensagem: `⚠️ Seu plano termina em ${dias} dias. Seu acesso está próximo do vencimento. Renove para continuar assistindo.${
+        venc ? ` Vencimento: ${venc}.` : ''
+      }`,
+    };
+  }
+  if (dias <= 5) {
+    return {
+      nivel: '5',
+      mensagem: `⚠️ Seu plano termina em ${dias} dias. Renove agora para continuar assistindo ao MovieFlix sem interrupções.${
+        venc ? ` Vencimento: ${venc}.` : ''
+      }`,
+    };
+  }
+  return { nivel: null, mensagem: null };
+}

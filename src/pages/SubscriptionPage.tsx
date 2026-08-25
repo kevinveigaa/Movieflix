@@ -1,13 +1,13 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
-import { Check, Crown, CreditCard, Loader2, Clock, CheckCircle2, ArrowUpCircle, ArrowDownCircle } from 'lucide-react';
+import { Check, Crown, CreditCard, Loader2, Clock, CheckCircle2, ArrowUpCircle, ArrowDownCircle, AlertTriangle, RefreshCw } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useAuth, hasActiveSubscription } from '@/context/AuthContext';
 import { createPixPayment, pollPaymentStatus } from '@/lib/mercadopago';
 import { PixModal } from '@/components/PixModal';
 import type { Plan, Payment } from '@/types';
-import { entitlementHighlights, resolveSubscriptionPlan } from '@/lib/plans';
+import { entitlementHighlights, resolveSubscriptionPlan, diasRestantes, formatarVencimento, avisoVencimento } from '@/lib/plans';
 
 export function SubscriptionPage() {
   const { user, subscription, refreshSubscription } = useAuth();
@@ -18,6 +18,7 @@ export function SubscriptionPage() {
       if (error) throw error;
       return data as Plan[];
     },
+    retry: 1,
   });
 
   const [pixOpen, setPixOpen] = useState(false);
@@ -30,6 +31,9 @@ export function SubscriptionPage() {
   const active = hasActiveSubscription(subscription);
   const currentPlan = active ? resolveSubscriptionPlan(subscription, plans.data) : undefined;
   const currentPrice = currentPlan?.price_cents ?? 0;
+  const dias = diasRestantes(subscription?.expires_at);
+  const venc = formatarVencimento(subscription?.expires_at);
+  const aviso = avisoVencimento(subscription?.expires_at);
 
   function planAction(plan: Plan) {
     if (!active) return { label: 'Assinar', disabled: false, kind: 'new' as const };
@@ -105,8 +109,36 @@ export function SubscriptionPage() {
             Plano: <span className="font-semibold text-white">{currentPlan?.name ?? 'Ativo'}</span>
             {subscription.expires_at && ` • Válido até ${new Date(subscription.expires_at).toLocaleDateString('pt-BR')}`}
           </p>
-          <p className="mt-2 text-xs text-ink-400">
+          {/* Dias restantes (cálculo real por UTC) */}
+          <p className="mt-2 text-sm font-semibold text-emerald-300">
+            {dias > 0 ? `Faltam ${dias} ${dias === 1 ? 'dia' : 'dias'} · Vencimento: ${venc}` : 'Assinatura expirada'}
+          </p>
+          {/* Aviso automático de vencimento próximo (5/3/1 dia) */}
+          {aviso.mensagem && (
+            <div className={`mx-auto mt-4 flex max-w-lg items-start gap-2 rounded-xl border px-4 py-3 text-left text-xs font-medium ${
+              aviso.nivel === '1'
+                ? 'border-red-500/40 bg-red-500/10 text-red-200'
+                : 'border-amber-500/40 bg-amber-500/10 text-amber-200'
+            }`}>
+              <AlertTriangle className="mt-0.5 h-4 w-4 flex-shrink-0" />
+              <span>{aviso.mensagem}</span>
+            </div>
+          )}
+          <p className="mt-3 text-xs text-ink-400">
             Quer mais qualidade e telas? Escolha um plano superior abaixo para fazer upgrade quando quiser.
+          </p>
+        </div>
+      )}
+
+      {/* Sem assinatura ativa: aviso claro */}
+      {!active && subscription && (
+        <div className="mx-auto mt-8 max-w-2xl rounded-2xl border border-red-500/30 bg-red-500/10 p-5 text-center">
+          <AlertTriangle className="mx-auto h-8 w-8 text-red-400" />
+          <p className="mt-2 font-semibold text-white">Assinatura expirada</p>
+          <p className="mt-1 text-sm text-ink-300">
+            {subscription.expires_at
+              ? `Seu plano venceu em ${formatarVencimento(subscription.expires_at)}. Renove abaixo para voltar a assistir.`
+              : 'Você não possui uma assinatura ativa. Escolha um plano abaixo para começar.'}
           </p>
         </div>
       )}
@@ -114,6 +146,19 @@ export function SubscriptionPage() {
       {error && (
         <div className="mx-auto mt-6 max-w-xl rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-300">
           {error}
+        </div>
+      )}
+
+      {/* Falha temporária ao consultar planos: nunca trava a página */}
+      {plans.isError && (
+        <div className="mx-auto mt-6 max-w-xl rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-200">
+          Não foi possível carregar os planos. Verifique sua conexão e tente novamente.
+          <button
+            onClick={() => plans.refetch()}
+            className="ml-2 inline-flex items-center gap-1 font-semibold text-amber-100 underline hover:text-white"
+          >
+            <RefreshCw className="h-3.5 w-3.5" /> Tentar novamente
+          </button>
         </div>
       )}
 

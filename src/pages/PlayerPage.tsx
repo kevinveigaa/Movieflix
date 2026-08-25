@@ -62,7 +62,7 @@ export function PlayerPage() {
   const { id } = useParams();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const { user, activeViewerProfile, subscription } = useAuth();
+  const { user, activeViewerProfile, subscription, loading: authLoading } = useAuth();
   // Assinatura ativa? (o servidor também valida — este flag só decide o caminho
   // de autorização do stream e o comportamento do teste grátis de 20s.)
   const assinante = hasActiveSubscription(subscription);
@@ -719,6 +719,10 @@ export function PlayerPage() {
     );
   }
 
+  // GUARDA DE ROTA (requisito 3): a rota /assistir/:id RE-VERIFICA auth +
+  // assinatura ANTES de montar qualquer player/iframe. Acessar a URL do
+  // player diretamente sem assinatura ativa NÃO libera o conteúdo — redireciona
+  // para /minha-assinatura (replace, sem voltar ao player pelo histórico).
   if (!user) {
     return (
       <div className="flex h-screen flex-col items-center justify-center bg-black text-white gap-4">
@@ -729,10 +733,9 @@ export function PlayerPage() {
     );
   }
 
-  // BLOQUEIO DE ASSINATURA (bloqueio imediato): sem NENHUM dos 3 planos
-  // ativos, não há reprodução — nem teste grátis, nem iframe, nem stream.
-  // O trial-gate do servidor (/api/trial-gate) permanece como defesa em
-  // profundidade para streams resolvidos via backend.
+  // BLOQUEIO DE ASSINATURA (bloqueio imediato): sem NENHUM dos planos ativos,
+  // não há reprodução — nem teste grátis, nem iframe, nem stream. O trial-gate
+  // do servidor (/api/trial-gate) permanece como defesa em profundidade.
   if (!assinante) {
     return <SubscriptionPaywall />;
   }

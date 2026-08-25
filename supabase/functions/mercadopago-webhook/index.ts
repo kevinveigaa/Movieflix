@@ -70,29 +70,72 @@ Deno.serve(async (req: Request) => {
       .maybeSingle();
 
     if (mapped === 'approved' && payment) {
+      // ── RENOVAÇÃO/COMPRA: preserva dias restantes se a assinatura ainda
+      //    estiver ativa. Regra (pedido do dono):
+      //      * Assinatura ativa (não expirada) → novaData = dataAtualDeVencimento
+      //        + duraçãoDoNovoPlano (ex.: 5 dias restantes + 30 = 35).
+      //      * Expirada ou inexistente           → novaData = agora + duração.
+      //    A duração vem da tabela `plans` (dias), com fallback de 30 dias.
 
-      const expires = new Date();
-      expires.setDate(expires.getDate() + 30);
-
-      // plan_code agora guarda o codigo string do plano; resolve o id para manter
-      // plan_id consistente mesmo quando o pagamento nao possui essa coluna
+      // Duração em dias do plano (coluna `duration_days` se existir, senão 30).
       const { data: plan } = await supabase
         .from('plans')
-        .select('id')
+        .select('id, code, duration_days')
         .eq('code', payment.plan_code)
         .maybeSingle();
+      const duracaoDias =
+        plan && plan.duration_days && Number(plan.duration_days) > 0
+          ? Number(plan.duration_days)
+          : 30;
 
-      await supabase
+      const agora = new Date();
+
+      // Assinatura atual do usuário (a mais recente).
+      const { data: atual } = await supabase
         .from('subscriptions')
-        .upsert({
-          user_id: payment.user_id,
-          plan_code: payment.plan_code,
-          plan_id: plan?.id ?? null,
-          payment_id: payment.id,
-          status: 'active',
-          starts_at: new Date().toISOString(),
-          expires_at: expires.toISOString(),
-        });
+        .select('id, status, expires_at')
+        .eq('user_id', payment.user_id)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      const ativaAinda =
+        atual &&
+        atual.status === 'active' &&
+        atual.expires_at &&
+        new Date(atual.expires_at).getTime() > agora.getTime();
+
+      // base = vencimento atual se ainda ativo; senão agora.
+      const base = ativaAinda && atual.expires_at ? new Date(atual.expires_at) : agora;
+      const expires = new Date(base.getTime());
+      expires.setDate(expires.getDate() + duracaoDias);
+
+      // starts_at: mantém o início original se ainda ativo (renovação estende
+      // o período), ou usa agora para uma nova assinatura.
+      const startsAt = ativaAinda && atual.starts_at ? atual.starts_at : agora.toISOString();
+
+      // Upsert SEM duplicidade: se já existe linha para este usuário + plano,
+      // atualiza (novo vencimento estendido); senão cria. A coluna `user_id`
+      // precisa ter unique constraint — sem ela o upsert insere em vez de
+      // atualizar (comportamento padrão do PostgREST). Para máxima segurança
+      // contra duplicidade em bancos antigos, primeiro tentamos atualizar a
+      // linha mais recente do usuário; se não existir, inserimos.
+      const alvo = atual && atual.id ? atual.id : null;
+      const assinatura = {
+        user_id: payment.user_id,
+        plan_code: payment.plan_code,
+        plan_id: plan?.id ?? null,
+        payment_id: payment.id,
+        status: 'active',
+        starts_at: startsAt,
+        expires_at: expires.toISOString(),
+      };
+
+      if (alvo) {
+        await supabase.from('subscriptions').update(assinatura).eq('id', alvo);
+      } else {
+        await supabase.from('subscriptions').insert(assinatura);
+      }
     }
 
     return new Response(
