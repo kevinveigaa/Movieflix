@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useAuth } from '@/context/AuthContext';
+import { useAuth, hasActiveSubscription } from '@/context/AuthContext';
 import { useEntitlements } from '@/hooks/useEntitlements';
 import { useViewerProfiles } from '@/hooks/useViewerProfiles';
 import { ProfileFormModal } from '@/components/profile/ProfileFormModal';
@@ -47,8 +47,11 @@ export function ProfilePage() {
     );
   }
 
-  const maxProfiles = entitlements?.maxProfiles ?? 1;
+  const hasPlan = hasActiveSubscription(subscription);
+  const planLimit = entitlements?.maxProfiles ?? 1;
+  const maxProfiles = hasPlan ? planLimit : 1;
   const remaining = Math.max(0, maxProfiles - (profiles?.length ?? 0));
+  const atLimit = (profiles?.length ?? 0) >= maxProfiles;
 
   const save = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -77,7 +80,7 @@ export function ProfilePage() {
   };
 
   function openCreate() {
-    if (profiles.length >= maxProfiles) return;
+    if (atLimit) return;
     setEditingProfile(null);
     setModalOpen(true);
   }
@@ -133,15 +136,15 @@ export function ProfilePage() {
 
               <span className="chip">
                 {profiles.length}/{maxProfiles} perfis •{' '}
-                {remaining > 0 ? `${remaining} restante${remaining === 1 ? '' : 's'}` : 'limite do plano'}
+                {atLimit ? 'limite do plano' : `${remaining} restante${remaining === 1 ? '' : 's'}`}
               </span>
             </div>
 
             <p className="mt-2 text-sm text-ink-300">
               Cada perfil tem seu próprio histórico de "Continuar assistindo".{' '}
-              {remaining > 0
-                ? `Seu plano permite até ${maxProfiles} perfis (incluindo o infantil).`
-                : `Você atingiu o limite de ${maxProfiles} perfis do seu plano.`}
+              {atLimit
+                ? `Você atingiu o limite de ${maxProfiles} perfil${maxProfiles === 1 ? '' : 's'}${hasPlan ? ' do seu plano' : '. Assine um plano para criar mais perfis (2, 3 ou 5)'}.`
+                : `Seu plano permite até ${maxProfiles} perfis (incluindo o infantil).`}
             </p>
 
             {profileMsg && (
@@ -216,7 +219,7 @@ export function ProfilePage() {
                   );
                 })}
 
-                {profiles.length < maxProfiles && (
+                {!atLimit && (
                   <button
                     onClick={openCreate}
                     className="flex w-32 flex-col items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-white/15 bg-ink-800/40 p-3 text-ink-400 transition hover:border-brand-500 hover:text-brand-400"
@@ -224,6 +227,16 @@ export function ProfilePage() {
                     <Plus className="h-8 w-8" />
                     <span className="text-xs font-medium">Adicionar perfil</span>
                   </button>
+                )}
+                {atLimit && (
+                  <div className="flex w-48 flex-col items-center justify-center gap-1 rounded-2xl border border-white/10 bg-ink-800/30 p-3 text-center">
+                    <span className="text-xs font-medium text-ink-400">Limite do plano atingido</span>
+                    <span className="text-[10px] leading-tight text-ink-500">
+                      {hasPlan
+                        ? `Seu plano permite até ${maxProfiles} perfis.`
+                        : 'Assine um plano para criar mais perfis.'}
+                    </span>
+                  </div>
                 )}
               </div>
             )}

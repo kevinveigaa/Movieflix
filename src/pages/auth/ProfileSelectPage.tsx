@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Plus, Pencil, Trash2, Check, Film, Baby, Users } from 'lucide-react';
-import { useAuth } from '@/context/AuthContext';
+import { useAuth, hasActiveSubscription } from '@/context/AuthContext';
 import { supabase } from '@/lib/supabase';
 import { useEntitlements } from '@/hooks/useEntitlements';
 import { useViewerProfiles } from '@/hooks/useViewerProfiles';
@@ -10,7 +10,7 @@ import { PROFILE_AVATARS } from '@/lib/avatars';
 import type { ViewerProfile } from '@/types';
 
 export function ProfileSelectPage() {
-  const { user, loading, setActiveViewerProfile, activeViewerProfile } = useAuth();
+  const { user, loading, subscription, setActiveViewerProfile, activeViewerProfile } = useAuth();
   const { entitlements } = useEntitlements();
   const navigate = useNavigate();
   const { profiles, loading: loadingProfiles, create, update, remove } = useViewerProfiles();
@@ -19,8 +19,13 @@ export function ProfileSelectPage() {
   const [editingProfile, setEditingProfile] = useState<ViewerProfile | null>(null);
   const autoOpened = useRef(false);
 
-  const maxProfiles = entitlements.maxProfiles;
+  // Regra de limite de perfis: sem assinatura ativa o usuário pode criar
+  // apenas 1 perfil; com assinatura, segue o limite do plano (2/3/5).
+  const hasPlan = hasActiveSubscription(subscription);
+  const planLimit = entitlements.maxProfiles;
+  const maxProfiles = hasPlan ? planLimit : 1;
   const remaining = Math.max(0, maxProfiles - profiles.length);
+  const atLimit = profiles.length >= maxProfiles;
 
   useEffect(() => {
     if (!loading && !user) navigate('/login');
@@ -41,7 +46,7 @@ export function ProfileSelectPage() {
   }
 
   function openCreate() {
-    if (profiles.length >= maxProfiles) return;
+    if (atLimit) return;
     setEditingProfile(null);
     setModalOpen(true);
   }
@@ -58,26 +63,27 @@ export function ProfileSelectPage() {
     } else {
       const res = await create(input);
       if (res.error) throw new Error(res.error);
-      // Primeiro perfil criado logo após o cadastro: seleciona e vai para a
-      // Home. (Nenhuma assinatura é exigida — o usuário pode navegar pelo
+      // Perfil recém-criado: seleciona e vai para a Home.
+      // (Nenhuma assinatura é exigida — o usuário pode navegar pelo
       // catálogo e assinar quando quiser.)
-      if (profiles.length === 0) {
-        try {
-          const { data } = await supabase
-            .from('viewer_profiles')
-            .select('*')
-            .eq('owner_id', user?.id)
-            .order('created_at', { ascending: false })
-            .limit(1)
-            .maybeSingle();
-          if (data) {
-            setActiveViewerProfile(data as ViewerProfile);
-            navigate('/');
-          }
-        } catch {
-          // Falha ao buscar: segue para a tela de perfis normalmente.
+      try {
+        const { data } = await supabase
+          .from('viewer_profiles')
+          .select('*')
+          .eq('owner_id', user?.id)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        if (data) {
+          setActiveViewerProfile(data as ViewerProfile);
+          navigate('/');
+          return;
         }
+      } catch {
+        // Falha ao buscar: segue para a tela de perfis normalmente.
       }
+      // Fallback: mesmo sem conseguir buscar, sai da edição.
+      setEditing(false);
     }
   }
 
@@ -114,8 +120,20 @@ export function ProfileSelectPage() {
 
       <p className="mt-2 flex items-center gap-1.5 text-sm text-ink-400">
         <Users className="h-4 w-4" />
-        {profiles.length}/{maxProfiles} perfis {remaining > 0 ? `• ${remaining} restante${remaining === 1 ? '' : 's'}` : '• limite do plano atingido'}
+        {profiles.length}/{maxProfiles} perfis{' '}
+        {atLimit
+          ? '• limite do plano atingido'
+          : remaining > 0
+            ? `• ${remaining} restante${remaining === 1 ? '' : 's'}`
+            : ''}
       </p>
+
+      {atLimit && !hasPlan && profiles.length > 0 && (
+        <p className="mt-3 max-w-md text-center text-sm text-brand-300">
+          Para criar mais perfis, assine um plano. Cada plano tem um limite de
+          perfis (2, 3 ou 5).
+        </p>
+      )}
 
       <div className="mt-10 grid grid-cols-2 gap-6 sm:grid-cols-3 lg:grid-cols-4">
         {profiles.map((p) => (
@@ -156,12 +174,21 @@ export function ProfileSelectPage() {
           </div>
         ))}
 
-        {profiles.length < maxProfiles && !editing && (
-          <button onClick={openCreate} className="group flex flex-col items-center gap-3">
-            <div className="flex h-28 w-28 items-center justify-center rounded-2xl border-2 border-dashed border-white/15 bg-ink-800/40 text-ink-400 transition hover:border-brand-500 hover:text-brand-400 sm:h-32 sm:w-32">
+        {!editing && (
+          <button
+            onClick={openCreate}
+            disabled={atLimit}
+            className={`group flex flex-col items-center gap-3 ${
+              atLimit ? 'cursor-not-allowed opacity-50' : ''
+            }`}
+            title={atLimit ? 'Assine um plano para adicionar mais perfis' : undefined}
+          >
+            <div className="flex h-28 w-28 items-center justify-center rounded-2xl border-2 border-dashed border-white/15 bg-ink-800/40 text-ink-400 transition group-hover:border-brand-500 group-hover:text-brand-400 sm:h-32 sm:w-32">
               <Plus className="h-10 w-10" />
             </div>
-            <span className="text-sm font-medium text-ink-400 group-hover:text-white">Adicionar perfil</span>
+            <span className="text-sm font-medium text-ink-400 group-hover:text-white">
+              {atLimit ? 'Limite do plano' : 'Adicionar perfil'}
+            </span>
           </button>
         )}
       </div>
