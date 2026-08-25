@@ -38,6 +38,9 @@ public class MainActivity extends BridgeActivity {
     public static final String SITE_URL = "https://movieflix-bszf.onrender.com";
     private WebView webView;
     private boolean primeiraCarga = true;
+    // URL do player (última página de /assistir/ vista) — usada para voltar ao
+    // player quando um anúncio consegue redirecionar o WebView para fora.
+    private String ultimaUrlPlayer = null;
 
     @SuppressLint("SetJavaScriptEnabled")
     @Override
@@ -70,18 +73,22 @@ public class MainActivity extends BridgeActivity {
             webView.setWebViewClient(new WebViewClient() {
                 @Override
                 public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
-                    return shouldBlock(request.getUrl());
+                    return tratarNavegacao(view, request.getUrl(), request.isForMainFrame());
                 }
 
                 @Override
                 @SuppressWarnings("deprecation")
                 public boolean shouldOverrideUrlLoading(WebView view, String url) {
-                    return shouldBlock(Uri.parse(url));
+                    return tratarNavegacao(view, Uri.parse(url), true);
                 }
 
                 @Override
                 public void onPageFinished(WebView view, String url) {
                     super.onPageFinished(view, url);
+                    // Rastreia a última página do player para o "voltar" inteligente.
+                    if (url != null && url.contains("/assistir/")) {
+                        ultimaUrlPlayer = url;
+                    }
                     if (primeiraCarga) {
                         primeiraCarga = false;
                         view.setBackgroundColor(Color.rgb(10, 10, 15));
@@ -95,6 +102,14 @@ public class MainActivity extends BridgeActivity {
                         }
                     }
                     view.requestFocus();
+                }
+
+                @Override
+                public void onPageCommitVisible(WebView view, String url) {
+                    super.onPageCommitVisible(view, url);
+                    if (url != null && url.contains("/assistir/")) {
+                        ultimaUrlPlayer = url;
+                    }
                 }
 
                 @Override
@@ -157,6 +172,63 @@ public class MainActivity extends BridgeActivity {
         // Qualquer outro host externo (anúncio/redirecionamento): bloqueia e
         // volta para a página do player (o site tem o guard de redirect e o
         // antiAds.ts na janela pai — aqui é a última linha de defesa nativa).
+        return true;
+    }
+
+    /**
+     * Trata navegações do WebView. Tudo é SILENCIOSO: nenhum Toast, Dialog,
+     * alerta ou notificação é mostrado ao usuário.
+     *
+     * - Navegação permitida (site + domínios do player/streaming): deixa passar.
+     * - Navegação para anúncio/externo (subframe ou main frame): BLOQUEIA e
+     *   restaura automaticamente a última página do player (ou o site), para
+     *   o usuário de TV nunca ficar preso numa página de anúncio. A restauração
+     *   é feita com loadUrl — o usuário simplesmente continua vendo o player.
+     *
+     * Popups (janelas/abas extras) são bloqueados pelo próprio WebView
+     * (setSupportMultipleWindows fica desabilitado) e por shouldBlock acima.
+     */
+    private boolean tratarNavegacao(WebView view, Uri uri, boolean isMainFrame) {
+        if (uri == null) return true;
+        String scheme = uri.getScheme() == null ? "" : uri.getScheme().toLowerCase();
+        if (!scheme.equals("https")) {
+            // Bloqueia esquemas não-https (intent://, tel://, file://, etc.).
+            // Subframe de anúncio: bloqueia em silêncio e restaura o player.
+            if (!isMainFrame && ultimaUrlPlayer != null) {
+                view.post(() -> view.loadUrl(ultimaUrlPlayer));
+            }
+            return true;
+        }
+        String host = uri.getHost();
+        if (host == null) return true;
+        String h = host.toLowerCase();
+        if (h.equals("movieflix-bszf.onrender.com")
+                || h.endsWith(".onrender.com")
+                || h.endsWith("streambetter.shop")
+                || h.endsWith("playerflixapi.com")
+                || h.endsWith("megaembedapi.site")
+                || h.endsWith("embedplayapi.site")
+                || h.endsWith("watchplayer.shop")
+                || h.endsWith("embedplayer2.xyz")
+                || h.endsWith("embed.warezcdn.link")
+                || h.endsWith("superflixapi.life")
+                || h.endsWith("youtube.com")
+                || h.endsWith("youtu.be")
+                || h.endsWith("youtube-nocookie.com")
+                || h.endsWith("google.com")
+                || h.endsWith("googleapis.com")
+                || h.endsWith("gstatic.com")
+                || h.endsWith("drive.google.com")
+                || h.endsWith("googlevideo.com")
+                || h.endsWith("ggpht.com")) {
+            return false;
+        }
+        // Anúncio/externo: bloqueia e restaura o player (silencioso).
+        if (!isMainFrame && ultimaUrlPlayer != null) {
+            view.post(() -> view.loadUrl(ultimaUrlPlayer));
+        } else if (isMainFrame && ultimaUrlPlayer != null) {
+            view.post(() -> view.loadUrl(ultimaUrlPlayer));
+        }
         return true;
     }
 

@@ -9,6 +9,7 @@ import { ErrorBoundary } from '@/components/ui/ErrorBoundary';
 import { useTvNavigation } from '@/hooks/useTvNavigation';
 import { useSeriesHidden } from '@/hooks/useSeriesHidden';
 import { aplicarClasseApp } from '@/lib/appShell';
+import { instalarBloqueioAnuncios } from '@/lib/antiAds';
 import type { JSX } from 'react';
 import { lazyWithRetry } from '@/lib/lazyWithRetry';
 
@@ -65,6 +66,18 @@ function AppRoutes() {
   // esconde "Baixar app", ativa `tv-nav` e adapta a dica de controle remoto.
   useEffect(() => {
     aplicarClasseApp();
+  }, []);
+
+  // Bloqueio SILENCIOSO de popups/redirects de anúncio (camada JS): instala
+  // UMA vez para todo o app. O usuário NUNCA vê aviso/toast/alerta — o bloqueio
+  // acontece em background (window.open cancelado, overlays fechados, links de
+  // anúncio cancelados). A camada nativa (MainActivity) é a última linha de
+  // defesa para navegação externa do WebView.
+  useEffect(() => {
+    const limpar = instalarBloqueioAnuncios();
+    return () => {
+      limpar();
+    };
   }, []);
 
   return (

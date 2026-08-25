@@ -4,6 +4,7 @@ import { useAuth } from '@/context/AuthContext';
 import { supabase } from '@/lib/supabase';
 import { getVideoSources, getTvSource, normalizeDubbedSource } from '@/lib/videoSources';
 import { streamBetterMovieUrl, streamBetterSeriesUrl } from '@/lib/strembetter';
+import { protegerIframeContraRedirect } from '@/lib/antiAds';
 import { useUpsertHistory, fetchHistoryForMovie } from '@/hooks/useWatchHistory';
 import { useMovies } from '@/hooks/useMovies';
 import { usePlaybackSession } from '@/hooks/usePlaybackSession';
@@ -124,6 +125,29 @@ export function PlayerPage() {
     window.addEventListener('mf-player-mode-change', onModeChange);
     return () => window.removeEventListener('mf-player-mode-change', onModeChange);
   }, []);
+
+  // Guarda de redirect do iframe (antiAds): se um anúncio redirecionar o
+  // DOCUMENTO do iframe para fora do player, restaura a URL original do player
+  // automaticamente e em silêncio (máx. 3 restaurações / 2 min). Nenhuma
+  // mensagem é mostrada ao usuário.
+  useEffect(() => {
+    if (sourceKind !== 'iframe' || !currentUrl) return;
+    const iframe = playerFrameRef.current;
+    if (!iframe) return;
+    // Só protege embeds de terceiros (StreamBetter/VidZee etc.), nunca
+    // YouTube/Drive (que navegam legitimamente).
+    const host = (() => {
+      try {
+        return new URL(currentUrl).hostname;
+      } catch {
+        return '';
+      }
+    })();
+    const navegacaoLegitima = host.includes('youtube') || host.includes('youtu.be') || host.includes('drive.google');
+    if (navegacaoLegitima) return;
+    const limpar = protegerIframeContraRedirect(iframe, currentUrl);
+    return limpar;
+  }, [sourceKind, currentUrl]);
 
   const limparTimeout = useCallback(() => {
     if (timeoutRef.current !== null) {
