@@ -34,7 +34,6 @@ const SignupPage = lazyWithRetry(() => import('@/pages/auth/SignupPage').then((m
 const ForgotPasswordPage = lazyWithRetry(() => import('@/pages/auth/ForgotPasswordPage').then((m) => ({ default: m.ForgotPasswordPage })));
 const ProfileSelectPage = lazyWithRetry(() => import('@/pages/auth/ProfileSelectPage').then((m) => ({ default: m.ProfileSelectPage })));
 const DownloadAppPage = lazyWithRetry(() => import('@/pages/DownloadAppPage').then((m) => ({ default: m.DownloadAppPage })));
-const TvAoVivoPage = lazyWithRetry(() => import('@/pages/TvAoVivoPage').then((m) => ({ default: m.TvAoVivoPage })));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -101,7 +100,6 @@ function AppRoutes() {
             <Route path="/" element={<HomePage />} />
             <Route path="/filmes" element={<CatalogPage kind="filmes" />} />
             <Route path="/series" element={<RequireSeries><CatalogPage kind="series" /></RequireSeries>} />
-            <Route path="/tv-ao-vivo" element={<TvAoVivoPage />} />
             <Route path="/pesquisa" element={<SearchPage />} />
             <Route path="/baixar-app" element={<DownloadAppPage />} />
             <Route path="/titulo/:type/:id" element={<TitleDetailPage />} />

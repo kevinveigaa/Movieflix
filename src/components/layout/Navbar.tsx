@@ -12,7 +12,6 @@ const navLinks = [
   { to: '/', label: 'Início' },
   { to: '/filmes', label: 'Filmes' },
   { to: '/series', label: 'Séries' },
-  { to: '/tv-ao-vivo', label: 'TV ao Vivo' },
 ];
 
 /** Categorias realmente usadas no catálogo, para o menu "Categorias". No modo

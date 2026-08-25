@@ -229,19 +229,6 @@ export function PlayerPage() {
         // catálogo (a fonte de verdade do front) para que o player funcione e o
         // histórico de reprodução seja gravado corretamente.
 
-        // TV AO VIVO (?tipo=live): o id referencia um canal (stream direto
-        // .m3u8/.mpd/.mp4). Reproduz no player nativo, sem passar pelo catálogo.
-        if (searchParams.get('tipo') === 'live') {
-          const canal = (await import('@/pages/TvAoVivoPage')).CANAIS_DISPONIVEIS;
-          const urlLive = searchParams.get('stream') || canal.find((c) => String(c.id) === String(id))?.stream_url || '';
-          setMovie({ id: String(id), title: canal.find((c) => String(c.id) === String(id))?.nome || `Canal ${id}`, type: 'live', video_url: urlLive });
-          if (urlLive) {
-            setSourceUrl(urlLive);
-            setSourceKind('direct');
-          }
-          setLoading(false);
-          return;
-        }
         let dataResolved: any = data;
         if (!dataResolved) {
           const catalog = movies.data ?? [];

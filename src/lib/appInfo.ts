@@ -33,7 +33,6 @@ export const APP_INFO = {
     'Player com controles de velocidade e suporte a qualidade/áudio/legenda quando disponível',
     'Navegação por controle remoto aprimorada em Smart TV / TV Box',
     'Bloqueio total e silencioso de anúncios e redirecionamentos',
-    'Área "TV AO VIVO" estruturada (aguardando fonte autorizada de canais)',
   ],
   /** Plataformas suportadas */
   platforms: ['Android', 'Android TV', 'Google TV', 'TV Box'],
