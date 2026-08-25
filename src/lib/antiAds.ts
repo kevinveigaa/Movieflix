@@ -261,15 +261,31 @@ function sanitizarIframesAnuncio(): void {
 function instalarAutoCloseOverlays(): () => void {
   if (typeof MutationObserver === 'undefined') return () => undefined;
 
+  /**
+   * Um elemento pertence ao app legítimo (e NUNCA deve ser clicado)?
+   * Overlays de anúncio NÃO vivem dentro de #root (são injetados no <body>,
+   * fora da árvore do React, ou dentro de iframes). Tudo o que está em #root
+   * é UI do MovieFlix — inclusive modais (que têm botão de fechar legítimo
+   * com aria-label="Fechar"). Clicar nesse botão automaticamente quebraria os
+   * modais do app (ex.: "Adicionar perfil" abre e fecha na hora).
+   */
+  function ehDoApp(el: Element): boolean {
+    if (el.closest('[data-app-ui]')) return true;
+    const root = document.getElementById('root');
+    if (!root) return false;
+    return root.contains(el);
+  }
+
   function tentarFechar(): void {
     const body = document.body;
     if (!body) return;
-    // 1) Seletores diretos de botão de fechar.
+    // 1) Seletores diretos de botão de fechar — SOMENTE fora de #root.
     for (const sel of SELETORES_FECHAR) {
       try {
         const els = body.querySelectorAll<HTMLElement>(sel);
         for (const el of els) {
           if (el.offsetParent === null && el.getClientRects().length === 0) continue; // invisível
+          if (ehDoApp(el)) continue; // UI legítima do app — nunca clicar
           if (pareceBotaoFechar(el)) {
             el.click();
           }
@@ -278,10 +294,12 @@ function instalarAutoCloseOverlays(): () => void {
         /* seletor inválido — ignora */
       }
     }
-    // 2) Elementos que parecem botão de fechar (fallback por texto/classes).
+    // 2) Elementos que parecem botão de fechar (fallback por texto/classes) —
+    //    também somente fora de #root.
     const candidatos = body.querySelectorAll<HTMLElement>('button, a[role="button"], [role="dialog"] button, [class*="popup"] button, [class*="modal"] button, [class*="overlay"] button');
     for (const el of candidatos) {
       if (el.offsetParent === null && el.getClientRects().length === 0) continue;
+      if (ehDoApp(el)) continue; // UI legítima do app — nunca clicar
       if (pareceBotaoFechar(el)) el.click();
     }
     // 3) Sanitização de meta refresh e iframes de anúncio.

@@ -55,6 +55,7 @@ export function Modal({ open, onClose, children, className, size = 'md' }: Modal
       >
         <button
           onClick={onClose}
+          data-app-ui="true"
           className="absolute right-3 top-3 z-20 rounded-full bg-white/10 p-2 text-ink-200 transition hover:bg-white/20 hover:text-white"
           aria-label="Fechar"
         >
