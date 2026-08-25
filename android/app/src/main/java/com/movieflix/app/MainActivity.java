@@ -56,6 +56,14 @@ public class MainActivity extends BridgeActivity {
     private long ultimaRestauracao = 0;
     private int restauracoesRecentes = 0;
 
+    // ── Duplo-back para sair ────────────────────────────────────────────────
+    // Regra do produto: o usuário NUNCA sai do app com UM "voltar". Só sai com
+    // DUAS pulsações de Voltar em ≤2s (1ª mostra o aviso discreto do site).
+    private static final long JANELA_DUPLO_BACK_MS = 2000;
+    private long ultimoBackPressionado = 0;
+    // Flag: quando o duplo-back foi confirmado, o próximo back nativo sai.
+    private boolean saidaConfirmada = false;
+
     @SuppressLint("SetJavaScriptEnabled")
     @Override
     public void onCreate(Bundle savedInstanceState) {
@@ -264,9 +272,8 @@ public class MainActivity extends BridgeActivity {
     /**
      * Voltar inteligente: o site é SPA, então o histórico do WebView é curto.
      * - Se há páginas no histórico nativo, volta (equivale ao back do site).
-     * - Se está na raiz, sai do app.
-     * - Se o WebView está tentando navegar para um anúncio (pending URL),
-     *   cancela e volta para a página atual.
+     * - Se está na raiz, exige DUPLO-BACK: 1ª pulsação avisa (via JS no site,
+     *   `window.__mfMostrarAviso()`), 2ª pulsação (≤2s) sai do app.
      */
     @Override
     public void onBackPressed() {
@@ -274,8 +281,16 @@ public class MainActivity extends BridgeActivity {
             super.onBackPressed();
             return;
         }
+
+        // Se o duplo-back foi confirmado pelo site, o próximo back sai de vez.
+        if (saidaConfirmada) {
+            saidaConfirmada = false;
+            super.onBackPressed();
+            return;
+        }
+
         String url = webView.getUrl();
-        if (url != null && !url.equals(SITE_URL)) {
+        if (url != null && !url.equals(SITE_URL) && !url.endsWith("/#/") && !url.endsWith("/#")) {
             // Navegação interna: volta para a página anterior (SPA) usando o
             // próprio botão do site se possível; caso contrário, histórico.
             webView.evaluateJavascript(
@@ -287,7 +302,29 @@ public class MainActivity extends BridgeActivity {
                     });
             return;
         }
-        super.onBackPressed();
+
+        // Na raiz do app: exige DUPLO-BACK para sair.
+        long agora = System.currentTimeMillis();
+        if (agora - ultimoBackPressionado < JANELA_DUPLO_BACK_MS) {
+            // Segunda pulsação dentro de 2s → sai de verdade.
+            ultimoBackPressionado = 0;
+            super.onBackPressed();
+            return;
+        }
+
+        // Primeira pulsação → aviso discreto e NÃO sai.
+        ultimoBackPressionado = agora;
+        webView.evaluateJavascript(
+                "window.__mfMostrarAviso ? (window.__mfMostrarAviso(), true) : false;",
+                value -> {
+                    if ("false".equals(value) || value == null) {
+                        // JS ainda não carregou: aviso local mínimo (Toast curto,
+                        // sem "bloqueado" — apenas orientação de dupla pulsação).
+                        android.widget.Toast.makeText(
+                                this, "Pressione voltar novamente para sair",
+                                android.widget.Toast.LENGTH_SHORT).show();
+                    }
+                });
     }
 
     /**
@@ -308,9 +345,10 @@ public class MainActivity extends BridgeActivity {
                     case KeyEvent.KEYCODE_DPAD_CENTER:
                     case KeyEvent.KEYCODE_ENTER:
                     case KeyEvent.KEYCODE_NUMPAD_ENTER:
+                        // Deixa o WebView tratar (setas/OK).
+                        return false;
                     case KeyEvent.KEYCODE_BACK:
-                        // Deixa o WebView tratar (setas/OK) — o BACK cai no
-                        // onBackPressed (navegação inteligente) se não consumido.
+                        // O BACK é tratado pelo onBackPressed (duplo-back).
                         return false;
                     default:
                         break;

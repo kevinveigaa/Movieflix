@@ -8,6 +8,7 @@ import { FullScreenLoader } from '@/components/ui/Feedback';
 import { ErrorBoundary } from '@/components/ui/ErrorBoundary';
 import { useTvNavigation } from '@/hooks/useTvNavigation';
 import { useSeriesHidden } from '@/hooks/useSeriesHidden';
+import { useDoubleBackExit } from '@/hooks/useDoubleBackExit';
 import { aplicarClasseApp } from '@/lib/appShell';
 import { instalarBloqueioAnuncios } from '@/lib/antiAds';
 import type { JSX } from 'react';
@@ -61,6 +62,12 @@ function RequireSeries({ children }: { children: JSX.Element }) {
 function AppRoutes() {
   // Navegação por controle remoto (setas + OK + Voltar) para TV, TV Box e PC.
   useTvNavigation();
+
+  // Duplo-back para sair (PC + TV + APK): o usuário só sai do app/site com
+  // DUAS pulsações de "voltar" em ≤2s. Dentro do site, voltar continua com um
+  // clique (navegação interna normal); na raiz, a 1ª pulsação mostra o aviso
+  // discreto "Pulsa de novo para sair" e a 2ª sai de verdade.
+  useDoubleBackExit();
 
   // Detecta o shell nativo (APK) e aplica a classe `is-native-app` no <html>:
   // esconde "Baixar app", ativa `tv-nav` e adapta a dica de controle remoto.

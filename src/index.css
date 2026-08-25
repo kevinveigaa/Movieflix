@@ -239,3 +239,30 @@ div[role="dialog"][aria-label*="ad" i],
 div[aria-modal="true"][class*="advert"] {
   display: none !important;
 }
+
+/* ── Aviso discreto "Pulsa de novo para sair" (duplo-back) ─────────────────
+   Padrão Android: aparece sutil no rodapé e some sozinho (~1.8s). Nada de
+   alert/toast agressivo — o usuário entende que precisa pulsar de novo. */
+.mf-exit-hint {
+  position: fixed;
+  left: 50%;
+  bottom: 28px;
+  transform: translateX(-50%) translateY(16px);
+  z-index: 2147483000;
+  background: rgba(15, 15, 22, 0.92);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  color: #f5f5f7;
+  font-size: 14px;
+  font-weight: 500;
+  padding: 10px 18px;
+  border-radius: 999px;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.45);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.25s ease, transform 0.25s ease;
+  white-space: nowrap;
+}
+.mf-exit-hint.mf-show {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}

@@ -37,4 +37,16 @@ public class MovieFlixPlugin extends Plugin {
         ret.put("url", MainActivity.SITE_URL);
         call.resolve(ret);
     }
+
+    /**
+     * Sai do app (duplo-back confirmado pelo site). Chamado pelo JS via
+     * `MovieFlixApp.exitApp()` quando o usuário pulsa "voltar" duas vezes na
+     * raiz — fecha o app de verdade (o equivalente a super.onBackPressed()
+     * do Android).
+     */
+    @PluginMethod
+    public void exitApp(PluginCall call) {
+        getActivity().runOnUiThread(() -> getActivity().finishAndRemoveTask());
+        call.resolve();
+    }
 }
