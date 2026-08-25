@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { PosterCard } from '@/components/cards/PosterCard';
 import { FullScreenLoader } from '@/components/ui/Feedback';
@@ -43,6 +43,10 @@ export function CatalogPage({ kind }: { kind: CatalogKind }) {
   const isKid = activeViewerProfile?.is_kid ?? false;
   const [search, setSearch] = useState('');
   const [ordenacao, setOrdenacao] = useState<Ordenacao>('recentes');
+  // Carregamento progressivo: catálogo é GRANDE (~4.000 filmes / ~1.250 séries).
+  // Renderizamos em blocos de 60 e o usuário clica "Carregar mais" (evita travar
+  // o navegador/TV renderizando milhares de cards de uma vez).
+  const [limite, setLimite] = useState(60);
   const [searchParams, setSearchParams] = useSearchParams();
   const categoria = searchParams.get('categoria');
 
@@ -126,6 +130,21 @@ export function CatalogPage({ kind }: { kind: CatalogKind }) {
     return lista;
   }, [base, search, categoria, ordenacao]);
 
+  // Total REAL do tipo (filmes ou séries) — independe da busca/filtro ativo.
+  const totalTipo = base.length;
+  // Bloco visível: busca/filtro/ordenação reseta o carregamento progressivo.
+  const visiveis = useMemo(() => results.slice(0, limite), [results, limite]);
+  // Paginação/ordenação muda → volta ao início da lista.
+  const mudouFiltro = useMemo(
+    () => `${search}|${categoria}|${ordenacao}`,
+    [search, categoria, ordenacao],
+  );
+  const ultimoFiltro = useRef(mudouFiltro);
+  if (ultimoFiltro.current !== mudouFiltro) {
+    ultimoFiltro.current = mudouFiltro;
+    setLimite(60);
+  }
+
   const selecionarCategoria = (nome: string | null) => {
     if (!nome) setSearchParams({}, { replace: true });
     else setSearchParams({ categoria: nome }, { replace: true });
@@ -137,7 +156,9 @@ export function CatalogPage({ kind }: { kind: CatalogKind }) {
         {categoria || TITLES[kind]}
       </h1>
       <p className="mb-6 text-sm text-ink-400">
-        {results.length} {kind === 'filmes' ? (results.length === 1 ? 'filme disponível' : 'filmes disponíveis') : results.length === 1 ? 'série disponível' : 'séries disponíveis'} · Dublado em pt-BR · Sem anúncios
+        {totalTipo} {kind === 'filmes' ? (totalTipo === 1 ? 'filme disponível' : 'filmes disponíveis') : totalTipo === 1 ? 'série disponível' : 'séries disponíveis'}
+        {search.trim() ? ` · ${results.length} resultado(s) para "${search.trim()}"` : ''}
+        {' '}· Dublado em pt-BR · Sem anúncios
       </p>
 
       {/* Busca + ordenação */}
@@ -202,14 +223,28 @@ export function CatalogPage({ kind }: { kind: CatalogKind }) {
 
       {movies.isLoading ? (
         <FullScreenLoader label="Carregando catálogo..." />
-      ) : results.length === 0 ? (
+      ) : visiveis.length === 0 ? (
         <p className="text-ink-400">Nenhum título encontrado por aqui ainda.</p>
       ) : (
-        <div className="grid grid-cols-2 gap-x-3 gap-y-5 xs:grid-cols-3 sm:grid-cols-4 sm:gap-x-4 sm:gap-y-6 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-7">
-          {results.map((movie: any) => (
-            <PosterCard key={movie.id} title={movie} className="w-full" progress={progressByMovie[movie.id]} />
-          ))}
-        </div>      )}
+        <>
+          <div className="grid grid-cols-2 gap-x-3 gap-y-5 xs:grid-cols-3 sm:grid-cols-4 sm:gap-x-4 sm:gap-y-6 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-7">
+            {visiveis.map((movie: any) => (
+              <PosterCard key={movie.id} title={movie} className="w-full" progress={progressByMovie[movie.id]} />
+            ))}
+          </div>
+          {results.length > limite && (
+            <div className="mt-10 flex justify-center">
+              <button
+                data-tv-focusable
+                onClick={() => setLimite((l) => l + 60)}
+                className="rounded-full border border-brand-500/60 bg-brand-500/15 px-6 py-2.5 text-sm font-semibold text-brand-200 transition hover:bg-brand-500/25 hover:text-white"
+              >
+                Carregar mais ({results.length - limite} restantes)
+              </button>
+            </div>
+          )}
+        </>
+      )}
     </div>
   );
 }

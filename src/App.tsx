@@ -17,7 +17,8 @@ import { lazyWithRetry } from '@/lib/lazyWithRetry';
 
 // Code splitting por rota: cada página é carregada sob demanda (React.lazy).
 const HomePage = lazyWithRetry(() => import('@/pages/HomePage').then((m) => ({ default: m.HomePage })));
-const CatalogPage = lazyWithRetry(() => import('@/pages/CatalogPage').then((m) => ({ default: m.CatalogPage })));
+const MoviesPage = lazyWithRetry(() => import('@/pages/MoviesPage').then((m) => ({ default: m.MoviesPage })));
+const SeriesPage = lazyWithRetry(() => import('@/pages/SeriesPage').then((m) => ({ default: m.SeriesPage })));
 const SearchPage = lazyWithRetry(() => import('@/pages/SearchPage').then((m) => ({ default: m.SearchPage })));
 const TitleDetailPage = lazyWithRetry(() => import('@/pages/TitleDetailPage').then((m) => ({ default: m.TitleDetailPage })));
 const FavoritesPage = lazyWithRetry(() => import('@/pages/FavoritesPage').then((m) => ({ default: m.FavoritesPage })));
@@ -98,8 +99,8 @@ function AppRoutes() {
           <Routes>
           <Route element={<AppLayout />}>
             <Route path="/" element={<HomePage />} />
-            <Route path="/filmes" element={<CatalogPage kind="filmes" />} />
-            <Route path="/series" element={<RequireSeries><CatalogPage kind="series" /></RequireSeries>} />
+            <Route path="/filmes" element={<MoviesPage />} />
+            <Route path="/series" element={<RequireSeries><SeriesPage /></RequireSeries>} />
             <Route path="/pesquisa" element={<SearchPage />} />
             <Route path="/baixar-app" element={<DownloadAppPage />} />
             <Route path="/titulo/:type/:id" element={<TitleDetailPage />} />
