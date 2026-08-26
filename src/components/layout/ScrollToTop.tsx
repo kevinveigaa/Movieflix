@@ -17,7 +17,7 @@ export function ScrollToTop() {
   return (
     <button
       onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
-      className="fixed bottom-6 right-6 z-50 flex h-12 w-12 items-center justify-center rounded-full bg-red-600 text-white shadow-lg shadow-red-900/40 transition-all hover:scale-110 hover:bg-red-500 active:scale-95"
+      className="fixed bottom-6 right-6 z-50 flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-r from-brand-600 via-roxo-600 to-roxo-600 text-white shadow-lg shadow-roxo-900/40 transition-all hover:scale-110 hover:from-brand-500 hover:via-roxo-500 hover:to-roxo-500 active:scale-95"
       aria-label="Voltar ao topo"
     >
       <ArrowUp className="h-5 w-5" />
