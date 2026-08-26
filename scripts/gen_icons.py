@@ -8,10 +8,16 @@ Saida:
   - public/logo.png (icone central recortado, para Navbar/Footer/paginas auth)
   - android/... mipmaps (launcher + foreground + round) e tv_banner
   - android/... splash screens (preto + logo centralizado)
+
+O icone do APP e IDENTICO ao favicon/logo do site: a imagem quadrada completa
+(fundo preto + circulo com gradiente + "M" + MOVIEFLIX), apenas redimensionada
+para cada densidade. O foreground dos adaptive icons (Android 8+) usa a MESMA
+imagem completa com fundo preto opaco (sem transparencia), evitando qualquer
+"fundo verde/turquesa" herdado de vectors antigos.
 """
 import sys
 import os
-from PIL import Image, ImageOps
+from PIL import Image
 
 SRC = sys.argv[1] if len(sys.argv) > 1 else "shots/new_icon.png"
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -20,28 +26,28 @@ im = Image.open(SRC).convert("RGBA")
 W, H = im.size
 print(f"Origem: {SRC} {W}x{H}")
 
-# ---- icones quadrados completos (fundo preto + circulo) ----
+
 def save_square(path, size):
     im.resize((size, size), Image.LANCZOS).save(path, "PNG")
     print(f"  {path} ({size}x{size})")
 
+
 # ---- recorte central: maior quadrado preto ao redor do circulo ----
-# O icone tem o circulo com borda em gradiente; recortamos o quadrado central
-# (circulo + padding) para usar como logo em Navbar/Footer/paginas de auth.
 def center_crop():
-    # proporcao: circulo ocupa ~62% da tela; padding de 19% em cada lado.
-    # Recorta o quadrado central de 70% (mantem o circulo inteiro + respiro).
     frac = 0.72
     side = int(min(W, H) * frac)
     left = (W - side) // 2
     top = (H - side) // 2
     return im.crop((left, top, left + side, top + side))
 
+
 logo = center_crop()
+
 
 def save_logo(path, size):
     logo.resize((size, size), Image.LANCZOS).save(path, "PNG")
     print(f"  {path} ({size}x{size})")
+
 
 # ============ PUBLIC (PWA / favicon / apple-touch) ============
 pub = os.path.join(ROOT, "public")
@@ -60,16 +66,13 @@ fgs = {"mdpi": 35, "hdpi": 52, "xhdpi": 69, "xxhdpi": 104, "xxxhdpi": 138}
 
 for dpi, size in mipmaps.items():
     base = os.path.join(ROOT, "android", "app", "src", "main", "res", f"mipmap-{dpi}")
+    # launcher e round: imagem COMPLETA (fundo preto + circulo), igual ao favicon
     save_square(os.path.join(base, "ic_launcher.png"), size)
     save_square(os.path.join(base, "ic_launcher_round.png"), size)
-    # foreground = somente o conteudo central (circulo + M), sem o fundo preto
+    # foreground: imagem completa com fundo preto OPCACO (sem transparencia),
+    # redimensionada para caber no safe zone do adaptive icon
     fg_size = fgs[dpi]
-    # recorte maior (circulo ~62% + pouca margem) p/ adaptive icon
-    frac = 0.66
-    side = int(min(W, H) * frac)
-    left = (W - side) // 2
-    top = (H - side) // 2
-    fg = im.crop((left, top, left + side, top + side)).resize((fg_size, fg_size), Image.LANCZOS)
+    fg = im.convert("RGB").resize((fg_size, fg_size), Image.LANCZOS).convert("RGBA")
     fg.save(os.path.join(base, "ic_launcher_foreground.png"), "PNG")
     print(f"  mipmap-{dpi}: launcher {size}, foreground {fg_size}")
 
