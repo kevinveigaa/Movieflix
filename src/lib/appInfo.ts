@@ -65,27 +65,27 @@ export const TV_APP_INFO = {
   /** Nome exibido do aplicativo de TV */
   name: 'MovieFlix TV',
   /** Versão semântica atual (bate com movieflix-tv/android/app/build.gradle → versionName) */
-  version: '1.0.1',
+  version: '1.1.0',
   /** Código de versão Android (bate com versionCode) */
-  versionCode: 2,
+  versionCode: 3,
   /** Data de lançamento desta versão (AAAA-MM-DD) */
   releaseDate: '2026-08-26',
   /** Resumo das mudanças desta versão (exibido na página de download) */
   changelog: [
-    'Ícone oficial do MovieFlix (M gradiente roxo/vermelho) corrigido em todas as densidades',
-    'Navegação por controle remoto reforçada: modo TV forçado no app nativo (TV Box genéricos)',
-    'Suporte à tecla Play/Pause do controle remoto no player',
-    'Interface dedicada para Android TV, Google TV e TV Box',
-    'Navegação 100% por controle remoto (setas, OK, Voltar)',
-    'Player com modo CONTROLE DO PLAYER (segure OK para entrar/sair)',
-    'Bloqueio total e silencioso de anúncios e redirecionamentos',
-    'Catálogo sempre sincronizado com o site (WebView remoto, sem cache)',
-    'Busca com teclado virtual, Minha Lista e Continuar assistindo',
+    'Aplicativo 100% NATIVO Android TV (Kotlin + Leanback + ExoPlayer) — sem WebView, sem Capacitor, sem site dentro do app',
+    'Interface própria de TV com navegação por D-pad NATIVA (foco Android, não JavaScript)',
+    'Home com filmes em destaque, séries e categorias carregadas do catálogo oficial',
+    'Player ExoPlayer nativo com controles por controle remoto (OK play/pause, ←/→ seek, ↑/↓ volume, BACK sair)',
+    'Login/cadastro com a MESMA conta do site (Supabase) — assinatura reconhecida automaticamente',
+    'Bloqueio de reprodução por assinatura validado NO SERVIDOR (sem assinatura = tela "Assinatura necessária")',
+    'Pesquisa nativa no catálogo',
+    'Ícone oficial do MovieFlix (M gradiente rosa/índigo) em todas as densidades + banner de TV',
+    'Catálogo embutido no APK (funciona mesmo sem internet para navegar)',
   ],
   /** Plataformas suportadas */
   platforms: ['Android TV', 'Google TV', 'TV Box'],
   /** Nome do arquivo do APK oficial (manter sincronizado com public/apk/) */
-  apkFileName: 'MovieFlixTV-v1.0.1.apk',
+  apkFileName: 'MovieFlixTV-v1.1.0.apk',
 } as const;
 
 /** Caminho público do APK do MovieFlix TV dentro do app (servido pelo backend/static). */
@@ -94,8 +94,8 @@ export const TV_APK_URL = `/apk/${TV_APP_INFO.apkFileName}`;
 /** URL ABSOLUTA do APK do MovieFlix TV (usada pelo QR code e por links externos). */
 export const TV_APK_ABSOLUTE_URL = `https://movieflix-bszf.onrender.com${TV_APK_URL}`;
 
-/** Tamanho do APK do MovieFlix TV em MB (exibido na página de download). Mantido em sincronia com public/apk/MovieFlixTV-v1.0.1.apk (5.085.539 bytes ≈ 4.9 MB). */
-export const TV_APK_SIZE_MB = '4.9 MB';
+/** Tamanho do APK do MovieFlix TV em MB (exibido na página de download). Mantido em sincronia com public/apk/MovieFlixTV-v1.1.0.apk (14.234.606 bytes ≈ 14 MB). */
+export const TV_APK_SIZE_MB = '14 MB';
 
 /** Chave usada no localStorage para lembrar a última versão vista pelo usuário. */
 const VERSION_KEY = 'mf_last_seen_version';
