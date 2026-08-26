@@ -48,7 +48,7 @@ export function EpisodioSelector({ episodes, current, onSelect, className }: Epi
             onChange={(e) => {
               setSeasonAtiva(Number(e.target.value));
             }}
-            className="appearance-none rounded-lg border border-white/10 bg-ink-800 py-2 pl-3 pr-9 text-sm font-medium text-white outline-none transition focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
+            className="appearance-none rounded-lg border border-white/10 bg-ink-800 py-2 pl-3 pr-9 text-sm font-medium text-white outline-none transition focus:border-roxo-500 focus:ring-1 focus:ring-roxo-500"
           >
             {temporadas.map((t) => (
               <option key={t} value={t}>
@@ -74,20 +74,20 @@ export function EpisodioSelector({ episodes, current, onSelect, className }: Epi
               className={cn(
                 'group flex flex-col items-center justify-center gap-1 rounded-xl border p-3 transition',
                 ativo
-                  ? 'border-brand-500 bg-brand-600/20 text-white'
+                  ? 'border-roxo-500 bg-roxo-600/20 text-white'
                   : 'border-white/10 bg-white/5 text-zinc-300 hover:border-white/25 hover:bg-white/10',
               )}
             >
               <Play
                 className={cn(
                   'h-4 w-4 transition',
-                  ativo ? 'text-brand-400' : 'text-zinc-500 group-hover:text-white',
+                  ativo ? 'text-roxo-400' : 'text-zinc-500 group-hover:text-white',
                 )}
                 fill="currentColor"
               />
               <span className="text-sm font-bold leading-none">{ep}</span>
               <span className="text-[10px] text-zinc-500">Episódio</span>
-              {ativo && <Check className="h-3.5 w-3.5 text-brand-400" />}
+              {ativo && <Check className="h-3.5 w-3.5 text-roxo-400" />}
             </button>
           );
         })}

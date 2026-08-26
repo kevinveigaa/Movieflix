@@ -163,7 +163,7 @@ export function TitleDetailPage() {
                   </span>
                 ))}
               {movie.quality && (
-                <span className="rounded-full border border-brand-500/30 bg-brand-500/10 px-3 py-1 text-xs text-brand-300">
+                <span className="rounded-full border border-roxo-500/30 bg-roxo-500/10 px-3 py-1 text-xs text-roxo-300">
                   {movie.quality}
                 </span>
               )}
@@ -202,7 +202,7 @@ export function TitleDetailPage() {
           {showResumeModal && historyRow && (
             <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
               <div className="w-full max-w-sm rounded-2xl border border-white/10 bg-ink-900 p-6 text-center">
-                <Clock className="mx-auto h-10 w-10 text-brand-400" />
+                <Clock className="mx-auto h-10 w-10 text-roxo-400" />
                 <h3 className="mt-3 text-lg font-bold text-white">Continuar assistindo?</h3>
                 <p className="mt-2 text-sm text-zinc-400">
                   Você parou em <span className="text-white font-semibold">{formatTime(historyRow.position_seconds)}</span> de {formatTime(historyRow.duration_seconds || 0)}.
@@ -241,7 +241,7 @@ export function TitleDetailPage() {
       {isSeries && movie.episodes_available && movie.episodes_available.length > 0 && (
         <div className="container-app py-8">
           <div className="mb-4 flex items-center gap-2">
-            <Layers className="h-5 w-5 text-brand-400" />
+            <Layers className="h-5 w-5 text-roxo-400" />
             <h2 className="text-lg font-bold">Episódios</h2>
             <span className="ml-auto text-xs text-zinc-500">
               {temporadasDisponiveis(movie.episodes_available).length} temporada(s) ·{' '}

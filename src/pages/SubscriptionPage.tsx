@@ -93,7 +93,7 @@ export function SubscriptionPage() {
   return (
     <div className="container-app py-10">
       <div className="text-center">
-        <span className="chip border-brand-600/40 bg-brand-600/15 text-brand-300">
+        <span className="chip border-roxo-600/40 bg-roxo-600/15 text-roxo-300">
           <Crown className="h-3.5 w-3.5" /> Assinatura MovieFlix
         </span>
         <h1 className="mt-4 font-display text-4xl tracking-wide text-white sm:text-5xl">Escolha o seu plano</h1>
@@ -176,7 +176,7 @@ export function SubscriptionPage() {
                   key={plan.id}
                   className={`relative flex flex-col rounded-2xl border p-6 transition ${
                     featured
-                      ? 'border-brand-600/50 bg-gradient-to-b from-brand-900/30 to-ink-900 shadow-xl shadow-brand-900/20'
+                      ? 'border-roxo-500/60 bg-gradient-to-b from-roxo-900/40 to-ink-900 shadow-xl shadow-roxo-900/30'
                       : 'border-white/10 bg-ink-900/70'
                   } ${isCurrent ? 'ring-2 ring-emerald-500/60' : ''}`}
                 >
@@ -186,7 +186,7 @@ export function SubscriptionPage() {
                     </span>
                   )}
                   {featured && (
-                    <span className="absolute -top-3 left-1/2 -translate-x-1/2 rounded-full bg-brand-600 px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-white">
+                    <span className="absolute -top-3 left-1/2 -translate-x-1/2 rounded-full bg-gradient-to-r from-brand-600 to-roxo-600 px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-white">
                       Mais popular
                     </span>
                   )}
@@ -199,7 +199,7 @@ export function SubscriptionPage() {
                   <ul className="mt-5 flex-1 space-y-2.5">
                     {[...entitlementHighlights(plan), ...(plan.features ?? [])].map((f) => (
                       <li key={f} className="flex items-start gap-2 text-sm text-ink-200">
-                        <Check className="mt-0.5 h-4 w-4 flex-shrink-0 text-brand-500" /> {f}
+                        <Check className="mt-0.5 h-4 w-4 flex-shrink-0 text-roxo-500" /> {f}
                       </li>
                     ))}
                   </ul>
@@ -208,7 +208,7 @@ export function SubscriptionPage() {
                     return (
                       <>
                         {action.kind === 'upgrade' && (
-                          <p className="mt-5 text-xs text-brand-300">
+                          <p className="mt-5 text-xs text-roxo-300">
                             Você paga apenas a diferença na próxima cobrança e o upgrade vale na hora.
                           </p>
                         )}
@@ -240,7 +240,7 @@ export function SubscriptionPage() {
 
       <div className="mx-auto mt-12 max-w-2xl rounded-2xl border border-white/10 bg-ink-900/50 p-6">
         <h3 className="flex items-center gap-2 font-semibold text-white">
-          <Clock className="h-5 w-5 text-brand-400" /> Como funciona o pagamento
+          <Clock className="h-5 w-5 text-roxo-400" /> Como funciona o pagamento
         </h3>
         <ol className="mt-3 space-y-2 text-sm text-ink-300">
           <li>1. Escolha um plano e clique em Assinar.</li>

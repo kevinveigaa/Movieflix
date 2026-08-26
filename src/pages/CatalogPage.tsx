@@ -167,7 +167,7 @@ export function CatalogPage({ kind }: { kind: CatalogKind }) {
           placeholder={`Buscar em ${TITLES[kind].toLowerCase()}...`}
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          className="w-full sm:max-w-md rounded-xl border border-white/10 bg-white/10 px-4 py-2.5 text-sm text-white placeholder:text-zinc-400 outline-none focus:border-brand-500"
+          className="w-full sm:max-w-md rounded-xl border border-white/10 bg-white/10 px-4 py-2.5 text-sm text-white placeholder:text-zinc-400 outline-none focus:border-roxo-500"
         />
         <div className="flex flex-wrap items-center gap-2">
           {ORDENACOES.map((o) => (
@@ -177,7 +177,7 @@ export function CatalogPage({ kind }: { kind: CatalogKind }) {
               className={cn(
                 'flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium transition',
                 ordenacao === o.id
-                  ? 'border-brand-500/60 bg-brand-500/15 text-brand-200'
+                  ? 'border-roxo-500/60 bg-roxo-500/15 text-roxo-200'
                   : 'border-white/10 bg-white/5 text-ink-300 hover:text-white',
               )}
             >
@@ -211,7 +211,7 @@ export function CatalogPage({ kind }: { kind: CatalogKind }) {
               className={cn(
                 'rounded-full border px-3 py-1.5 text-xs font-medium transition',
                 c === categoria
-                  ? 'border-brand-500/60 bg-brand-500/15 text-brand-200'
+                  ? 'border-roxo-500/60 bg-roxo-500/15 text-roxo-200'
                   : 'border-white/10 bg-white/5 text-ink-300 hover:text-white',
               )}
             >
@@ -237,7 +237,7 @@ export function CatalogPage({ kind }: { kind: CatalogKind }) {
               <button
                 data-tv-focusable
                 onClick={() => setLimite((l) => l + 60)}
-                className="rounded-full border border-brand-500/60 bg-brand-500/15 px-6 py-2.5 text-sm font-semibold text-brand-200 transition hover:bg-brand-500/25 hover:text-white"
+                className="rounded-full border border-roxo-500/60 bg-roxo-500/15 px-6 py-2.5 text-sm font-semibold text-roxo-200 transition hover:bg-roxo-500/25 hover:text-white"
               >
                 Carregar mais ({results.length - limite} restantes)
               </button>

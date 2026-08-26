@@ -73,11 +73,11 @@ export function ProfileFormModal({ open, onClose, editing, defaultName, onSubmit
                 onClick={() => setIsKid(false)}
                 className={`flex flex-col items-center gap-2 rounded-xl border-2 p-4 transition ${
                   !isKid
-                    ? 'border-brand-500 bg-brand-600/10 shadow-md shadow-brand-600/20'
+                    ? 'border-roxo-500 bg-roxo-600/10 shadow-md shadow-roxo-600/20'
                     : 'border-white/10 bg-white/5 hover:bg-white/10'
                 }`}
               >
-                <User className={`h-8 w-8 ${!isKid ? 'text-brand-400' : 'text-ink-400'}`} />
+                <User className={`h-8 w-8 ${!isKid ? 'text-roxo-400' : 'text-ink-400'}`} />
                 <span className="text-sm font-semibold text-white">Normal</span>
                 <span className="text-center text-[11px] text-ink-400">Todo o conteúdo</span>
               </button>
@@ -106,7 +106,7 @@ export function ProfileFormModal({ open, onClose, editing, defaultName, onSubmit
                   type="button"
                   onClick={() => setAvatar(a)}
                   className={`h-14 w-14 overflow-hidden rounded-xl border-2 transition ${
-                    avatar === a ? 'border-brand-500' : 'border-transparent opacity-70 hover:opacity-100'
+                    avatar === a ? 'border-roxo-500' : 'border-transparent opacity-70 hover:opacity-100'
                   }`}
                   aria-label="Escolher avatar"
                 >

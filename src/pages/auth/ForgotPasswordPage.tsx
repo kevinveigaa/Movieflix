@@ -52,7 +52,7 @@ export function ForgotPasswordPage() {
       )}
       <p className="mt-6 text-center text-sm text-ink-400">
         Lembrou a senha?{' '}
-        <Link to="/login" className="font-semibold text-brand-400 hover:text-brand-300">
+        <Link to="/login" className="font-semibold text-roxo-400 hover:text-roxo-300">
           Entrar
         </Link>
       </p>

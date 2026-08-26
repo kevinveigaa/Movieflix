@@ -130,7 +130,7 @@ export function ProfilePage() {
           <div className="card-surface p-6">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <h2 className="flex items-center gap-2 font-semibold text-white">
-                <Users className="h-5 w-5 text-brand-400" />
+                <Users className="h-5 w-5 text-roxo-400" />
                 Perfis de exibição
               </h2>
 
@@ -170,7 +170,7 @@ export function ProfilePage() {
                       key={p.id}
                       className={`group relative w-32 rounded-2xl border p-3 text-center transition ${
                         isActive
-                          ? 'border-brand-500 bg-brand-600/10'
+                          ? 'border-roxo-500 bg-roxo-600/10'
                           : 'border-white/10 bg-white/5 hover:border-white/25'
                       }`}
                     >
@@ -194,7 +194,7 @@ export function ProfilePage() {
                         {!isActive && (
                           <button
                             onClick={() => switchProfile(p)}
-                            className="flex items-center gap-1 rounded-full bg-brand-600 px-2.5 py-1 text-[11px] font-semibold text-white transition hover:bg-brand-500"
+                            className="flex items-center gap-1 rounded-full bg-gradient-to-r from-brand-600 to-roxo-600 px-2.5 py-1 text-[11px] font-semibold text-white transition hover:from-brand-500 hover:to-roxo-500"
                             title="Trocar para este perfil"
                           >
                             <ArrowLeftRight className="h-3 w-3" /> Trocar
@@ -222,7 +222,7 @@ export function ProfilePage() {
                 {!atLimit && (
                   <button
                     onClick={openCreate}
-                    className="flex w-32 flex-col items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-white/15 bg-ink-800/40 p-3 text-ink-400 transition hover:border-brand-500 hover:text-brand-400"
+                    className="flex w-32 flex-col items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-white/15 bg-ink-800/40 p-3 text-ink-400 transition hover:border-roxo-500 hover:text-roxo-400"
                   >
                     <Plus className="h-8 w-8" />
                     <span className="text-xs font-medium">Adicionar perfil</span>
@@ -253,7 +253,7 @@ export function ProfilePage() {
           {/* ---- Dados da conta ---- */}
           <div className="card-surface p-6">
             <h2 className="flex items-center gap-2 font-semibold text-white">
-              <UserIcon className="h-5 w-5 text-brand-400" />
+              <UserIcon className="h-5 w-5 text-roxo-400" />
               Dados da conta
             </h2>
 
@@ -315,7 +315,7 @@ export function ProfilePage() {
           <div className="grid gap-6 lg:grid-cols-2">
             <div className="card-surface p-6">
               <h2 className="flex items-center gap-2 font-semibold text-white">
-                <Crown className="h-5 w-5 text-brand-400" />
+                <Crown className="h-5 w-5 text-roxo-400" />
                 Assinatura
               </h2>
 
@@ -371,7 +371,7 @@ export function ProfilePage() {
             {profile?.is_admin && (
               <div className="card-surface p-6">
                 <h2 className="flex items-center gap-2 font-semibold text-white">
-                  <Shield className="h-5 w-5 text-brand-400" />
+                  <Shield className="h-5 w-5 text-roxo-400" />
                   Administrador
                 </h2>
 

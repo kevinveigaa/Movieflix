@@ -139,7 +139,7 @@ export function HistoryPage() {
                   </div>
                 </Link>
                 <div className="flex-1 min-w-0">
-                  <Link to={historyTarget(h)} className="font-semibold text-white hover:text-brand-300 truncate block">
+                  <Link to={historyTarget(h)} className="font-semibold text-white hover:text-roxo-300 truncate block">
                     {movie.title}
                   </Link>
                   <p className="mt-0.5 text-xs text-ink-400">

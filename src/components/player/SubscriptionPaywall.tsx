@@ -34,8 +34,8 @@ export function SubscriptionPaywall() {
     >
       <div className="w-full max-w-3xl py-8">
         <div className="text-center">
-          <span className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-brand-600/15 ring-1 ring-brand-500/40">
-            <Lock className="h-7 w-7 text-brand-400" />
+          <span className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-roxo-600/15 ring-1 ring-roxo-500/40">
+            <Lock className="h-7 w-7 text-roxo-400" />
           </span>
           <h1 className="mt-4 font-display text-3xl font-bold text-white sm:text-4xl">
             Assine um plano para assistir
@@ -58,17 +58,17 @@ export function SubscriptionPaywall() {
                     key={plan.id}
                     className={`relative flex flex-col rounded-2xl border p-5 ${
                       featured
-                        ? 'border-brand-600/50 bg-gradient-to-b from-brand-900/30 to-ink-900 shadow-xl shadow-brand-900/20'
+                        ? 'border-roxo-500/60 bg-gradient-to-b from-roxo-900/40 to-ink-900 shadow-xl shadow-roxo-900/30'
                         : 'border-white/10 bg-ink-900/70'
                     }`}
                   >
                     {featured && (
-                      <span className="absolute -top-3 left-1/2 -translate-x-1/2 rounded-full bg-brand-600 px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-white">
+                      <span className="absolute -top-3 left-1/2 -translate-x-1/2 rounded-full bg-gradient-to-r from-brand-600 to-roxo-600 px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-white">
                         Mais popular
                       </span>
                     )}
                     <h3 className="flex items-center gap-2 text-base font-bold text-white">
-                      <Crown className="h-4 w-4 text-brand-400" />
+                      <Crown className="h-4 w-4 text-roxo-400" />
                       {plan.name}
                     </h3>
                     <div className="mt-3 flex items-baseline gap-1">
@@ -82,7 +82,7 @@ export function SubscriptionPaywall() {
                         .slice(0, 4)
                         .map((f) => (
                           <li key={f} className="flex items-start gap-2 text-xs text-zinc-300">
-                            <Check className="mt-0.5 h-3.5 w-3.5 flex-shrink-0 text-brand-500" /> {f}
+                            <Check className="mt-0.5 h-3.5 w-3.5 flex-shrink-0 text-roxo-500" /> {f}
                           </li>
                         ))}
                     </ul>
@@ -110,7 +110,7 @@ export function SubscriptionPaywall() {
 
         <p className="mt-8 text-center text-xs text-zinc-500">
           Já assinei —{' '}
-          <Link to="/minha-assinatura" className="text-brand-400 underline hover:text-brand-300">
+          <Link to="/minha-assinatura" className="text-roxo-400 underline hover:text-roxo-300">
             verificar minha assinatura
           </Link>
         </p>

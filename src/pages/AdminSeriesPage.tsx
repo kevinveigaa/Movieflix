@@ -302,7 +302,7 @@ export function AdminSeriesPage() {
                 <div className="mb-4 space-y-2">
                   {(episodes[season.id] ?? []).filter(Boolean).map((ep, idx) => (
                     <div key={ep?.id || `ep-${idx}`} className="flex items-center gap-3 rounded-lg bg-black/30 p-3">
-                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-brand-600 text-sm font-bold">
+                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-brand-600 to-roxo-600 text-sm font-bold">
                         {ep?.episode_number ?? '-'}
                       </div>
                       <div className="min-w-0 flex-1">

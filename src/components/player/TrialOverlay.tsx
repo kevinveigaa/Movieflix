@@ -50,7 +50,7 @@ export function TrialOverlay({
           <Link
             to="/minha-assinatura"
             data-tv-focusable
-            className="flex items-center justify-center gap-2 rounded-lg bg-brand-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-brand-500"
+            className="flex items-center justify-center gap-2 rounded-lg bg-gradient-to-r from-brand-600 to-roxo-600 px-4 py-3 text-sm font-semibold text-white transition hover:from-brand-500 hover:to-roxo-500"
           >
             <Crown className="h-4 w-4" />
             Assinar agora

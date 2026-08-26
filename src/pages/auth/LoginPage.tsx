@@ -63,7 +63,7 @@ export function LoginPage() {
           <label className="flex items-center gap-2 text-ink-300">
             <input type="checkbox" className="rounded border-white/20 bg-ink-800" /> Lembrar-me
           </label>
-          <Link to="/recuperar-senha" data-tv-focusable className="text-brand-400 hover:text-brand-300">
+          <Link to="/recuperar-senha" data-tv-focusable className="text-roxo-400 hover:text-roxo-300">
             Esqueceu a senha?
           </Link>
         </div>
@@ -73,7 +73,7 @@ export function LoginPage() {
       </form>
       <p className="mt-6 text-center text-sm text-ink-400">
         Não tem conta?{' '}
-        <Link to="/cadastro" data-tv-focusable className="font-semibold text-brand-400 hover:text-brand-300">
+        <Link to="/cadastro" data-tv-focusable className="font-semibold text-roxo-400 hover:text-roxo-300">
           Cadastre-se grátis
         </Link>
       </p>
@@ -85,8 +85,8 @@ export function AuthShell({ title, subtitle, children }: { title: string; subtit
   return (
     <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-ink-950 px-4 py-12">
       <div className="pointer-events-none absolute inset-0 opacity-30">
-        <div className="absolute -top-40 left-1/4 h-96 w-96 rounded-full bg-brand-700/40 blur-3xl" />
-        <div className="absolute bottom-0 right-1/4 h-96 w-96 rounded-full bg-brand-900/40 blur-3xl" />
+        <div className="absolute -top-40 left-1/4 h-96 w-96 rounded-full bg-roxo-700/40 blur-3xl" />
+        <div className="absolute bottom-0 right-1/4 h-96 w-96 rounded-full bg-brand-800/40 blur-3xl" />
       </div>
       <div className="relative w-full max-w-md">
         <BrandLogo size="md" className="mb-6 justify-center" textClassName="text-2xl" />

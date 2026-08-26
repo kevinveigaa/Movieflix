@@ -125,7 +125,7 @@ export function ProfileSelectPage() {
       </p>
 
       {atLimit && !hasPlan && profiles.length > 0 && (
-        <p className="mt-3 max-w-md text-center text-sm text-brand-300">
+        <p className="mt-3 max-w-md text-center text-sm text-roxo-300">
           Para criar mais perfis, assine um plano. Cada plano tem um limite de
           perfis (2, 3 ou 5).
         </p>

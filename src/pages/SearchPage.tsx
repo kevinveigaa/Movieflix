@@ -73,7 +73,7 @@ export function SearchPage() {
             value={termo}
             onChange={(e) => setTermo(e.target.value)}
             placeholder={seriesHidden ? 'Busque filmes...' : 'Busque filmes e séries...'}
-            className="w-full rounded-full border border-white/10 bg-ink-800/70 py-3.5 pl-12 pr-12 text-base text-white placeholder:text-ink-400 focus:border-brand-500 focus:outline-none"
+            className="w-full rounded-full border border-white/10 bg-ink-800/70 py-3.5 pl-12 pr-12 text-base text-white placeholder:text-ink-400 focus:border-roxo-500 focus:outline-none"
           />
           {termo && (
             <button

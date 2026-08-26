@@ -33,7 +33,7 @@
     @apply inline-flex items-center justify-center gap-2 rounded-full px-5 py-2.5 text-sm font-semibold transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 focus-visible:ring-offset-ink-950 disabled:cursor-not-allowed disabled:opacity-50;
   }
   .btn-primary {
-    @apply btn bg-brand-600 text-white hover:bg-brand-500 active:scale-[0.98] shadow-lg shadow-brand-900/30;
+    @apply btn bg-gradient-to-r from-brand-600 to-roxo-600 text-white hover:from-brand-500 hover:to-roxo-500 active:scale-[0.98] shadow-lg shadow-roxo-900/30;
   }
   .btn-ghost {
     @apply btn bg-white/10 text-white hover:bg-white/20 backdrop-blur;
@@ -42,7 +42,7 @@
     @apply btn border border-white/20 text-white hover:border-white/40 hover:bg-white/5;
   }
   .input {
-    @apply w-full rounded-xl border border-white/10 bg-ink-800/60 px-4 py-3 text-sm text-white placeholder:text-ink-400 transition-colors focus:border-roxo-500 focus:outline-none focus:ring-1 focus:ring-roxo-500;
+    @apply w-full rounded-xl border border-white/10 bg-ink-800/60 px-4 py-3 text-sm text-white placeholder:text-ink-400 transition-colors focus:border-roxo-400 focus:outline-none focus:ring-1 focus:ring-roxo-400;
   }
   .card-surface {
     @apply rounded-2xl border border-white/10 bg-ink-900/70 backdrop-blur;
@@ -58,7 +58,7 @@
     display: none;
   }
   .text-gradient {
-    @apply text-roxo-500;
+    @apply bg-gradient-to-r from-brand-500 via-roxo-500 to-brand-400 bg-clip-text text-transparent;
   }
 }
 
@@ -108,8 +108,8 @@
   outline: none !important;
   border-radius: 0.5rem;
   box-shadow:
-    0 0 0 1.5px rgba(230, 0, 0, 0.95),
-    0 0 14px rgba(124, 58, 237, 0.45);
+    0 0 0 1.5px rgba(223, 10, 21, 0.95),
+    0 0 16px rgba(124, 58, 237, 0.6);
   transition: box-shadow 0.15s ease, transform 0.15s ease;
   z-index: 30;
   position: relative;

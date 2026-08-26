@@ -8,12 +8,12 @@ export function DownloadAppPage() {
   return (
     <div className="container-app py-10">
       <div className="mx-auto max-w-3xl text-center">
-        <span className="inline-flex items-center gap-2 rounded-full border border-brand-500/30 bg-brand-500/10 px-4 py-1.5 text-xs font-semibold text-brand-300">
+        <span className="inline-flex items-center gap-2 rounded-full border border-roxo-500/30 bg-roxo-500/10 px-4 py-1.5 text-xs font-semibold text-roxo-300">
           <Smartphone className="h-4 w-4" />
           APLICATIVO ANDROID
         </span>
         <h1 className="mt-4 font-display text-3xl tracking-wide text-white sm:text-5xl">
-          Baixe o app <span className="text-brand-400">MovieFlix</span>
+          Baixe o app <span className="text-roxo-400">MovieFlix</span>
         </h1>
         <p className="mx-auto mt-3 max-w-xl text-sm text-ink-400 sm:text-base">
           O aplicativo oficial do MovieFlix para celular e TV. Assista filmes e
@@ -28,7 +28,7 @@ export function DownloadAppPage() {
               href={apkUrl}
               download={APP_INFO.apkFileName}
               data-tv-focusable
-              className="inline-flex items-center gap-3 rounded-2xl bg-brand-600 px-8 py-4 text-lg font-semibold text-white shadow-lg shadow-brand-600/30 transition hover:bg-brand-500"
+              className="inline-flex items-center gap-3 rounded-2xl bg-gradient-to-r from-brand-600 to-roxo-600 px-8 py-4 text-lg font-semibold text-white shadow-lg shadow-roxo-600/30 transition hover:from-brand-500 hover:to-roxo-500"
             >
               <Download className="h-6 w-6" />
               Baixar APK
@@ -61,7 +61,7 @@ export function DownloadAppPage() {
         {/* Nota honesta: como o QR funciona por plataforma */}
         <div className="mx-auto mt-5 max-w-xl rounded-xl border border-white/10 bg-ink-900/40 px-4 py-3 text-left text-xs leading-relaxed text-ink-400">
           <strong className="text-white">Como o QR funciona:</strong> no{' '}
-          <strong className="text-brand-300">Android</strong> (celular, tablet, Android TV, TV Box),
+          <strong className="text-roxo-300">Android</strong> (celular, tablet, Android TV, TV Box),
           o QR inicia o download do APK na hora. No{' '}
           <strong className="text-white">iPhone/iPad (iOS)</strong>, o iOS não permite instalar
           APK — então o QR abre esta página de download, onde há o passo a passo
@@ -71,7 +71,7 @@ export function DownloadAppPage() {
             href={DOWNLOAD_PAGE_URL}
             target="_blank"
             rel="noreferrer"
-            className="text-brand-300 underline underline-offset-2 hover:text-brand-200"
+            className="text-roxo-300 underline underline-offset-2 hover:text-roxo-200"
           >
             Abrir página de download
           </a>
@@ -80,7 +80,7 @@ export function DownloadAppPage() {
         {/* Changelog da versão atual */}
         <div className="mt-8 rounded-2xl border border-white/10 bg-ink-900/60 p-5 text-left">
           <h2 className="flex items-center gap-2 font-semibold text-white">
-            <RotateCcw className="h-4 w-4 text-brand-400" />
+            <RotateCcw className="h-4 w-4 text-roxo-400" />
             O que há de novo na v{APP_INFO.version}
           </h2>
           <ul className="mt-3 space-y-1.5">
@@ -105,7 +105,7 @@ export function DownloadAppPage() {
             Android (mesmo catálogo, mesma versão, sempre atualizado).
           </p>
           <ol className="mt-3 list-decimal space-y-1.5 pl-5 text-sm text-ink-300">
-            <li>Abra o site <span className="text-brand-300">movieflix-bszf.onrender.com</span> no Safari.</li>
+            <li>Abra o site <span className="text-roxo-300">movieflix-bszf.onrender.com</span> no Safari.</li>
             <li>Toque no botão <strong className="text-white">Compartilhar</strong> (ícone de seta para cima).</li>
             <li>Toque em <strong className="text-white">"Adicionar à Tela de Início"</strong>.</li>
             <li>Pronto: o ícone do MovieFlix aparece na tela inicial, em tela cheia.</li>
@@ -121,14 +121,14 @@ export function DownloadAppPage() {
             </p>
           </div>
           <div className="rounded-2xl border border-white/10 bg-ink-900/60 p-5">
-            <Tv className="h-7 w-7 text-brand-400" />
+            <Tv className="h-7 w-7 text-roxo-400" />
             <h3 className="mt-3 font-semibold text-white">Na TV e no celular</h3>
             <p className="mt-1 text-sm text-ink-400">
               Android, Android TV, Google TV e TV Box — navegue tudo com o controle remoto.
             </p>
           </div>
           <div className="rounded-2xl border border-white/10 bg-ink-900/60 p-5">
-            <RotateCcw className="h-7 w-7 text-brand-400" />
+            <RotateCcw className="h-7 w-7 text-roxo-400" />
             <h3 className="mt-3 font-semibold text-white">Sempre atualizado</h3>
             <p className="mt-1 text-sm text-ink-400">
               Novas versões são liberadas aqui. Fique de olho nesta página.

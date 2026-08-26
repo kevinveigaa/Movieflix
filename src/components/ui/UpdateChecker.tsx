@@ -28,9 +28,9 @@ export function UpdateChecker() {
   if (!visivel) return null;
 
   return (
-    <div className="fixed bottom-4 right-4 z-[60] w-[calc(100vw-2rem)] max-w-sm animate-fade-in-fast rounded-2xl border border-brand-500/40 bg-ink-900/95 p-4 shadow-2xl shadow-black/50 backdrop-blur">
+    <div className="fixed bottom-4 right-4 z-[60] w-[calc(100vw-2rem)] max-w-sm animate-fade-in-fast rounded-2xl border border-roxo-500/40 bg-ink-900/95 p-4 shadow-2xl shadow-black/50 backdrop-blur">
       <div className="flex items-start gap-3">
-        <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-brand-600/20 text-brand-400">
+        <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-roxo-600/20 text-roxo-400">
           <Sparkles className="h-5 w-5" />
         </span>
         <div className="min-w-0 flex-1">
@@ -47,7 +47,7 @@ export function UpdateChecker() {
                 marcarVersaoVista();
                 window.location.reload();
               }}
-              className="flex items-center gap-1.5 rounded-lg bg-brand-600 px-3.5 py-2 text-xs font-semibold text-white transition hover:bg-brand-500"
+              className="flex items-center gap-1.5 rounded-lg bg-gradient-to-r from-brand-600 to-roxo-600 px-3.5 py-2 text-xs font-semibold text-white transition hover:from-brand-500 hover:to-roxo-500"
             >
               <RefreshCw className="h-3.5 w-3.5" />
               ATUALIZAR

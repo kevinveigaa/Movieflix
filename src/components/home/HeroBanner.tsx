@@ -79,7 +79,7 @@ export function HeroBanner({ items }: { items: HeroItem[] }) {
           <div className="w-full px-5 pb-8 sm:px-8 sm:pb-10 lg:px-12 lg:pb-14">
             <div className="max-w-2xl space-y-3 sm:space-y-4">
               <div className="flex flex-wrap items-center gap-2 text-[11px] sm:text-xs">
-                <span className="rounded-md bg-brand-600 px-2 py-0.5 font-bold uppercase tracking-wide text-white">
+                <span className="rounded-md bg-roxo-600 px-2 py-0.5 font-bold uppercase tracking-wide text-white">
                   Destaque
                 </span>
                 {atual.quality && <span className="chip">{atual.quality}</span>}
@@ -102,7 +102,7 @@ export function HeroBanner({ items }: { items: HeroItem[] }) {
               )}
 
               <div className="flex flex-wrap items-center gap-3 pt-1">
-                <Link to={`/assistir/${atual.id}`} className="btn-primary px-6 py-2.5 bg-brand-600 hover:bg-brand-700 shadow-lg shadow-roxo-900/40">
+                <Link to={`/assistir/${atual.id}`} className="btn-primary px-6 py-2.5 shadow-lg shadow-roxo-900/40">
                   <Play className="h-4 w-4" fill="currentColor" />
                   Assistir
                 </Link>
@@ -154,7 +154,7 @@ export function HeroBanner({ items }: { items: HeroItem[] }) {
                     restart();
                   }}
                   className={`h-1.5 rounded-full transition-all ${
-                    i === index ? "w-7 bg-brand-500" : "w-3 bg-white/40 hover:bg-white/70"
+                    i === index ? "w-7 bg-roxo-500" : "w-3 bg-white/40 hover:bg-white/70"
                   }`}
                 />
               ))}

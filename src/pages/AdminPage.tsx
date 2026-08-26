@@ -593,9 +593,9 @@ export function AdminPage() {
         <div className="space-y-4">
           <div className="flex flex-wrap items-center gap-2">
             <ListFilter className="h-4 w-4 text-gray-400" />
-            <button onClick={() => setFiltroLista("todos")} className={`rounded-full px-3 py-1 text-xs transition ${filtroLista === "todos" ? "bg-brand-600 text-white" : "bg-white/5 text-gray-300 hover:bg-white/10"}`}>Todos</button>
-            <button onClick={() => setFiltroLista("filmes")} className={`rounded-full px-3 py-1 text-xs transition ${filtroLista === "filmes" ? "bg-brand-600 text-white" : "bg-white/5 text-gray-300 hover:bg-white/10"}`}>Filmes</button>
-            <button onClick={() => setFiltroLista("series")} className={`rounded-full px-3 py-1 text-xs transition ${filtroLista === "series" ? "bg-brand-600 text-white" : "bg-white/5 text-gray-300 hover:bg-white/10"}`}>Séries</button>
+            <button onClick={() => setFiltroLista("todos")} className={`rounded-full px-3 py-1 text-xs transition ${filtroLista === "todos" ? "bg-roxo-600 text-white" : "bg-white/5 text-gray-300 hover:bg-white/10"}`}>Todos</button>
+            <button onClick={() => setFiltroLista("filmes")} className={`rounded-full px-3 py-1 text-xs transition ${filtroLista === "filmes" ? "bg-roxo-600 text-white" : "bg-white/5 text-gray-300 hover:bg-white/10"}`}>Filmes</button>
+            <button onClick={() => setFiltroLista("series")} className={`rounded-full px-3 py-1 text-xs transition ${filtroLista === "series" ? "bg-roxo-600 text-white" : "bg-white/5 text-gray-300 hover:bg-white/10"}`}>Séries</button>
           </div>
           <div className="flex flex-wrap items-center gap-3">
             <div className="relative flex-1 min-w-[220px]">
@@ -699,7 +699,7 @@ export function AdminPage() {
                 <button key={c} type="button" onClick={() => {
                   const novas = ativo ? atuais.filter((x) => normalizar(x) !== normalizar(c)) : [...atuais, c];
                   setForm({ ...form, category: novas.join(", ") });
-                }} className={`rounded-full border px-3 py-1 text-xs transition ${ativo ? "border-brand-500 bg-brand-600 text-white" : "border-white/15 bg-white/5 text-gray-300 hover:bg-white/10"}`}>{c}</button>
+                }} className={`rounded-full border px-3 py-1 text-xs transition ${ativo ? "border-roxo-500 bg-roxo-600 text-white" : "border-white/15 bg-white/5 text-gray-300 hover:bg-white/10"}`}>{c}</button>
               );
             })}
           </div>
@@ -715,7 +715,7 @@ export function AdminPage() {
           {mostrarTemporadas && (
             <div className="mt-8 space-y-6 border-t border-white/10 pt-8">
               <h3 className="text-lg font-bold flex items-center gap-2">
-                <Layers className="h-5 w-5 text-brand-400" />
+                <Layers className="h-5 w-5 text-roxo-400" />
                 Gerenciar Temporadas e Episódios
               </h3>
 
@@ -763,8 +763,8 @@ export function AdminPage() {
                             {(episodes[season.id] ?? []).filter(Boolean).map((ep) => (
                               <div key={ep?.id || `ep-${Math.random()}`}>
                                 {editingEpisode === ep?.id ? (
-                                  <div className="rounded-lg bg-brand-900/20 border border-brand-500/30 p-4 space-y-3">
-                                    <h6 className="text-sm font-bold text-brand-300">Editar Episódio {ep?.episode_number ?? ""}</h6>
+                                  <div className="rounded-lg bg-roxo-900/20 border border-roxo-500/30 p-4 space-y-3">
+                                    <h6 className="text-sm font-bold text-roxo-300">Editar Episódio {ep?.episode_number ?? ""}</h6>
                                     <input className="input w-full" placeholder="Título" value={editEpisodeForm.title} onChange={(e) => setEditEpisodeForm({ ...editEpisodeForm, title: e.target.value })} />
                                     <input className="input w-full" placeholder="URL do vídeo" value={editEpisodeForm.videoUrl} onChange={(e) => setEditEpisodeForm({ ...editEpisodeForm, videoUrl: e.target.value })} />
                                     <input className="input w-full" placeholder="URL da capa (opcional)" value={editEpisodeForm.thumbnailUrl} onChange={(e) => setEditEpisodeForm({ ...editEpisodeForm, thumbnailUrl: e.target.value })} />
@@ -775,12 +775,12 @@ export function AdminPage() {
                                   </div>
                                 ) : (
                                   <div className="flex items-center gap-3 rounded-lg bg-black/30 p-3">
-                                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-brand-600 text-sm font-bold">{ep?.episode_number ?? "-"}</div>
+                                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-brand-600 to-roxo-600 text-sm font-bold">{ep?.episode_number ?? "-"}</div>
                                     <div className="min-w-0 flex-1">
                                       <p className="truncate font-medium">{ep?.title || "Sem título"}</p>
                                       <p className="truncate text-[11px] text-zinc-600">{ep?.video_url || ""}</p>
                                     </div>
-                                    <button onClick={() => ep && startEditEpisode(ep)} className="rounded-full p-2 text-brand-400 hover:bg-brand-600/20" title="Editar episódio"><Pencil className="h-4 w-4" /></button>
+                                    <button onClick={() => ep && startEditEpisode(ep)} className="rounded-full p-2 text-roxo-400 hover:bg-roxo-600/20" title="Editar episódio"><Pencil className="h-4 w-4" /></button>
                                     <button onClick={() => ep?.id && deleteEpisode(ep.id)} className="rounded-full p-2 text-red-400 hover:bg-red-600/20" title="Excluir episódio"><Trash2 className="h-4 w-4" /></button>
                                   </div>
                                 )}

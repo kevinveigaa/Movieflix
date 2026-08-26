@@ -162,7 +162,7 @@ export function Navbar() {
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 placeholder="Buscar títulos"
-                className="w-40 rounded-full border border-white/10 bg-ink-800/70 py-2 pl-9 pr-3 text-sm text-white placeholder:text-ink-400 transition-all focus:w-56 focus:border-brand-500 focus:outline-none sm:w-48"
+                className="w-40 rounded-full border border-white/10 bg-ink-800/70 py-2 pl-9 pr-3 text-sm text-white placeholder:text-ink-400 transition-all focus:w-56 focus:border-roxo-500 focus:outline-none sm:w-48"
               />
             </div>
           </form>
@@ -183,7 +183,7 @@ export function Navbar() {
                     )}
                   </span>
                 ) : (
-                  <span className="flex h-8 w-8 items-center justify-center rounded-full bg-brand-600 text-sm font-semibold text-white">
+                  <span className="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-brand-600 to-roxo-600 text-sm font-semibold text-white">
                     {profile?.email?.[0]?.toUpperCase() ?? 'U'}
                   </span>
                 )}
@@ -252,7 +252,7 @@ export function Navbar() {
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
                   placeholder="Buscar títulos"
-                  className="w-full rounded-full border border-white/10 bg-ink-800/70 py-2 pl-9 pr-3 text-sm text-white placeholder:text-ink-400 focus:border-brand-500 focus:outline-none"
+                  className="w-full rounded-full border border-white/10 bg-ink-800/70 py-2 pl-9 pr-3 text-sm text-white placeholder:text-ink-400 focus:border-roxo-500 focus:outline-none"
                 />
               </div>
             </form>
@@ -299,8 +299,8 @@ export function Navbar() {
                 data-tv-focusable
                 className={({ isActive }) =>
                   cn(
-                    'mt-1 flex items-center gap-2 rounded-lg border border-brand-500/30 bg-brand-500/10 px-3 py-2.5 text-sm font-semibold text-brand-300 transition-colors',
-                    isActive ? 'bg-white/10 text-white' : 'hover:bg-brand-500/20 hover:text-brand-200',
+                    'mt-1 flex items-center gap-2 rounded-lg border border-roxo-500/30 bg-roxo-500/10 px-3 py-2.5 text-sm font-semibold text-roxo-300 transition-colors',
+                    isActive ? 'bg-white/10 text-white' : 'hover:bg-roxo-500/20 hover:text-roxo-200',
                   )
                 }
               >

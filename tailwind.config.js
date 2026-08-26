@@ -69,7 +69,7 @@ export default {
           '100%': { backgroundPosition: '1000px 0' },
         },
         'pulse-glow': {
-          '0%, 100%': { boxShadow: '0 0 0 0 rgba(124,58,237,0.45)' },
+          '0%, 100%': { boxShadow: '0 0 0 0 rgba(223,10,21,0.45)' },
           '50%': { boxShadow: '0 0 0 12px rgba(124,58,237,0)' },
         },
       },

@@ -61,7 +61,7 @@ export function SettingsPage() {
       <div className="mt-8 grid gap-6 lg:grid-cols-2">
         <div className="card-surface p-6">
           <h2 className="flex items-center gap-2 font-semibold text-white">
-            <Lock className="h-5 w-5 text-brand-400" /> Alterar senha
+            <Lock className="h-5 w-5 text-roxo-400" /> Alterar senha
           </h2>
           <form onSubmit={changePassword} className="mt-4 space-y-4">
             {error && <ErrorBanner message={error} />}
@@ -123,7 +123,7 @@ function Toggle({ icon, label, defaultOn }: { icon: React.ReactNode; label: stri
       className="flex w-full items-center justify-between rounded-lg border border-white/10 bg-white/5 px-4 py-3 text-sm text-ink-200 transition hover:bg-white/10"
     >
       <span className="flex items-center gap-2">{icon} {label}</span>
-      <span className={`relative h-5 w-9 rounded-full transition ${on ? 'bg-brand-600' : 'bg-ink-700'}`}>
+      <span className={`relative h-5 w-9 rounded-full transition ${on ? 'bg-gradient-to-r from-brand-600 to-roxo-600' : 'bg-ink-700'}`}>
         <span className={`absolute top-0.5 h-4 w-4 rounded-full bg-white transition-all ${on ? 'left-4' : 'left-0.5'}`} />
       </span>
     </button>

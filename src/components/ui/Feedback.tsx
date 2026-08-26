@@ -12,7 +12,7 @@ export function Spinner({ className }: { className?: string }) {
 export function FullScreenLoader({ label = 'Carregando' }: { label?: string }) {
   return (
     <div className="flex min-h-[60vh] flex-col items-center justify-center gap-4 text-ink-300">
-      <Spinner className="h-8 w-8 text-brand-500" />
+      <Spinner className="h-8 w-8 text-roxo-500" />
       <p className="text-sm">{label}</p>
       {/* Fallback de segurança: se a página ficar presa carregando (rede lenta
           na TV), o usuário sempre tem uma saída — nunca fica em tela preta. */}

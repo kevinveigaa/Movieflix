@@ -840,7 +840,7 @@ export function PlayerPage() {
                     className={cn(
                       'rounded-full border px-2.5 py-1 text-[11px] font-medium transition',
                       velocidade === v
-                        ? 'border-brand-500/60 bg-brand-500/15 text-brand-200'
+                        ? 'border-roxo-500/60 bg-roxo-500/15 text-roxo-200'
                         : 'border-white/10 bg-white/5 text-zinc-400 hover:text-white',
                     )}
                   >
@@ -918,7 +918,7 @@ export function PlayerPage() {
       {showResumeModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
           <div className="w-full max-w-sm rounded-2xl border border-white/10 bg-ink-900 p-6 text-center">
-            <Clock className="mx-auto h-10 w-10 text-brand-400" />
+            <Clock className="mx-auto h-10 w-10 text-roxo-400" />
             <h3 className="mt-3 text-lg font-bold text-white">Quer continuar de onde parou?</h3>
             <p className="mt-2 text-sm text-zinc-400">
               Você parou em{' '}
