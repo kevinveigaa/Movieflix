@@ -2,12 +2,13 @@ import { useMemo, useRef, useState, useEffect } from "react";
 import { PosterCard, PosterCardSkeleton } from "@/components/cards/PosterCard";
 import { HeroBanner, HeroBannerSkeleton } from "@/components/home/HeroBanner";
 import { useMovies } from "@/hooks/useMovies";
+import { useFuzzySearch } from "@/hooks/useFuzzySearch";
 import { useCatalogWatchHistory } from "@/hooks/useWatchHistory";
 import { useSeriesHidden } from "@/hooks/useSeriesHidden";
 import { useAuth, hasActiveSubscription } from "@/context/AuthContext";
 import { useEntitlements } from "@/hooks/useEntitlements";
 import { Link } from "react-router-dom";
-import { Crown, Sparkles, ChevronLeft, ChevronRight } from "lucide-react";
+import { Crown, Sparkles, ChevronLeft, ChevronRight, Search as SearchIcon, X } from "lucide-react";
 import { categoriasDoFilme, ehInfantil, ordenarCategorias } from "@/lib/categorias";
 import { ehFilme } from "@/lib/media";
 import { temProgressoReal, progressoPercentual } from "@/lib/watchProgress";
@@ -27,6 +28,11 @@ export function HomePage() {
     return lista;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [movies.data, isKid, seriesHidden]);
+
+  // Busca automática na HOME: filtra o catálogo enquanto digita (debounce
+  // 250ms), com busca fuzzy tolerante a erros e busca por ano/número.
+  const { termo, setTermo, results, resultsFallback, temBusca } = useFuzzySearch(visibleMovies, "");
+  const buscaResultados = results.length > 0 ? results : resultsFallback;
 
   const destaques = useMemo(() => visibleMovies.slice(0, 5), [visibleMovies]);
 
@@ -102,36 +108,93 @@ export function HomePage() {
       <div className="container-app space-y-10 pt-8">
         {!hasActiveSubscription(subscription) && <UpgradeBanner />}
 
-        {movies.isLoading && <CategoryRowSkeleton />}
+        {/* Busca automática na HOME */}
+        <div className="relative mx-auto max-w-2xl">
+          <SearchIcon className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-ink-400" />
+          <input
+            value={termo}
+            onChange={(e) => setTermo(e.target.value)}
+            placeholder={seriesHidden ? "Busque filmes por nome, ano..." : "Busque filmes e séries por nome, ano..."}
+            className="w-full rounded-full border border-white/10 bg-ink-800/70 py-3.5 pl-12 pr-12 text-base text-white placeholder:text-ink-400 focus:border-brand-500 focus:outline-none"
+          />
+          {termo && (
+            <button
+              onClick={() => setTermo("")}
+              className="absolute right-4 top-1/2 -translate-y-1/2 text-ink-400 hover:text-white"
+              aria-label="Limpar busca"
+            >
+              <X className="h-5 w-5" />
+            </button>
+          )}
+        </div>
 
-        {!movies.isLoading && (
+        {temBusca ? (
+          <div className="space-y-10">
+            <div>
+              <div className="mb-4 flex items-center justify-between gap-4">
+                <h2 className="truncate text-lg font-bold text-white sm:text-xl lg:text-2xl">
+                  Resultados para &ldquo;{termo}&rdquo;
+                </h2>
+                <Link
+                  to={`/pesquisa?q=${encodeURIComponent(termo.trim())}`}
+                  data-tv-focusable
+                  className="shrink-0 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-gray-300 transition hover:bg-white/15 hover:text-white sm:text-sm"
+                >
+                  Ver todos
+                </Link>
+              </div>
+
+              {buscaResultados.length === 0 ? (
+                <div className="flex min-h-[30vh] flex-col items-center justify-center gap-2 text-center text-ink-400">
+                  <SearchIcon className="h-10 w-10 opacity-50" />
+                  <p>
+                    Nenhum título encontrado para <span className="text-white">{termo}</span>.
+                  </p>
+                  <p className="text-sm">Verifique a ortografia ou tente por ano/gênero.</p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 gap-x-3 gap-y-5 xs:grid-cols-3 sm:grid-cols-4 sm:gap-x-4 sm:gap-y-6 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-7">
+                  {buscaResultados.map((m: any) => (
+                    <PosterCard key={m.id} title={m} className="w-full" />
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        ) : (
           <>
-            {continueWatching.length > 0 && (
-              <CategoryRow
-                title="Continuar assistindo"
-                items={continueWatching}
-                progressMap={progressByMovie}
-                verMaisTo="/continuar"
-              />
+            {movies.isLoading && <CategoryRowSkeleton />}
+
+            {!movies.isLoading && (
+              <>
+                {continueWatching.length > 0 && (
+                  <CategoryRow
+                    title="Continuar assistindo"
+                    items={continueWatching}
+                    progressMap={progressByMovie}
+                    verMaisTo="/continuar"
+                  />
+                )}
+                {emAlta.length > 0 && (
+                  <CategoryRow title="Em alta" items={emAlta} progressMap={progressByMovie} />
+                )}
+                {populares.length > 0 && (
+                  <CategoryRow title="Populares" items={populares} progressMap={progressByMovie} />
+                )}
+                {recentes.length > 0 && (
+                  <CategoryRow title="Adicionados recentemente" items={recentes} progressMap={progressByMovie} />
+                )}
+                {categorias.map((cat) => (
+                  <CategoryRow
+                    key={cat.nome}
+                    title={cat.nome}
+                    items={cat.lista}
+                    category={cat.nome}
+                    progressMap={progressByMovie}
+                  />
+                ))}
+              </>
             )}
-            {emAlta.length > 0 && (
-              <CategoryRow title="Em alta" items={emAlta} progressMap={progressByMovie} />
-            )}
-            {populares.length > 0 && (
-              <CategoryRow title="Populares" items={populares} progressMap={progressByMovie} />
-            )}
-            {recentes.length > 0 && (
-              <CategoryRow title="Adicionados recentemente" items={recentes} progressMap={progressByMovie} />
-            )}
-            {categorias.map((cat) => (
-              <CategoryRow
-                key={cat.nome}
-                title={cat.nome}
-                items={cat.lista}
-                category={cat.nome}
-                progressMap={progressByMovie}
-              />
-            ))}
           </>
         )}
       </div>
