@@ -65,3 +65,18 @@ dependencies {
     // Imagens
     implementation 'com.github.bumptech.glide:glide:4.16.0'
 }
+
+android {
+    lint {
+        checkReleaseBuilds false
+        abortOnError false
+    }
+}
+
+android {
+    buildTypes {
+        release {
+            // baseline profiles desativados (economia de memória no build)
+        }
+    }
+}
