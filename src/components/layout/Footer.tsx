@@ -48,7 +48,7 @@ export function Footer() {
     : cols;
 
   return (
-    <footer className="mt-16 border-t border-white/10 bg-ink-950">
+    <footer className="mt-16 border-t border-white/15 bg-ink-950">
       <div className="container-app py-12">
         <div className="grid gap-10 md:grid-cols-4">
           <div>

@@ -13,7 +13,7 @@ export function DownloadAppPage() {
           APLICATIVO ANDROID
         </span>
         <h1 className="mt-4 font-display text-3xl tracking-wide text-white sm:text-5xl">
-          Baixe o app <span className="text-roxo-400">MovieFlix</span>
+          Baixe o app <span className="text-gradient-strong">MovieFlix</span>
         </h1>
         <p className="mx-auto mt-3 max-w-xl text-sm text-ink-400 sm:text-base">
           O aplicativo oficial do MovieFlix para celular e TV. Assista filmes e

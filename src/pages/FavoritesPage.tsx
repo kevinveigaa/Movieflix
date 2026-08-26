@@ -23,7 +23,9 @@ export function FavoritesPage() {
 
   return (
     <div className="container-app py-8">
-      <h1 className="font-display text-3xl tracking-wide text-white sm:text-4xl">Favoritos</h1>
+      <h1 className="font-display text-3xl tracking-wide text-white sm:text-4xl">
+        <span className="text-gradient-strong">Favoritos</span>
+      </h1>
       <p className="mt-1 text-sm text-ink-400">Os títulos que você salvou para assistir depois.</p>
 
       <div className="mt-8">

@@ -63,7 +63,7 @@ export function LoginPage() {
           <label className="flex items-center gap-2 text-ink-300">
             <input type="checkbox" className="rounded border-white/20 bg-ink-800" /> Lembrar-me
           </label>
-          <Link to="/recuperar-senha" data-tv-focusable className="text-roxo-400 hover:text-roxo-300">
+          <Link to="/recuperar-senha" data-tv-focusable className="text-roxo-400 hover:text-roxo-300 underline decoration-roxo-500/40">
             Esqueceu a senha?
           </Link>
         </div>
@@ -73,7 +73,7 @@ export function LoginPage() {
       </form>
       <p className="mt-6 text-center text-sm text-ink-400">
         Não tem conta?{' '}
-        <Link to="/cadastro" data-tv-focusable className="font-semibold text-roxo-400 hover:text-roxo-300">
+        <Link to="/cadastro" data-tv-focusable className="font-semibold text-roxo-400 hover:text-roxo-300 underline decoration-roxo-500/40">
           Cadastre-se grátis
         </Link>
       </p>

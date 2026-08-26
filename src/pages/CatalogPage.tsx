@@ -167,7 +167,7 @@ export function CatalogPage({ kind }: { kind: CatalogKind }) {
           placeholder={`Buscar em ${TITLES[kind].toLowerCase()}...`}
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          className="w-full sm:max-w-md rounded-xl border border-white/10 bg-white/10 px-4 py-2.5 text-sm text-white placeholder:text-zinc-400 outline-none focus:border-roxo-500"
+          className="w-full sm:max-w-md rounded-xl border border-white/20 bg-white/[0.06] px-4 py-2.5 text-sm text-white placeholder:text-zinc-400 outline-none focus:border-roxo-500"
         />
         <div className="flex flex-wrap items-center gap-2">
           {ORDENACOES.map((o) => (
@@ -237,8 +237,7 @@ export function CatalogPage({ kind }: { kind: CatalogKind }) {
               <button
                 data-tv-focusable
                 onClick={() => setLimite((l) => l + 60)}
-                className="rounded-full border border-roxo-500/60 bg-roxo-500/15 px-6 py-2.5 text-sm font-semibold text-roxo-200 transition hover:bg-roxo-500/25 hover:text-white"
-              >
+                className="rounded-full border border-roxo-500/60 bg-roxo-500/15 px-6 py-2.5 text-sm font-semibold text-roxo-200 transition hover:bg-roxo-500/25 hover:text-white"              >
                 Carregar mais ({results.length - limite} restantes)
               </button>
             </div>

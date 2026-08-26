@@ -96,7 +96,9 @@ export function SubscriptionPage() {
         <span className="chip border-roxo-600/40 bg-roxo-600/15 text-roxo-300">
           <Crown className="h-3.5 w-3.5" /> Assinatura MovieFlix
         </span>
-        <h1 className="mt-4 font-display text-4xl tracking-wide text-white sm:text-5xl">Escolha o seu plano</h1>
+        <h1 className="mt-4 font-display text-4xl tracking-wide text-white sm:text-5xl">
+          <span className="text-gradient-strong">Escolha o seu plano</span>
+        </h1>
         <p className="mx-auto mt-3 max-w-xl text-sm text-ink-300">
           Assinatura mensal. Cancele quando quiser. Pagamento via Pix com confirmação automática.
         </p>

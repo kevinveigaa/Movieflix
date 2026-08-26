@@ -73,7 +73,7 @@ export function ProfileFormModal({ open, onClose, editing, defaultName, onSubmit
                 onClick={() => setIsKid(false)}
                 className={`flex flex-col items-center gap-2 rounded-xl border-2 p-4 transition ${
                   !isKid
-                    ? 'border-roxo-500 bg-roxo-600/10 shadow-md shadow-roxo-600/20'
+                    ? 'border-roxo-500 bg-roxo-600/10 shadow-md shadow-roxo-600/20 ring-1 ring-roxo-500/40'
                     : 'border-white/10 bg-white/5 hover:bg-white/10'
                 }`}
               >

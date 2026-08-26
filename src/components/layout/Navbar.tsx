@@ -116,7 +116,9 @@ export function Navbar() {
               className={({ isActive }) =>
                 cn(
                   'rounded-full px-3 py-1.5 text-sm font-medium transition-colors',
-                  isActive ? 'text-white' : 'text-ink-300 hover:text-white',
+                  isActive
+                    ? 'bg-gradient-to-r from-brand-600 to-roxo-600 font-semibold text-white shadow-md shadow-roxo-900/30'
+                    : 'text-zinc-300 hover:text-white',
                 )
               }
             >
@@ -131,7 +133,9 @@ export function Navbar() {
               aria-expanded={catOpen}
               className={cn(
                 'flex items-center gap-1 rounded-full px-3 py-1.5 text-sm font-medium transition-colors',
-                catOpen ? 'text-white' : 'text-ink-300 hover:text-white',
+                catOpen
+                  ? 'bg-gradient-to-r from-brand-600 to-roxo-600 font-semibold text-white'
+                  : 'text-zinc-300 hover:text-white',
               )}
             >
               Categorias
@@ -139,7 +143,7 @@ export function Navbar() {
             </button>
 
             {catOpen && categorias.length > 0 && (
-              <div className="absolute left-0 mt-2 grid max-h-[70vh] w-[34rem] grid-cols-3 gap-1 overflow-y-auto rounded-xl border border-white/10 bg-ink-900 p-3 shadow-2xl animate-fade-in-fast">
+              <div className="absolute left-0 mt-2 grid max-h-[70vh] w-[34rem] grid-cols-3 gap-1 overflow-y-auto rounded-xl border border-white/20 bg-ink-900 p-3 shadow-2xl animate-fade-in-fast">
                 {categorias.map((c) => (
                   <Link
                     key={c}
@@ -162,7 +166,7 @@ export function Navbar() {
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 placeholder="Buscar títulos"
-                className="w-40 rounded-full border border-white/10 bg-ink-800/70 py-2 pl-9 pr-3 text-sm text-white placeholder:text-ink-400 transition-all focus:w-56 focus:border-roxo-500 focus:outline-none sm:w-48"
+                className="w-40 rounded-full border border-white/20 bg-white/[0.06] py-2 pl-9 pr-3 text-sm text-white placeholder:text-zinc-500 transition-all focus:w-56 focus:border-roxo-500 focus:outline-none sm:w-48"
               />
             </div>
           </form>
@@ -171,7 +175,7 @@ export function Navbar() {
             <div className="relative">
               <button
                 onClick={() => setMenuOpen((v) => !v)}
-                className="flex items-center gap-2 rounded-full border border-white/10 bg-white/5 p-1 pr-2 transition hover:bg-white/10"
+                className="flex items-center gap-2 rounded-full border border-white/20 bg-white/10 p-1 pr-2 transition hover:bg-white/15"
               >
                 {activeViewerProfile?.avatar_url ? (
                   <span className="relative flex h-8 w-8 overflow-hidden rounded-full bg-ink-700">
@@ -192,7 +196,7 @@ export function Navbar() {
                 </span>
               </button>
               {menuOpen && (
-                <div className="absolute right-0 mt-2 w-60 overflow-hidden rounded-xl border border-white/10 bg-ink-900 shadow-2xl animate-fade-in-fast">
+                <div className="absolute right-0 mt-2 w-60 overflow-hidden rounded-xl border border-white/20 bg-ink-900 shadow-2xl animate-fade-in-fast">
                   <div className="border-b border-white/10 p-3">
                     <p className="truncate text-sm font-semibold text-white">
                       {activeViewerProfile?.name ?? profile?.email}
@@ -252,7 +256,7 @@ export function Navbar() {
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
                   placeholder="Buscar títulos"
-                  className="w-full rounded-full border border-white/10 bg-ink-800/70 py-2 pl-9 pr-3 text-sm text-white placeholder:text-ink-400 focus:border-roxo-500 focus:outline-none"
+                  className="w-full rounded-full border border-white/20 bg-white/[0.06] py-2 pl-9 pr-3 text-sm text-white placeholder:text-zinc-500 focus:border-roxo-500 focus:outline-none"
                 />
               </div>
             </form>

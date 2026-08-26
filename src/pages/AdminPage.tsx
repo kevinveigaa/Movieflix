@@ -593,9 +593,9 @@ export function AdminPage() {
         <div className="space-y-4">
           <div className="flex flex-wrap items-center gap-2">
             <ListFilter className="h-4 w-4 text-gray-400" />
-            <button onClick={() => setFiltroLista("todos")} className={`rounded-full px-3 py-1 text-xs transition ${filtroLista === "todos" ? "bg-roxo-600 text-white" : "bg-white/5 text-gray-300 hover:bg-white/10"}`}>Todos</button>
-            <button onClick={() => setFiltroLista("filmes")} className={`rounded-full px-3 py-1 text-xs transition ${filtroLista === "filmes" ? "bg-roxo-600 text-white" : "bg-white/5 text-gray-300 hover:bg-white/10"}`}>Filmes</button>
-            <button onClick={() => setFiltroLista("series")} className={`rounded-full px-3 py-1 text-xs transition ${filtroLista === "series" ? "bg-roxo-600 text-white" : "bg-white/5 text-gray-300 hover:bg-white/10"}`}>Séries</button>
+            <button onClick={() => setFiltroLista("todos")} className={`rounded-full px-3 py-1 text-xs transition ${filtroLista === "todos" ? "bg-gradient-to-r from-brand-600 to-roxo-600 text-white" : "bg-white/5 text-gray-300 hover:bg-white/10"}`}>Todos</button>
+            <button onClick={() => setFiltroLista("filmes")} className={`rounded-full px-3 py-1 text-xs transition ${filtroLista === "filmes" ? "bg-gradient-to-r from-brand-600 to-roxo-600 text-white" : "bg-white/5 text-gray-300 hover:bg-white/10"}`}>Filmes</button>
+            <button onClick={() => setFiltroLista("series")} className={`rounded-full px-3 py-1 text-xs transition ${filtroLista === "series" ? "bg-gradient-to-r from-brand-600 to-roxo-600 text-white" : "bg-white/5 text-gray-300 hover:bg-white/10"}`}>Séries</button>
           </div>
           <div className="flex flex-wrap items-center gap-3">
             <div className="relative flex-1 min-w-[220px]">
@@ -699,7 +699,7 @@ export function AdminPage() {
                 <button key={c} type="button" onClick={() => {
                   const novas = ativo ? atuais.filter((x) => normalizar(x) !== normalizar(c)) : [...atuais, c];
                   setForm({ ...form, category: novas.join(", ") });
-                }} className={`rounded-full border px-3 py-1 text-xs transition ${ativo ? "border-roxo-500 bg-roxo-600 text-white" : "border-white/15 bg-white/5 text-gray-300 hover:bg-white/10"}`}>{c}</button>
+                }} className={`rounded-full border px-3 py-1 text-xs transition ${ativo ? "border-roxo-500 bg-gradient-to-r from-brand-600 to-roxo-600 text-white" : "border-white/15 bg-white/5 text-gray-300 hover:bg-white/10"}`}>{c}</button>
               );
             })}
           </div>

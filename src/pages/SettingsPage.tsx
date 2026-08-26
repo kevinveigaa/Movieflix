@@ -55,7 +55,9 @@ export function SettingsPage() {
 
   return (
     <div className="container-app py-10">
-      <h1 className="font-display text-3xl tracking-wide text-white sm:text-4xl">Configurações</h1>
+      <h1 className="font-display text-3xl tracking-wide text-white sm:text-4xl">
+        <span className="text-gradient-strong">Configurações</span>
+      </h1>
       <p className="mt-1 text-sm text-ink-400">Segurança e preferências da sua conta.</p>
 
       <div className="mt-8 grid gap-6 lg:grid-cols-2">

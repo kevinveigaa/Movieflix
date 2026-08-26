@@ -38,7 +38,7 @@ export function SubscriptionPaywall() {
             <Lock className="h-7 w-7 text-roxo-400" />
           </span>
           <h1 className="mt-4 font-display text-3xl font-bold text-white sm:text-4xl">
-            Assine um plano para assistir
+            <span className="text-gradient-strong">Assine um plano para assistir</span>
           </h1>
           <p className="mx-auto mt-3 max-w-lg text-sm text-zinc-400">
             Você precisa de uma assinatura ativa para assistir filmes e séries no MovieFlix.

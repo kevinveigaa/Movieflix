@@ -84,7 +84,7 @@ export function HomePage() {
             value={termo}
             onChange={(e) => setTermo(e.target.value)}
             placeholder={seriesHidden ? "Busque filmes por nome, ano..." : "Busque filmes e séries por nome, ano..."}
-            className="w-full rounded-full border border-white/10 bg-ink-800/70 py-3.5 pl-12 pr-12 text-base text-white placeholder:text-ink-400 focus:border-brand-500 focus:outline-none"
+            className="w-full rounded-full border border-white/20 bg-white/[0.06] py-3.5 pl-12 pr-12 text-base text-white placeholder:text-zinc-500 focus:border-roxo-500 focus:outline-none"
           />
           {termo && (
             <button
@@ -217,7 +217,6 @@ function CategoryRow({
     <section className="group/row relative" data-tv-row>
       <div className="mb-4 flex items-center justify-between gap-4">
         <h2 className="truncate text-lg font-bold text-white sm:text-xl lg:text-2xl">{title}</h2>
-
         <div className="flex shrink-0 items-center gap-2">
           <Link
             to={verMaisTo}

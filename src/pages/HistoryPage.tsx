@@ -61,7 +61,9 @@ export function HistoryPage() {
     <div className="container-app py-8">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="font-display text-3xl tracking-wide text-white sm:text-4xl">Histórico</h1>
+          <h1 className="font-display text-3xl tracking-wide text-white sm:text-4xl">
+            <span className="text-gradient-strong">Histórico</span>
+          </h1>
           <p className="mt-1 text-sm text-ink-400">Tudo o que você assistiu recentemente.</p>
         </div>
         {items.length > 0 && (

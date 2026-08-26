@@ -79,7 +79,7 @@ export function HeroBanner({ items }: { items: HeroItem[] }) {
           <div className="w-full px-5 pb-8 sm:px-8 sm:pb-10 lg:px-12 lg:pb-14">
             <div className="max-w-2xl space-y-3 sm:space-y-4">
               <div className="flex flex-wrap items-center gap-2 text-[11px] sm:text-xs">
-                <span className="rounded-md bg-roxo-600 px-2 py-0.5 font-bold uppercase tracking-wide text-white">
+                <span className="rounded-md bg-gradient-to-r from-brand-600 to-roxo-600 px-2 py-0.5 font-bold uppercase tracking-wide text-white">
                   Destaque
                 </span>
                 {atual.quality && <span className="chip">{atual.quality}</span>}
@@ -94,6 +94,9 @@ export function HeroBanner({ items }: { items: HeroItem[] }) {
               <h1 className="text-2xl font-extrabold leading-tight text-white drop-shadow-lg sm:text-4xl lg:text-5xl">
                 {atual.title}
               </h1>
+              <p className="text-gradient-strong font-display text-lg tracking-wide sm:text-xl">
+                Assista agora
+              </p>
 
               {atual.description && (
                 <p className="line-clamp-2 max-w-xl text-sm text-gray-300 sm:line-clamp-3 sm:text-base">
@@ -154,7 +157,7 @@ export function HeroBanner({ items }: { items: HeroItem[] }) {
                     restart();
                   }}
                   className={`h-1.5 rounded-full transition-all ${
-                    i === index ? "w-7 bg-roxo-500" : "w-3 bg-white/40 hover:bg-white/70"
+                    i === index ? "w-7 bg-gradient-to-r from-brand-500 to-roxo-500" : "w-3 bg-white/40 hover:bg-white/70"
                   }`}
                 />
               ))}

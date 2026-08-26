@@ -37,9 +37,9 @@ export function TrialOverlay({
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-sm p-4"
       data-playback-blocked
     >
-      <div className="w-full max-w-sm rounded-2xl border border-white/10 bg-ink-900 p-6 text-center shadow-2xl">
-        <span className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-red-600/15 ring-1 ring-red-500/40">
-          <Lock className="h-7 w-7 text-red-400" />
+      <div className="w-full max-w-sm rounded-2xl border border-white/20 bg-ink-900 p-6 text-center shadow-2xl">
+        <span className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-gradient-to-br from-brand-600 to-roxo-600/80 ring-1 ring-roxo-500/40">
+          <Lock className="h-7 w-7 text-white" />
         </span>
         <h3 className="mt-4 text-lg font-bold text-white">Fim do teste grátis</h3>
         <p className="mt-2 text-sm text-zinc-400">

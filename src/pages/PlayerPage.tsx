@@ -840,7 +840,7 @@ export function PlayerPage() {
                     className={cn(
                       'rounded-full border px-2.5 py-1 text-[11px] font-medium transition',
                       velocidade === v
-                        ? 'border-roxo-500/60 bg-roxo-500/15 text-roxo-200'
+                        ? 'border-roxo-500/60 bg-roxo-500/15 text-roxo-200 shadow-md shadow-roxo-900/30'
                         : 'border-white/10 bg-white/5 text-zinc-400 hover:text-white',
                     )}
                   >
