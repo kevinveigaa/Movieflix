@@ -7,6 +7,10 @@
 @layer base {
   :root {
     color-scheme: dark;
+    /* Rolagem suave para o botão "voltar ao topo" mesmo em WebViews que não
+       suportam window.scrollTo({ behavior: 'smooth' }) — o fallback direto
+       (scrollTo(0,0)) ainda rola suavemente graças a esta propriedade. */
+    scroll-behavior: smooth;
   }
   html,
   body,
