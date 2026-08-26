@@ -1,0 +1,18 @@
+{
+  "name": "movieflix-tv",
+  "private": true,
+  "version": "1.0.0",
+  "description": "MovieFlix TV — app Android TV / Google TV / TV Box (WebView remoto da interface TV do MovieFlix)",
+  "type": "module",
+  "scripts": {
+    "sync": "npx cap sync android",
+    "apk": "npm run sync && cd android && ./gradlew assembleDebug"
+  },
+  "dependencies": {
+    "@capacitor/android": "^6.2.1",
+    "@capacitor/core": "^6.2.1"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "^6.2.1"
+  }
+}
