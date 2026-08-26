@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom';
-import { Film, Instagram, MessageCircle } from 'lucide-react';
+import { Instagram, MessageCircle } from 'lucide-react';
 import { useSeriesHidden } from '@/hooks/useSeriesHidden';
+import { BrandLogo } from '@/components/BrandLogo';
 
 const WHATSAPP_URL = 'https://wa.me/11943750307';
 const INSTAGRAM_URL = 'https://instagram.com/movieflixplaybr';
@@ -51,12 +52,7 @@ export function Footer() {
       <div className="container-app py-12">
         <div className="grid gap-10 md:grid-cols-4">
           <div>
-            <Link to="/" className="flex items-center gap-2">
-              <span className="flex h-8 w-8 items-center justify-center rounded-md bg-brand-600 text-white">
-                <Film className="h-5 w-5" />
-              </span>
-              <span className="font-display text-xl tracking-wide text-white">MOVIEFLIX</span>
-            </Link>
+            <BrandLogo size="sm" textClassName="text-xl" />
             <p className="mt-3 max-w-xs text-sm text-ink-400">
               {seriesHidden
                 ? "Filmes, documentários e conteúdo infantil em um só lugar. Assista onde e quando quiser."

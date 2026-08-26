@@ -1,12 +1,13 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Plus, Pencil, Trash2, Check, Film, Baby, Users } from 'lucide-react';
+import { Plus, Pencil, Trash2, Check, Baby, Users } from 'lucide-react';
 import { useAuth, hasActiveSubscription } from '@/context/AuthContext';
 import { supabase } from '@/lib/supabase';
 import { useEntitlements } from '@/hooks/useEntitlements';
 import { useViewerProfiles } from '@/hooks/useViewerProfiles';
 import { ProfileFormModal } from '@/components/profile/ProfileFormModal';
 import { PROFILE_AVATARS } from '@/lib/avatars';
+import { BrandLogo } from '@/components/BrandLogo';
 import type { ViewerProfile } from '@/types';
 
 export function ProfileSelectPage() {
@@ -107,12 +108,7 @@ export function ProfileSelectPage() {
 
   return (
     <div className="flex min-h-screen flex-col items-center justify-center bg-ink-950 px-4 py-12">
-      <Link to="/" className="mb-8 flex items-center gap-2">
-        <span className="flex h-9 w-9 items-center justify-center rounded-md bg-brand-600 text-white">
-          <Film className="h-5 w-5" />
-        </span>
-        <span className="font-display text-2xl tracking-wide text-white">MOVIEFLIX</span>
-      </Link>
+      <BrandLogo size="md" className="mb-8" textClassName="text-2xl" />
 
       <h1 className="text-center text-3xl font-bold text-white sm:text-4xl">
         {editing ? 'Gerenciar perfis' : 'Quem está assistindo?'}

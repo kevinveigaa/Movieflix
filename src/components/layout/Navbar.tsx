@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, NavLink, useNavigate, useLocation } from 'react-router-dom';
-import { Search, Menu, X, User, LogOut, Settings, CreditCard, Shield, Film, Smartphone, ChevronDown, Baby, Users, Heart } from 'lucide-react';
+import { Search, Menu, X, User, LogOut, Settings, CreditCard, Shield, Smartphone, ChevronDown, Baby, Users, Heart, PlayCircle, Tv } from 'lucide-react';
 import { useMovies } from '@/hooks/useMovies';
 import { useSeriesHidden } from '@/hooks/useSeriesHidden';
 import { categoriasDoFilme, ehInfantil, ordenarCategorias } from '@/lib/categorias';
 import { useAuth, hasActiveSubscription } from '@/context/AuthContext';
 import { rodandoNoApp } from '@/lib/appShell';
+import { BrandLogo } from '@/components/BrandLogo';
 import { cn } from '@/lib/cn';
 
 const navLinks = [
@@ -104,12 +105,7 @@ export function Navbar() {
         </div>
       )}
       <div className="container-app flex h-14 sm:h-16 lg:h-20 items-center gap-2 sm:gap-4">
-        <Link to="/" className="flex items-center gap-2">
-          <span className="flex h-7 w-7 sm:h-8 sm:w-8 lg:h-10 lg:w-10 items-center justify-center rounded-md bg-roxo-700 text-white shadow-md shadow-roxo-900/40">
-            <Film className="h-5 w-5" />
-          </span>
-          <span className="font-display text-lg sm:text-xl lg:text-2xl tracking-wide text-white">MOVIEFLIX</span>
-        </Link>
+        <BrandLogo size="sm" className="min-w-0" />
 
         <nav className="hidden items-center gap-1 lg:flex">
           {linksVisiveis.map((l) => (

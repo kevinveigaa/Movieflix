@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Mail, Lock, Eye, EyeOff, Film, AlertCircle } from 'lucide-react';
+import { Mail, Lock, Eye, EyeOff, AlertCircle } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
+import { BrandLogo } from '@/components/BrandLogo';
 
 export function LoginPage() {
   const { signIn } = useAuth();
@@ -88,12 +89,7 @@ export function AuthShell({ title, subtitle, children }: { title: string; subtit
         <div className="absolute bottom-0 right-1/4 h-96 w-96 rounded-full bg-brand-900/40 blur-3xl" />
       </div>
       <div className="relative w-full max-w-md">
-        <Link to="/" className="mb-6 flex items-center justify-center gap-2">
-          <span className="flex h-9 w-9 items-center justify-center rounded-md bg-brand-600 text-white">
-            <Film className="h-5 w-5" />
-          </span>
-          <span className="font-display text-2xl tracking-wide text-white">MOVIEFLIX</span>
-        </Link>
+        <BrandLogo size="md" className="mb-6 justify-center" textClassName="text-2xl" />
         <div className="card-surface p-6 animate-fade-in sm:p-8">
           <h1 className="text-2xl font-bold text-white">{title}</h1>
           {subtitle && <p className="mt-1 text-sm text-ink-400">{subtitle}</p>}
