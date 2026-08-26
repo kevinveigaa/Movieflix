@@ -83,6 +83,14 @@ public class MainActivity extends BridgeActivity {
             // Cache: força sempre a versão mais recente do site.
             settings.setCacheMode(WebSettings.LOAD_NO_CACHE);
 
+            // ══ TV REAL: user-agent de Android TV ══════════════════════════════
+            // Muitos TV Boxes enviam um UA genérico ("Android") que o site não
+            // reconhece como TV. Forçar o UA de Android TV garante que a
+            // detecção ehTelaDeTv() ative a navegação por controle remoto
+            // (setas + OK + Voltar + foco visível) em QUALQUER aparelho.
+            String ua = settings.getUserAgentString();
+            settings.setUserAgentString(ua + " AndroidTV/1.0");
+
             // Foco para receber teclas do controle remoto (DPAD).
             webView.setFocusable(true);
             webView.setFocusableInTouchMode(true);
@@ -124,6 +132,16 @@ public class MainActivity extends BridgeActivity {
                             }
                         }
                     }
+                    // ══ Flag do app nativo TV ════════════════════════════════════
+                    // Garante que a UI TV ative o modo controle remoto SEMPRE
+                    // (navegação espacial + foco visível + long-press OK), mesmo
+                    // em TV Boxes cujo user-agent não é detectado como TV.
+                    view.evaluateJavascript(
+                            "window.__MF_TV_APP__ = true;"
+                                    + "if (window.dispatchEvent) {"
+                                    + "  window.dispatchEvent(new Event('mf-tv-app'));"
+                                    + "}",
+                            null);
                     view.requestFocus();
                 }
 

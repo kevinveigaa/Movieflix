@@ -65,6 +65,13 @@ export function useTvPlayerControls(
       );
     }
 
+    /** Tecla de play/pause do controle remoto (MediaPlayPause, keyCode 85). */
+    function isPlayPause(e: KeyboardEvent): boolean {
+      const k = e.key;
+      const c = e.keyCode || e.which;
+      return k === 'MediaPlayPause' || k === 'PlayPause' || c === 85 || c === 179;
+    }
+
     function isBack(e: KeyboardEvent): boolean {
       const k = e.key;
       const c = e.keyCode || e.which;
@@ -170,6 +177,14 @@ export function useTvPlayerControls(
 
       // ---- MODO 2 (controle do player) --------------------------------------
       if (modeRef.current) {
+        // Tecla dedicada de play/pause do controle remoto (MediaPlayPause).
+        if (isPlayPause(e)) {
+          e.preventDefault();
+          e.stopPropagation();
+          playPauseNative();
+          return;
+        }
+
         if (voltar) {
           e.preventDefault();
           e.stopPropagation();
@@ -232,6 +247,15 @@ export function useTvPlayerControls(
       // ---- MODO 1 (navegação da página) -------------------------------------
       // Só o Voltar tem tratamento aqui (back da página). Setas e OK rápido
       // ficam com o useTvNavigation global / comportamento nativo.
+      // Tecla dedicada de play/pause: se houver vídeo nativo na página, alterna.
+      if (isPlayPause(e)) {
+        if (playPauseNative()) {
+          e.preventDefault();
+          e.stopPropagation();
+        }
+        return;
+      }
+
       if (voltar) {
         e.preventDefault();
         e.stopPropagation();

@@ -16,6 +16,13 @@ const UA_TV = /\b(smart-?tv|smarttv|googletv|android tv|appletv|hbbtv|netcast|we
 export function ehTelaDeTv(): boolean {
   if (typeof window === "undefined") return false;
 
+  // App nativo (MovieFlix TV / APK): o MainActivity injeta esta flag e um
+  // user-agent de Android TV — força o modo TV SEMPRE, independente da
+  // detecção por UA/tamanho (que falha em muitos TV Boxes genéricos).
+  if ((window as unknown as { __MF_TV_APP__?: boolean }).__MF_TV_APP__ === true) {
+    return true;
+  }
+
   // Permite forçar/desligar manualmente: ?tv=1 ou ?tv=0
   const forcado = new URLSearchParams(window.location.search).get("tv");
   if (forcado === "1") return true;
