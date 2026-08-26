@@ -1,23 +1,18 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import Fuse from 'fuse.js';
 
 /**
  * Busca fuzzy compartilhada (SearchPage + HomePage).
  *
  * - Debounce de 250ms: pesquisa enquanto digita, sem precisar de Enter.
- * - Fuse.js carregado de forma preguiçosa (dynamic import) para não pesar no
- *   bundle inicial; a primeira busca faz o load e as seguintes reutilizam.
+ * - Fuse.js importado de forma ESTÁTICA (não lazy): o carregamento dinâmico
+ *   causava "Class constructor S cannot be invoked without 'new'" em produção
+ *   (interação do dynamic import com o runtime de módulos do Vite).
  * - Tolerante a erros de digitação (threshold 0.42, ignoreLocation) e busca em
  *   vários campos: título pt-BR, título original, gênero, ano (número), elenco
  *   e diretor — "vingadoes", "ultimato vingadores" ou "2019" encontram.
  * - Ordena por relevância (score Fuse) com empate pela nota (vote_average).
  */
-
-let fusePromise: Promise<typeof Fuse> | null = null;
-function carregarFuse(): Promise<typeof Fuse> {
-  if (!fusePromise) fusePromise = import('fuse.js').then((m) => m.default ?? m);
-  return fusePromise;
-}
 
 export interface FuzzySearchOptions {
   /** Tempo de debounce em ms (default 250). */
@@ -33,8 +28,6 @@ export function useFuzzySearch<T extends Record<string, any>>(
 
   const [termo, setTermo] = useState(termoInicial);
   const [debounced, setDebounced] = useState(termoInicial);
-  const [fuse, setFuse] = useState<typeof Fuse | null>(null);
-  const [buscaPronta, setBuscaPronta] = useState(false);
 
   // Debounce do termo digitado.
   useEffect(() => {
@@ -42,24 +35,12 @@ export function useFuzzySearch<T extends Record<string, any>>(
     return () => clearTimeout(t);
   }, [termo, debounceMs]);
 
-  // Carrega o Fuse uma única vez.
-  useEffect(() => {
-    let ativo = true;
-    carregarFuse().then((F) => {
-      if (!ativo) return;
-      setFuse(F);
-      setBuscaPronta(true);
-    });
-    return () => {
-      ativo = false;
-    };
-  }, []);
-
+  // Instância única de Fuse, criada apenas quando há termo de busca.
   const results = useMemo(() => {
     const q = debounced.trim();
-    if (!q || !fuse || !buscaPronta) return [];
+    if (!q) return [];
 
-    const instancia = new fuse(base as any[], {
+    const instancia = new Fuse(base as any[], {
       keys: [
         { name: 'title', weight: 0.5 },
         { name: 'original_title', weight: 0.3 },
@@ -87,10 +68,10 @@ export function useFuzzySearch<T extends Record<string, any>>(
         return Number(b.item.vote_average ?? 0) - Number(a.item.vote_average ?? 0);
       })
       .map((r: any) => r.item as T);
-  }, [base, debounced, fuse, buscaPronta]);
+  }, [base, debounced]);
 
-  // Fallback determinístico (sem Fuse ainda carregado): normaliza acentos e
-  // tenta includes em título/categoria/ano — cobre o intervalo inicial.
+  // Fallback determinístico (cobre o intervalo de debounce com includes):
+  // normaliza acentos e tenta includes em título/categoria/ano.
   const resultsFallback = useMemo(() => {
     if (results.length > 0 || !debounced.trim()) return [];
     const termo = debounced.trim().normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
@@ -103,15 +84,11 @@ export function useFuzzySearch<T extends Record<string, any>>(
     });
   }, [base, debounced, results.length]);
 
-  const ref = useRef({ setTermo });
-  ref.current.setTermo = setTermo;
-
   return {
     termo,
     setTermo,
     results,
     resultsFallback,
-    buscaPronta,
     temBusca: debounced.trim().length > 0,
     total: results.length > 0 ? results.length : resultsFallback.length,
   };
