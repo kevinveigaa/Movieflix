@@ -2,6 +2,7 @@ import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import App from './App.tsx';
 import './index.css';
+import './tv/tv.css';
 
 // BUILD_ID: 20260822-1606-force-rebuild-v3
 console.log('[MovieFlix] Build v3 — fallback automático ativado');

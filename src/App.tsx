@@ -34,6 +34,7 @@ const SignupPage = lazyWithRetry(() => import('@/pages/auth/SignupPage').then((m
 const ForgotPasswordPage = lazyWithRetry(() => import('@/pages/auth/ForgotPasswordPage').then((m) => ({ default: m.ForgotPasswordPage })));
 const ProfileSelectPage = lazyWithRetry(() => import('@/pages/auth/ProfileSelectPage').then((m) => ({ default: m.ProfileSelectPage })));
 const DownloadAppPage = lazyWithRetry(() => import('@/pages/DownloadAppPage').then((m) => ({ default: m.DownloadAppPage })));
+import { TvApp } from '@/tv/TvApp';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -111,6 +112,8 @@ function AppRoutes() {
             <Route path="/minha-assinatura" element={<RequireAuth><SubscriptionPage /></RequireAuth>} />
             <Route path="/admin" element={<RequireAuth><AdminPage /></RequireAuth>} />
             <Route path="/admin/series/:seriesId" element={<RequireAuth><AdminSeriesPage /></RequireAuth>} />
+            {/* MovieFlix TV — interface dedicada para Android TV / Google TV / TV Box */}
+            <Route path="/tv/*" element={<TvApp />} />
           </Route>
           <Route path="/login" element={<LoginPage />} />
           <Route path="/cadastro" element={<SignupPage />} />
