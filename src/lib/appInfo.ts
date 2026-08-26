@@ -54,8 +54,8 @@ export const APK_ABSOLUTE_URL = `https://movieflix-bszf.onrender.com${APK_URL}`;
 /** URL absoluta da página de download (usada como fallback do QR em iOS). */
 export const DOWNLOAD_PAGE_URL = 'https://movieflix-bszf.onrender.com/#/baixar-app';
 
-/** Tamanho do APK em MB (exibido na página de download). Mantido em sincronia com public/apk/MovieFlix-v2.1.0.apk (3.677.947 bytes ≈ 3.7 MB). */
-export const APK_SIZE_MB = '3.7 MB';
+/** Tamanho do APK em MB (exibido na página de download). Mantido em sincronia com public/apk/MovieFlix-v2.1.0.apk (5.085.564 bytes ≈ 4.9 MB). */
+export const APK_SIZE_MB = '4.9 MB';
 
 /* ══════════════════════════════════════════════════════════════════════
    MOVIEFLIX TV — segundo app oficial (Android TV / Google TV / TV Box).
