@@ -21,7 +21,6 @@ const cols = [
       { label: 'Documentários', to: '/filmes?categoria=Document%C3%A1rio' },
       { label: 'Infantil', to: '/filmes?categoria=Infantil' },
       { label: 'Favoritos', to: '/favoritos' },
-      { label: 'Continuar assistindo', to: '/continuar' },
     ],
   },
   {

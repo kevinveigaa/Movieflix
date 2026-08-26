@@ -141,7 +141,7 @@ export function ProfilePage() {
             </div>
 
             <p className="mt-2 text-sm text-ink-300">
-              Cada perfil tem seu próprio histórico de "Continuar assistindo".{' '}
+              Cada perfil tem seu próprio histórico de reprodução.{' '}
               {atLimit
                 ? `Você atingiu o limite de ${maxProfiles} perfil${maxProfiles === 1 ? '' : 's'}${hasPlan ? ' do seu plano' : '. Assine um plano para criar mais perfis (2, 3 ou 5)'}.`
                 : `Seu plano permite até ${maxProfiles} perfis (incluindo o infantil).`}

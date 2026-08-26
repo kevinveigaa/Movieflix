@@ -74,51 +74,6 @@ export function HistoryPage() {
         )}
       </div>
 
-      {/* Sección "Continuar assistindo" */}
-      {!history.isLoading && continuar.length > 0 && (
-        <div className="mt-8">
-          <h2 className="font-display text-xl tracking-wide text-white sm:text-2xl">Continuar assistindo</h2>
-          <p className="mt-1 text-sm text-ink-400">Retome de onde você parou.</p>
-          <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {continuar.map(({ h, movie }) => {
-              const pct = h.duration_seconds ? Math.min(100, (h.position_seconds / h.duration_seconds) * 100) : 0;
-              const poster = movie.backdrop_url || movie.poster_url;
-              return (
-                <div key={h.id} className="group relative overflow-hidden rounded-2xl border border-white/10 bg-ink-900">
-                  <Link to={historyTarget(h)} className="block">
-                    <div className="relative aspect-video overflow-hidden bg-ink-800">
-                      {poster ? (
-                        <img src={poster} alt={movie.title} className="h-full w-full object-cover transition group-hover:scale-105" />
-                      ) : (
-                        <div className="flex h-full w-full items-center justify-center text-ink-500">{movie.title}</div>
-                      )}
-                      <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent" />
-                      <span className="absolute left-3 top-3 flex h-10 w-10 items-center justify-center rounded-full bg-brand-600 text-white opacity-0 transition group-hover:opacity-100">
-                        <Play className="h-5 w-5 fill-white" />
-                      </span>
-                    </div>
-                    <div className="p-3">
-                      <p className="truncate font-semibold text-white">{movie.title}</p>
-                      <p className="mt-0.5 text-xs text-ink-400">{ehSerie(movie) ? 'Série' : 'Filme'}</p>
-                      <div className="mt-2 h-1 w-full overflow-hidden rounded-full bg-ink-700">
-                        <div className="h-full rounded-full bg-brand-600" style={{ width: `${pct}%` }} />
-                      </div>
-                    </div>
-                  </Link>
-                  <button
-                    onClick={() => remove.mutate(h.id)}
-                    className="absolute right-2 top-2 rounded-full bg-black/60 p-2 text-ink-200 opacity-0 transition hover:bg-red-600 hover:text-white group-hover:opacity-100"
-                    aria-label="Remover"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </button>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      )}
-
       {/* Modal de confirmação para limpar tudo */}
       {showClearConfirm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">

@@ -21,7 +21,7 @@
     -webkit-tap-highlight-color: transparent;
   }
   ::selection {
-    @apply bg-brand-600 text-white;
+    @apply bg-roxo-600 text-white;
   }
 }
 
@@ -42,7 +42,7 @@
     @apply btn border border-white/20 text-white hover:border-white/40 hover:bg-white/5;
   }
   .input {
-    @apply w-full rounded-xl border border-white/10 bg-ink-800/60 px-4 py-3 text-sm text-white placeholder:text-ink-400 transition-colors focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500;
+    @apply w-full rounded-xl border border-white/10 bg-ink-800/60 px-4 py-3 text-sm text-white placeholder:text-ink-400 transition-colors focus:border-roxo-500 focus:outline-none focus:ring-1 focus:ring-roxo-500;
   }
   .card-surface {
     @apply rounded-2xl border border-white/10 bg-ink-900/70 backdrop-blur;
@@ -58,7 +58,7 @@
     display: none;
   }
   .text-gradient {
-    @apply bg-gradient-to-r from-white via-white to-ink-300 bg-clip-text text-transparent;
+    @apply bg-gradient-to-r from-brand-500 via-roxo-500 to-roxo-400 bg-clip-text text-transparent;
   }
 }
 
@@ -94,7 +94,7 @@
   outline: none;
 }
 
-/* Anel de foco discreto e elegante (vermelho fino, estilo TV) para qualquer
+/* Anel de foco discreto e elegante (vermelho + roxo, estilo TV) para qualquer
    elemento navegável: links, botões, inputs, selects, cards, vídeo e iframe.
    Fino (~1.5px), com um brilho suave, transição suave e sem zoom exagerado. */
 .tv-nav a:focus,
@@ -109,7 +109,7 @@
   border-radius: 0.5rem;
   box-shadow:
     0 0 0 1.5px rgba(230, 0, 0, 0.95),
-    0 0 14px rgba(230, 0, 0, 0.35);
+    0 0 14px rgba(124, 58, 237, 0.45);
   transition: box-shadow 0.15s ease, transform 0.15s ease;
   z-index: 30;
   position: relative;

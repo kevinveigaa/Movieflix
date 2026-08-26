@@ -34,7 +34,7 @@ export function SignupPage() {
       if (name.trim()) localStorage.setItem('mf_signup_name', name.trim());
       navigate('/selecionar-perfil');
     } catch (err) {
-      setError((err as Error).message ?? 'No foi possível cadastrar.');
+      setError((err as Error).message ?? 'Não foi possível cadastrar.');
     } finally {
       setLoading(false);
     }
@@ -83,7 +83,7 @@ export function SignupPage() {
         </button>
       </form>
       <p className="mt-6 text-center text-sm text-ink-400">
-        J tem conta?{' '}
+        Já tem conta?{' '}
         <Link to="/login" data-tv-focusable className="font-semibold text-brand-400 hover:text-brand-300">
           Entrar
         </Link>

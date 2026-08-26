@@ -20,7 +20,7 @@ export function LoginPage() {
       await signIn(email, password);
       navigate('/selecionar-perfil');
     } catch (err) {
-      setError((err as Error).message ?? 'No foi possível entrar.');
+      setError((err as Error).message ?? 'Não foi possível entrar.');
     } finally {
       setLoading(false);
     }
@@ -71,9 +71,9 @@ export function LoginPage() {
         </button>
       </form>
       <p className="mt-6 text-center text-sm text-ink-400">
-        No tem conta?{' '}
+        Não tem conta?{' '}
         <Link to="/cadastro" data-tv-focusable className="font-semibold text-brand-400 hover:text-brand-300">
-          Cadastre-se grtis
+          Cadastre-se grátis
         </Link>
       </p>
     </AuthShell>

@@ -19,7 +19,7 @@ export function ForgotPasswordPage() {
       await resetPassword(email);
       setDone(true);
     } catch (err) {
-      setError((err as Error).message ?? 'No foi possível enviar o e-mail.');
+      setError((err as Error).message ?? 'Não foi possível enviar o e-mail.');
     } finally {
       setLoading(false);
     }
@@ -31,7 +31,7 @@ export function ForgotPasswordPage() {
         <div className="flex flex-col items-center gap-3 py-6 text-center">
           <CheckCircle className="h-12 w-12 text-emerald-400" />
           <p className="text-sm text-ink-200">
-            Se houver uma conta com <span className="font-semibold text-white">{email}</span>, você receber um link de recuperação em instantes.
+            Se houver uma conta com <span className="font-semibold text-white">{email}</span>, você receberá um link de recuperação em instantes.
           </p>
           <Link to="/login" data-tv-focusable className="btn-primary mt-2">Voltar ao login</Link>
         </div>

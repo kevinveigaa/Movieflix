@@ -24,7 +24,6 @@ const ROUTE_SEO: Array<{ path: string; title: string; description: string }> = [
   { path: '/titulo/:type/:id', title: 'Título — MovieFlix', description: 'Detalhes do título: sinopse, nota, gênero, trailer e onde assistir.' },
   { path: '/assistir/:id', title: 'Assistir — MovieFlix', description: 'Assista agora no MovieFlix.' },
   { path: '/favoritos', title: 'Meus Favoritos — MovieFlix', description: 'Seus títulos favoritos reunidos em um só lugar no MovieFlix.' },
-  { path: '/continuar', title: 'Continuar Assistindo — MovieFlix', description: 'Retome de onde parou no MovieFlix.' },
   { path: '/historico', title: 'Histórico — MovieFlix', description: 'Seu histórico de reprodução no MovieFlix.' },
   { path: '/perfil', title: 'Meu Perfil — MovieFlix', description: 'Gerencie seu perfil no MovieFlix.' },
   { path: '/configuracoes', title: 'Configurações — MovieFlix', description: 'Preferências e configurações da sua conta MovieFlix.' },

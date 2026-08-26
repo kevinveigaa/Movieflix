@@ -102,7 +102,7 @@ export function HeroBanner({ items }: { items: HeroItem[] }) {
               )}
 
               <div className="flex flex-wrap items-center gap-3 pt-1">
-                <Link to={`/assistir/${atual.id}`} className="btn-primary px-6 py-2.5">
+                <Link to={`/assistir/${atual.id}`} className="btn-primary px-6 py-2.5 bg-gradient-to-r from-brand-600 to-roxo-700 hover:from-brand-500 hover:to-roxo-600 shadow-lg shadow-roxo-900/40">
                   <Play className="h-4 w-4" fill="currentColor" />
                   Assistir
                 </Link>

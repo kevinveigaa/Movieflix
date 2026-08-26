@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, NavLink, useNavigate, useLocation } from 'react-router-dom';
-import { Search, Menu, X, User, LogOut, Settings, CreditCard, Shield, Film, Smartphone, ChevronDown, Baby, Users, Heart, PlayCircle, Tv } from 'lucide-react';
+import { Search, Menu, X, User, LogOut, Settings, CreditCard, Shield, Film, Smartphone, ChevronDown, Baby, Users, Heart } from 'lucide-react';
 import { useMovies } from '@/hooks/useMovies';
 import { useSeriesHidden } from '@/hooks/useSeriesHidden';
 import { categoriasDoFilme, ehInfantil, ordenarCategorias } from '@/lib/categorias';
@@ -100,12 +100,12 @@ export function Navbar() {
       {isKid && (
         <div className="bg-amber-400 px-4 py-1 text-center text-xs font-bold text-black">
           <Baby className="mr-1 inline h-3 w-3" />
-          Modo Infantil — apenas conteudo para criancas
+          Modo Infantil — apenas conteúdo para crianças
         </div>
       )}
       <div className="container-app flex h-14 sm:h-16 lg:h-20 items-center gap-2 sm:gap-4">
         <Link to="/" className="flex items-center gap-2">
-          <span className="flex h-7 w-7 sm:h-8 sm:w-8 lg:h-10 lg:w-10 items-center justify-center rounded-md bg-brand-600 text-white">
+          <span className="flex h-7 w-7 sm:h-8 sm:w-8 lg:h-10 lg:w-10 items-center justify-center rounded-md bg-gradient-to-br from-brand-600 to-roxo-700 text-white shadow-md shadow-roxo-900/40">
             <Film className="h-5 w-5" />
           </span>
           <span className="font-display text-lg sm:text-xl lg:text-2xl tracking-wide text-white">MOVIEFLIX</span>
@@ -212,7 +212,6 @@ export function Navbar() {
                   <MenuLink to="/selecionar-perfil" icon={<Users className="h-4 w-4" />}>Trocar de perfil</MenuLink>
                   <MenuLink to="/perfil" icon={<User className="h-4 w-4" />}>Meu perfil</MenuLink>
                   <MenuLink to="/favoritos" icon={<Heart className="h-4 w-4" />}>Favoritos</MenuLink>
-                  <MenuLink to="/continuar" icon={<PlayCircle className="h-4 w-4" />}>Continuar assistindo</MenuLink>
                   <MenuLink to="/minha-assinatura" icon={<CreditCard className="h-4 w-4" />}>Minha assinatura</MenuLink>
                   <MenuLink to="/configuracoes" icon={<Settings className="h-4 w-4" />}>Configurações</MenuLink>
                   {profile?.is_admin && (

@@ -33,6 +33,19 @@ export default {
           900: '#0d0d0d',
           950: '#050505',
         },
+        roxo: {
+          50: '#f6f2ff',
+          100: '#ede8ff',
+          200: '#ddd4ff',
+          300: '#c4b1fe',
+          400: '#a485fc',
+          500: '#8b5cf6',
+          600: '#7c3aed',
+          700: '#6d28d9',
+          800: '#5b21b6',
+          900: '#4c1d95',
+          950: '#2e1065',
+        },
       },
       fontFamily: {
         sans: ['Inter', 'system-ui', 'sans-serif'],
@@ -56,8 +69,8 @@ export default {
           '100%': { backgroundPosition: '1000px 0' },
         },
         'pulse-glow': {
-          '0%, 100%': { boxShadow: '0 0 0 0 rgba(230,0,0,0.45)' },
-          '50%': { boxShadow: '0 0 0 12px rgba(230,0,0,0)' },
+          '0%, 100%': { boxShadow: '0 0 0 0 rgba(124,58,237,0.45)' },
+          '50%': { boxShadow: '0 0 0 12px rgba(124,58,237,0)' },
         },
       },
       animation: {

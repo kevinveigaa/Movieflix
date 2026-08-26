@@ -22,7 +22,6 @@ const SeriesPage = lazyWithRetry(() => import('@/pages/SeriesPage').then((m) => 
 const SearchPage = lazyWithRetry(() => import('@/pages/SearchPage').then((m) => ({ default: m.SearchPage })));
 const TitleDetailPage = lazyWithRetry(() => import('@/pages/TitleDetailPage').then((m) => ({ default: m.TitleDetailPage })));
 const FavoritesPage = lazyWithRetry(() => import('@/pages/FavoritesPage').then((m) => ({ default: m.FavoritesPage })));
-const ContinueWatchingPage = lazyWithRetry(() => import('@/pages/ContinueWatchingPage').then((m) => ({ default: m.ContinueWatchingPage })));
 const HistoryPage = lazyWithRetry(() => import('@/pages/HistoryPage').then((m) => ({ default: m.HistoryPage })));
 const ProfilePage = lazyWithRetry(() => import('@/pages/ProfilePage').then((m) => ({ default: m.ProfilePage })));
 const SettingsPage = lazyWithRetry(() => import('@/pages/SettingsPage').then((m) => ({ default: m.SettingsPage })));
@@ -106,7 +105,6 @@ function AppRoutes() {
             <Route path="/titulo/:type/:id" element={<TitleDetailPage />} />
             <Route path="/assistir/:id" element={<PlayerPage />} />
             <Route path="/favoritos" element={<RequireAuth><FavoritesPage /></RequireAuth>} />
-            <Route path="/continuar" element={<RequireAuth><ContinueWatchingPage /></RequireAuth>} />
             <Route path="/historico" element={<RequireAuth><HistoryPage /></RequireAuth>} />
             <Route path="/perfil" element={<RequireAuth><ProfilePage /></RequireAuth>} />
             <Route path="/configuracoes" element={<RequireAuth><SettingsPage /></RequireAuth>} />

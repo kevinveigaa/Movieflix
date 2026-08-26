@@ -3,23 +3,18 @@ import { PosterCard, PosterCardSkeleton } from "@/components/cards/PosterCard";
 import { HeroBanner, HeroBannerSkeleton } from "@/components/home/HeroBanner";
 import { useMovies } from "@/hooks/useMovies";
 import { useFuzzySearch } from "@/hooks/useFuzzySearch";
-import { useCatalogWatchHistory } from "@/hooks/useWatchHistory";
 import { useSeriesHidden } from "@/hooks/useSeriesHidden";
 import { useAuth, hasActiveSubscription } from "@/context/AuthContext";
-import { useEntitlements } from "@/hooks/useEntitlements";
 import { Link } from "react-router-dom";
 import { Crown, Sparkles, ChevronLeft, ChevronRight, Search as SearchIcon, X } from "lucide-react";
 import { categoriasDoFilme, ehInfantil, ordenarCategorias } from "@/lib/categorias";
 import { ehFilme } from "@/lib/media";
-import { temProgressoReal, progressoPercentual } from "@/lib/watchProgress";
 
 export function HomePage() {
   const { subscription, activeViewerProfile } = useAuth();
   const isKid = activeViewerProfile?.is_kid ?? false;
   const movies = useMovies();
-  const history = useCatalogWatchHistory();
   const { seriesHidden } = useSeriesHidden();
-  const { entitlements } = useEntitlements();
 
   const visibleMovies = useMemo(() => {
     let lista = movies.data ?? [];
@@ -35,32 +30,6 @@ export function HomePage() {
   const buscaResultados = results.length > 0 ? results : resultsFallback;
 
   const destaques = useMemo(() => visibleMovies.slice(0, 5), [visibleMovies]);
-
-  // Mapa movie_id → % assistido para a barra de progresso nos cards.
-  // Só entra no mapa quem tem progresso REAL (>= 10 min ou >= 30% da duração):
-  // títulos nunca assistidos (ou assistidos por menos de 10 min) não exibem
-  // barra de progresso em lugar nenhum.
-  const progressByMovie = useMemo(() => {
-    const map: Record<string, number> = {};
-    for (const { history: h, movie } of history.items ?? []) {
-      if (!temProgressoReal(h.position_seconds, h.duration_seconds)) continue;
-      map[String(movie.id)] = progressoPercentual(h.position_seconds, h.duration_seconds);
-    }
-    return map;
-  }, [history.items]);
-
-  // "Continuar assistindo": apenas títulos visibles (respeta modo infantil),
-  // con progreso REAL (>= 10 min o >= 30% de la duración) y que no llegaron al
-  // fin (useCatalogWatchHistory ya filtra esto). El límite de títulos guardados
-  // depende del plan (maxHistory): Básico 5, Estándar 15, Premium ilimitado.
-  const continueWatching = useMemo(() => {
-    const visivel = new Set(visibleMovies.map((m) => String(m.id)));
-    const limite = Number.isFinite(entitlements.maxHistory) ? entitlements.maxHistory : Infinity;
-    return (history.items ?? [])
-      .filter(({ movie }) => visivel.has(String(movie.id)))
-      .map(({ movie }) => movie)
-      .slice(0, limite);
-  }, [history.items, visibleMovies, entitlements.maxHistory]);
 
   const categorias = useMemo(() => {
     const mapa = new Map<string, any[]>();
@@ -167,22 +136,14 @@ export function HomePage() {
 
             {!movies.isLoading && (
               <>
-                {continueWatching.length > 0 && (
-                  <CategoryRow
-                    title="Continuar assistindo"
-                    items={continueWatching}
-                    progressMap={progressByMovie}
-                    verMaisTo="/continuar"
-                  />
-                )}
                 {emAlta.length > 0 && (
-                  <CategoryRow title="Em alta" items={emAlta} progressMap={progressByMovie} />
+                  <CategoryRow title="Em alta" items={emAlta} />
                 )}
                 {populares.length > 0 && (
-                  <CategoryRow title="Populares" items={populares} progressMap={progressByMovie} />
+                  <CategoryRow title="Populares" items={populares} />
                 )}
                 {recentes.length > 0 && (
-                  <CategoryRow title="Adicionados recentemente" items={recentes} progressMap={progressByMovie} />
+                  <CategoryRow title="Adicionados recentemente" items={recentes} />
                 )}
                 {categorias.map((cat) => (
                   <CategoryRow
@@ -190,7 +151,6 @@ export function HomePage() {
                     title={cat.nome}
                     items={cat.lista}
                     category={cat.nome}
-                    progressMap={progressByMovie}
                   />
                 ))}
               </>
@@ -214,9 +174,9 @@ function CategoryRow({
   title: string;
   items: any[];
   category?: string;
-  /** Mapa movie_id → % assistido, para a barra de "Continuar assistindo". */
+  /** Progresso de reprodução (0-100) para exibir a barra de progresso. */
   progressMap?: Record<string, number>;
-  /** Destino do botão "Ver mais" (ex.: /continuar). Default: catálogo da categoria. */
+  /** Destino do botão "Ver mais" da categoria. Default: catálogo da categoria. */
   verMaisTo?: string;
 }) {
   const ref = useRef<HTMLDivElement>(null);
@@ -369,7 +329,7 @@ function UpgradeBanner() {
   return (
     <Link
       to="/minha-assinatura"
-      className="flex items-center gap-4 rounded-2xl border border-brand-600/30 bg-gradient-to-r from-brand-700 via-purple-900 to-black p-5"
+      className="flex items-center gap-4 rounded-2xl border border-roxo-600/30 bg-gradient-to-r from-brand-700 via-roxo-800 to-black p-5"
     >
       <div className="rounded-xl bg-brand-600 p-3">
         <Crown />

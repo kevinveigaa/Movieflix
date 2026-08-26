@@ -77,8 +77,8 @@ export function PosterCard({
               }
               fav.toggle();
             }}
-            aria-label={fav.isFavorite ? "Quitar de favoritos" : "Agregar a favoritos"}
-            title={fav.isFavorite ? "Quitar de favoritos" : "Agregar a favoritos"}
+            aria-label={fav.isFavorite ? "Remover de favoritos" : "Adicionar a favoritos"}
+            title={fav.isFavorite ? "Remover de favoritos" : "Adicionar a favoritos"}
             className={cn(
               "absolute bottom-1.5 right-1.5 z-10 flex h-7 w-7 items-center justify-center rounded-full transition sm:bottom-2 sm:right-2 sm:h-8 sm:w-8",
               fav.isFavorite
