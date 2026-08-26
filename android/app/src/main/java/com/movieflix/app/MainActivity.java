@@ -141,6 +141,9 @@ public class MainActivity extends BridgeActivity {
                 public void onPageCommitVisible(WebView view, String url) {
                     super.onPageCommitVisible(view, url);
                     rastrearUrl(url);
+                    // Garante que o WebView continue recebendo as teclas do
+                    // controle remoto (DPAD) a cada nova página.
+                    view.requestFocus();
                 }
 
                 @Override
@@ -335,6 +338,12 @@ public class MainActivity extends BridgeActivity {
      */
     @Override
     public boolean dispatchKeyEvent(KeyEvent event) {
+        // Diagnóstico: registra cada tecla do controle remoto recebida pela
+        // Activity (adb logcat -s MOVIEFLIX_KEY). Não interfere na navegação.
+        try {
+            android.util.Log.d("MOVIEFLIX_KEY", "KEY: " + event.getKeyCode() + " action=" + event.getAction());
+        } catch (Exception ignored) {
+        }
         if (webView != null && webView.isFocused()) {
             if (event.getAction() == KeyEvent.ACTION_DOWN) {
                 switch (event.getKeyCode()) {
