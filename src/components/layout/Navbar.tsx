@@ -105,7 +105,7 @@ export function Navbar() {
       )}
       <div className="container-app flex h-14 sm:h-16 lg:h-20 items-center gap-2 sm:gap-4">
         <Link to="/" className="flex items-center gap-2">
-          <span className="flex h-7 w-7 sm:h-8 sm:w-8 lg:h-10 lg:w-10 items-center justify-center rounded-md bg-gradient-to-br from-brand-600 to-roxo-700 text-white shadow-md shadow-roxo-900/40">
+          <span className="flex h-7 w-7 sm:h-8 sm:w-8 lg:h-10 lg:w-10 items-center justify-center rounded-md bg-roxo-700 text-white shadow-md shadow-roxo-900/40">
             <Film className="h-5 w-5" />
           </span>
           <span className="font-display text-lg sm:text-xl lg:text-2xl tracking-wide text-white">MOVIEFLIX</span>
