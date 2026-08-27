@@ -30,6 +30,8 @@ object AuthRepository {
     private val client = OkHttpClient.Builder()
         .connectTimeout(15, TimeUnit.SECONDS)
         .readTimeout(20, TimeUnit.SECONDS)
+        // Timeout TOTAL: em TVs com rede lenta o app NUNCA fica preso esperando.
+        .callTimeout(30, TimeUnit.SECONDS)
         .build()
 
     private val JSON = "application/json; charset=utf-8".toMediaType()
@@ -64,6 +66,7 @@ object AuthRepository {
             client.newCall(req).execute().use { resp ->
                 val text = resp.body?.string() ?: ""
                 if (resp.isSuccessful) {
+                    // Sucesso: {"access_token":..., "refresh_token":..., "user":{...}}
                     val obj = JSONObject(text)
                     val token = obj.optString("access_token", "")
                     val user = obj.optJSONObject("user")
@@ -74,23 +77,43 @@ object AuthRepository {
                         email = user?.optString("email"),
                     )
                 } else {
-                    var msg = "Erro HTTP ${resp.code}"
-                    try {
-                        val obj = JSONObject(text)
-                        msg = obj.optString("error_description")
-                            .takeIf { it.isNotBlank() }
-                            ?: obj.optString("msg").takeIf { it.isNotBlank() }
-                            ?: obj.optString("message").takeIf { it.isNotBlank() }
-                            ?: msg
-                    } catch (_: Exception) {
-                    }
-                    AuthResult(ok = false, error = msg)
+                    AuthResult(ok = false, error = extrairErro(text, resp.code))
                 }
             }
         } catch (e: IOException) {
-            AuthResult(ok = false, error = "Sem conexão: ${e.message}")
+            AuthResult(ok = false, error = "Sem conexão. Verifique a internet da TV.")
         } catch (e: Exception) {
             AuthResult(ok = false, error = "Erro inesperado: ${e.message}")
+        }
+    }
+
+    /**
+     * Extrai a mensagem de erro de respostas não-2xx do Supabase Auth.
+     * Formatos reais observados:
+     *   {"code":"400","error_code":"invalid_credentials","msg":"Invalid login credentials"}
+     *   {"error":"invalid_grant","error_description":"Invalid login credentials"}
+     *   {"message":"...","hint":"...","request_id":"..."}   (gateway/erros internos)
+     * Falha ao parsear (HTML/gateway/proxy) → mensagem amigável com o código HTTP.
+     */
+    private fun extrairErro(text: String, code: Int): String {
+        val amigavel = when (code) {
+            400 -> "E-mail ou senha inválidos. Confira e tente de novo."
+            401 -> "Sessão expirada ou e-mail não confirmado. Verifique seu e-mail."
+            403 -> "Acesso negado. Verifique se o e-mail foi confirmado."
+            422 -> "E-mail inválido ou senha muito curta (mínimo 6 caracteres)."
+            429 -> "Muitas tentativas. Aguarde um minuto e tente de novo."
+            else -> "Erro do servidor ($code). Tente novamente em instantes."
+        }
+        return try {
+            val obj = JSONObject(text)
+            obj.optString("msg").takeIf { it.isNotBlank() }
+                ?: obj.optString("error_description").takeIf { it.isNotBlank() }
+                ?: obj.optString("error").takeIf { it.isNotBlank() && it != "invalid_grant" }
+                ?: obj.optString("message").takeIf { it.isNotBlank() }
+                ?: amigavel
+        } catch (_: Exception) {
+            // Corpo não é JSON (HTML/erro de proxy/gateway) → nunca quebra o app.
+            amigavel
         }
     }
 
