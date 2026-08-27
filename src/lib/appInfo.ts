@@ -65,27 +65,29 @@ export const TV_APP_INFO = {
   /** Nome exibido do aplicativo de TV */
   name: 'MovieFlix TV',
   /** Versão semântica atual (bate com movieflix-tv/android/app/build.gradle → versionName) */
-  version: '1.1.0',
+  version: '1.2.0',
   /** Código de versão Android (bate com versionCode) */
-  versionCode: 3,
+  versionCode: 4,
   /** Data de lançamento desta versão (AAAA-MM-DD) */
   releaseDate: '2026-08-26',
   /** Resumo das mudanças desta versão (exibido na página de download) */
   changelog: [
     'Aplicativo 100% NATIVO Android TV (Kotlin + Leanback + ExoPlayer) — sem WebView, sem Capacitor, sem site dentro do app',
-    'Interface própria de TV com navegação por D-pad NATIVA (foco Android, não JavaScript)',
-    'Home com filmes em destaque, séries e categorias carregadas do catálogo oficial',
-    'Player ExoPlayer nativo com controles por controle remoto (OK play/pause, ←/→ seek, ↑/↓ volume, BACK sair)',
+    'Página completa de FILMES e SÉRIES com catálogo, categorias e ordenação por nota (navegação D-pad nativa)',
+    'Seletor de TEMPORADA e EPISÓDIO nos detalhes das séries, com reprodução do episódio escolhido',
+    'MINHA LISTA: adicionar/remover/abrir seus títulos salvos (mesma tabela favorites do site — Supabase)',
+    'Player nativo com barra de progresso, play/pause, avançar/voltar 15s, volume, carregamento, erros com "Tentar de novo" e retomada local (Continuar assistindo)',
+    'Catálogo atualizável: busca a versão mais recente do backend oficial (cache 1x/dia) com fallback para o catálogo embutido',
+    'Correção de compatibilidade do catálogo (tmdb_id/duration numéricos) — navegação estável em todo o catálogo',
     'Login/cadastro com a MESMA conta do site (Supabase) — assinatura reconhecida automaticamente',
     'Bloqueio de reprodução por assinatura validado NO SERVIDOR (sem assinatura = tela "Assinatura necessária")',
-    'Pesquisa nativa no catálogo',
     'Ícone oficial do MovieFlix (M gradiente rosa/índigo) em todas as densidades + banner de TV',
-    'Catálogo embutido no APK (funciona mesmo sem internet para navegar)',
+    'Leve e otimizado para TVs com hardware limitado: sem processos em segundo plano, sem animações pesadas',
   ],
   /** Plataformas suportadas */
   platforms: ['Android TV', 'Google TV', 'TV Box'],
   /** Nome do arquivo do APK oficial (manter sincronizado com public/apk/) */
-  apkFileName: 'MovieFlixTV-v1.1.0.apk',
+  apkFileName: 'MovieFlixTV-v1.2.0.apk',
 } as const;
 
 /** Caminho público do APK do MovieFlix TV dentro do app (servido pelo backend/static). */
@@ -94,8 +96,8 @@ export const TV_APK_URL = `/apk/${TV_APP_INFO.apkFileName}`;
 /** URL ABSOLUTA do APK do MovieFlix TV (usada pelo QR code e por links externos). */
 export const TV_APK_ABSOLUTE_URL = `https://movieflix-bszf.onrender.com${TV_APK_URL}`;
 
-/** Tamanho do APK do MovieFlix TV em MB (exibido na página de download). Mantido em sincronia com public/apk/MovieFlixTV-v1.1.0.apk (11.636.394 bytes ≈ 11,6 MB). */
-export const TV_APK_SIZE_MB = '11,6 MB';
+/** Tamanho do APK do MovieFlix TV em MB (exibido na página de download). Mantido em sincronia com public/apk/MovieFlixTV-v1.2.0.apk (11.670.661 bytes ≈ 11,1 MB). */
+export const TV_APK_SIZE_MB = '11,1 MB';
 
 /** Chave usada no localStorage para lembrar a última versão vista pelo usuário. */
 const VERSION_KEY = 'mf_last_seen_version';

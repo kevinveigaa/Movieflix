@@ -12,30 +12,52 @@ import androidx.leanback.widget.ListRowPresenter
 import androidx.leanback.widget.OnItemViewClickedListener
 import androidx.leanback.widget.OnItemViewSelectedListener
 import androidx.leanback.widget.Row
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /**
  * Home nativa do MovieFlix TV (Leanback BrowseFragment).
- * Linhas = categorias reais do catálogo embutido; navegação 100% D-pad nativa.
- * Linhas: "Filmes em destaque", "Séries", depois as categorias principais.
+ *
+ * - Navegação 100% D-pad NATIVA do Android (foco determinístico: nunca
+ *   desaparece, nunca pula, nunca seleciona invisível).
+ * - Sidebar com as seções: Início, Filmes, Séries, Minha Lista (Pesquisa
+ *   abre pela tecla SEARCH do controle, como manda o padrão Android TV).
+ * - Linhas horizontais: Filmes em destaque, Séries em destaque, categorias.
+ * - Atualização silenciosa do catálogo no primeiro acesso (1x/dia).
  */
 class MainActivity : androidx.appcompat.app.AppCompatActivity() {
 
+    private val job = Job()
+    private val scope = CoroutineScope(Dispatchers.Main + job)
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-
         val fragment = MainBrowseFragment()
         supportFragmentManager.beginTransaction()
             .replace(android.R.id.content, fragment)
             .commit()
+
+        // Atualização do catálogo: roda em background, nunca bloqueia a UI.
+        scope.launch {
+            withContext(Dispatchers.IO) { CatalogRepository.atualizarSeNecessario(this@MainActivity) }
+        }
     }
 
     override fun onKeyDown(keyCode: Int, event: KeyEvent?): Boolean {
-        // Tecla SEARCH do controle remoto abre a pesquisa
         if (keyCode == KeyEvent.KEYCODE_SEARCH) {
             startActivity(Intent(this, SearchActivity::class.java))
             return true
         }
         return super.onKeyDown(keyCode, event)
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        job.cancel()
     }
 
     class MainBrowseFragment : BrowseSupportFragment() {
@@ -73,38 +95,53 @@ class MainActivity : androidx.appcompat.app.AppCompatActivity() {
             val ctx = activity ?: return
             val rows = adapter ?: return
 
-            // Linha 1: Filmes em destaque (melhores notas)
+            // Seção: INÍCIO (destaques)
             val destaques = CatalogRepository.filmes(ctx)
                 .sortedByDescending { it.vote_average }
                 .take(30)
             rows.add(
                 ListRow(
-                    HeaderItem(1, "Filmes em destaque"),
+                    HeaderItem(1, "Início · Filmes em destaque"),
                     ArrayObjectAdapter(CardPresenter()).apply { addAll(0, destaques) },
                 ),
             )
 
-            // Linha 2: Séries
-            val series = CatalogRepository.series(ctx)
+            val seriesDestaque = CatalogRepository.series(ctx)
                 .sortedByDescending { it.vote_average }
                 .take(30)
             rows.add(
                 ListRow(
-                    HeaderItem(2, "Séries"),
-                    ArrayObjectAdapter(CardPresenter()).apply { addAll(0, series) },
+                    HeaderItem(2, "Início · Séries em destaque"),
+                    ArrayObjectAdapter(CardPresenter()).apply { addAll(0, seriesDestaque) },
                 ),
             )
 
-            // Categorias principais (até 15)
+            // Seção: FILMES — categorias com filmes
             var id = 10
-            for (cat in CatalogRepository.categorias(ctx).take(15)) {
+            for (cat in CatalogRepository.categorias(ctx).take(12)) {
                 val itens = CatalogRepository.porCategoria(ctx, cat)
+                    .filter { !it.ehSerie }
                     .sortedByDescending { m -> m.vote_average }
                     .take(24)
                 if (itens.isEmpty()) continue
                 rows.add(
                     ListRow(
-                        HeaderItem(id++.toLong(), cat),
+                        HeaderItem(id++.toLong(), "Filmes · $cat"),
+                        ArrayObjectAdapter(CardPresenter()).apply { addAll(0, itens) },
+                    ),
+                )
+            }
+
+            // Seção: SÉRIES — categorias com séries
+            for (cat in CatalogRepository.categorias(ctx).take(10)) {
+                val itens = CatalogRepository.porCategoria(ctx, cat)
+                    .filter { it.ehSerie }
+                    .sortedByDescending { m -> m.vote_average }
+                    .take(24)
+                if (itens.isEmpty()) continue
+                rows.add(
+                    ListRow(
+                        HeaderItem(id++.toLong(), "Séries · $cat"),
                         ArrayObjectAdapter(CardPresenter()).apply { addAll(0, itens) },
                     ),
                 )

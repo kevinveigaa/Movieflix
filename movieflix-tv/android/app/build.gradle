@@ -12,14 +12,24 @@ android {
         applicationId 'com.movieflix.tv'
         minSdk 23
         targetSdk 34
-        versionCode 3
-        versionName '1.1.0'
+        versionCode 4
+        versionName '1.2.0'
+    }
+
+    signingConfigs {
+        release {
+            storeFile file('../keystore/movieflix-tv-release.jks')
+            storePassword 'movieflix2026'
+            keyAlias 'movieflix'
+            keyPassword 'movieflix2026'
+        }
     }
 
     buildTypes {
         release {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+            signingConfig signingConfigs.release
         }
     }
 

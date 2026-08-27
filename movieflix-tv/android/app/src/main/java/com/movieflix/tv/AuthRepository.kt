@@ -95,10 +95,11 @@ object AuthRepository {
     }
 
     /** Token persistido localmente (sessão do usuário). */
-    fun saveSession(context: Context, token: String, email: String) {
+    fun saveSession(context: Context, token: String, email: String, userId: String? = null) {
         context.getSharedPreferences("mf_session", Context.MODE_PRIVATE).edit()
             .putString("access_token", token)
             .putString("email", email)
+            .putString("user_id", userId ?: "")
             .apply()
     }
 
@@ -109,6 +110,11 @@ object AuthRepository {
     fun loadEmail(context: Context): String? =
         context.getSharedPreferences("mf_session", Context.MODE_PRIVATE)
             .getString("email", null)
+
+    /** UUID do usuário no Supabase (necessário para Minha Lista). */
+    fun loadUserId(context: Context): String =
+        context.getSharedPreferences("mf_session", Context.MODE_PRIVATE)
+            .getString("user_id", "") ?: ""
 
     fun clearSession(context: Context) {
         context.getSharedPreferences("mf_session", Context.MODE_PRIVATE).edit().clear().apply()

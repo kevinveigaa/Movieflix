@@ -18,9 +18,9 @@ data class Movie(
     val quality: String = "",
     val type: String = "movie",
     val media_type: String = "",
-    val tmdb_id: String? = null,
+    val tmdb_id: Long? = null,
     val year: String? = null,
-    val duration: String? = null,
+    val duration: Long? = null,
     val seasons: Int? = null,
     val episodes: Int? = null,
     val episodes_available: List<String> = emptyList(),
@@ -28,6 +28,9 @@ data class Movie(
 ) {
     val ehSerie: Boolean
         get() = type.equals("series", true) || type.equals("serie", true) || type.equals("tv", true)
+
+    val tmdbIdNumerico: Long?
+        get() = tmdb_id ?: id.toLongOrNull()
 
     val categorias: List<String>
         get() = category.split(",").map { it.trim() }.filter { it.isNotEmpty() }

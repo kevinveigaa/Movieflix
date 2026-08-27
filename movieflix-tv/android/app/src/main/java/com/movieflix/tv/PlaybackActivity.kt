@@ -1,18 +1,10 @@
 package com.movieflix.tv
 
 import android.os.Bundle
+import android.view.KeyEvent
 import android.view.View
-import android.widget.ProgressBar
 import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
-import androidx.leanback.app.PlaybackSupportFragment
-import androidx.leanback.widget.Action
-import androidx.leanback.widget.ArrayObjectAdapter
-import androidx.leanback.widget.ClassPresenterSelector
-import androidx.leanback.widget.ControlButtonPresenterSelector
-import androidx.leanback.widget.OnActionClickedListener
-import androidx.leanback.widget.PlaybackControlsRow
-import androidx.leanback.widget.PlaybackSeekUi
 import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
@@ -26,9 +18,12 @@ import kotlinx.coroutines.withContext
 
 /**
  * Player nativo (ExoPlayer/Media3) com controles Leanback via D-pad:
- * OK = play/pause, ←/→ = seek, ↑/↓ = volume, BACK = sair.
- * O stream só é montado após o BACKEND validar a assinatura
- * (server-side). Sem assinatura → tela de bloqueio com os planos.
+ * OK = play/pause, ←/→ = seek ±15s, ↑/↓ = volume, BACK = sair.
+ *
+ * O stream SÓ é montado após o BACKEND validar a assinatura (server-side).
+ * Sem assinatura → tela de bloqueio com os planos. Erro → tela com "Tentar de novo".
+ * A barra de controles nativa do Media3 (progresso, play/pause, seek) é
+ * acionada pelo botão OK central.
  */
 class PlaybackActivity : AppCompatActivity() {
 
@@ -37,19 +32,27 @@ class PlaybackActivity : AppCompatActivity() {
 
     private var player: ExoPlayer? = null
     private var playerView: PlayerView? = null
-    private var bloqueio: View? = null
-    private var progresso: ProgressBar? = null
+    private var layoutLoading: View? = null
+    private var layoutErro: View? = null
+    private var layoutBloqueio: View? = null
     private var erroTexto: TextView? = null
+    private var bloqueioTexto: TextView? = null
+
+    private var embedUrl: String = ""
+    private var retomadaSegundos: Long = 0L
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_playback)
 
         playerView = findViewById(R.id.playerView)
-        bloqueio = findViewById(R.id.layoutBloqueio)
-        progresso = findViewById(R.id.progresso)
+        layoutLoading = findViewById(R.id.layoutLoading)
+        layoutErro = findViewById(R.id.layoutErro)
+        layoutBloqueio = findViewById(R.id.layoutBloqueio)
         erroTexto = findViewById(R.id.lblErroPlayer)
-        val btnAssinar = findViewById<android.widget.Button>(R.id.btnAssinar)
+        bloqueioTexto = findViewById(R.id.lblBloqueio)
+        val btnTentar = findViewById<android.widget.Button>(R.id.btnTentarNovamente)
+        val btnSairErro = findViewById<android.widget.Button>(R.id.btnSairErro)
         val btnSair = findViewById<android.widget.Button>(R.id.btnSair)
 
         val movieId = intent.getStringExtra("movie_id")
@@ -60,16 +63,43 @@ class PlaybackActivity : AppCompatActivity() {
             return
         }
 
-        btnAssinar.setOnClickListener { finish() } // volta para navegar; assinatura é feita no site/app normal
-        btnSair.setOnClickListener { finish() }
+        // retomada local (posição salva em execuções anteriores)
+        retomadaSegundos = ProgressRepository.carregar(this, movie.id)
 
-        val embed = movie.embedUrl
-        if (embed.isBlank()) {
+        // monta embed: filme usa video_url/tmdb; série usa tmdb_id + temporada/episódio
+        embedUrl = montarEmbed(movie)
+        if (embedUrl.isBlank()) {
             mostrarBloqueio("Este título ainda não possui fonte de vídeo.")
             return
         }
 
-        // 1) Tenta resolver o stream no backend (valida assinatura no servidor)
+        btnTentar.setOnClickListener { resolverEIniciar(movie.id) }
+        btnSairErro.setOnClickListener { finish() }
+        btnSair.setOnClickListener { finish() }
+
+        resolverEIniciar(movie.id)
+    }
+
+    /** Monta a URL do embed StreamBetter (mesma regra do site). */
+    private fun montarEmbed(movie: Movie): String {
+        if (movie.ehSerie) {
+            val tmdb = movie.tmdbIdNumerico ?: return ""
+            val s = intent.getIntExtra("season", 1).coerceAtLeast(1)
+            val e = intent.getIntExtra("episode", 1).coerceAtLeast(1)
+            return "https://streambetter.shop/serie/$tmdb/$s/$e?lang=pt-BR"
+        }
+        if (movie.video_url.isNotBlank()) return movie.video_url
+        val tmdb = movie.tmdbIdNumerico ?: return ""
+        return "https://streambetter.shop/filme/$tmdb?lang=pt-BR"
+    }
+
+    private fun resolverEIniciar(movieId: String) {
+        if (embedUrl.isBlank()) return
+        layoutErro?.visibility = View.GONE
+        layoutBloqueio?.visibility = View.GONE
+        layoutLoading?.visibility = View.VISIBLE
+        playerView?.visibility = View.GONE
+
         scope.launch {
             val token = withContext(Dispatchers.IO) { AuthRepository.loadToken(this@PlaybackActivity) }
             if (token.isNullOrBlank()) {
@@ -77,13 +107,20 @@ class PlaybackActivity : AppCompatActivity() {
                 return@launch
             }
             val resolucao = withContext(Dispatchers.IO) {
-                StreamResolver.resolve(embed, token)
+                StreamResolver.resolve(embedUrl, token)
             }
             if (!resolucao.success || resolucao.url.isNullOrBlank()) {
-                mostrarBloqueio(
-                    "Você precisa de uma assinatura ativa para assistir. " +
-                        "Assine pelo site ou app do MovieFlix e volte aqui.",
-                )
+                if (resolucao.motivo == "http_402" || resolucao.motivo?.contains("assinatura") == true) {
+                    mostrarBloqueio(
+                        "Você precisa de uma assinatura ativa para assistir.\n" +
+                            "Assine pelo site ou app do MovieFlix e volte aqui.",
+                    )
+                } else {
+                    mostrarErro(
+                        "Não foi possível carregar o vídeo agora.\n" +
+                            (resolucao.erro ?: resolucao.motivo ?: "Erro de rede"),
+                    )
+                }
                 return@launch
             }
             iniciarPlayer(resolucao.url)
@@ -94,49 +131,82 @@ class PlaybackActivity : AppCompatActivity() {
         val pv = playerView ?: return
         val exo = ExoPlayer.Builder(this).build().apply {
             setMediaItem(MediaItem.fromUri(url))
+            if (retomadaSegundos > 0) seekTo(retomadaSegundos)
             playWhenReady = true
             prepare()
         }
+        exo.addListener(object : Player.Listener {
+            override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
+                exo.release()
+                player = null
+                mostrarErro("Falha na reprodução (${error.errorCodeName}). Tente novamente.")
+            }
+        })
         player = exo
         pv.player = exo
-        progresso?.visibility = View.GONE
-        bloqueio?.visibility = View.GONE
+        layoutLoading?.visibility = View.GONE
+        layoutBloqueio?.visibility = View.GONE
+        layoutErro?.visibility = View.GONE
         pv.visibility = View.VISIBLE
         pv.requestFocus()
+
+        // salva retomada (posição) periodicamente enquanto assiste
+        scope.launch {
+            while (true) {
+                kotlinx.coroutines.delay(10_000)
+                val p = player ?: break
+                val pos = p.currentPosition
+                val dur = p.duration
+                if (dur > 0 && pos > 60_000 && pos < dur - 30_000) {
+                    ProgressRepository.salvar(this@PlaybackActivity, movieIdAtual(), pos)
+                }
+            }
+        }
     }
 
+    private fun movieIdAtual(): String = intent.getStringExtra("movie_id") ?: ""
+
     private fun mostrarBloqueio(msg: String) {
-        progresso?.visibility = View.GONE
+        layoutLoading?.visibility = View.GONE
         playerView?.visibility = View.GONE
-        bloqueio?.visibility = View.VISIBLE
+        layoutErro?.visibility = View.GONE
+        layoutBloqueio?.visibility = View.VISIBLE
+        bloqueioTexto?.text = msg
+    }
+
+    private fun mostrarErro(msg: String) {
+        layoutLoading?.visibility = View.GONE
+        playerView?.visibility = View.GONE
+        layoutBloqueio?.visibility = View.GONE
+        layoutErro?.visibility = View.VISIBLE
         erroTexto?.text = msg
     }
 
-    override fun onKeyDown(keyCode: Int, event: android.view.KeyEvent?): Boolean {
+    override fun onKeyDown(keyCode: Int, event: KeyEvent?): Boolean {
         val p = player ?: return super.onKeyDown(keyCode, event)
         return when (keyCode) {
-            android.view.KeyEvent.KEYCODE_DPAD_LEFT -> {
+            KeyEvent.KEYCODE_DPAD_LEFT -> {
                 p.seekTo((p.currentPosition - 15000).coerceAtLeast(0)); true
             }
-            android.view.KeyEvent.KEYCODE_DPAD_RIGHT -> {
+            KeyEvent.KEYCODE_DPAD_RIGHT -> {
                 p.seekTo(p.currentPosition + 15000); true
             }
-            android.view.KeyEvent.KEYCODE_DPAD_UP -> {
+            KeyEvent.KEYCODE_DPAD_UP -> {
                 p.volume = (p.volume + 0.1f).coerceAtMost(1f); true
             }
-            android.view.KeyEvent.KEYCODE_DPAD_DOWN -> {
+            KeyEvent.KEYCODE_DPAD_DOWN -> {
                 p.volume = (p.volume - 0.1f).coerceAtLeast(0f); true
             }
-            android.view.KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE,
-            android.view.KeyEvent.KEYCODE_SPACE,
-            android.view.KeyEvent.KEYCODE_DPAD_CENTER,
-            android.view.KeyEvent.KEYCODE_ENTER,
+            KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE,
+            KeyEvent.KEYCODE_SPACE,
+            KeyEvent.KEYCODE_DPAD_CENTER,
+            KeyEvent.KEYCODE_ENTER,
             -> {
                 if (p.isPlaying) p.pause() else p.play()
                 true
             }
-            android.view.KeyEvent.KEYCODE_MEDIA_STOP,
-            android.view.KeyEvent.KEYCODE_BACK,
+            KeyEvent.KEYCODE_MEDIA_STOP,
+            KeyEvent.KEYCODE_BACK,
             -> {
                 p.release()
                 player = null
@@ -144,6 +214,17 @@ class PlaybackActivity : AppCompatActivity() {
                 true
             }
             else -> super.onKeyDown(keyCode, event)
+        }
+    }
+
+    override fun onUserLeaveHint() {
+        super.onUserLeaveHint()
+        // salva posição ao sair (BACK ou tecla Home)
+        val p = player ?: return
+        val pos = p.currentPosition
+        val dur = p.duration
+        if (dur > 0 && pos > 60_000 && pos < dur - 30_000) {
+            ProgressRepository.salvar(this, movieIdAtual(), pos)
         }
     }
 

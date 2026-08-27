@@ -49,7 +49,7 @@ class LoginActivity : AppCompatActivity() {
                 val r = withContext(Dispatchers.IO) { AuthRepository.login(e, s) }
                 trabalhando = false
                 if (r.ok && !r.accessToken.isNullOrBlank()) {
-                    AuthRepository.saveSession(this@LoginActivity, r.accessToken, e)
+                    AuthRepository.saveSession(this@LoginActivity, r.accessToken, e, r.userId)
                     abrirHome()
                 } else {
                     mostrarErro(erro, r.error ?: "Falha no login")
@@ -71,7 +71,7 @@ class LoginActivity : AppCompatActivity() {
                 val r = withContext(Dispatchers.IO) { AuthRepository.signup(e, s) }
                 trabalhando = false
                 if (r.ok && !r.accessToken.isNullOrBlank()) {
-                    AuthRepository.saveSession(this@LoginActivity, r.accessToken, e)
+                    AuthRepository.saveSession(this@LoginActivity, r.accessToken, e, r.userId)
                     abrirHome()
                 } else {
                     mostrarErro(erro, r.error ?: "Falha no cadastro")

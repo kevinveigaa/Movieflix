@@ -50,6 +50,16 @@
             android:screenOrientation="landscape" />
 
         <activity
+            android:name=".CatalogActivity"
+            android:exported="false"
+            android:screenOrientation="landscape" />
+
+        <activity
+            android:name=".MyListActivity"
+            android:exported="false"
+            android:screenOrientation="landscape" />
+
+        <activity
             android:name=".DetailsActivity"
             android:exported="false"
             android:screenOrientation="landscape" />
