@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <style name="Theme.MovieFlixTV" parent="Theme.AppCompat.NoActionBar">
-        <item name="colorPrimary">@color/mf_pink</item>
+        <item name="colorPrimary">@color/mf_purple</item>
         <item name="colorPrimaryDark">@color/mf_black</item>
-        <item name="colorAccent">@color/mf_indigo</item>
+        <item name="colorAccent">@color/mf_red</item>
         <item name="android:windowBackground">@color/mf_black</item>
         <item name="android:fontFamily">sans-serif</item>
     </style>

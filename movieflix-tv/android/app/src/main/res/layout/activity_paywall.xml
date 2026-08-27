@@ -43,7 +43,7 @@
         android:layout_width="wrap_content"
         android:layout_height="56dp"
         android:layout_marginTop="28dp"
-        android:backgroundTint="@color/mf_indigo"
+        android:backgroundTint="@color/mf_purple"
         android:paddingStart="32dp"
         android:paddingEnd="32dp"
         android:text="VOLTAR"

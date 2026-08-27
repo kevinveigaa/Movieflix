@@ -52,7 +52,7 @@ class MovieListAdapter(
                 Glide.with(itemView.context)
                     .load(poster)
                     .centerCrop()
-                    .placeholder(android.graphics.drawable.ColorDrawable(0xFF13131D.toInt()))
+                    .placeholder(android.graphics.drawable.ColorDrawable(0xFF16161F.toInt()))
                     .into(capa)
                 capa.isVisible = true
             } else {

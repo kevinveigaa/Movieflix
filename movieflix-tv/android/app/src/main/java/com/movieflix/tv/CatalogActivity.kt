@@ -53,7 +53,7 @@ class CatalogActivity : AppCompatActivity() {
             title = if (modo == "series") "Séries" else "Filmes"
             setHeadersState(HEADERS_ENABLED)
             isHeadersTransitionOnBackEnabled = true
-            brandColor = android.graphics.Color.rgb(11, 11, 18)
+            brandColor = android.graphics.Color.rgb(10, 10, 15)
 
             val adapter = ArrayObjectAdapter(ListRowPresenter())
             this.adapter = adapter

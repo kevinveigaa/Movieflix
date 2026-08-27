@@ -4,19 +4,38 @@
     android:layout_height="match_parent"
     android:background="@color/mf_black">
 
-    <TextView
-        android:id="@+id/splashBrand"
+    <LinearLayout
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_gravity="center"
-        android:background="@drawable/mf_gradient"
         android:gravity="center"
-        android:paddingStart="28dp"
-        android:paddingTop="12dp"
-        android:paddingEnd="28dp"
-        android:paddingBottom="12dp"
-        android:text="MovieFlix TV"
-        android:textColor="@color/mf_white"
-        android:textSize="34sp"
-        android:textStyle="bold" />
+        android:orientation="vertical">
+
+        <ImageView
+            android:id="@+id/splashLogo"
+            android:layout_width="180dp"
+            android:layout_height="180dp"
+            android:contentDescription="MovieFlix"
+            android:src="@drawable/mf_logo" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="18dp"
+            android:letterSpacing="0.18"
+            android:text="MOVIEFLIX"
+            android:textColor="@color/mf_white"
+            android:textSize="30sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:letterSpacing="0.1"
+            android:text="TV"
+            android:textColor="@color/mf_purple_light"
+            android:textSize="16sp"
+            android:textStyle="bold" />
+    </LinearLayout>
 </FrameLayout>

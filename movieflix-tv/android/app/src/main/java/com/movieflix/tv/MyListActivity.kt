@@ -53,7 +53,7 @@ class MyListActivity : AppCompatActivity() {
             super.onActivityCreated(savedInstanceState)
             title = "Minha Lista"
             setHeadersState(HEADERS_DISABLED)
-            brandColor = android.graphics.Color.rgb(11, 11, 18)
+            brandColor = android.graphics.Color.rgb(10, 10, 15)
 
             val ctx = activity ?: return
             val adapter = ArrayObjectAdapter(ListRowPresenter())

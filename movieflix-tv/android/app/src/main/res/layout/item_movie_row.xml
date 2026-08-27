@@ -4,15 +4,18 @@
     android:layout_height="wrap_content"
     android:background="@drawable/bg_focus"
     android:gravity="center_vertical"
-    android:minHeight="110dp"
+    android:minHeight="150dp"
     android:orientation="horizontal"
-    android:padding="12dp">
+    android:padding="14dp">
 
     <androidx.cardview.widget.CardView
-        android:layout_width="72dp"
-        android:layout_height="108dp"
+        android:layout_width="96dp"
+        android:layout_height="144dp"
         android:clickable="false"
-        android:focusable="false">
+        android:focusable="false"
+        app:cardCornerRadius="10dp"
+        app:cardElevation="0dp"
+        xmlns:app="http://schemas.android.com/apk/res-auto">
 
         <androidx.appcompat.widget.AppCompatImageView
             android:id="@+id/imgCapa"
@@ -24,7 +27,7 @@
     <LinearLayout
         android:layout_width="0dp"
         android:layout_height="wrap_content"
-        android:layout_marginStart="16dp"
+        android:layout_marginStart="20dp"
         android:layout_weight="1"
         android:orientation="vertical">
 
@@ -35,15 +38,15 @@
             android:ellipsize="end"
             android:maxLines="1"
             android:textColor="@color/mf_white"
-            android:textSize="20sp"
+            android:textSize="22sp"
             android:textStyle="bold" />
 
         <TextView
             android:id="@+id/txtMeta"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginTop="4dp"
-            android:textColor="@color/mf_gray"
-            android:textSize="14sp" />
+            android:layout_marginTop="6dp"
+            android:textColor="@color/mf_red"
+            android:textSize="15sp" />
     </LinearLayout>
 </LinearLayout>
