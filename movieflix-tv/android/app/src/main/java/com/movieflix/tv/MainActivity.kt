@@ -73,6 +73,9 @@ class MainActivity : androidx.appcompat.app.AppCompatActivity() {
             brandColor = Color.rgb(11, 11, 18)
 
             adapter = ArrayObjectAdapter(ListRowPresenter())
+            // CRÍTICO: sem setAdapter o BrowseSupportFragment não renderiza
+            // nenhuma linha — a Home ficava cinza com só o título no canto.
+            setAdapter(adapter)
             loadRows()
             onItemViewClickedListener = OnItemViewClickedListener { _, item, _, _ ->
                 if (item is Movie) {
