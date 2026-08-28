@@ -64,14 +64,16 @@ export const APK_SIZE_MB = '4.9 MB';
 export const TV_APP_INFO = {
   /** Nome exibido do aplicativo de TV */
   name: 'MovieFlix TV',
-  /** Versão semântica atual (bate com movieflix-tv/android/app/build.gradle → versionName) */
-  version: '1.6.0',
+  version: '1.7.0',
   /** Código de versão Android (bate com versionCode) */
-  versionCode: 9,
+  versionCode: 10,
   /** Data de lançamento desta versão (AAAA-MM-DD) */
-  releaseDate: '2026-08-27',
+  releaseDate: '2026-08-28',
   /** Resumo das mudanças desta versão (exibido na página de download) */
   changelog: [
+    'CORREÇÃO DEFINITIVA: a Home agora SEMPRE carrega o catálogo completo após o login (filmes, séries, categorias e destaques)',
+    'Carregamento do catálogo em segundo plano (sem travar a interface) e tolerante a itens com dados incompletos — nenhum título é perdido',
+    'Logs de diagnóstico no app para facilitar a detecção de qualquer falha futura de carregamento',
     'CORREÇÃO CRÍTICA: reprodução agora acontece SEMPRE dentro do app (ExoPlayer) — nunca sai do app nem abre navegador',
     'Resolução de stream resiliente: se o backend estiver fora do ar, o app resolve o HLS direto do StreamBetter (mesma lógica do site)',
     'NOVO VISUAL: identidade visual do site MovieFlix (preto/roxo/vermelho/branco/cinza) em todas as telas',
@@ -90,7 +92,7 @@ export const TV_APP_INFO = {
   /** Plataformas suportadas */
   platforms: ['Android TV', 'Google TV', 'TV Box'],
   /** Nome do arquivo do APK oficial (manter sincronizado com public/apk/) */
-  apkFileName: 'MovieFlixTV-v1.6.0.apk',
+  apkFileName: 'MovieFlixTV-v1.7.0.apk',
 } as const;
 
 /** Caminho público do APK do MovieFlix TV dentro do app (servido pelo backend/static). */
@@ -99,7 +101,7 @@ export const TV_APK_URL = `/apk/${TV_APP_INFO.apkFileName}`;
 /** URL ABSOLUTA do APK do MovieFlix TV (usada pelo QR code e por links externos). */
 export const TV_APK_ABSOLUTE_URL = `https://movieflix-bszf.onrender.com${TV_APK_URL}`;
 
-/** Tamanho do APK do MovieFlix TV em MB (exibido na página de download). Mantido em sincronia com public/apk/MovieFlixTV-v1.6.0.apk (12.016.314 bytes ≈ 11,5 MB). */
+/** Tamanho do APK do MovieFlix TV em MB (exibido na página de download). Mantido em sincronia com public/apk/MovieFlixTV-v1.7.0.apk (12.017.506 bytes ≈ 11,5 MB). */
 export const TV_APK_SIZE_MB = '11,5 MB';
 
 /** Chave usada no localStorage para lembrar a última versão vista pelo usuário. */
