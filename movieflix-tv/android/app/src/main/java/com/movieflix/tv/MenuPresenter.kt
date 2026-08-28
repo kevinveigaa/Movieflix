@@ -24,7 +24,7 @@ class MenuPresenter : Presenter() {
             setPadding(34, 16, 34, 16)
             background = GradientDrawable().apply {
                 cornerRadius = 24f
-                setColor(0xFF16161F.toInt())
+                setColor(0xFF171717.toInt())
             }
             isFocusable = true
             isFocusableInTouchMode = true
@@ -43,9 +43,9 @@ class MenuPresenter : Presenter() {
             val bg = v.background as GradientDrawable
             if (hasFocus) {
                 bg.setColor(0xFF7C3AED.toInt())
-                bg.setStroke(3, 0xFFDC2626.toInt())
+                bg.setStroke(3, 0xFFDF0A15.toInt())
             } else {
-                bg.setColor(0xFF16161F.toInt())
+                bg.setColor(0xFF171717.toInt())
                 bg.setStroke(0, Color.TRANSPARENT)
             }
         }

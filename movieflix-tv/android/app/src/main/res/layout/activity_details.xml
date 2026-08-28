@@ -18,6 +18,19 @@
         android:layout_height="match_parent"
         android:background="@drawable/details_scrim" />
 
+    <!-- Botão Voltar (topo esquerdo, como o site) -->
+    <Button
+        android:id="@+id/btnVoltar"
+        android:layout_width="64dp"
+        android:layout_height="64dp"
+        android:layout_gravity="top|start"
+        android:layout_margin="24dp"
+        android:background="@drawable/bg_btn_ghost"
+        android:text="←"
+        android:textColor="@color/mf_white"
+        android:textSize="26sp"
+        android:textStyle="bold" />
+
     <!-- Conteúdo rolável -->
     <ScrollView
         android:id="@+id/detScroll"
@@ -80,10 +93,11 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:ellipsize="end"
+                    android:fontFamily="@font/bebas_neue"
+                    android:letterSpacing="0.02"
                     android:maxLines="2"
                     android:textColor="@color/mf_white"
-                    android:textSize="40sp"
-                    android:textStyle="bold"
+                    android:textSize="52sp"
                     android:shadowColor="#000000"
                     android:shadowDx="0"
                     android:shadowDy="2"

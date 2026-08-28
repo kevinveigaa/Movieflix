@@ -71,7 +71,7 @@ class MainActivity : androidx.appcompat.app.AppCompatActivity() {
             title = "MovieFlix TV"
             setHeadersState(HEADERS_ENABLED)
             isHeadersTransitionOnBackEnabled = true
-            brandColor = Color.rgb(10, 10, 15)
+            brandColor = Color.rgb(5, 5, 5)
 
             adapter = ArrayObjectAdapter(ListRowPresenter())
             setAdapter(adapter)

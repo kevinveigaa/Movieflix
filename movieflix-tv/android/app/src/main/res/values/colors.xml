@@ -1,17 +1,30 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- Identidade visual MovieFlix (mesma paleta do site: preto/roxo/vermelho/branco/cinza) -->
-    <color name="mf_black">#0A0A0F</color>
-    <color name="mf_surface">#16161F</color>
-    <color name="mf_surface_light">#1F1F2A</color>
-    <color name="mf_surface_strong">#2A2A38</color>
+    <!-- Identidade visual MovieFlix — paleta EXATA do site (tailwind.config.js) -->
+    <!-- ink-950 (fundo) -->
+    <color name="mf_black">#050505</color>
+    <!-- ink-900 -->
+    <color name="mf_surface">#0D0D0D</color>
+    <!-- ink-800 -->
+    <color name="mf_surface_light">#171717</color>
+    <!-- ink-700 -->
+    <color name="mf_surface_strong">#262626</color>
+    <!-- roxo-600 -->
     <color name="mf_purple">#7C3AED</color>
-    <color name="mf_purple_light">#A78BFA</color>
-    <color name="mf_red">#DC2626</color>
-    <color name="mf_red_light">#EF3030</color>
+    <!-- roxo-400 -->
+    <color name="mf_purple_light">#A485FC</color>
+    <!-- brand-600 (vermelho MovieFlix) -->
+    <color name="mf_red">#DF0A15</color>
+    <!-- brand-500 -->
+    <color name="mf_red_light">#FF2D2D</color>
     <color name="mf_white">#FFFFFF</color>
-    <color name="mf_gray">#8A8A96</color>
-    <color name="mf_gray_light">#C8C8D2</color>
-    <color name="mf_green">#4ADE80</color>
-    <color name="splash_background">#0A0A0F</color>
+    <!-- zinc-400 (texto secundário) -->
+    <color name="mf_gray">#A1A1AA</color>
+    <!-- zinc-300 -->
+    <color name="mf_gray_light">#D4D4D8</color>
+    <!-- emerald-600 (badge Dublado) -->
+    <color name="mf_green">#059669</color>
+    <!-- emerald-500 -->
+    <color name="mf_green_light">#10B981</color>
+    <color name="splash_background">#050505</color>
 </resources>

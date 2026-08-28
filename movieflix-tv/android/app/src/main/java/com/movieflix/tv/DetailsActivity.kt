@@ -70,6 +70,9 @@ class DetailsActivity : AppCompatActivity() {
         btnEpAnt.setOnClickListener { trocarEpisodio(-1) }
         btnEpProx.setOnClickListener { trocarEpisodio(+1) }
 
+        // Botão Voltar (topo esquerdo, como o site)
+        findViewById<View>(R.id.btnVoltar)?.setOnClickListener { finish() }
+
         // Foco inicial no botão ASSISTIR (controle remoto)
         btnAssistir.requestFocus()
 

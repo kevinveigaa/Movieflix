@@ -15,4 +15,12 @@
     <style name="Theme.MovieFlixTV.Splash" parent="Theme.MovieFlixTV">
         <item name="android:windowBackground">@color/splash_background</item>
     </style>
+
+    <!-- Título display (Bebas Neue) — usado no wordmark MOVIEFLIX e títulos hero -->
+    <style name="TextAppearance.MovieFlix.Display" parent="TextAppearance.AppCompat">
+        <item name="android:fontFamily">@font/bebas_neue</item>
+        <item name="android:textStyle">normal</item>
+        <item name="android:textColor">@color/mf_white</item>
+        <item name="android:letterSpacing">0.04</item>
+    </style>
 </resources>

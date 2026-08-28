@@ -64,26 +64,24 @@ export const APK_SIZE_MB = '4.9 MB';
 export const TV_APP_INFO = {
   /** Nome exibido do aplicativo de TV */
   name: 'MovieFlix TV',
-  version: '1.8.0',
+  version: '1.9.0',
   /** Código de versão Android (bate com versionCode) */
-  versionCode: 11,
+  versionCode: 12,
   /** Data de lançamento desta versão (AAAA-MM-DD) */
   releaseDate: '2026-08-28',
   /** Resumo das mudanças desta versão (exibido na página de download) */
   changelog: [
-    'CORREÇÃO CRÍTICA: clicar em um filme/série NÃO sai mais do app — a tela de detalhes foi reconstruída do zero com layout 100% nativo (antes usava um componente Leanback frágil que causava crash)',
-    'NOVA TELA DE DETALHES: backdrop de fundo, pôster grande, título, metadados completos, sinopse legível e botões grandes ASSISTIR e MINHA LISTA com foco D-pad claro',
-    'Seletor de TEMPORADA e EPISÓDIO nas séries, navegável pelo controle remoto',
-    'HOME com menu de navegação (Início | Filmes | Séries | Minha Lista) e banner hero de destaque',
-    'CARDS redesenhados: espaçamento adequado entre eles (sem ficar espremido), badge "Dublado pt-BR" elegante, título e nota com respiro, foco com borda vermelha + sombra sem sobrepor vizinhos',
-    'Banner hero corrigido: texto nunca mais cortado, backdrop preenchendo toda a área',
-    'Player mais robusto: qualquer falha na criação do player vira tela de erro com "Tentar de novo" — nunca sai do app',
+    'VISUAL IDÊNTICO AO SITE: paleta exata do MovieFlix (preto #050505, vermelho #DF0A15, roxo #7C3AED, verde esmeralda) em todas as telas',
+    'Fonte Bebas Neue (mesma do site) nos títulos display e no wordmark MOVIEFLIX',
+    'CARDS idênticos ao site: badge "Dublado pt-BR" verde, badge de ano, badge "SÉRIE", ícone play com gradiente roxo→vermelho no foco, borda de foco gradiente',
+    'BANNER HERO idêntico ao site: badge "DESTAQUE" com gradiente, chips de qualidade/idioma/gênero, título em Bebas Neue, botão "ASSISTIR" com gradiente',
+    'TELA DE DETALHES: botão voltar (topo esquerdo), título em Bebas Neue, botões ASSISTIR e MINHA LISTA com gradiente roxo→vermelho',
     'Aplicativo 100% NATIVO Android TV (Kotlin + Leanback + ExoPlayer) — sem WebView, sem site dentro do app',
   ],
   /** Plataformas suportadas */
   platforms: ['Android TV', 'Google TV', 'TV Box'],
   /** Nome do arquivo do APK oficial (manter sincronizado com public/apk/) */
-  apkFileName: 'MovieFlixTV-v1.8.0.apk',
+  apkFileName: 'MovieFlixTV-v1.9.0.apk',
 } as const;
 
 /** Caminho público do APK do MovieFlix TV dentro do app (servido pelo backend/static). */
@@ -92,7 +90,7 @@ export const TV_APK_URL = `/apk/${TV_APP_INFO.apkFileName}`;
 /** URL ABSOLUTA do APK do MovieFlix TV (usada pelo QR code e por links externos). */
 export const TV_APK_ABSOLUTE_URL = `https://movieflix-bszf.onrender.com${TV_APK_URL}`;
 
-/** Tamanho do APK do MovieFlix TV em MB (exibido na página de download). Mantido em sincronia com public/apk/MovieFlixTV-v1.8.0.apk (12.026.087 bytes ≈ 11,5 MB). */
+/** Tamanho do APK do MovieFlix TV em MB (exibido na página de download). Mantido em sincronia com public/apk/MovieFlixTV-v1.9.0.apk (12.057.137 bytes ≈ 11,5 MB). */
 export const TV_APK_SIZE_MB = '11,5 MB';
 
 /** Chave usada no localStorage para lembrar a última versão vista pelo usuário. */
