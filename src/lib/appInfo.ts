@@ -65,17 +65,20 @@ export const TV_APP_INFO = {
   /** Nome exibido do aplicativo de TV */
   name: 'MovieFlix TV',
   /** Versão semântica atual (bate com movieflix-tv/android/app/build.gradle → versionName) */
-  version: '1.5.0',
+  version: '1.6.0',
   /** Código de versão Android (bate com versionCode) */
-  versionCode: 8,
+  versionCode: 9,
   /** Data de lançamento desta versão (AAAA-MM-DD) */
   releaseDate: '2026-08-27',
   /** Resumo das mudanças desta versão (exibido na página de download) */
   changelog: [
+    'CORREÇÃO CRÍTICA: reprodução agora acontece SEMPRE dentro do app (ExoPlayer) — nunca sai do app nem abre navegador',
+    'Resolução de stream resiliente: se o backend estiver fora do ar, o app resolve o HLS direto do StreamBetter (mesma lógica do site)',
     'NOVO VISUAL: identidade visual do site MovieFlix (preto/roxo/vermelho/branco/cinza) em todas as telas',
     'Logo oficial do MovieFlix (M) no Splash e na tela de Login',
     'Banner hero de destaque no topo da Home com backdrop, título e sinopse',
     'Cards maiores com cantos arredondados, badge "Dublado pt-BR" e foco com borda vermelha + escala',
+    'Tela de detalhes reformada: título grande, metadados completos (tipo, ano, gênero, nota, qualidade, idioma, duração) e sinopse legível',
     'Home reorganizada: Destaque, Filmes em alta, Lançamentos, Séries em alta e Categorias',
     'Aplicativo 100% NATIVO Android TV (Kotlin + Leanback + ExoPlayer) — sem WebView, sem site dentro do app',
     'Página completa de FILMES e SÉRIES com catálogo, categorias e ordenação por nota (navegação D-pad nativa)',
@@ -83,12 +86,11 @@ export const TV_APP_INFO = {
     'MINHA LISTA: adicionar/remover/abrir seus títulos salvos (mesma tabela favorites do site — Supabase)',
     'Player nativo com barra de progresso, play/pause, avançar/voltar 15s, volume, carregamento, erros com "Tentar de novo" e retomada local',
     'Login/cadastro com a MESMA conta do site (Supabase) — assinatura reconhecida automaticamente',
-    'CORREÇÃO CRÍTICA: Home carregava vazia após o login — catálogo agora carrega filmes, séries e categorias corretamente',
   ],
   /** Plataformas suportadas */
   platforms: ['Android TV', 'Google TV', 'TV Box'],
   /** Nome do arquivo do APK oficial (manter sincronizado com public/apk/) */
-  apkFileName: 'MovieFlixTV-v1.5.0.apk',
+  apkFileName: 'MovieFlixTV-v1.6.0.apk',
 } as const;
 
 /** Caminho público do APK do MovieFlix TV dentro do app (servido pelo backend/static). */
@@ -97,7 +99,7 @@ export const TV_APK_URL = `/apk/${TV_APP_INFO.apkFileName}`;
 /** URL ABSOLUTA do APK do MovieFlix TV (usada pelo QR code e por links externos). */
 export const TV_APK_ABSOLUTE_URL = `https://movieflix-bszf.onrender.com${TV_APK_URL}`;
 
-/** Tamanho do APK do MovieFlix TV em MB (exibido na página de download). Mantido em sincronia com public/apk/MovieFlixTV-v1.5.0.apk (12.013.383 bytes ≈ 11,5 MB). */
+/** Tamanho do APK do MovieFlix TV em MB (exibido na página de download). Mantido em sincronia com public/apk/MovieFlixTV-v1.6.0.apk (12.016.314 bytes ≈ 11,5 MB). */
 export const TV_APK_SIZE_MB = '11,5 MB';
 
 /** Chave usada no localStorage para lembrar a última versão vista pelo usuário. */

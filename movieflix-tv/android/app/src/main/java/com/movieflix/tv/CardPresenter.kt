@@ -23,9 +23,9 @@ import com.bumptech.glide.request.RequestOptions
 class CardPresenter : Presenter() {
 
     companion object {
-        const val CARD_WIDTH = 240
-        const val CARD_HEIGHT = 360
-        const val RADIUS = 14f
+        const val CARD_WIDTH = 260
+        const val CARD_HEIGHT = 390
+        const val RADIUS = 16f
     }
 
     override fun onCreateViewHolder(parent: ViewGroup): ViewHolder {
@@ -106,17 +106,17 @@ class CardPresenter : Presenter() {
             }
             addView(meta, metaLp)
 
-            // Foco: escala + borda vermelha
+            // Foco: escala + borda vermelha + sombra (nunca some, nunca pula)
             setOnFocusChangeListener { _, hasFocus ->
-                animate().scaleX(if (hasFocus) 1.08f else 1f)
-                    .scaleY(if (hasFocus) 1.08f else 1f)
-                    .setDuration(120)
+                animate().scaleX(if (hasFocus) 1.1f else 1f)
+                    .scaleY(if (hasFocus) 1.1f else 1f)
+                    .setDuration(150)
                     .start()
                 if (hasFocus) {
-                    elevation = 6f
+                    elevation = 12f
                     poster.background = GradientDrawable().apply {
                         cornerRadius = RADIUS
-                        setStroke(4, 0xFFDC2626.toInt())
+                        setStroke(5, 0xFFDC2626.toInt())
                     }
                 } else {
                     elevation = 0f

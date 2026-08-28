@@ -123,7 +123,13 @@ class PlaybackActivity : AppCompatActivity() {
                 }
                 return@launch
             }
-            iniciarPlayer(resolucao.url)
+            // Garantia: só reproduz se for HLS/MP4 direto. Nunca abre navegador/WebView.
+            val u = resolucao.url
+            if (!u.startsWith("http://") && !u.startsWith("https://")) {
+                mostrarErro("Fonte de vídeo inválida. Tente outro título.")
+                return@launch
+            }
+            iniciarPlayer(u)
         }
     }
 

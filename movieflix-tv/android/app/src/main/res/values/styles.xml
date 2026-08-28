@@ -6,6 +6,10 @@
         <item name="colorAccent">@color/mf_red</item>
         <item name="android:windowBackground">@color/mf_black</item>
         <item name="android:fontFamily">sans-serif</item>
+        <item name="android:colorAccent">@color/mf_red</item>
+        <item name="android:colorPrimary">@color/mf_purple</item>
+        <item name="android:colorPrimaryDark">@color/mf_black</item>
+        <item name="android:windowContentOverlay">@null</item>
     </style>
 
     <style name="Theme.MovieFlixTV.Splash" parent="Theme.MovieFlixTV">

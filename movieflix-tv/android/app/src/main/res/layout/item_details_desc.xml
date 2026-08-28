@@ -3,32 +3,45 @@
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:orientation="vertical"
-    android:padding="24dp">
+    android:paddingStart="32dp"
+    android:paddingTop="20dp"
+    android:paddingEnd="32dp"
+    android:paddingBottom="24dp">
 
     <TextView
         android:id="@+id/descTitulo"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:ellipsize="end"
-        android:maxLines="1"
+        android:maxLines="2"
         android:textColor="@color/mf_white"
-        android:textSize="30sp"
-        android:textStyle="bold" />
+        android:textSize="34sp"
+        android:textStyle="bold"
+        android:shadowColor="#000000"
+        android:shadowDx="0"
+        android:shadowDy="1"
+        android:shadowRadius="4" />
 
     <TextView
         android:id="@+id/descMeta"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_marginTop="8dp"
-        android:textColor="@color/mf_red"
-        android:textSize="16sp" />
+        android:layout_marginTop="10dp"
+        android:textColor="@color/mf_red_light"
+        android:textSize="18sp"
+        android:textStyle="bold"
+        android:shadowColor="#000000"
+        android:shadowRadius="3" />
 
     <TextView
         android:id="@+id/descTexto"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="14dp"
+        android:layout_marginTop="16dp"
         android:maxLines="6"
-        android:textColor="@color/mf_white"
-        android:textSize="16sp" />
+        android:textColor="@color/mf_gray_light"
+        android:textSize="17sp"
+        android:lineSpacingExtra="3dp"
+        android:shadowColor="#000000"
+        android:shadowRadius="3" />
 </LinearLayout>

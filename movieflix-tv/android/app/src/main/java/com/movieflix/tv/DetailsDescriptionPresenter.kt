@@ -5,10 +5,8 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.TextView
 import androidx.leanback.widget.Presenter
-import androidx.leanback.widget.PresenterSelector
-import androidx.leanback.widget.DetailsOverviewRow
 
-/** Descrição dos detalhes (título, nota, ano, qualidade, sinopse). */
+/** Descrição dos detalhes (título, nota, ano, qualidade, sinopse) — estética MovieFlix. */
 class DetailsDescriptionPresenter : Presenter() {
 
     override fun onCreateViewHolder(parent: ViewGroup): ViewHolder {
@@ -25,7 +23,24 @@ class DetailsDescriptionPresenter : Presenter() {
 
         titulo.text = movie.title
         val tipo = if (movie.ehSerie) "Série" else "Filme"
-        meta.text = "$tipo • ${movie.ano} • ★ ${movie.nota} • ${movie.qualidade()} • ${movie.language}"
+        val ano = movie.ano.ifBlank { "—" }
+        val nota = movie.nota
+        val qual = movie.qualidade()
+        val idioma = movie.language.ifBlank { "pt-BR" }
+        val genero = movie.categorias.firstOrNull()?.takeIf { it != "Outros" } ?: ""
+        val dur = if (!movie.ehSerie && movie.duration != null && movie.duration!! > 0) {
+            " • ${movie.duration!! / 60} min"
+        } else ""
+
+        val partes = mutableListOf<String>()
+        partes.add(tipo)
+        partes.add(ano)
+        if (genero.isNotBlank()) partes.add(genero)
+        if (nota != "—") partes.add("★ $nota")
+        partes.add(qual)
+        partes.add(idioma)
+        meta.text = partes.joinToString("  •  ") + dur
+
         texto.text = movie.description.ifBlank { "Sem descrição disponível." }
     }
 

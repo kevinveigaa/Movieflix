@@ -61,7 +61,7 @@ class DropBannerPresenter : Presenter() {
             // Gradiente escuro da esquerda para legibilidade
             val grad = GradientDrawable(
                 GradientDrawable.Orientation.LEFT_RIGHT,
-                intArrayOf(0xE60A0A0F.toInt(), 0x660A0A0F.toInt(), 0x00000000),
+                intArrayOf(0xF20A0A0F.toInt(), 0x990A0A0F.toInt(), 0x33000000),
             )
             val gradView = View(context)
             gradView.background = grad
