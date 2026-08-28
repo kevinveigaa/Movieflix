@@ -21,7 +21,13 @@ import java.net.URL
  */
 object CatalogRepository {
 
-    private val json = Json { ignoreUnknownKeys = true }
+    // coerceInputValues = true: converte null em campos não-nulos para o valor
+    // default (o catálogo tem vote_average/duration/description = null em vários
+    // itens; sem isso o decode inteiro falha e a Home fica vazia).
+    private val json = Json {
+        ignoreUnknownKeys = true
+        coerceInputValues = true
+    }
 
     @Volatile
     private var cache: List<Movie>? = null

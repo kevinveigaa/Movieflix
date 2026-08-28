@@ -65,9 +65,9 @@ export const TV_APP_INFO = {
   /** Nome exibido do aplicativo de TV */
   name: 'MovieFlix TV',
   /** Versão semântica atual (bate com movieflix-tv/android/app/build.gradle → versionName) */
-  version: '1.4.0',
+  version: '1.5.0',
   /** Código de versão Android (bate com versionCode) */
-  versionCode: 7,
+  versionCode: 8,
   /** Data de lançamento desta versão (AAAA-MM-DD) */
   releaseDate: '2026-08-27',
   /** Resumo das mudanças desta versão (exibido na página de download) */
@@ -83,11 +83,12 @@ export const TV_APP_INFO = {
     'MINHA LISTA: adicionar/remover/abrir seus títulos salvos (mesma tabela favorites do site — Supabase)',
     'Player nativo com barra de progresso, play/pause, avançar/voltar 15s, volume, carregamento, erros com "Tentar de novo" e retomada local',
     'Login/cadastro com a MESMA conta do site (Supabase) — assinatura reconhecida automaticamente',
+    'CORREÇÃO CRÍTICA: Home carregava vazia após o login — catálogo agora carrega filmes, séries e categorias corretamente',
   ],
   /** Plataformas suportadas */
   platforms: ['Android TV', 'Google TV', 'TV Box'],
   /** Nome do arquivo do APK oficial (manter sincronizado com public/apk/) */
-  apkFileName: 'MovieFlixTV-v1.4.0.apk',
+  apkFileName: 'MovieFlixTV-v1.5.0.apk',
 } as const;
 
 /** Caminho público do APK do MovieFlix TV dentro do app (servido pelo backend/static). */
@@ -96,7 +97,7 @@ export const TV_APK_URL = `/apk/${TV_APP_INFO.apkFileName}`;
 /** URL ABSOLUTA do APK do MovieFlix TV (usada pelo QR code e por links externos). */
 export const TV_APK_ABSOLUTE_URL = `https://movieflix-bszf.onrender.com${TV_APK_URL}`;
 
-/** Tamanho do APK do MovieFlix TV em MB (exibido na página de download). Mantido em sincronia com public/apk/MovieFlixTV-v1.4.0.apk (12.013.395 bytes ≈ 11,5 MB). */
+/** Tamanho do APK do MovieFlix TV em MB (exibido na página de download). Mantido em sincronia com public/apk/MovieFlixTV-v1.5.0.apk (12.013.383 bytes ≈ 11,5 MB). */
 export const TV_APK_SIZE_MB = '11,5 MB';
 
 /** Chave usada no localStorage para lembrar a última versão vista pelo usuário. */
