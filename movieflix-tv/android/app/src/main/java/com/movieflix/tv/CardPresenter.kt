@@ -14,23 +14,27 @@ import com.bumptech.glide.load.resource.bitmap.RoundedCorners
 import com.bumptech.glide.request.RequestOptions
 
 /**
- * Cart de catálogo nativo com estética MovieFlix.
- *  - Poster grande com cantos arredondados.
- *  - Badge "Dublado pt-BR" (verde) quando disponível.
- *  - Título + meta (ano · nota) abaixo do poster.
- *  - Foco D-pad: escala + borda vermelha (nunca some, nunca pula).
+ * Card de catálogo nativo com estética MovieFlix (preto/roxo/vermelho).
+ *  - Poster grande com cantos arredondados e GUTTER entre cards (não espremidos).
+ *  - Badge "Dublado pt-BR" elegante: fundo escuro translúcido + texto verde.
+ *  - Título + meta (ano · nota) com espaçamento adequado.
+ *  - Foco D-pad: borda vermelha + leve escala + sombra (nunca some, nunca pula).
  */
 class CardPresenter : Presenter() {
 
     companion object {
-        const val CARD_WIDTH = 260
-        const val CARD_HEIGHT = 390
-        const val RADIUS = 16f
+        const val CARD_WIDTH = 240
+        const val CARD_HEIGHT = 360
+        const val RADIUS = 14f
+        // Espaço horizontal entre cards (gutter) — evita o visual "espremido".
+        const val GUTTER = 18
+        // Espaço abaixo do poster para título + meta.
+        const val TEXT_AREA = 64
     }
 
     override fun onCreateViewHolder(parent: ViewGroup): ViewHolder {
         val card = MovieCardView(parent.context)
-        card.layoutParams = ViewGroup.LayoutParams(CARD_WIDTH, CARD_HEIGHT + 60)
+        card.layoutParams = ViewGroup.LayoutParams(CARD_WIDTH, CARD_HEIGHT + TEXT_AREA)
         card.isFocusable = true
         card.isFocusableInTouchMode = true
         return ViewHolder(card)
@@ -61,15 +65,16 @@ class CardPresenter : Presenter() {
             poster.layoutParams = FrameLayout.LayoutParams(CARD_WIDTH, CARD_HEIGHT)
             addView(poster)
 
-            // Badge "Dublado pt-BR"
+            // Badge "Dublado pt-BR" — fundo escuro translúcido + texto verde (elegante)
             badge.text = "Dublado pt-BR"
-            badge.setTextColor(Color.WHITE)
+            badge.setTextColor(0xFF4ADE80.toInt())
             badge.textSize = 11f
             badge.setTypeface(android.graphics.Typeface.DEFAULT_BOLD)
-            badge.setPadding(14, 6, 14, 6)
+            badge.setPadding(12, 5, 12, 5)
             badge.background = GradientDrawable().apply {
                 cornerRadius = 8f
-                setColor(0xFF16A34A.toInt())
+                setColor(0xCC000000.toInt())
+                setStroke(1, 0x664ADE80.toInt())
             }
             val badgeLp = FrameLayout.LayoutParams(
                 FrameLayout.LayoutParams.WRAP_CONTENT,
@@ -91,7 +96,7 @@ class CardPresenter : Presenter() {
                 FrameLayout.LayoutParams.MATCH_PARENT,
                 FrameLayout.LayoutParams.WRAP_CONTENT,
             ).apply {
-                topMargin = CARD_HEIGHT + 6
+                topMargin = CARD_HEIGHT + 8
             }
             addView(titulo, tituloLp)
 
@@ -102,18 +107,18 @@ class CardPresenter : Presenter() {
                 FrameLayout.LayoutParams.MATCH_PARENT,
                 FrameLayout.LayoutParams.WRAP_CONTENT,
             ).apply {
-                topMargin = CARD_HEIGHT + 28
+                topMargin = CARD_HEIGHT + 30
             }
             addView(meta, metaLp)
 
-            // Foco: escala + borda vermelha + sombra (nunca some, nunca pula)
+            // Foco: borda vermelha + leve escala + sombra (nunca some, nunca pula)
             setOnFocusChangeListener { _, hasFocus ->
-                animate().scaleX(if (hasFocus) 1.1f else 1f)
-                    .scaleY(if (hasFocus) 1.1f else 1f)
+                animate().scaleX(if (hasFocus) 1.08f else 1f)
+                    .scaleY(if (hasFocus) 1.08f else 1f)
                     .setDuration(150)
                     .start()
                 if (hasFocus) {
-                    elevation = 12f
+                    elevation = 14f
                     poster.background = GradientDrawable().apply {
                         cornerRadius = RADIUS
                         setStroke(5, 0xFFDC2626.toInt())
@@ -153,5 +158,7 @@ class CardPresenter : Presenter() {
             Glide.with(context).clear(poster)
             poster.setImageDrawable(null)
         }
+
+        private fun dp(v: Int): Int = (v * resources.displayMetrics.density).toInt()
     }
 }

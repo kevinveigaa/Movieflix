@@ -135,11 +135,17 @@ class PlaybackActivity : AppCompatActivity() {
 
     private fun iniciarPlayer(url: String) {
         val pv = playerView ?: return
-        val exo = ExoPlayer.Builder(this).build().apply {
-            setMediaItem(MediaItem.fromUri(url))
-            if (retomadaSegundos > 0) seekTo(retomadaSegundos)
-            playWhenReady = true
-            prepare()
+        val exo = try {
+            ExoPlayer.Builder(this).build().apply {
+                setMediaItem(MediaItem.fromUri(url))
+                if (retomadaSegundos > 0) seekTo(retomadaSegundos)
+                playWhenReady = true
+                prepare()
+            }
+        } catch (e: Exception) {
+            // Nunca sai do app: qualquer falha na criação do player vira tela de erro.
+            mostrarErro("Não foi possível iniciar o player. Tente novamente.")
+            return
         }
         exo.addListener(object : Player.Listener {
             override fun onPlayerError(error: androidx.media3.common.PlaybackException) {

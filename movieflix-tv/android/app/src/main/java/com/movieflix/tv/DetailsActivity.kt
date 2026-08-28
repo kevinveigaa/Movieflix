@@ -1,21 +1,18 @@
 package com.movieflix.tv
 
 import android.content.Intent
-import android.graphics.Bitmap
 import android.graphics.drawable.ColorDrawable
 import android.os.Bundle
-import androidx.leanback.app.DetailsSupportFragment
-import androidx.leanback.app.DetailsSupportFragmentBackgroundController
-import androidx.leanback.widget.Action
-import androidx.leanback.widget.ArrayObjectAdapter
-import androidx.leanback.widget.ClassPresenterSelector
-import androidx.leanback.widget.DetailsOverviewRow
-import androidx.leanback.widget.FullWidthDetailsOverviewRowPresenter
-import androidx.leanback.widget.OnActionClickedListener
+import android.view.KeyEvent
+import android.view.View
+import android.widget.Button
+import android.widget.ImageView
+import android.widget.ScrollView
+import android.widget.TextView
+import androidx.appcompat.app.AppCompatActivity
 import com.bumptech.glide.Glide
+import com.bumptech.glide.load.resource.bitmap.RoundedCorners
 import com.bumptech.glide.request.RequestOptions
-import com.bumptech.glide.request.target.SimpleTarget
-import com.bumptech.glide.request.transition.Transition
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -24,242 +21,243 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 /**
- * Detalhes do título com ações D-pad nativas:
- *  - Filmes: [Assistir] e [Minha Lista].
- *  - Séries: seletor de temporada + episódio (linha 2) e [Minha Lista].
+ * Detalhes do título — tela NATIVA customizada (sem o frágil
+ * FullWidthDetailsOverviewRowPresenter do Leanback, que causava crash
+ * ao clicar em um filme).
  *
- * A reprodução SEMPRE passa pelo PlaybackActivity, que resolve o stream no
- * backend (valida assinatura server-side) e reproduz HLS nativo (ExoPlayer).
+ * Layout: backdrop + poster + título + meta + sinopse + botões
+ * [ASSISTIR] e [MINHA LISTA] (e seletor de temporada/episódio p/ séries).
+ * Navegação 100% D-pad: ↑↓ rola, ←→ entre botões, OK ativa, Voltar retorna.
  */
-class DetailsActivity : androidx.appcompat.app.AppCompatActivity() {
+class DetailsActivity : AppCompatActivity() {
+
+    private val job = Job()
+    private val scope = CoroutineScope(Dispatchers.Main + job)
+
+    private lateinit var movie: Movie
+
+    // estado do seletor de episódio
+    private var temporadas: List<Int> = emptyList()
+    private var temporadaAtual: Int = 1
+    private var episodiosTemporada: List<Int> = emptyList()
+    private var episodioAtual: Int = 1
+    private var naLista: Boolean = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        val movieId = intent.getStringExtra("movie_id") ?: run {
+        val movieId = intent.getStringExtra("movie_id")
+        val m = movieId?.let { CatalogRepository.porId(this, it) }
+        if (m == null) {
             finish()
             return
         }
-        val movie = CatalogRepository.porId(this, movieId) ?: run {
-            finish()
-            return
-        }
-        supportFragmentManager.beginTransaction()
-            .replace(android.R.id.content, DetailsFragment.newInstance(movie))
-            .commit()
+        movie = m
+        setContentView(R.layout.activity_details)
+
+        val btnAssistir = findViewById<Button>(R.id.btnAssistir)
+        val btnLista = findViewById<Button>(R.id.btnMinhaLista)
+        val btnTempAnt = findViewById<Button>(R.id.btnTempAnt)
+        val btnTempProx = findViewById<Button>(R.id.btnTempProx)
+        val btnEpAnt = findViewById<Button>(R.id.btnEpAnt)
+        val btnEpProx = findViewById<Button>(R.id.btnEpProx)
+
+        preencherDados()
+
+        btnAssistir.setOnClickListener { abrirPlayer() }
+        btnLista.setOnClickListener { alternarLista() }
+        btnTempAnt.setOnClickListener { trocarTemporada(-1) }
+        btnTempProx.setOnClickListener { trocarTemporada(+1) }
+        btnEpAnt.setOnClickListener { trocarEpisodio(-1) }
+        btnEpProx.setOnClickListener { trocarEpisodio(+1) }
+
+        // Foco inicial no botão ASSISTIR (controle remoto)
+        btnAssistir.requestFocus()
+
+        carregarEstadoLista()
     }
 
-    class DetailsFragment : DetailsSupportFragment() {
+    private fun preencherDados() {
+        val titulo = findViewById<TextView>(R.id.detTitulo)
+        val meta = findViewById<TextView>(R.id.detMeta)
+        val sinopse = findViewById<TextView>(R.id.detSinopse)
+        val poster = findViewById<ImageView>(R.id.detPoster)
+        val backdrop = findViewById<ImageView>(R.id.detBackdrop)
+        val badge = findViewById<TextView>(R.id.detBadge)
 
-        private var background: DetailsSupportFragmentBackgroundController? = null
-        private lateinit var movie: Movie
-        private val scope = CoroutineScope(Dispatchers.Main + Job())
+        titulo.text = movie.title
 
-        // estado do seletor de episódio
-        private var temporadas: List<Int> = emptyList()
-        private var temporadaAtual: Int = 1
-        private var episodiosTemporada: List<Int> = emptyList()
-        private var episodioAtual: Int = 1
-        private var naLista: Boolean = false
+        val tipo = if (movie.ehSerie) "Série" else "Filme"
+        val ano = movie.ano.ifBlank { "—" }
+        val nota = movie.nota
+        val qual = movie.qualidade()
+        val idioma = movie.language.ifBlank { "pt-BR" }
+        val genero = movie.categorias.firstOrNull()?.takeIf { it != "Outros" } ?: ""
+        val dur = if (!movie.ehSerie && movie.duration != null && movie.duration!! > 0) {
+            " • ${movie.duration!! / 60} min"
+        } else ""
 
-        companion object {
-            fun newInstance(movie: Movie): DetailsFragment {
-                val f = DetailsFragment()
-                f.movie = movie
-                return f
+        val partes = mutableListOf<String>()
+        partes.add(tipo)
+        partes.add(ano)
+        if (genero.isNotBlank()) partes.add(genero)
+        if (nota != "—") partes.add("★ $nota")
+        partes.add(qual)
+        partes.add(idioma)
+        meta.text = partes.joinToString("  •  ") + dur
+
+        sinopse.text = movie.description.ifBlank { "Sem descrição disponível." }
+
+        badge.visibility = if (movie.dublado_ptbr == true) View.VISIBLE else View.GONE
+
+        val posterUrl = movie.poster_url.ifBlank { movie.backdrop_url }
+        if (posterUrl.isNotBlank()) {
+            Glide.with(this)
+                .load(posterUrl)
+                .apply(
+                    RequestOptions()
+                        .transform(RoundedCorners(14))
+                        .placeholder(ColorDrawable(0xFF16161F.toInt()))
+                        .error(ColorDrawable(0xFF1F1F2A.toInt()))
+                        .centerCrop(),
+                )
+                .into(poster)
+        }
+
+        val backdropUrl = movie.backdrop_url.ifBlank { movie.poster_url }
+        if (backdropUrl.isNotBlank()) {
+            Glide.with(this)
+                .load(backdropUrl)
+                .apply(
+                    RequestOptions()
+                        .placeholder(ColorDrawable(0xFF0A0A0F.toInt()))
+                        .error(ColorDrawable(0xFF0A0A0F.toInt()))
+                        .centerCrop(),
+                )
+                .into(backdrop)
+        }
+
+        // Seletor de temporada/episódio (séries)
+        val detEpisodios = findViewById<View>(R.id.detEpisodios)
+        if (movie.ehSerie) {
+            prepararEpisodios()
+            detEpisodios.visibility = View.VISIBLE
+            atualizarLabelsEpisodio()
+        } else {
+            detEpisodios.visibility = View.GONE
+        }
+    }
+
+    private fun carregarEstadoLista() {
+        val tok = AuthRepository.loadToken(this)
+        val tmdb = movie.tmdbIdNumerico ?: return
+        if (tok.isNullOrBlank()) return
+        scope.launch {
+            naLista = withContext(Dispatchers.IO) {
+                FavoritesRepository.listar(this@DetailsActivity, tok).any { it.first == tmdb }
             }
+            atualizarBotaoLista()
         }
+    }
 
-        override fun onCreate(savedInstanceState: Bundle?) {
-            super.onCreate(savedInstanceState)
-            background = DetailsSupportFragmentBackgroundController(this)
-            setupRows()
-            carregarEstadoLista()
+    private fun atualizarBotaoLista() {
+        val btn = findViewById<Button>(R.id.btnMinhaLista)
+        btn.text = if (naLista) "✓  NA MINHA LISTA" else "+  MINHA LISTA"
+    }
+
+    private fun prepararEpisodios() {
+        val eps = movie.episodes_available
+        temporadas = eps.mapNotNull { e ->
+            val s = e.split("/").getOrNull(0)?.toIntOrNull()
+            if (s != null && s > 0) s else null
+        }.distinct().sorted()
+
+        if (temporadas.isEmpty()) temporadas = listOf(1)
+        if (!temporadas.contains(temporadaAtual)) temporadaAtual = temporadas.first()
+        atualizarEpisodiosDaTemporada()
+    }
+
+    private fun atualizarEpisodiosDaTemporada() {
+        val eps = movie.episodes_available
+        episodiosTemporada = eps.mapNotNull { e ->
+            val partes = e.split("/")
+            val s = partes.getOrNull(0)?.toIntOrNull() ?: return@mapNotNull null
+            val ep = partes.getOrNull(1)?.toIntOrNull() ?: return@mapNotNull null
+            if (s == temporadaAtual && ep > 0) ep else null
+        }.distinct().sorted()
+
+        if (episodiosTemporada.isEmpty()) episodiosTemporada = listOf(1)
+        if (!episodiosTemporada.contains(episodioAtual)) episodioAtual = episodiosTemporada.first()
+    }
+
+    private fun trocarTemporada(delta: Int) {
+        val idx = temporadas.indexOf(temporadaAtual)
+        val novo = temporadas.getOrNull(idx + delta) ?: return
+        temporadaAtual = novo
+        episodioAtual = -1
+        atualizarEpisodiosDaTemporada()
+        atualizarLabelsEpisodio()
+    }
+
+    private fun trocarEpisodio(delta: Int) {
+        val idx = episodiosTemporada.indexOf(episodioAtual)
+        val novo = episodiosTemporada.getOrNull(idx + delta) ?: return
+        episodioAtual = novo
+        atualizarLabelsEpisodio()
+    }
+
+    private fun atualizarLabelsEpisodio() {
+        findViewById<TextView>(R.id.lblTemporada).text = "T$temporadaAtual"
+        findViewById<TextView>(R.id.lblEpisodio).text = "E$episodioAtual"
+    }
+
+    private fun abrirPlayer() {
+        startActivity(
+            Intent(this, PlaybackActivity::class.java)
+                .putExtra("movie_id", movie.id)
+                .putExtra("season", temporadaAtual)
+                .putExtra("episode", episodioAtual),
+        )
+    }
+
+    private fun alternarLista() {
+        val tok = AuthRepository.loadToken(this)
+        val tmdb = movie.tmdbIdNumerico ?: return
+        if (tok.isNullOrBlank()) {
+            android.widget.Toast.makeText(
+                this,
+                "Entre com a sua conta (site ou app) para usar a Minha Lista.",
+                android.widget.Toast.LENGTH_LONG,
+            ).show()
+            return
         }
-
-        private fun carregarEstadoLista() {
-            val tok = AuthRepository.loadToken(requireContext())
-            val tmdb = movie.tmdbIdNumerico ?: return
-            if (tok.isNullOrBlank()) return
-            scope.launch {
-                naLista = withContext(Dispatchers.IO) {
-                    FavoritesRepository.listar(requireContext(), tok).any { it.first == tmdb }
+        scope.launch {
+            val ok = if (naLista) {
+                withContext(Dispatchers.IO) { FavoritesRepository.remover(this@DetailsActivity, tok, tmdb) }
+            } else {
+                withContext(Dispatchers.IO) {
+                    FavoritesRepository.adicionar(this@DetailsActivity, tok, tmdb, if (movie.ehSerie) "tv" else "movie")
                 }
+            }
+            if (ok) {
+                naLista = !naLista
                 atualizarBotaoLista()
             }
         }
+    }
 
-        private fun atualizarBotaoLista() {
-            // re-cria a linha para atualizar o rótulo do botão
-            setupRows()
+    // Navegação D-pad: ↑/↓ rolam a página; Voltar retorna.
+    override fun onKeyDown(keyCode: Int, event: KeyEvent?): Boolean {
+        if (keyCode == KeyEvent.KEYCODE_DPAD_UP || keyCode == KeyEvent.KEYCODE_DPAD_DOWN) {
+            val scroll = findViewById<ScrollView>(R.id.detScroll)
+            val dy = if (keyCode == KeyEvent.KEYCODE_DPAD_DOWN) 120 else -120
+            scroll.smoothScrollBy(0, dy)
+            return true
         }
+        return super.onKeyDown(keyCode, event)
+    }
 
-        private fun setupRows() {
-            val presenterSelector = ClassPresenterSelector().apply {
-                addClassPresenter(
-                    DetailsOverviewRow::class.java,
-                    FullWidthDetailsOverviewRowPresenter(DetailsDescriptionPresenter()).apply {
-                        setOnActionClickedListener(OnActionClickedListener { action ->
-                            when (action.id) {
-                                1L -> abrirPlayer()
-                                2L -> alternarLista()
-                                3L -> { // Temporada anterior
-                                    trocarTemporada(-1)
-                                }
-                                4L -> { // Próxima temporada
-                                    trocarTemporada(+1)
-                                }
-                                5L -> { // Episódio anterior
-                                    trocarEpisodio(-1)
-                                }
-                                6L -> { // Próximo episódio
-                                    trocarEpisodio(+1)
-                                }
-                            }
-                        })
-                    },
-                )
-            }
-            val adapter = ArrayObjectAdapter(presenterSelector)
-
-            val row = DetailsOverviewRow(movie)
-            val poster = movie.poster_url.ifBlank { movie.backdrop_url }
-            if (poster.isNotBlank()) {
-                Glide.with(this)
-                    .load(poster)
-                    .apply(
-                        RequestOptions()
-                            .centerCrop()
-                            .error(ColorDrawable(0xFF1F1F2E.toInt())),
-                    )
-                    .into(object : SimpleTarget<android.graphics.drawable.Drawable>() {
-                        override fun onResourceReady(
-                            resource: android.graphics.drawable.Drawable,
-                            transition: Transition<in android.graphics.drawable.Drawable>?,
-                        ) {
-                            row.imageDrawable = resource
-                        }
-                    })
-            }
-
-            // Ações
-            if (movie.ehSerie) {
-                prepararEpisodios()
-                row.addAction(Action(3, "◀ Temporada", "T$temporadaAtual"))
-                row.addAction(Action(5, "◀ Episódio", "E$episodioAtual"))
-                row.addAction(Action(6, "Episódio ▶", "E${episodioAtual + 1}"))
-                row.addAction(Action(4, "Temporada ▶", "T${temporadaAtual + 1}"))
-                row.addAction(Action(1, "▶ Assistir", "T${temporadaAtual} · E${episodioAtual}"))
-                row.addAction(Action(2, if (naLista) "✓ Na Minha Lista" else "＋ Minha Lista", if (naLista) "Remover da lista" else "Adicionar à lista"))
-            } else {
-                row.addAction(Action(1, "▶ Assistir", "Reproduzir filme"))
-                row.addAction(Action(2, if (naLista) "✓ Na Minha Lista" else "＋ Minha Lista", if (naLista) "Remover da lista" else "Adicionar à lista"))
-            }
-
-            adapter.add(row)
-            this.adapter = adapter
-
-            // fundo: backdrop
-            if (movie.backdrop_url.isNotBlank()) {
-                background?.let { bg ->
-                    bg.enableParallax()
-                    Glide.with(this)
-                        .asBitmap()
-                        .load(movie.backdrop_url)
-                        .centerCrop()
-                        .into(object : SimpleTarget<Bitmap>() {
-                            override fun onResourceReady(
-                                resource: Bitmap,
-                                transition: Transition<in Bitmap>?,
-                            ) {
-                                bg.setCoverBitmap(resource)
-                            }
-                        })
-                }
-            }
-        }
-
-        private fun prepararEpisodios() {
-            val eps = movie.episodes_available
-            temporadas = eps.mapNotNull { e ->
-                val s = e.split("/").getOrNull(0)?.toIntOrNull()
-                if (s != null && s > 0) s else null
-            }.distinct().sorted()
-
-            if (temporadas.isEmpty()) {
-                temporadas = listOf(1)
-            }
-            if (!temporadas.contains(temporadaAtual)) temporadaAtual = temporadas.first()
-            atualizarEpisodiosDaTemporada()
-        }
-
-        private fun atualizarEpisodiosDaTemporada() {
-            val eps = movie.episodes_available
-            episodiosTemporada = eps.mapNotNull { e ->
-                val partes = e.split("/")
-                val s = partes.getOrNull(0)?.toIntOrNull() ?: return@mapNotNull null
-                val ep = partes.getOrNull(1)?.toIntOrNull() ?: return@mapNotNull null
-                if (s == temporadaAtual && ep > 0) ep else null
-            }.distinct().sorted()
-
-            if (episodiosTemporada.isEmpty()) episodiosTemporada = listOf(1)
-            if (!episodiosTemporada.contains(episodioAtual)) episodioAtual = episodiosTemporada.first()
-        }
-
-        private fun trocarTemporada(delta: Int) {
-            val idx = temporadas.indexOf(temporadaAtual)
-            val novo = temporadas.getOrNull(idx + delta) ?: return
-            temporadaAtual = novo
-            episodioAtual = -1 // força reset
-            atualizarEpisodiosDaTemporada()
-            setupRows()
-        }
-
-        private fun trocarEpisodio(delta: Int) {
-            val idx = episodiosTemporada.indexOf(episodioAtual)
-            val novo = episodiosTemporada.getOrNull(idx + delta) ?: return
-            episodioAtual = novo
-            setupRows()
-        }
-
-        private fun abrirPlayer() {
-            startActivity(
-                Intent(activity, PlaybackActivity::class.java)
-                    .putExtra("movie_id", movie.id)
-                    .putExtra("season", temporadaAtual)
-                    .putExtra("episode", episodioAtual),
-            )
-        }
-
-        private fun alternarLista() {
-            val tok = AuthRepository.loadToken(requireContext())
-            val tmdb = movie.tmdbIdNumerico ?: return
-            if (tok.isNullOrBlank()) {
-                // sem sessão: não há como salvar — orienta a entrar pelo site/app
-                android.widget.Toast.makeText(
-                    requireContext(),
-                    "Entre com a sua conta (site ou app) para usar a Minha Lista.",
-                    android.widget.Toast.LENGTH_LONG,
-                ).show()
-                return
-            }
-            scope.launch {
-                val ok = if (naLista) {
-                    withContext(Dispatchers.IO) { FavoritesRepository.remover(requireContext(), tok, tmdb) }
-                } else {
-                    withContext(Dispatchers.IO) {
-                        FavoritesRepository.adicionar(requireContext(), tok, tmdb, if (movie.ehSerie) "tv" else "movie")
-                    }
-                }
-                if (ok) {
-                    naLista = !naLista
-                    setupRows()
-                }
-            }
-        }
-
-        override fun onDestroyView() {
-            super.onDestroyView()
-            scope.cancel()
-        }
+    override fun onDestroy() {
+        super.onDestroy()
+        job.cancel()
     }
 }

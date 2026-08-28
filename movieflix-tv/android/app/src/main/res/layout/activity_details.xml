@@ -1,0 +1,233 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/mf_black">
+
+    <!-- Backdrop de fundo (desfocado/escurecido) -->
+    <ImageView
+        android:id="@+id/detBackdrop"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:contentDescription="@null"
+        android:scaleType="centerCrop" />
+
+    <!-- Escurecimento para legibilidade -->
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="@drawable/details_scrim" />
+
+    <!-- Conteúdo rolável -->
+    <ScrollView
+        android:id="@+id/detScroll"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:clipToPadding="false"
+        android:fillViewport="true"
+        android:paddingStart="56dp"
+        android:paddingTop="40dp"
+        android:paddingEnd="56dp"
+        android:paddingBottom="48dp">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal">
+
+            <!-- Poster grande -->
+            <FrameLayout
+                android:id="@+id/detPosterWrap"
+                android:layout_width="300dp"
+                android:layout_height="450dp"
+                android:background="@drawable/bg_poster_placeholder">
+
+                <ImageView
+                    android:id="@+id/detPoster"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:contentDescription="@null"
+                    android:scaleType="centerCrop" />
+
+                <TextView
+                    android:id="@+id/detBadge"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_gravity="top|start"
+                    android:layout_margin="12dp"
+                    android:background="@drawable/bg_badge"
+                    android:paddingStart="12dp"
+                    android:paddingTop="5dp"
+                    android:paddingEnd="12dp"
+                    android:paddingBottom="5dp"
+                    android:text="Dublado pt-BR"
+                    android:textColor="@color/mf_green"
+                    android:textSize="13sp"
+                    android:textStyle="bold"
+                    android:visibility="gone" />
+            </FrameLayout>
+
+            <!-- Coluna de informações -->
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="40dp"
+                android:layout_weight="1"
+                android:orientation="vertical">
+
+                <TextView
+                    android:id="@+id/detTitulo"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:ellipsize="end"
+                    android:maxLines="2"
+                    android:textColor="@color/mf_white"
+                    android:textSize="40sp"
+                    android:textStyle="bold"
+                    android:shadowColor="#000000"
+                    android:shadowDx="0"
+                    android:shadowDy="2"
+                    android:shadowRadius="6" />
+
+                <TextView
+                    android:id="@+id/detMeta"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="14dp"
+                    android:textColor="@color/mf_red_light"
+                    android:textSize="19sp"
+                    android:textStyle="bold"
+                    android:shadowColor="#000000"
+                    android:shadowRadius="4" />
+
+                <TextView
+                    android:id="@+id/detSinopse"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="20dp"
+                    android:lineSpacingExtra="4dp"
+                    android:textColor="@color/mf_gray_light"
+                    android:textSize="18sp"
+                    android:shadowColor="#000000"
+                    android:shadowRadius="4" />
+
+                <!-- Botões de ação -->
+                <LinearLayout
+                    android:id="@+id/detAcoes"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="30dp"
+                    android:orientation="horizontal">
+
+                    <Button
+                        android:id="@+id/btnAssistir"
+                        android:layout_width="wrap_content"
+                        android:layout_height="64dp"
+                        android:background="@drawable/bg_btn_primary"
+                        android:minWidth="220dp"
+                        android:paddingStart="34dp"
+                        android:paddingEnd="34dp"
+                        android:text="▶  ASSISTIR"
+                        android:textColor="@color/mf_white"
+                        android:textSize="19sp"
+                        android:textStyle="bold" />
+
+                    <Button
+                        android:id="@+id/btnMinhaLista"
+                        android:layout_width="wrap_content"
+                        android:layout_height="64dp"
+                        android:layout_marginStart="18dp"
+                        android:background="@drawable/bg_btn_secondary"
+                        android:minWidth="220dp"
+                        android:paddingStart="30dp"
+                        android:paddingEnd="30dp"
+                        android:text="+  MINHA LISTA"
+                        android:textColor="@color/mf_white"
+                        android:textSize="18sp"
+                        android:textStyle="bold" />
+                </LinearLayout>
+
+                <!-- Seletor de temporada/episódio (séries) -->
+                <LinearLayout
+                    android:id="@+id/detEpisodios"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="26dp"
+                    android:orientation="horizontal"
+                    android:visibility="gone">
+
+                    <Button
+                        android:id="@+id/btnTempAnt"
+                        android:layout_width="wrap_content"
+                        android:layout_height="58dp"
+                        android:background="@drawable/bg_btn_ghost"
+                        android:paddingStart="22dp"
+                        android:paddingEnd="22dp"
+                        android:text="◀  Temporada"
+                        android:textColor="@color/mf_white"
+                        android:textSize="16sp"
+                        android:textStyle="bold" />
+
+                    <TextView
+                        android:id="@+id/lblTemporada"
+                        android:layout_width="wrap_content"
+                        android:layout_height="58dp"
+                        android:gravity="center"
+                        android:minWidth="120dp"
+                        android:text="T1"
+                        android:textColor="@color/mf_white"
+                        android:textSize="18sp"
+                        android:textStyle="bold" />
+
+                    <Button
+                        android:id="@+id/btnTempProx"
+                        android:layout_width="wrap_content"
+                        android:layout_height="58dp"
+                        android:background="@drawable/bg_btn_ghost"
+                        android:paddingStart="22dp"
+                        android:paddingEnd="22dp"
+                        android:text="Temporada  ▶"
+                        android:textColor="@color/mf_white"
+                        android:textSize="16sp"
+                        android:textStyle="bold" />
+
+                    <Button
+                        android:id="@+id/btnEpAnt"
+                        android:layout_width="wrap_content"
+                        android:layout_height="58dp"
+                        android:layout_marginStart="26dp"
+                        android:background="@drawable/bg_btn_ghost"
+                        android:paddingStart="22dp"
+                        android:paddingEnd="22dp"
+                        android:text="◀  Episódio"
+                        android:textColor="@color/mf_white"
+                        android:textSize="16sp"
+                        android:textStyle="bold" />
+
+                    <TextView
+                        android:id="@+id/lblEpisodio"
+                        android:layout_width="wrap_content"
+                        android:layout_height="58dp"
+                        android:gravity="center"
+                        android:minWidth="120dp"
+                        android:text="E1"
+                        android:textColor="@color/mf_white"
+                        android:textSize="18sp"
+                        android:textStyle="bold" />
+
+                    <Button
+                        android:id="@+id/btnEpProx"
+                        android:layout_width="wrap_content"
+                        android:layout_height="58dp"
+                        android:background="@drawable/bg_btn_ghost"
+                        android:paddingStart="22dp"
+                        android:paddingEnd="22dp"
+                        android:text="Episódio  ▶"
+                        android:textColor="@color/mf_white"
+                        android:textSize="16sp"
+                        android:textStyle="bold" />
+                </LinearLayout>
+            </LinearLayout>
+        </LinearLayout>
+    </ScrollView>
+</FrameLayout>

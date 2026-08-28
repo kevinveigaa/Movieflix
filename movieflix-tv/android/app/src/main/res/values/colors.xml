@@ -4,6 +4,7 @@
     <color name="mf_black">#0A0A0F</color>
     <color name="mf_surface">#16161F</color>
     <color name="mf_surface_light">#1F1F2A</color>
+    <color name="mf_surface_strong">#2A2A38</color>
     <color name="mf_purple">#7C3AED</color>
     <color name="mf_purple_light">#A78BFA</color>
     <color name="mf_red">#DC2626</color>

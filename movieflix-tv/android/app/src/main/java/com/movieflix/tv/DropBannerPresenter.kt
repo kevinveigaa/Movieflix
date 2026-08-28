@@ -18,12 +18,13 @@ import com.bumptech.glide.request.RequestOptions
  * Banner hero de destaque (primeira linha da Home).
  *  - Backdrop grande com gradiente escuro para legibilidade.
  *  - Título grande, meta (ano · nota · qualidade) e sinopse.
+ *  - Padding generoso para NUNCA cortar o texto.
  *  - Foco D-pad: borda vermelha + leve escala.
  */
 class DropBannerPresenter : Presenter() {
 
     private val WIDTH = 1280
-    private val HEIGHT = 420
+    private val HEIGHT = 400
 
     override fun onCreateViewHolder(parent: ViewGroup): ViewHolder {
         val banner = BannerView(parent.context)
@@ -50,7 +51,7 @@ class DropBannerPresenter : Presenter() {
         private val sinopse = TextView(context)
 
         init {
-            // Backdrop
+            // Backdrop preenche todo o banner
             backdrop.scaleType = ImageView.ScaleType.CENTER_CROP
             backdrop.layoutParams = FrameLayout.LayoutParams(
                 FrameLayout.LayoutParams.MATCH_PARENT,
@@ -71,11 +72,11 @@ class DropBannerPresenter : Presenter() {
             )
             addView(gradView)
 
-            // Conteúdo (coluna à esquerda)
+            // Conteúdo (coluna à esquerda) com padding generoso
             val coluna = LinearLayout(context)
             coluna.orientation = LinearLayout.VERTICAL
             coluna.gravity = Gravity.CENTER_VERTICAL
-            coluna.setPadding(48, 0, 48, 0)
+            coluna.setPadding(64, 0, 64, 0)
             val colLp = FrameLayout.LayoutParams(
                 FrameLayout.LayoutParams.MATCH_PARENT,
                 FrameLayout.LayoutParams.MATCH_PARENT,
@@ -83,28 +84,31 @@ class DropBannerPresenter : Presenter() {
             addView(coluna, colLp)
 
             titulo.setTextColor(Color.WHITE)
-            titulo.textSize = 40f
+            titulo.textSize = 42f
             titulo.setTypeface(android.graphics.Typeface.DEFAULT_BOLD)
             titulo.maxLines = 1
             titulo.ellipsize = android.text.TextUtils.TruncateAt.END
+            titulo.setShadowLayer(6f, 0f, 2f, Color.BLACK)
             coluna.addView(titulo)
 
             meta.setTextColor(0xFFC8C8D2.toInt())
-            meta.textSize = 16f
+            meta.textSize = 17f
+            meta.setShadowLayer(4f, 0f, 1f, Color.BLACK)
             val metaLp = LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.WRAP_CONTENT,
                 LinearLayout.LayoutParams.WRAP_CONTENT,
-            ).apply { topMargin = 12 }
+            ).apply { topMargin = 14 }
             coluna.addView(meta, metaLp)
 
             sinopse.setTextColor(0xFFC8C8D2.toInt())
-            sinopse.textSize = 15f
+            sinopse.textSize = 16f
             sinopse.maxLines = 3
             sinopse.ellipsize = android.text.TextUtils.TruncateAt.END
+            sinopse.setShadowLayer(4f, 0f, 1f, Color.BLACK)
             val sinLp = LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
                 LinearLayout.LayoutParams.WRAP_CONTENT,
-            ).apply { topMargin = 16 }
+            ).apply { topMargin = 18 }
             coluna.addView(sinopse, sinLp)
 
             // Foco: borda vermelha + leve escala

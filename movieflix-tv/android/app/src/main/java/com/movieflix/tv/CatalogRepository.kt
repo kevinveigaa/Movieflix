@@ -1,9 +1,11 @@
 package com.movieflix.tv
 
 import android.content.Context
+import android.util.Log
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.jsonArray
 import java.io.File
 import java.io.IOException
 import java.net.HttpURLConnection
@@ -20,6 +22,8 @@ import java.net.URL
  *     leitura de cada execução do app (uma única chamada assíncrona).
  */
 object CatalogRepository {
+
+    private const val TAG = "MovieFlixCatalog"
 
     // coerceInputValues = true: converte null em campos não-nulos para o valor
     // default (o catálogo tem vote_average/duration/description = null em vários
@@ -94,15 +98,47 @@ object CatalogRepository {
     private fun lerAssets(context: Context): List<Movie>? = try {
         val filmes = context.assets.open("filmes.json").bufferedReader().use { it.readText() }
         val series = context.assets.open("series.json").bufferedReader().use { it.readText() }
-        json.decodeFromString<List<Movie>>(filmes) + json.decodeFromString<List<Movie>>(series)
+        val f = decodificarTolerante(filmes)
+        val s = decodificarTolerante(series)
+        Log.i(TAG, "Assets: filmes=${f.size} series=${s.size}")
+        f + s
     } catch (e: Exception) {
+        Log.e(TAG, "Falha ao ler assets", e)
         null
     }
 
     private fun lerArquivo(f: File): List<Movie>? = try {
-        json.decodeFromString<List<Movie>>(f.readText())
+        val lista = decodificarTolerante(f.readText())
+        Log.i(TAG, "Cache disco: ${lista.size}")
+        lista
     } catch (e: Exception) {
+        Log.e(TAG, "Falha ao ler cache", e)
         null
+    }
+
+    /**
+     * Decodifica o catálogo de forma TOLERANTE: itens individuais que falhem
+     * (campo com tipo inesperado, etc.) são descartados em vez de derrubar o
+     * catálogo inteiro. Garante que a Home SEMPRE receba os itens válidos.
+     */
+    private fun decodificarTolerante(texto: String): List<Movie> {
+        val arr = try {
+            json.parseToJsonElement(texto).jsonArray
+        } catch (e: Exception) {
+            Log.e(TAG, "JSON inválido", e)
+            return emptyList()
+        }
+        val out = ArrayList<Movie>(arr.size)
+        var falhas = 0
+        for (el in arr) {
+            try {
+                out.add(json.decodeFromJsonElement(Movie.serializer(), el))
+            } catch (e: Exception) {
+                falhas++
+            }
+        }
+        if (falhas > 0) Log.w(TAG, "Itens descartados por erro de parse: $falhas")
+        return out
     }
 
     /**
@@ -128,11 +164,10 @@ object CatalogRepository {
     private fun baixarAtual(): List<Movie>? {
         val filmes = baixarJson(FILMES_URL) ?: return null
         val series = baixarJson(SERIES_URL) ?: return null
-        return try {
-            json.decodeFromString<List<Movie>>(filmes) + json.decodeFromString<List<Movie>>(series)
-        } catch (e: Exception) {
-            null
-        }
+        val f = decodificarTolerante(filmes)
+        val s = decodificarTolerante(series)
+        Log.i(TAG, "Backend: filmes=${f.size} series=${s.size}")
+        return f + s
     }
 
     private fun baixarJson(urlStr: String): String? {
