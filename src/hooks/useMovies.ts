@@ -1,5 +1,11 @@
 import { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import {
+  montarDisponibilidade,
+  episodiosComVideo,
+  temVideoDisponivel,
+  type DisponibilidadeJson,
+} from '@/lib/disponibilidade';
 
 /**
  * Catálogo do Movieflix — carregado de JSON estáticos gerados por
@@ -50,7 +56,7 @@ interface CacheEnvelope {
   series: CatalogJson;
 }
 
-const CACHE_KEY = 'mf_catalog_v2';
+const CACHE_KEY = 'mf_catalog_v3';
 const CACHE_TTL_MS = 1000 * 60 * 60 * 6; // 6h
 
 function readCache(): CacheEnvelope | null {
@@ -84,7 +90,7 @@ async function loadCatalog(): Promise<CacheEnvelope> {
     const cache = readCache();
     if (cache) return cache;
 
-    const [filmes, series] = await Promise.all([
+    const [filmesBrutos, seriesBrutas, disponibilidadeJson] = await Promise.all([
       fetch('/filmes/filmes.json').then((r) => {
         if (!r.ok) throw new Error(`Catálogo ${r.status}`);
         return r.json() as Promise<CatalogJson>;
@@ -93,7 +99,22 @@ async function loadCatalog(): Promise<CacheEnvelope> {
         if (!r.ok) throw new Error(`Catálogo ${r.status}`);
         return r.json() as Promise<CatalogJson>;
       }),
+      // UMA requisição para todo o catálogo (não uma por título).
+      fetch('/filmes/disponibilidade.json')
+        .then((r) => (r.ok ? (r.json() as Promise<DisponibilidadeJson>) : null))
+        .catch(() => null),
     ]);
+
+    // Só entra no catálogo público quem tem vídeo bom e reproduzível.
+    // Nada é apagado dos JSONs — apenas não é exibido enquanto não houver vídeo.
+    const disp = montarDisponibilidade(disponibilidadeJson);
+    const filmes = filmesBrutos.filter((f) => temVideoDisponivel(f, disp));
+    const series = seriesBrutas
+      .map((s) => {
+        const eps = episodiosComVideo(s, disp);
+        return eps === s.episodes_available ? s : { ...s, episodes_available: eps };
+      })
+      .filter((s) => temVideoDisponivel(s, disp));
 
     writeCache(filmes, series);
     return { savedAt: Date.now(), filmes, series };

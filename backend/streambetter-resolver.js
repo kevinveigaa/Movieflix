@@ -28,6 +28,27 @@
 
 const STREAMBETTER_BASE = 'https://streambetter.shop';
 
+/**
+ * Fontes de BAIXA QUALIDADE (pedido do dono): CAM/CAMRip/HDCAM, TS/Telesync,
+ * TC/Telecine, screener e gravações de tela NUNCA devem ser reproduzidas —
+ * é melhor o título não aparecer do que exibir um vídeo ruim.
+ * A checagem olha o rótulo (label) e a URL da fonte devolvida pelo embed.
+ */
+const PADROES_QUALIDADE_RUIM = [
+  /\bhd?cam\b/i, /\bcam(rip)?\b/i, /\bts\b/i, /\btelesync\b/i,
+  /\bhd-?ts\b/i, /\btc\b/i, /\btelecine\b/i, /\bhd-?tc\b/i,
+  /\bscreener\b/i, /\bscr\b/i, /\bcinema\b/i, /\bpirat/i,
+  /\bworkprint\b/i, /\bwp\b/i,
+];
+
+/** A fonte tem qualidade ruim (CAM/TS/TC/screener)? */
+function ehFonteRuim(fonte) {
+  const texto = decodeURIComponent(
+    [fonte?.label, fonte?.quality, fonte?.url].filter(Boolean).join(' '),
+  ).replace(/[+_]/g, ' ');
+  return PADROES_QUALIDADE_RUIM.some((re) => re.test(texto));
+}
+
 function extrairJsonScript(html, chave) {
   // Ex.: sources=[...];  window.__PLAYER_CAPS__ = {...};  ou
   // &sources=%5B%7B...%7D%5D&titleId=... (JSON URL-encoded num script inline).
@@ -116,6 +137,12 @@ async function resolverEmbed(embedUrl, startSeconds) {
     const label = fonte.label || 'Fonte';
     const urlFonte = fonte.url || '';
     const sub = fonte.sub || '';
+
+    // Descarta fontes de baixa qualidade (CAM/TS/TC/screener) ANTES de resolver.
+    if (ehFonteRuim(fonte)) {
+      erros.push(`${label}: descartada (baixa qualidade)`);
+      continue;
+    }
 
     try {
       if (kind === 'embedplayer' || (!kind && urlFonte.includes('embedplayer'))) {
@@ -227,4 +254,4 @@ function registrarStreambetterResolver(app) {
   app.get('/api/streambetter-hls', proxyHls);
 }
 
-module.exports = { registrarStreambetterResolver, resolverEmbed };
+module.exports = { registrarStreambetterResolver, resolverEmbed, ehFonteRuim };
