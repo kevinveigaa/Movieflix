@@ -17,6 +17,13 @@
 
 import { supabase } from '@/lib/supabase';
 
+// O site pode ser publicado como Static Site (sem backend na mesma origem \u2014
+// onde /api/* responde o HTML do SPA e a autoriza\u00e7\u00e3o quebra). Por isso o
+// cliente usa nesta ordem:
+//   1. VITE_API_URL, se definida no build (ex.: proxy pr\u00f3prio);
+//   2. o backend p\u00fablico do MovieFlix, que tem CORS liberado (server.js).
+const API_URL = (import.meta.env.VITE_API_URL as string) || 'https://movieflix-api-udsv.onrender.com';
+
 export interface TrialInfo {
   trialSeconds: number;
   remainingSeconds: number;
@@ -78,7 +85,7 @@ export async function gateStream(embedUrl: string, startSeconds?: number): Promi
     const params = new URLSearchParams({ embed: embedUrl });
     if (startSeconds && startSeconds > 0) params.set('t', String(startSeconds));
 
-    const resp = await fetch(`/api/trial-gate?${params.toString()}`, {
+    const resp = await fetch(`${API_URL}/api/trial-gate?${params.toString()}`, {
       headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' },
       signal: AbortSignal.timeout(30000),
     });
@@ -100,7 +107,7 @@ export async function consumeTrialTime(
   seconds: number,
 ): Promise<{ ok: boolean; remainingSeconds: number; expired: boolean }> {
   try {
-    const resp = await fetch('/api/trial-consume', {
+    const resp = await fetch(`${API_URL}/api/trial-consume`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ trialToken, seconds: Math.max(1, Math.floor(seconds || 0)) }),
