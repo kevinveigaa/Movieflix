@@ -28,6 +28,21 @@
 
 const STREAMBETTER_BASE = 'https://streambetter.shop';
 
+// Kinds de fonte que o provedor resolve via /api/extract-<kind>?t=<token>,
+// devolvendo { success, url } com um HLS (/api/proxy?...&ext=m3u8).
+// O provedor mudou o formato das fontes: além de `embedplayer`, hoje usa
+// superflix, watchplay, vidara, azullog, pluto, doramogo, redetoons,
+// streamflash, anonmp4 e rdse. Sem tratar esses kinds, o resolvedor retornava
+// `sem_stream_direto` para a maioria dos títulos.
+const KINDS_EXTRAIVEIS = new Set([
+  'embedplayer', 'superflix', 'watchplay', 'vidara', 'azullog',
+  'pluto', 'doramogo', 'redetoons', 'streamflash', 'anonmp4', 'rdse',
+]);
+
+// Kinds que NÃO são resolvíveis para stream direto (painéis externos crus /
+// descontinuados) — devem ser ignorados como fonte reproduzível.
+const KINDS_IGNORADOS = new Set(['stream', 'descontinuado', 'iframe']);
+
 /**
  * Fontes de BAIXA QUALIDADE (pedido do dono): CAM/CAMRip/HDCAM, TS/Telesync,
  * TC/Telecine, screener e gravações de tela NUNCA devem ser reproduzidas —
@@ -85,9 +100,9 @@ function extrairParam(html, chave) {
   return m ? Number(m[1]) : null;
 }
 
-/** Resolve uma fonte do tipo embedplayer para a URL de stream real. */
-async function resolverEmbedPlayer(urlToken) {
-  const apiUrl = `${STREAMBETTER_BASE}/api/extract-embedplayer?t=${encodeURIComponent(urlToken)}`;
+/** Resolve uma fonte do tipo `kind` para a URL de stream real via /api/extract-<kind>. */
+async function resolverExtract(kind, urlToken) {
+  const apiUrl = `${STREAMBETTER_BASE}/api/extract-${kind}?t=${encodeURIComponent(urlToken)}`;
   const resp = await fetch(apiUrl, {
     headers: {
       'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
@@ -96,7 +111,7 @@ async function resolverEmbedPlayer(urlToken) {
     },
     signal: AbortSignal.timeout(20000),
   });
-  if (!resp.ok) throw new Error(`extract-embedplayer HTTP ${resp.status}`);
+  if (!resp.ok) throw new Error(`extract-${kind} HTTP ${resp.status}`);
   const data = await resp.json();
   if (!data || !data.success || !data.url) return null;
   // A URL retornada costuma ser relativa (/api/proxy?t=...&ext=m3u8).
@@ -167,7 +182,7 @@ async function resolverEmbed(embedUrl, startSeconds) {
     const peso = (f) => {
       const k = f.kind || '';
       const u = f.url || '';
-      if (k === 'embedplayer' || u.includes('embedplayer')) return 0;
+      if (KINDS_EXTRAIVEIS.has(k)) return 0;
       if (u.includes('.m3u8') || u.includes('ext=m3u8')) return 1;
       if (u.includes('.mp4')) return 2;
       return 3;
@@ -188,8 +203,11 @@ async function resolverEmbed(embedUrl, startSeconds) {
     }
 
     try {
-      if (kind === 'embedplayer' || (!kind && urlFonte.includes('embedplayer'))) {
-        const hls = await resolverEmbedPlayer(urlFonte);
+      // Kinds resolvíveis via /api/extract-<kind> (embedplayer, superflix,
+      // watchplay, vidara, azullog, pluto, doramogo, redetoons, streamflash,
+      // anonmp4, rdse). O provedor devolve um HLS (/api/proxy?...&ext=m3u8).
+      if (KINDS_EXTRAIVEIS.has(kind)) {
+        const hls = await resolverExtract(kind, urlFonte);
         if (hls) {
           // Valida a URL HLS antes de aceitar (https + upstream acessível).
           const v = await validarFonte(hls);
@@ -209,6 +227,13 @@ async function resolverEmbed(embedUrl, startSeconds) {
           continue;
         }
         erros.push(`${label}: extração falhou`);
+        continue;
+      }
+
+      // Kinds não-resolvíveis para stream direto (painéis externos crus /
+      // descontinuados): não são fonte reproduzível — pula.
+      if (KINDS_IGNORADOS.has(kind)) {
+        erros.push(`${label}: fonte ${kind} não resolvível`);
         continue;
       }
 
