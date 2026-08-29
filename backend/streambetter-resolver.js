@@ -104,6 +104,34 @@ async function resolverEmbedPlayer(urlToken) {
   return data.url;
 }
 
+/**
+ * Valida que uma URL de fonte está acessível e é HTTPS.
+ * - HTTPS obrigatório: o site é servido em HTTPS e o navegador bloqueia
+ *   mixed content (http:// dentro de página https://) no <video>.
+ * - Faz um GET com Range para confirmar que o upstream responde (2xx/206).
+ *   Fontes mortas (ex.: hubby.cx devolvendo 403) são rejeitadas aqui.
+ */
+async function validarFonte(url) {
+  try {
+    const u = new URL(url);
+    if (u.protocol !== 'https:') return { ok: false, motivo: 'http_mixed_content' };
+    const resp = await fetch(url, {
+      method: 'GET',
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+        Referer: STREAMBETTER_BASE,
+        Accept: '*/*',
+        Range: 'bytes=0-1023',
+      },
+      signal: AbortSignal.timeout(15000),
+    });
+    if (resp.ok || resp.status === 206) return { ok: true };
+    return { ok: false, motivo: `http_${resp.status}` };
+  } catch (e) {
+    return { ok: false, motivo: 'network' };
+  }
+}
+
 /** Busca o HTML do embed e devolve a melhor fonte de stream direto. */
 async function resolverEmbed(embedUrl, startSeconds) {
   const url = new URL(embedUrl);
@@ -132,7 +160,22 @@ async function resolverEmbed(embedUrl, startSeconds) {
   }
 
   const erros = [];
-  for (const fonte of sources) {
+
+  // Ordena as fontes: HLS/stream primeiro (funcionam via proxy https), mp4
+  // por último (frequentemente apontam para hosts mortos como hubby.cx).
+  const fontesOrdenadas = [...sources].sort((a, b) => {
+    const peso = (f) => {
+      const k = f.kind || '';
+      const u = f.url || '';
+      if (k === 'embedplayer' || u.includes('embedplayer')) return 0;
+      if (u.includes('.m3u8') || u.includes('ext=m3u8')) return 1;
+      if (u.includes('.mp4')) return 2;
+      return 3;
+    };
+    return peso(a) - peso(b);
+  });
+
+  for (const fonte of fontesOrdenadas) {
     const kind = fonte.kind || 'stream';
     const label = fonte.label || 'Fonte';
     const urlFonte = fonte.url || '';
@@ -148,16 +191,22 @@ async function resolverEmbed(embedUrl, startSeconds) {
       if (kind === 'embedplayer' || (!kind && urlFonte.includes('embedplayer'))) {
         const hls = await resolverEmbedPlayer(urlFonte);
         if (hls) {
-          return {
-            success: true,
-            url: hls,
-            kind: 'stream',
-            label,
-            sub,
-            titleId,
-            episodeId,
-            showAds: caps?.showAds === true,
-          };
+          // Valida a URL HLS antes de aceitar (https + upstream acessível).
+          const v = await validarFonte(hls);
+          if (v.ok) {
+            return {
+              success: true,
+              url: hls,
+              kind: 'stream',
+              label,
+              sub,
+              titleId,
+              episodeId,
+              showAds: caps?.showAds === true,
+            };
+          }
+          erros.push(`${label}: HLS inválido (${v.motivo})`);
+          continue;
         }
         erros.push(`${label}: extração falhou`);
         continue;
@@ -166,16 +215,24 @@ async function resolverEmbed(embedUrl, startSeconds) {
       // URL direta (m3u8 / mp4).
       if (urlFonte.includes('.m3u8') || urlFonte.includes('ext=m3u8') || urlFonte.includes('.mp4')) {
         const abs = urlFonte.startsWith('/') ? `${STREAMBETTER_BASE}${urlFonte}` : urlFonte;
-        return {
-          success: true,
-          url: abs,
-          kind: urlFonte.includes('.mp4') ? 'mp4' : 'stream',
-          label,
-          sub,
-          titleId,
-          episodeId,
-          showAds: caps?.showAds === true,
-        };
+        // Valida a URL direta antes de aceitar (https + upstream acessível).
+        // Fontes mp4 mortas (ex.: hubby.cx 403) são rejeitadas e tentamos a
+        // próxima candidata.
+        const v = await validarFonte(abs);
+        if (v.ok) {
+          return {
+            success: true,
+            url: abs,
+            kind: urlFonte.includes('.mp4') ? 'mp4' : 'stream',
+            label,
+            sub,
+            titleId,
+            episodeId,
+            showAds: caps?.showAds === true,
+          };
+        }
+        erros.push(`${label}: fonte inacessível (${v.motivo})`);
+        continue;
       }
 
       // kind iframe / vidmoly: não resolvível aqui — fallback para iframe.
