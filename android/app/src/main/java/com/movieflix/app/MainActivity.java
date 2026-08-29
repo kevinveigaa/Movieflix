@@ -7,6 +7,7 @@ import android.os.Build;
 import android.os.Bundle;
 import android.view.KeyEvent;
 import android.view.View;
+import android.view.ViewGroup;
 import android.webkit.GeolocationPermissions;
 import android.webkit.WebChromeClient;
 import android.webkit.WebResourceRequest;
@@ -64,6 +65,20 @@ public class MainActivity extends BridgeActivity {
     // Flag: quando o duplo-back foi confirmado, o próximo back nativo sai.
     private boolean saidaConfirmada = false;
 
+    // ── Fullscreen do player (vídeo) ────────────────────────────────────────
+    // O botão de "tela cheia" do <video> nativo do site chama
+    // WebChromeClient.onShowCustomView. Sem implementá-lo, o fullscreen NÃO
+    // funciona no WebView (o vídeo fica preso no tamanho do player). Aqui
+    // mostramos o vídeo em tela cheia num FrameLayout próprio e escondemos o
+    // WebView, restaurando tudo ao sair (onHideCustomView / back).
+    private View customView = null;
+    private WebChromeClient.CustomViewCallback customViewCallback = null;
+    private int originalSystemUiVisibility = 0;
+    private static final FrameLayout.LayoutParams COVER_SCREEN_PARAMS =
+            new FrameLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.MATCH_PARENT);
+
     @SuppressLint("SetJavaScriptEnabled")
     @Override
     public void onCreate(Bundle savedInstanceState) {
@@ -103,6 +118,44 @@ public class MainActivity extends BridgeActivity {
                 @Override
                 public void onGeolocationPermissionsShowPrompt(String origin, GeolocationPermissions.Callback callback) {
                     callback.invoke(origin, false, false);
+                }
+
+                // ── Fullscreen do player (vídeo) ────────────────────────────
+                // O botão "tela cheia" do <video> nativo chama este método.
+                // Sem ele, o fullscreen não funciona no WebView. Mostramos o
+                // vídeo em tela cheia num FrameLayout próprio e escondemos o
+                // WebView; ao sair (onHideCustomView / back) restauramos tudo.
+                @Override
+                public void onShowCustomView(View view, WebChromeClient.CustomViewCallback callback) {
+                    if (customView != null) {
+                        callback.onCustomViewHidden();
+                        return;
+                    }
+                    customView = view;
+                    customViewCallback = callback;
+
+                    FrameLayout decor = (FrameLayout) getWindow().getDecorView();
+                    decor.addView(customView, COVER_SCREEN_PARAMS);
+
+                    // Esconde a barra de sistema para uma experiência imersiva.
+                    originalSystemUiVisibility = decor.getSystemUiVisibility();
+                    decor.setSystemUiVisibility(
+                            View.SYSTEM_UI_FLAG_FULLSCREEN
+                                    | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
+                                    | View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
+                                    | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
+                                    | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
+                                    | View.SYSTEM_UI_FLAG_LAYOUT_STABLE);
+                }
+
+                @Override
+                public void onHideCustomView() {
+                    if (customView == null) return;
+                    FrameLayout decor = (FrameLayout) getWindow().getDecorView();
+                    decor.removeView(customView);
+                    customView = null;
+                    customViewCallback = null;
+                    decor.setSystemUiVisibility(originalSystemUiVisibility);
                 }
             });
 
@@ -280,6 +333,20 @@ public class MainActivity extends BridgeActivity {
      */
     @Override
     public void onBackPressed() {
+        // Se o vídeo está em tela cheia, o Voltar sai do fullscreen primeiro
+        // (nunca sai do app nem navega para trás enquanto estiver em fullscreen).
+        if (customView != null) {
+            if (customViewCallback != null) {
+                customViewCallback.onCustomViewHidden();
+            }
+            FrameLayout decor = (FrameLayout) getWindow().getDecorView();
+            decor.removeView(customView);
+            customView = null;
+            customViewCallback = null;
+            decor.setSystemUiVisibility(originalSystemUiVisibility);
+            return;
+        }
+
         if (webView == null) {
             super.onBackPressed();
             return;

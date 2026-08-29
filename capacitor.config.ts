@@ -37,6 +37,9 @@ const config: CapacitorConfig = {
   ios: {
     backgroundColor: '#0a0a0f',
     contentInset: 'never',
+    // Permite que o botão de "tela cheia" do <video> funcione no WKWebView
+    // (sem isso, o fullscreen nativo do player não abre no iOS).
+    allowsInlineMediaPlayback: true,
   },
 
   // Keep the WebView alive across background/foreground so "continue

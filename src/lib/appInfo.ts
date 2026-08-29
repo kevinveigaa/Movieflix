@@ -20,13 +20,14 @@ export const APP_INFO = {
   /** Nome exibido do aplicativo */
   name: 'MovieFlix',
   /** Versão semântica atual (bate com android/app/build.gradle → versionName) */
-  version: '2.1.0',
+  version: '2.1.1',
   /** Código de versão Android (bate com versionCode) */
-  versionCode: 4,
+  versionCode: 5,
   /** Data de lançamento desta versão (AAAA-MM-DD) */
-  releaseDate: '2026-08-25',
+  releaseDate: '2026-08-28',
   /** Resumo das mudanças desta versão (exibido na página de download) */
   changelog: [
+    'Correção: botão de tela cheia (fullscreen) do player agora funciona no app',
     'Páginas exclusivas de Filmes e Séries com catálogo completo, busca e ordenação',
     'Catálogo prioriza qualidade (1080p/720p/4K/WEB-DL/BluRay), nunca CAM como principal',
     'Filmes ordenados por lançamento (mais recentes primeiro) com filtros (recentes, antigos, populares, avaliados, A-Z, Z-A)',
@@ -38,7 +39,7 @@ export const APP_INFO = {
   /** Plataformas suportadas */
   platforms: ['Android', 'Android TV', 'Google TV', 'TV Box'],
   /** Nome do arquivo do APK oficial (manter sincronizado com public/apk/) */
-  apkFileName: 'MovieFlix-v2.1.0.apk',
+  apkFileName: 'MovieFlix-v2.1.1.apk',
 } as const;
 
 /** Caminho público do APK oficial dentro do app (servido pelo backend/static). */
@@ -54,44 +55,8 @@ export const APK_ABSOLUTE_URL = `https://movieflix-bszf.onrender.com${APK_URL}`;
 /** URL absoluta da página de download (usada como fallback do QR em iOS). */
 export const DOWNLOAD_PAGE_URL = 'https://movieflix-bszf.onrender.com/#/baixar-app';
 
-/** Tamanho do APK em MB (exibido na página de download). Mantido em sincronia com public/apk/MovieFlix-v2.1.0.apk (5.085.564 bytes ≈ 4.9 MB). */
+/** Tamanho do APK em MB (exibido na página de download). Mantido em sincronia com public/apk/MovieFlix-v2.1.1.apk. */
 export const APK_SIZE_MB = '4.9 MB';
-
-/* ══════════════════════════════════════════════════════════════════════
-   MOVIEFLIX TV — segundo app oficial (Android TV / Google TV / TV Box).
-   App separado, com interface TV dedicada (rota #/tv) e APK próprio.
-   ══════════════════════════════════════════════════════════════════════ */
-export const TV_APP_INFO = {
-  /** Nome exibido do aplicativo de TV */
-  name: 'MovieFlix TV',
-  version: '1.9.0',
-  /** Código de versão Android (bate com versionCode) */
-  versionCode: 12,
-  /** Data de lançamento desta versão (AAAA-MM-DD) */
-  releaseDate: '2026-08-28',
-  /** Resumo das mudanças desta versão (exibido na página de download) */
-  changelog: [
-    'VISUAL IDÊNTICO AO SITE: paleta exata do MovieFlix (preto #050505, vermelho #DF0A15, roxo #7C3AED, verde esmeralda) em todas as telas',
-    'Fonte Bebas Neue (mesma do site) nos títulos display e no wordmark MOVIEFLIX',
-    'CARDS idênticos ao site: badge "Dublado pt-BR" verde, badge de ano, badge "SÉRIE", ícone play com gradiente roxo→vermelho no foco, borda de foco gradiente',
-    'BANNER HERO idêntico ao site: badge "DESTAQUE" com gradiente, chips de qualidade/idioma/gênero, título em Bebas Neue, botão "ASSISTIR" com gradiente',
-    'TELA DE DETALHES: botão voltar (topo esquerdo), título em Bebas Neue, botões ASSISTIR e MINHA LISTA com gradiente roxo→vermelho',
-    'Aplicativo 100% NATIVO Android TV (Kotlin + Leanback + ExoPlayer) — sem WebView, sem site dentro do app',
-  ],
-  /** Plataformas suportadas */
-  platforms: ['Android TV', 'Google TV', 'TV Box'],
-  /** Nome do arquivo do APK oficial (manter sincronizado com public/apk/) */
-  apkFileName: 'MovieFlixTV-v1.9.0.apk',
-} as const;
-
-/** Caminho público do APK do MovieFlix TV dentro do app (servido pelo backend/static). */
-export const TV_APK_URL = `/apk/${TV_APP_INFO.apkFileName}`;
-
-/** URL ABSOLUTA do APK do MovieFlix TV (usada pelo QR code e por links externos). */
-export const TV_APK_ABSOLUTE_URL = `https://movieflix-bszf.onrender.com${TV_APK_URL}`;
-
-/** Tamanho do APK do MovieFlix TV em MB (exibido na página de download). Mantido em sincronia com public/apk/MovieFlixTV-v1.9.0.apk (12.057.137 bytes ≈ 11,5 MB). */
-export const TV_APK_SIZE_MB = '11,5 MB';
 
 /** Chave usada no localStorage para lembrar a última versão vista pelo usuário. */
 const VERSION_KEY = 'mf_last_seen_version';
