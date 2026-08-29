@@ -105,6 +105,12 @@ export function PlayerPage() {
   const [sourceUrl, setSourceUrl] = useState<string | null>(null);
   // True quando o timeout expirou (a fonte não carregou de verdade).
   const [esgotado, setEsgotado] = useState(false);
+  // Resolução do stream direto (StreamBetter) em andamento / falhou.
+  // Enquanto não resolver, o embed do provedor NUNCA é renderizado — é ele que
+  // exibe o overlay "Só mais um passo / Abrir link" (link externo do plano free
+  // do provedor). Sem iframe, não existe diálogo "Abrir link" nem saída do app.
+  const [resolvendoDireto, setResolvendoDireto] = useState(false);
+  const [diretoFalhou, setDiretoFalhou] = useState(false);
   // Tipo de reprodução da fonte atual.
   const [sourceKind, setSourceKind] = useState<'youtube' | 'drive' | 'direct' | 'iframe' | null>(null);
 
@@ -193,6 +199,7 @@ export function PlayerPage() {
   const reiniciarFonte = useCallback(() => {
     // Recarrega a fonte 1 do zero (nova key no iframe).
     setEsgotado(false);
+    setDiretoFalhou(false);
     limparTimeout();
     if (currentUrl) {
       setSourceUrl(null);
@@ -333,32 +340,51 @@ export function PlayerPage() {
     const tRaw = searchParams.get('t');
     const t = tRaw && !isNaN(Number(tRaw)) ? Number(tRaw) : undefined;
 
+    setResolvendoDireto(true);
+    setDiretoFalhou(false);
+
     (async () => {
-      try {
-        const gate =
-          assinante
-            ? await resolverStreamBetterDireto(currentUrl, t)
-            : await gateStream(currentUrl, t);
-        if (cancelado) return;
-        const autorizado = 'authorized' in gate ? gate.authorized : gate.success;
-        if (autorizado && gate.url) {
-          setSourceUrl(gate.url);
-          setSourceKind(gate.kind === 'mp4' ? 'direct' : 'direct');
-          // Teste grátis: registra o token e inicia o cronômetro de 20s.
-          if (!assinante && 'trialToken' in gate && gate.trialToken) {
-            trialTokenRef.current = gate.trialToken;
-            iniciarCronometroTrial('trial' in gate ? gate.trial?.remainingSeconds : undefined);
+      // Tenta resolver o stream direto algumas vezes (rede instável do
+      // provedor). NÃO caímos mais no iframe do provedor em caso de falha:
+      // o embed free abre o overlay "Só mais um passo → Abrir link", que manda
+      // o usuário para fora do MovieFlix. Aqui a reprodução acontece sempre
+      // dentro do app (player nativo <video> + hls.js).
+      for (let tentativa = 0; tentativa < 3 && !cancelado; tentativa += 1) {
+        try {
+          const gate =
+            assinante
+              ? await resolverStreamBetterDireto(currentUrl, t)
+              : await gateStream(currentUrl, t);
+          if (cancelado) return;
+          const autorizado = 'authorized' in gate ? gate.authorized : gate.success;
+          if (autorizado && gate.url) {
+            setSourceUrl(gate.url);
+            setSourceKind(gate.kind === 'mp4' ? 'direct' : 'direct');
+            // Teste grátis: registra o token e inicia o cronômetro de 20s.
+            if (!assinante && 'trialToken' in gate && gate.trialToken) {
+              trialTokenRef.current = gate.trialToken;
+              iniciarCronometroTrial('trial' in gate ? gate.trial?.remainingSeconds : undefined);
+            }
+            setResolvendoDireto(false);
+            return;
           }
-        } else if (!assinante && gate.motivo === 'assinatura_necessaria') {
-          // Servidor negou por falta de assinatura/teste esgotado → bloqueia já.
-          trialExpiredRef.current = true;
-          setTrialMode('blocked');
-          setTrialRemaining(0);
+          if (!assinante && gate.motivo === 'assinatura_necessaria') {
+            // Servidor negou por falta de assinatura/teste esgotado → bloqueia já.
+            trialExpiredRef.current = true;
+            setTrialMode('blocked');
+            setTrialRemaining(0);
+            setResolvendoDireto(false);
+            return;
+          }
+        } catch (e) {
+          console.warn('[PlayerPage] falha no modo direto StreamBetter:', e);
         }
-        // Se falhar (network/sem stream), mantém o iframe (fallback silencioso).
-      } catch (e) {
-        console.warn('[PlayerPage] falha no modo direto StreamBetter:', e);
+        // Espera curta antes de tentar de novo.
+        await new Promise((r) => setTimeout(r, 1200));
       }
+      if (cancelado) return;
+      setResolvendoDireto(false);
+      setDiretoFalhou(true);
     })();
     return () => {
       cancelado = true;
@@ -752,6 +778,13 @@ export function PlayerPage() {
     );
   }
 
+  // O embed do StreamBetter só existe enquanto o stream direto não foi
+  // resolvido. Nunca o exibimos: o iframe do plano free do provedor mostra
+  // "Só mais um passo → Abrir link" e joga o usuário para fora do MovieFlix.
+  const embedBloqueado = Boolean(
+    currentUrl && sourceKind !== 'direct' && ehEmbedStreamBetter(currentUrl),
+  );
+
   return (
     <div className="min-h-screen bg-black text-white">
       {/* Header */}
@@ -771,7 +804,34 @@ export function PlayerPage() {
               data-tv-player-box
               className="relative w-full aspect-video rounded-xl overflow-hidden bg-black shadow-2xl shadow-red-900/20 ring-1 ring-white/10"
             >
-              {sourceKind === 'direct' ? (
+              {embedBloqueado ? (
+                /* Embed do provedor NÃO é renderizado: é ele que injeta o
+                   overlay "Só mais um passo / Abrir link" (link externo).
+                   Aqui mostramos o estado dentro do próprio MovieFlix. */
+                <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-black px-6 text-center">
+                  {resolvendoDireto && !diretoFalhou ? (
+                    <>
+                      <Loader2 className="h-8 w-8 animate-spin text-red-500" />
+                      <p className="text-sm text-zinc-300">Preparando a reprodução...</p>
+                    </>
+                  ) : (
+                    <>
+                      <AlertCircle className="h-8 w-8 text-red-500" />
+                      <p className="text-sm text-zinc-300">
+                        Não foi possível preparar o vídeo agora.
+                      </p>
+                      <button
+                        onClick={reiniciarFonte}
+                        data-tv-focusable
+                        className="flex items-center gap-2 rounded-lg bg-red-600 px-4 py-2 text-xs font-semibold transition hover:bg-red-500"
+                      >
+                        <RefreshCw className="h-4 w-4" />
+                        Tentar novamente
+                      </button>
+                    </>
+                  )}
+                </div>
+              ) : sourceKind === 'direct' ? (
                 <video
                   key={currentUrl}
                   ref={videoRef}

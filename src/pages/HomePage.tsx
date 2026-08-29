@@ -9,12 +9,17 @@ import { Link } from "react-router-dom";
 import { Crown, Sparkles, ChevronLeft, ChevronRight, Search as SearchIcon, X } from "lucide-react";
 import { categoriasDoFilme, ehInfantil, ordenarCategorias } from "@/lib/categorias";
 import { ehFilme } from "@/lib/media";
+import { criarSemente, embaralharPriorizandoRecentes } from "@/lib/ordenacaoAleatoria";
 
 export function HomePage() {
   const { subscription, activeViewerProfile } = useAuth();
   const isKid = activeViewerProfile?.is_kid ?? false;
   const movies = useMovies();
   const { seriesHidden } = useSeriesHidden();
+  // Semente da sessão da Home: criada UMA vez por montagem (abrir o site,
+  // recarregar ou voltar para a Home numa nova navegação geram outra ordem);
+  // durante o mesmo estado da página a ordem não muda a cada re-render.
+  const [semente] = useState(() => criarSemente());
 
   const visibleMovies = useMemo(() => {
     let lista = movies.data ?? [];
@@ -29,12 +34,19 @@ export function HomePage() {
   const { termo, setTermo, results, resultsFallback, temBusca } = useFuzzySearch(visibleMovies, "");
   const buscaResultados = results.length > 0 ? results : resultsFallback;
 
-  const destaques = useMemo(() => visibleMovies.slice(0, 5), [visibleMovies]);
+  // Catálogo visível já embaralhado com prioridade para os lançamentos.
+  // Todas as listas da Home derivam daqui (um único shuffle por carregamento).
+  const misturados = useMemo(
+    () => embaralharPriorizandoRecentes(visibleMovies, semente),
+    [visibleMovies, semente],
+  );
+
+  const destaques = useMemo(() => misturados.slice(0, 5), [misturados]);
 
   const categorias = useMemo(() => {
     const mapa = new Map<string, any[]>();
 
-    for (const movie of visibleMovies) {
+    for (const movie of misturados) {
       for (const cat of categoriasDoFilme(movie)) {
         if (!mapa.has(cat)) mapa.set(cat, []);
         mapa.get(cat)!.push(movie);
@@ -46,27 +58,30 @@ export function HomePage() {
     return nomes
       .map((nome) => ({ nome, lista: mapa.get(nome)!.slice(0, 20) }))
       .filter((c) => c.lista.length > 0);
-  }, [visibleMovies]);
+  }, [misturados]);
 
-  const recentes = useMemo(() => visibleMovies.slice(0, 5), [visibleMovies]);
+  // "Adicionados recentemente": mistura aleatória com peso para os mais novos.
+  const recentes = useMemo(() => misturados.slice(0, 20), [misturados]);
 
   // "Em alta" (tendencias): los mejor valorados del catálogo.
   const emAlta = useMemo(() => {
-    return [...visibleMovies]
+    const melhores = [...visibleMovies]
       .sort((a: any, b: any) => Number(b.vote_average ?? 0) - Number(a.vote_average ?? 0))
-      .slice(0, 20);
-  }, [visibleMovies]);
+      .slice(0, 80);
+    return embaralharPriorizandoRecentes(melhores, semente ^ 0x9e3779b9).slice(0, 20);
+  }, [visibleMovies, semente]);
 
   // "Populares": mejor valorados con prioridad a los más recientes entre ellos.
   const populares = useMemo(() => {
-    return [...visibleMovies]
+    const melhoresRecentes = [...visibleMovies]
       .sort((a: any, b: any) => {
         const nota = Number(b.vote_average ?? 0) - Number(a.vote_average ?? 0);
         if (nota !== 0) return nota;
         return Number(b.year ?? 0) - Number(a.year ?? 0);
       })
-      .slice(0, 20);
-  }, [visibleMovies]);
+      .slice(0, 80);
+    return embaralharPriorizandoRecentes(melhoresRecentes, semente ^ 0x85ebca6b).slice(0, 20);
+  }, [visibleMovies, semente]);
 
   return (
     <div className="pb-16">

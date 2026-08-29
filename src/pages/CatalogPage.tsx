@@ -9,8 +9,9 @@ import { useSeriesHidden } from '@/hooks/useSeriesHidden';
 import { useAuth } from '@/context/AuthContext';
 import { ehInfantil, isCategoriaKids, temCategoria, categoriasDoFilme, ordenarCategorias } from '@/lib/categorias';
 import { ehSerie } from '@/lib/media';
-import { ArrowDownWideNarrow, ArrowUpNarrowWide, Calendar, Star, TrendingUp } from 'lucide-react';
+import { ArrowDownWideNarrow, ArrowUpNarrowWide, Calendar, Shuffle, Star, TrendingUp } from 'lucide-react';
 import { cn } from '@/lib/cn';
+import { criarSemente, embaralharPriorizandoRecentes } from '@/lib/ordenacaoAleatoria';
 
 type CatalogKind = 'filmes' | 'series';
 
@@ -24,9 +25,11 @@ const TIPOS: Record<CatalogKind, string[]> = {
   series: ['series', 'serie', 'tv'],
 };
 
-type Ordenacao = 'recentes' | 'antigos' | 'populares' | 'nota' | 'az' | 'za';
+type Ordenacao = 'mistura' | 'recentes' | 'antigos' | 'populares' | 'nota' | 'az' | 'za';
 
 const ORDENACOES: { id: Ordenacao; label: string }[] = [
+  // Apresentação PADRÃO: mistura aleatória com prioridade para os lançamentos.
+  { id: 'mistura', label: 'Novidades (mistura)' },
   { id: 'recentes', label: 'Mais recentes' },
   { id: 'antigos', label: 'Mais antigos' },
   { id: 'populares', label: 'Mais populares' },
@@ -42,7 +45,10 @@ export function CatalogPage({ kind }: { kind: CatalogKind }) {
   const { activeViewerProfile } = useAuth();
   const isKid = activeViewerProfile?.is_kid ?? false;
   const [search, setSearch] = useState('');
-  const [ordenacao, setOrdenacao] = useState<Ordenacao>('recentes');
+  const [ordenacao, setOrdenacao] = useState<Ordenacao>('mistura');
+  // Semente criada uma vez por montagem da página (ordem estável entre
+  // re-renders, recalculada ao recarregar/voltar para o catálogo).
+  const [semente] = useState(() => criarSemente());
   // Carregamento progressivo: catálogo é GRANDE (~4.000 filmes / ~1.250 séries).
   // Renderizamos em blocos de 60 e o usuário clica "Carregar mais" (evita travar
   // o navegador/TV renderizando milhares de cards de uma vez).
@@ -107,6 +113,11 @@ export function CatalogPage({ kind }: { kind: CatalogKind }) {
     const titulo = (m: any) => String(m.title ?? '');
 
     switch (ordenacao) {
+      case 'mistura':
+        // Aleatório com peso para os lançamentos (não altera a categoria/gênero
+        // filtrado nem os dados: muda somente a ordem de apresentação).
+        lista = embaralharPriorizandoRecentes(lista, semente);
+        break;
       case 'recentes':
         lista = [...lista].sort((a: any, b: any) => dataLancamento(b).localeCompare(dataLancamento(a)));
         break;
@@ -128,7 +139,7 @@ export function CatalogPage({ kind }: { kind: CatalogKind }) {
     }
 
     return lista;
-  }, [base, search, categoria, ordenacao]);
+  }, [base, search, categoria, ordenacao, semente]);
 
   // Total REAL do tipo (filmes ou séries) — independe da busca/filtro ativo.
   const totalTipo = base.length;
@@ -181,6 +192,7 @@ export function CatalogPage({ kind }: { kind: CatalogKind }) {
                   : 'border-white/10 bg-white/5 text-ink-300 hover:text-white',
               )}
             >
+              {o.id === 'mistura' && <Shuffle className="h-3 w-3" />}
               {o.id === 'recentes' && <Calendar className="h-3 w-3" />}
               {o.id === 'antigos' && <ArrowUpNarrowWide className="h-3 w-3" />}
               {o.id === 'populares' && <TrendingUp className="h-3 w-3" />}
