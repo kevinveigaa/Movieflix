@@ -1,55 +1,51 @@
 /**
  * ════════════════════════════════════════════════════════════════════════════
- * CINESRC — player principal de filmes e séries do Movieflix
+ * YAPGRID — player principal de filmes e séries do Movieflix
  * ════════════════════════════════════════════════════════════════════════════
  *
- * O player do Movieflix usa o CineSrc (https://cinesrc.st), um serviço de
- * embed de filmes e séries baseado em TMDB ID (mantido pela equipe ShuttleTV).
- * O CineSrc resolve as fontes, legendas, áudio e qualidade do outro lado, num
- * player self-contained (com play, seek, volume, fullscreen, PiP e cast) — sem
- * overlay "Abrir link", sem redirecionamento externo e sem anúncios próprios
- * do Movieflix.
+ * O player do Movieflix usa o YapGrid (https://yapgrid.com), um serviço de
+ * embed de filmes e séries baseado em TMDB ID, SEM anúncios e SEM API key.
+ * O YapGrid resolve fontes, legendas, áudio e qualidade do outro lado, num
+ * player self-contained (hls.js) — sem overlay "Abrir link", sem
+ * redirecionamento externo e sem anúncios próprios do Movieflix.
  *
- *   Filmes : https://cinesrc.st/embed/movie/{tmdbId}
- *   Séries : https://cinesrc.st/embed/tv/{tmdbId}?s={temporada}&e={episodio}
+ *   Filmes : https://yapgrid.com/embed/movie/{tmdbId}
+ *   Séries : https://yapgrid.com/embed/tv/{tmdbId}/{temporada}/{episodio}
  *
  * O embed é gerado AUTOMATICAMENTE a partir do TMDB ID (que já existe no
  * catálogo) — não há URLs manuais por título. Vale para todo o catálogo atual
  * e para novos títulos adicionados futuramente.
  *
  * ── Áudio pt-BR ─────────────────────────────────────────────────────────────
- * O player do CineSrc seleciona a faixa de áudio disponível. O Movieflix
- * identifica a disponibilidade real de dublagem pelo campo `dublado_ptbr` do
- * catálogo (nunca inventado) e exibe "Dublado PT-BR" / "Legendado" nos cards.
+ * O player do YapGrid seleciona a faixa de áudio disponível (o usuário pode
+ * trocar de servidor/faixa dentro do player). O Movieflix identifica a
+ * disponibilidade real de dublagem pelo campo `dublado_ptbr` do catálogo
+ * (nunca inventado) e exibe "Dublado PT-BR" / "Legendado" nos cards.
  *
- * ── Anúncios ───────────────────────────────────────────────────────────────
- *   O Movieflix não injeta nenhum anúncio próprio. O embed do CineSrc é
- *   incorporado DENTRO do site/app (iframe), sem redirecionamento externo.
+ * ── Anúncios ────────────────────────────────────────────────────────────────
+ *   O YapGrid é um player publicamente ad-free (sem anúncios). O Movieflix
+ *   não injeta nenhum anúncio próprio. O embed é incorporado DENTRO do
+ *   site/app (iframe), sem redirecionamento externo.
  */
 
-const EMBED_BASE = 'https://www.2embed.cc';
+const YAPGRID_BASE = 'https://yapgrid.com';
 
-/** Parâmetro de preferência de idioma (pt-BR) — reforço, não garantia. */
-export const AUDIO_PTBR = 'pt-BR';
+/** Parâmetro de preferência de idioma (pt) — reforço, não garantia. */
+export const AUDIO_PTBR = 'pt';
 
-// O 2embed seleciona a faixa de áudio disponível automaticamente (prioriza
-// pt-BR quando existe). NÃO adicionamos `?lang=` — o 2embed redireciona para
-// a página de detalhes quando recebe esse parâmetro, quebrando o player.
-// Apenas o `seek` (retomada) é anexado quando há posição salva.
 function withLang(url: string, startSeconds?: number): string {
-  if (startSeconds && startSeconds > 0) {
-    return `${url}?t=${Math.floor(startSeconds)}`;
-  }
-  return url;
+  const params = new URLSearchParams({ lang: AUDIO_PTBR });
+  if (startSeconds && startSeconds > 0) params.set('t', String(startSeconds));
+  return `${url}?${params.toString()}`;
 }
 
-/** URL do player do 2embed para um filme, com áudio pt-BR preferido. */
+/** URL do player do YapGrid para um filme, com áudio pt-BR preferido. */
 export function streamBetterMovieUrl(tmdbId: number | string | null | undefined, startSeconds?: number): string {
   if (tmdbId == null) return '';
-  return withLang(`${EMBED_BASE}/embed/${tmdbId}`, startSeconds);
+  return withLang(`${YAPGRID_BASE}/embed/movie/${tmdbId}`, startSeconds);
 }
 
-/** URL do player do 2embed para um episódio de série, com áudio pt-BR. */
+/** URL do player do YapGrid para um episódio de série, com áudio pt-BR. */
 export function streamBetterSeriesUrl(
   tmdbId: number | string | null | undefined,
   season: number,
@@ -57,7 +53,7 @@ export function streamBetterSeriesUrl(
   startSeconds?: number,
 ): string {
   if (tmdbId == null) return '';
-  return withLang(`${EMBED_BASE}/embedtv/${tmdbId}&s=${season}&e=${episode}`, startSeconds);
+  return withLang(`${YAPGRID_BASE}/embed/tv/${tmdbId}/${season}/${episode}`, startSeconds);
 }
 
 /**
@@ -88,7 +84,7 @@ export function primeiroEpisodioDisponivel(
   return ordenados[0];
 }
 
-/** Atalho: URL de embed do 2embed a partir de um título do catálogo. */
+/** Atalho: URL de embed do YapGrid a partir de um título do catálogo. */
 export function movieEmbedUrl(
   movie: { video_url?: string; tmdb_id?: number | string } | null | undefined,
 ): string {
@@ -97,12 +93,15 @@ export function movieEmbedUrl(
   return streamBetterMovieUrl(movie.tmdb_id);
 }
 
-/** É uma URL de embed do 2embed? (player principal do Movieflix) */
-export function ehEmbedVidCore(url: string): boolean {
+/** É uma URL de embed do YapGrid? (player principal do Movieflix) */
+export function ehEmbedYapGrid(url: string): boolean {
   try {
     const u = new URL(url);
-    return u.hostname === '2embed.cc' || u.hostname.endsWith('.2embed.cc') || u.hostname === '2embed.skin' || u.hostname.endsWith('.2embed.skin');
+    return u.hostname === 'yapgrid.com' || u.hostname.endsWith('.yapgrid.com');
   } catch {
     return false;
   }
 }
+
+/** Alias de compatibilidade (nome antigo) — verifica o domínio do YapGrid. */
+export const ehEmbedVidCore = ehEmbedYapGrid;

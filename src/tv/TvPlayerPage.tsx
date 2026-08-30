@@ -12,13 +12,14 @@ import { cn } from '@/lib/cn';
 /**
  * TvPlayerPage — player do MovieFlix TV.
  *
- * - Mesma lógica do PlayerPage do site: o player principal é o CineSrc
- *   (https://cinesrc.st), um serviço de embed de filmes e séries baseado
- *   em TMDB ID. O embed é gerado AUTOMATICAMENTE a partir do tmdb_id (filme)
- *   ou tmdb_id + temporada + episódio (série) e renderizado DENTRO do app via
- *   <iframe> (allowFullScreen, responsivo). O CineSrc é self-contained
- *   (play, seek, volume, fullscreen, PiP e cast) — sem overlay "Abrir link",
- *   sem redirecionamento externo e sem anúncios próprios do Movieflix.
+* - Mesma lógica do PlayerPage do site: o player principal é o YapGrid
+ *   (https://yapgrid.com), um serviço de embed de filmes e séries baseado
+ *   em TMDB ID, sem anúncios e sem API key. O embed é gerado AUTOMATICAMENTE
+ *   a partir do tmdb_id (filme) ou tmdb_id + temporada + episódio (série) e
+ *   renderizado DENTRO do app via <iframe> (allowFullScreen, responsivo, com
+ *   sandbox restrito). O YapGrid é self-contained (hls.js) — sem overlay
+ *   "Abrir link", sem redirecionamento externo e sem anúncios próprios do
+ *   Movieflix.
  * - PROTEÇÃO: só monta o player depois de verificar auth + assinatura ativa
  *   (mesma regra do PlayerPage do site). Sem assinatura → redirect para
  *   /tv/assinatura.
@@ -175,6 +176,7 @@ export function TvPlayerPage() {
           allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share; fullscreen"
           allowFullScreen
           referrerPolicy="origin"
+          sandbox="allow-scripts allow-same-origin allow-presentation allow-forms"
           data-tv-focusable
           data-tv-player-box
         />

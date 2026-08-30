@@ -37,6 +37,7 @@
  */
 
 const DOMINIOS_PERMITIDOS = [
+  'yapgrid.com',
   'streambetter.shop',
   'playerflixapi.com',
   'megaembedapi.site',

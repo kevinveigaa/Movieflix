@@ -20,21 +20,28 @@ import {
 import { ChevronLeft, Film, Gamepad2, Loader2, RotateCcw, Play, Clock, AlertTriangle } from 'lucide-react';
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Player do Movieflix — CINESRC (https://cinesrc.st)
+// Player do Movieflix — YAPGRID (https://yapgrid.com)
 //
-// O player principal é o CineSrc, um serviço de embed de filmes e séries
-// baseado em TMDB ID. O embed é gerado AUTOMATICAMENTE a partir do tmdb_id
-// (filme) ou tmdb_id + temporada + episódio (série) — sem URLs manuais por
-// título. O CineSrc resolve fontes, legendas, áudio e qualidade do outro lado,
-// num player self-contained (play, seek, volume, fullscreen, PiP e cast), sem
-// overlay "Abrir link", sem redirecionamento externo e sem anúncios próprios
-// do Movieflix.
+// O player principal é o YapGrid, um serviço de embed de filmes e séries
+// baseado em TMDB ID, SEM anúncios e SEM API key. O embed é gerado
+// AUTOMATICAMENTE a partir do tmdb_id (filme) ou tmdb_id + temporada +
+// episódio (série) — sem URLs manuais por título. O YapGrid resolve fontes,
+// legendas, áudio e qualidade do outro lado, num player self-contained
+// (hls.js), sem overlay "Abrir link", sem redirecionamento externo e sem
+// anúncios próprios do Movieflix.
 //
-//   Filmes : https://cinesrc.st/embed/movie/{tmdbId}
-//   Séries : https://cinesrc.st/embed/tv/{tmdbId}?s={temporada}&e={episodio}
+//   Filmes : https://yapgrid.com/embed/movie/{tmdbId}
+//   Séries : https://yapgrid.com/embed/tv/{tmdbId}/{temporada}/{episodio}
 //
 // O embed é renderizado DENTRO do site/app via <iframe> (allowFullScreen,
-// responsivo). O Movieflix não injeta anúncios e não redireciona o usuário
+// responsivo, com sandbox restrito — sem allow-top-navigation, sem
+// allow-popups). O Movieflix não injeta anúncios e não redireciona o usuário
+// para fora — a proteção anti-redirect (antiAds) restaura a URL do player se
+// um anúncio tentar mudar o documento do iframe.
+//
+// O embed é renderizado DENTRO do site/app via <iframe> (allowFullScreen,
+// responsivo, com sandbox restrito — sem allow-top-navigation, sem
+// allow-popups). O Movieflix não injeta anúncios e não redireciona o usuário
 // para fora — a proteção anti-redirect (antiAds) restaura a URL do player se
 // um anúncio tentar mudar o documento do iframe.
 //
@@ -372,6 +379,7 @@ export function PlayerPage() {
                 allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share; fullscreen"
                 allowFullScreen
                 referrerPolicy="origin"
+                sandbox="allow-scripts allow-same-origin allow-presentation allow-forms"
                 data-tv-focusable
               />
             </div>
