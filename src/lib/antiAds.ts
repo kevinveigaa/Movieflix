@@ -39,6 +39,7 @@
 const DOMINIOS_PERMITIDOS = [
   'yapgrid.com',
   'streambetter.shop',
+  'cinesrc.st',
   'playerflixapi.com',
   'megaembedapi.site',
   'embedplayapi.site',

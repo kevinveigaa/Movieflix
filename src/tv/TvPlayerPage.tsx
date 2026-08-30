@@ -4,7 +4,7 @@ import { ArrowLeft, Gamepad2, Loader2, AlertCircle } from 'lucide-react';
 import { useMovies } from '@/hooks/useMovies';
 import { useAuth } from '@/context/AuthContext';
 import { hasActiveSubscription } from '@/context/AuthContext';
-import { streambetterSeriesEmbedUrl, streambetterMovieEmbedUrl, primeiroEpisodioDisponivel } from '@/lib/strembetter';
+import { streambetterSeriesEmbedUrl, streambetterMovieEmbedUrl, primeiroEpisodioDisponivel, fallbackEmbedUrlDoStreambetter } from '@/lib/strembetter';
 import { NativeHlsPlayer } from '@/components/player/NativeHlsPlayer';
 import { useTvPlayerControls } from '@/hooks/useTvPlayerControls';
 import { cn } from '@/lib/cn';
@@ -37,6 +37,9 @@ export function TvPlayerPage() {
   const assinante = hasActiveSubscription(subscription);
   const frameRef = useRef<HTMLDivElement>(null);
   const [playerMode, setPlayerMode] = useState(false);
+  // Fallback automático: URL do iframe do CineSrc usada quando o resolver do
+  // StreamBetter falha (upstream fora do ar / sem stream direto).
+  const [fallbackUrl, setFallbackUrl] = useState<string | null>(null);
 
   const movie = (movies.data ?? []).find((m) => String(m.id) === String(id)) ?? null;
 
@@ -153,13 +156,34 @@ export function TvPlayerPage() {
       </div>
 
       <div className="tv-player-box" data-tv-player-box ref={frameRef}>
-        <NativeHlsPlayer
-          key={src}
-          embedUrl={src}
-          onReady={(video) => {
-            video.setAttribute('data-tv-focusable', '');
-          }}
-        />
+        {fallbackUrl ? (
+          /* Fallback automático: iframe do CineSrc (player próprio, áudio
+             pt-BR via ?lang=pt-BR). Usado quando o resolver do StreamBetter
+             falha. Protegido pelo antiAds (guard de redirect + popups). */
+          <iframe
+            key={fallbackUrl}
+            src={fallbackUrl}
+            className="h-full w-full"
+            allow="autoplay; fullscreen; picture-in-picture; encrypted-media; clipboard-write"
+            allowFullScreen
+            referrerPolicy="origin"
+            title="Player de vídeo"
+          />
+        ) : (
+          <NativeHlsPlayer
+            key={src}
+            embedUrl={src}
+            onReady={(video) => {
+              video.setAttribute('data-tv-focusable', '');
+            }}
+            onError={() => {
+              if (!fallbackUrl) {
+                const fb = fallbackEmbedUrlDoStreambetter(src);
+                if (fb) setFallbackUrl(fb);
+              }
+            }}
+          />
+        )}
       </div>
 
       <div className={cn('tv-player-mode-badge', playerMode && 'tv-player-mode-ativo')} data-tv-player-mode>

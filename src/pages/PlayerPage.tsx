@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
 import { supabase } from '@/lib/supabase';
-import { streambetterMovieEmbedUrl, streambetterSeriesEmbedUrl } from '@/lib/strembetter';
+import { streambetterMovieEmbedUrl, streambetterSeriesEmbedUrl, fallbackEmbedUrlDoStreambetter } from '@/lib/strembetter';
 import { NativeHlsPlayer } from '@/components/player/NativeHlsPlayer';
 import { SubscriptionPaywall } from '@/components/player/SubscriptionPaywall';
 import { hasActiveSubscription } from '@/context/AuthContext';
@@ -64,6 +64,10 @@ export function PlayerPage() {
 
   // URL do embed do StreamBetter (fonte única) que o resolver do backend resolve.
   const [sourceUrl, setSourceUrl] = useState<string | null>(null);
+  // Fallback automático: URL do iframe do CineSrc usada quando o resolver do
+  // StreamBetter falha (upstream fora do ar / sem stream direto). O CineSrc
+  // fornece o próprio player e prioriza áudio pt-BR (?lang=pt-BR).
+  const [fallbackUrl, setFallbackUrl] = useState<string | null>(null);
   // Chave de reprodução: muda para recriar o player (ex.: retomada de posição).
   const [playbackKey, setPlaybackKey] = useState(0);
 
@@ -348,15 +352,40 @@ export function PlayerPage() {
               data-tv-player-box
               className="relative w-full aspect-video rounded-xl overflow-hidden bg-black shadow-2xl shadow-red-900/20 ring-1 ring-white/10"
             >
-              <NativeHlsPlayer
-                key={`${currentUrl}-${playbackKey}`}
-                embedUrl={currentUrl}
-                startSeconds={resumeSeconds > 0 ? resumeSeconds : undefined}
-                onReady={(video) => {
-                  // Garante que o foco fique no player para o controle remoto.
-                  video.setAttribute('data-tv-focusable', '');
-                }}
-              />
+              {fallbackUrl ? (
+                /* Fallback automático: iframe do CineSrc (player próprio,
+                   áudio pt-BR via ?lang=pt-BR). Usado quando o resolver do
+                   StreamBetter falha. Protegido pelo antiAds (guard de
+                   redirect + bloqueio de popups). */
+                <iframe
+                  key={fallbackUrl}
+                  src={fallbackUrl}
+                  className="h-full w-full"
+                  allow="autoplay; fullscreen; picture-in-picture; encrypted-media; clipboard-write"
+                  allowFullScreen
+                  referrerPolicy="origin"
+                  title="Player de vídeo"
+                />
+              ) : (
+                <NativeHlsPlayer
+                  key={`${currentUrl}-${playbackKey}`}
+                  embedUrl={currentUrl}
+                  startSeconds={resumeSeconds > 0 ? resumeSeconds : undefined}
+                  onReady={(video) => {
+                    // Garante que o foco fique no player para o controle remoto.
+                    video.setAttribute('data-tv-focusable', '');
+                  }}
+                  onError={() => {
+                    // Resolver do StreamBetter falhou (upstream fora do ar):
+                    // cai automaticamente para o iframe do CineSrc, que fornece
+                    // o próprio player e prioriza áudio pt-BR.
+                    if (!fallbackUrl) {
+                      const fb = fallbackEmbedUrlDoStreambetter(currentUrl);
+                      if (fb) setFallbackUrl(fb);
+                    }
+                  }}
+                />
+              )}
             </div>
 
             {/* Indicador de modo controle do player (TV / TV Box) */}
