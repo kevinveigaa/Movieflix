@@ -42,3 +42,4 @@ ios/DerivedData/
 ios/.idea/
 *.keystore
 *.jks
+.disponibilidade-cache/
