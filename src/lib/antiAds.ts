@@ -31,15 +31,14 @@
  *  8. Histórico: `history.pushState`/`replaceState` e `popstate`/`hashchange`
  *     são monitorados para impedir que um anúncio altere a URL do app.
  *
- * Contexto: o iframe do StreamBetter NÃO pode usar `sandbox` permanente (o
- * player detecta e recusa exibir conteúdo — "Não bloqueie os anúncios do
- * player"). A proteção é feita na janela pai, com as camadas acima.
+ * Contexto: o iframe do WatchPlayer NÃO pode usar `sandbox` permanente (o
+ * player detecta e recusa exibir conteúdo). A proteção é feita na janela pai,
+ * com as camadas acima.
  */
 
 const DOMINIOS_PERMITIDOS = [
   'yapgrid.com',
   'streambetter.shop',
-  'cinesrc.st',
   'playerflixapi.com',
   'megaembedapi.site',
   'embedplayapi.site',
