@@ -304,6 +304,8 @@ function CategoryRow({
                   poster_url: movie.poster_url,
                   quality: movie.quality ?? "HD",
                   type: movie.type ?? "movie",
+                  language: movie.language,
+                  dublado_ptbr: movie.dublado_ptbr,
                 }}
                 progress={progressMap?.[movie.id]}
               />
