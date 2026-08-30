@@ -4,8 +4,8 @@ import { ArrowLeft, Gamepad2, Loader2, AlertCircle } from 'lucide-react';
 import { useMovies } from '@/hooks/useMovies';
 import { useAuth } from '@/context/AuthContext';
 import { hasActiveSubscription } from '@/context/AuthContext';
-import { streambetterSeriesEmbedUrl, streambetterMovieEmbedUrl, primeiroEpisodioDisponivel, fallbackEmbedUrlDoStreambetter } from '@/lib/strembetter';
-import { NativeHlsPlayer } from '@/components/player/NativeHlsPlayer';
+import { streambetterSeriesEmbedUrl, streambetterMovieEmbedUrl, primeiroEpisodioDisponivel } from '@/lib/strembetter';
+import { protegerIframeContraRedirect } from '@/lib/antiAds';
 import { useTvPlayerControls } from '@/hooks/useTvPlayerControls';
 import { cn } from '@/lib/cn';
 
@@ -36,10 +36,8 @@ export function TvPlayerPage() {
   const { user, subscription, loading: authLoading } = useAuth();
   const assinante = hasActiveSubscription(subscription);
   const frameRef = useRef<HTMLDivElement>(null);
+  const iframeRef = useRef<HTMLIFrameElement>(null);
   const [playerMode, setPlayerMode] = useState(false);
-  // Fallback automático: URL do iframe do CineSrc usada quando o resolver do
-  // StreamBetter falha (upstream fora do ar / sem stream direto).
-  const [fallbackUrl, setFallbackUrl] = useState<string | null>(null);
 
   const movie = (movies.data ?? []).find((m) => String(m.id) === String(id)) ?? null;
 
@@ -52,7 +50,7 @@ export function TvPlayerPage() {
     return () => window.removeEventListener('mf-player-mode-change', onChange);
   }, []);
 
-  // Fonte do catálogo: o embed do CineSrc (montado do tmdb_id) é a fonte
+  // Fonte do catálogo: o embed do WatchPlayer (montado do tmdb_id) é a fonte
   // PRIMÁRIA; `video_url` do banco (StreamBetter) fica apenas como fallback.
   const src = (() => {
     if (!movie) return '';
@@ -65,6 +63,14 @@ export function TvPlayerPage() {
     if (movie.video_url) return movie.video_url;
     return '';
   })();
+
+  // Guarda de redirect do iframe do player (antiAds): se o iframe tentar
+  // navegar para um host de anúncio, restaura a URL original do player.
+  useEffect(() => {
+    const iframe = iframeRef.current;
+    if (!iframe || !src) return;
+    return protegerIframeContraRedirect(iframe, src);
+  }, [src]);
 
   useTvPlayerControls(
     Boolean(user) && assinante && Boolean(src),
@@ -156,34 +162,19 @@ export function TvPlayerPage() {
       </div>
 
       <div className="tv-player-box" data-tv-player-box ref={frameRef}>
-        {fallbackUrl ? (
-          /* Fallback automático: iframe do CineSrc (player próprio, áudio
-             pt-BR via ?lang=pt-BR). Usado quando o resolver do StreamBetter
-             falha. Protegido pelo antiAds (guard de redirect + popups). */
-          <iframe
-            key={fallbackUrl}
-            src={fallbackUrl}
-            className="h-full w-full"
-            allow="autoplay; fullscreen; picture-in-picture; encrypted-media; clipboard-write"
-            allowFullScreen
-            referrerPolicy="origin"
-            title="Player de vídeo"
-          />
-        ) : (
-          <NativeHlsPlayer
-            key={src}
-            embedUrl={src}
-            onReady={(video) => {
-              video.setAttribute('data-tv-focusable', '');
-            }}
-            onError={() => {
-              if (!fallbackUrl) {
-                const fb = fallbackEmbedUrlDoStreambetter(src);
-                if (fb) setFallbackUrl(fb);
-              }
-            }}
-          />
-        )}
+        {/* Player único: iframe do WatchPlayer (fornece o próprio player,
+            ArtPlayer + hls.js, áudio pt-BR automático). Protegido pelo
+            antiAds (guard de redirect + bloqueio de popups). */}
+        <iframe
+          key={src}
+          ref={iframeRef}
+          src={src}
+          className="h-full w-full"
+          allow="autoplay; fullscreen; picture-in-picture; encrypted-media; clipboard-write"
+          allowFullScreen
+          referrerPolicy="origin"
+          title="Player de vídeo"
+        />
       </div>
 
       <div className={cn('tv-player-mode-badge', playerMode && 'tv-player-mode-ativo')} data-tv-player-mode>

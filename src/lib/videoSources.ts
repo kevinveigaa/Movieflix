@@ -9,16 +9,16 @@ export type VideoIds = {
 /**
  * Fonte de reprodução para um título do catálogo.
  *
- * PLAYER ÚNICO: CineSrc (https://cinesrc.st)
- *   - Filmes → https://cinesrc.st/embed/movie/{tmdbId}?lang=pt-BR
- *   - Séries → https://cinesrc.st/embed/tv/{tmdbId}?s={season}&e={episode}&lang=pt-BR
+ * PLAYER ÚNICO: WatchPlayer (https://watchplayer.shop)
+ *   - Filmes → https://watchplayer.shop/movie/{tmdbId}
+ *   - Séries → https://watchplayer.shop/tvshow/{tmdbId}/{season}/{episode}
  *
  * O player é embutido DENTRO do site Movieflix via <iframe> (ver PlayerPage).
- * Áudio pt-BR: o player do CineSrc seleciona automaticamente a faixa em
- * português quando disponível; `lang=pt-BR` reforça a preferência.
+ * O WatchPlayer fornece o PRÓPRIO player (ArtPlayer + hls.js) e seleciona
+ * automaticamente o áudio pt-BR quando disponível.
  *
- * NENHUM player de terceiros (vidlink.pro, megaembedapi, VidZee, VidCore) é
- * usado — todo o catálogo foi migrado para o CineSrc.
+ * NENHUM player de terceiros (vidlink, StreamBetter, VidZee, VidCore) é
+ * usado — todo o catálogo usa o WatchPlayer.
  */
 export function getVideoSources(ids: VideoIds): string[] {
   const tipo =
@@ -40,9 +40,9 @@ export function getVideoSources(ids: VideoIds): string[] {
 }
 
 /**
- * Monta a URL do CineSrc para um episódio específico de série.
+ * Monta a URL do WatchPlayer para um episódio específico de série.
  * Ex.: TMDB 1396 (Breaking Bad), temporada 1, episódio 1 →
- * https://cinesrc.st/embed/tv/1396?s=1&e=1&lang=pt-BR
+ * https://watchplayer.shop/tvshow/1396/1/1
  */
 export function getTvSource(tmdbId: string | number | null, season: number, episode: number): string {
   if (tmdbId == null) return '';

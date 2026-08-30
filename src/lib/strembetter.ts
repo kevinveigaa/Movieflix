@@ -112,95 +112,37 @@ export function ehEmbedYapGrid(url: string): boolean {
 /** Alias de compatibilidade (nome antigo) — verifica o domínio do YapGrid. */
 export const ehEmbedVidCore = ehEmbedYapGrid;
 
-// ─── StreamBetter (fonte do resolver do backend) ────────────────────────────
-// O player nativo do Movieflix resolve o HLS REAL via o backend
-// (/api/streambetter-resolve → /api/streambetter-hls), que busca a fonte no
-// StreamBetter e identifica fontes dubladas (label "Dublado"). Estas URLs são
-// o que o resolver espera (filme / serie/{s}/{e}).
-const STREAMBETTER_BASE = 'https://streambetter.shop';
+// ─── WatchPlayer (player embed — fonte única) ───────────────────────────────
+// O player do Movieflix é o WatchPlayer (https://watchplayer.shop), que
+// fornece o PRÓPRIO player (ArtPlayer + hls.js) e usa o TMDB ID direto:
+//   Filmes : watchplayer.shop/movie/{tmdbId}
+//   Séries : watchplayer.shop/tvshow/{tmdbId}/{temporada}/{episodio}
+// O áudio pt-BR é selecionado automaticamente pelo player quando disponível.
+const WATCHPLAYER_BASE = 'https://watchplayer.shop';
 
-/** URL do embed do StreamBetter para um filme (o que o resolver resolve). */
+/** URL do player do WatchPlayer para um filme (tmdb_id). */
 export function streambetterMovieEmbedUrl(tmdbId: number | string | null | undefined): string {
   if (tmdbId == null) return '';
-  return `${STREAMBETTER_BASE}/filme/${tmdbId}`;
+  return `${WATCHPLAYER_BASE}/movie/${tmdbId}`;
 }
 
-/** URL do embed do StreamBetter para um episódio de série. */
+/** URL do player do WatchPlayer para um episódio de série (tmdb_id + s + e). */
 export function streambetterSeriesEmbedUrl(
   tmdbId: number | string | null | undefined,
   season: number,
   episode: number,
 ): string {
   if (tmdbId == null) return '';
-  return `${STREAMBETTER_BASE}/serie/${tmdbId}/${season}/${episode}`;
+  return `${WATCHPLAYER_BASE}/tvshow/${tmdbId}/${season}/${episode}`;
 }
 
-/** É uma URL de embed do StreamBetter? (fonte do player nativo) */
+/** É uma URL de embed do WatchPlayer? (fonte do player) */
 export function ehEmbedStreamBetter(url: string): boolean {
   try {
     const u = new URL(url);
-    return u.hostname === 'streambetter.shop' || u.hostname.endsWith('.streambetter.shop');
+    return u.hostname === 'watchplayer.shop' || u.hostname.endsWith('.watchplayer.shop');
   } catch {
     return false;
   }
 }
 
-// ──── CineSrc (fallback de embed do player) ────────────────────────────────
-// Quando o resolver do StreamBetter falha (upstream fora do ar / sem stream
-// direto), o player cai automaticamente para o iframe do CineSrc, que fornece
-// o PRÓPRIO player (play, seek, volume, fullscreen, cast) e prioriza áudio
-// pt-BR via `lang=pt-BR`. O CineSrc é testado e reproduz de verdade (filme e
-// série) com o TMDB ID.
-const CINESRC_BASE = 'https://cinesrc.st';
-
-/** URL do player do CineSrc para um filme (tmdb_id), com áudio pt-BR preferido. */
-export function cinesrcMovieEmbedUrl(tmdbId: number | string | null | undefined): string {
-  if (tmdbId == null) return '';
-  return `${CINESRC_BASE}/embed/movie/${tmdbId}?lang=pt-BR`;
-}
-
-/** URL do player do CineSrc para um episódio de série (tmdb_id + s + e), com áudio pt-BR. */
-export function cinesrcSeriesEmbedUrl(
-  tmdbId: number | string | null | undefined,
-  season: number,
-  episode: number,
-): string {
-  if (tmdbId == null) return '';
-  return `${CINESRC_BASE}/embed/tv/${tmdbId}?s=${season}&e=${episode}&lang=pt-BR`;
-}
-
-/** É uma URL de embed do CineSrc? */
-export function ehEmbedCineSrc(url: string): boolean {
-  try {
-    const u = new URL(url);
-    return u.hostname === 'cinesrc.st' || u.hostname.endsWith('.cinesrc.st');
-  } catch {
-    return false;
-  }
-}
-
-/**
- * Monta a URL de FALLBACK do CineSrc a partir de uma URL de embed do
- * StreamBetter (https://streambetter.shop/filme/{tmdb} ou
- * /serie/{tmdb}/{s}/{e}). Retorna '' se a URL não for do StreamBetter.
- */
-export function fallbackEmbedUrlDoStreambetter(embedUrl: string): string {
-  try {
-    const u = new URL(embedUrl);
-    if (u.hostname !== 'streambetter.shop' && !u.hostname.endsWith('.streambetter.shop')) return '';
-    const partes = u.pathname.split('/').filter(Boolean);
-    // /filme/{tmdbId}
-    if (partes[0] === 'filme' && partes[1]) {
-      return cinesrcMovieEmbedUrl(partes[1]);
-    }
-    // /serie/{tmdbId}/{season}/{episode}
-    if (partes[0] === 'serie' && partes[1]) {
-      const season = Number(partes[2]) || 1;
-      const episode = Number(partes[3]) || 1;
-      return cinesrcSeriesEmbedUrl(partes[1], season, episode);
-    }
-    return '';
-  } catch {
-    return '';
-  }
-}
