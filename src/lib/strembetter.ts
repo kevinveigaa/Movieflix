@@ -17,12 +17,19 @@
  * e para novos títulos adicionados futuramente.
  *
  * ── Áudio pt-BR ─────────────────────────────────────────────────────────────
- * O player do YapGrid seleciona a faixa de áudio disponível (o usuário pode
- * trocar de servidor/faixa dentro do player). O Movieflix identifica a
- * disponibilidade real de dublagem pelo campo `dublado_ptbr` do catálogo
- * (nunca inventado) e exibe "Dublado PT-BR" / "Legendado" nos cards.
+ * IMPORTANTE (documentação oficial do YapGrid — docs/parameters.md): o
+ * parâmetro `lang` controla APENAS o idioma da LEGENDA (subtitle language).
+ * O YapGrid NÃO expõe um parâmetro oficial para forçar a faixa de ÁUDIO —
+ * o áudio é determinado pelo servidor selecionado (Server X/Y/Z, que o
+ * usuário pode trocar dentro do player). Portanto, `lang=pt` garante
+ * legendas em português, mas NÃO garante áudio dublado em PT-BR.
  *
- * ── Anúncios ────────────────────────────────────────────────────────────────
+ * O Movieflix identifica a disponibilidade real de dublagem pelo campo
+ * `dublado_ptbr` do catálogo (nunca inventado) e exibe "Dublado PT-BR" /
+ * "Legendado" nos cards. A seleção efetiva da faixa de áudio dublado, quando
+ * existir, é feita pelo usuário no seletor de servidor do player.
+ *
+ * ── Anúncios ──────────────────────────────────────────────────────────────
  *   O YapGrid é um player publicamente ad-free (sem anúncios). O Movieflix
  *   não injeta nenhum anúncio próprio. O embed é incorporado DENTRO do
  *   site/app (iframe), sem redirecionamento externo.
