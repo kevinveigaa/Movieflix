@@ -56,7 +56,7 @@ interface CacheEnvelope {
   series: CatalogJson;
 }
 
-const CACHE_KEY = 'mf_catalog_v4';
+const CACHE_KEY = 'mf_catalog_v5';
 const CACHE_TTL_MS = 1000 * 60 * 60 * 6; // 6h
 
 function readCache(): CacheEnvelope | null {
