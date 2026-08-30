@@ -50,6 +50,8 @@ export function FavoritesPage() {
                   category: movie.category,
                   type: movie.type ?? (ehSerie(movie) ? 'series' : 'movie'),
                   media_type: ehSerie(movie) ? 'tv' : 'movie',
+                  language: movie.language,
+                  dublado_ptbr: movie.dublado_ptbr,
                 }}
                 forceType={ehSerie(movie) ? 'tv' : 'movie'}
                 className="w-full"
