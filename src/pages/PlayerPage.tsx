@@ -10,6 +10,7 @@ import { useUpsertHistory, fetchHistoryForMovie } from '@/hooks/useWatchHistory'
 import { useMovies } from '@/hooks/useMovies';
 import { useEntitlements } from '@/hooks/useEntitlements';
 import { useTvPlayerControls } from '@/hooks/useTvPlayerControls';
+import { usePlaybackSession } from '@/hooks/usePlaybackSession';
 import { ehTelaDeTv } from '@/lib/tv';
 import {
   temProgressoReal,
@@ -394,7 +395,7 @@ export function PlayerPage() {
             </p>
 
             <p className="mt-2 text-center text-xs text-zinc-500">
-              <button onClick={() => setSourceUrl(null) || requestAnimationFrame(() => setSourceUrl(currentUrl))} className="text-red-400 underline hover:text-red-300">
+              <button onClick={() => { setSourceUrl(null); requestAnimationFrame(() => setSourceUrl(currentUrl)); }} className="text-red-400 underline hover:text-red-300">
                 Recarregar player
               </button>
             </p>
