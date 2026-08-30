@@ -58,7 +58,14 @@ export async function resolverStreamBetterDireto(
     if (!resp.ok) {
       return { success: false, motivo: `http_${resp.status}` };
     }
-    return (await resp.json()) as StreamBetterDirectResult;
+    const data = (await resp.json()) as StreamBetterDirectResult;
+    // O resolver devolve o stream via caminho relativo (/api/streambetter-hls?...)
+    // para evitar o CORS 403 do streambetter.shop no navegador. Prefixa com a
+    // API_URL para o hls.js carregar do backend (que tem CORS aberto).
+    if (data.success && data.url && data.url.startsWith('/')) {
+      data.url = `${API_URL}${data.url}`;
+    }
+    return data;
   } catch (e) {
     console.warn('[StreamBetterDirect] falha ao resolver fonte direta:', e);
     return { success: false, motivo: 'network' };

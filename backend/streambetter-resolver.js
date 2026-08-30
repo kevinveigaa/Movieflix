@@ -214,7 +214,14 @@ async function resolverEmbed(embedUrl, startSeconds) {
           if (v.ok) {
             return {
               success: true,
-              url: hls,
+              // IMPORTANTE: o HLS do streambetter.shop responde 403 quando o
+              // navegador envia o header Origin (CORS bloqueado) — o hls.js
+              // sempre envia Origin, então a URL direta falha para TODOS os
+              // títulos. Por isso devolvemos o stream via o proxy do nosso
+              // backend (/api/streambetter-hls), que reescreve a playlist e os
+              // segmentos e responde com CORS aberto. O frontend prefixa o
+              // caminho relativo com a API_URL.
+              url: `/api/streambetter-hls?url=${encodeURIComponent(hls)}`,
               kind: 'stream',
               label,
               sub,
@@ -301,8 +308,22 @@ async function proxyHls(req, res) {
       let text = body.toString('utf8');
       text = text.split('\n').map((linha) => {
         const l = linha.trim();
-        if (!l || l.startsWith('#') || l.startsWith('http')) return linha;
-        const abs = new URL(l, target).toString();
+        if (!l) return linha;
+        // Reescreve URIs dentro de tags que carregam mídia (MAP/KEY) e linhas
+        // de segmento. Tags puras (EXTINF, EXT-X-*, etc.) ficam intactas.
+        const tagMap = /^#EXT-X-MAP:URI="([^"]+)"/.exec(l);
+        if (tagMap) {
+          const abs = new URL(tagMap[1], target).toString();
+          return `#EXT-X-MAP:URI="/api/streambetter-hls?url=${encodeURIComponent(abs)}"`;
+        }
+        const tagKey = /^#EXT-X-KEY:METHOD=([^,]+),URI="([^"]+)"/.exec(l);
+        if (tagKey) {
+          const abs = new URL(tagKey[2], target).href;
+          return `#EXT-X-KEY:METHOD=${tagKey[1]},URI="/api/streambetter-hls?url=${encodeURIComponent(abs)}"`;
+        }
+        if (l.startsWith('#')) return linha;
+        // Linha de segmento (relativa ou absoluta) → proxy.
+        const abs = new URL(l, target).href;
         return `/api/streambetter-hls?url=${encodeURIComponent(abs)}`;
       }).join('\n');
       res.setHeader('Content-Type', 'application/vnd.apple.mpegurl');

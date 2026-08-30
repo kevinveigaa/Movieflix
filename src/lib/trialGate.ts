@@ -94,7 +94,14 @@ export async function gateStream(embedUrl: string, startSeconds?: number): Promi
       return { authorized: false, motivo: 'assinatura_necessaria', trial: data.trial ?? null };
     }
     if (!resp.ok) return { authorized: false, motivo: `http_${resp.status}` };
-    return data as TrialGateResult;
+    const dataResult = (await resp.json()) as TrialGateResult;
+    // O resolver devolve o stream via caminho relativo (/api/streambetter-hls?...)
+    // para evitar o CORS 403 do streambetter.shop no navegador. Prefixa com a
+    // API_URL para o hls.js carregar do backend (que tem CORS aberto).
+    if (dataResult.authorized && dataResult.url && dataResult.url.startsWith('/')) {
+      dataResult.url = `${API_URL}${dataResult.url}`;
+    }
+    return dataResult;
   } catch (e) {
     console.warn('[TrialGate] falha ao autorizar stream:', e);
     return { authorized: false, motivo: 'network' };
