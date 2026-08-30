@@ -27,6 +27,8 @@ const TIPOS: Record<CatalogKind, string[]> = {
 
 type Ordenacao = 'mistura' | 'recentes' | 'antigos' | 'populares' | 'nota' | 'az' | 'za';
 
+type FiltroAudio = 'todos' | 'dublado' | 'legendado';
+
 const ORDENACOES: { id: Ordenacao; label: string }[] = [
   // Apresentação PADRÃO: mistura aleatória com prioridade para os lançamentos.
   { id: 'mistura', label: 'Novidades (mistura)' },
@@ -46,6 +48,7 @@ export function CatalogPage({ kind }: { kind: CatalogKind }) {
   const isKid = activeViewerProfile?.is_kid ?? false;
   const [search, setSearch] = useState('');
   const [ordenacao, setOrdenacao] = useState<Ordenacao>('mistura');
+  const [filtroAudio, setFiltroAudio] = useState<FiltroAudio>('todos');
   // Semente criada uma vez por montagem da página (ordem estável entre
   // re-renders, recalculada ao recarregar/voltar para o catálogo).
   const [semente] = useState(() => criarSemente());
@@ -101,6 +104,14 @@ export function CatalogPage({ kind }: { kind: CatalogKind }) {
       if (categoria) {
         return isCategoriaKids(categoria) ? ehInfantil(movie) : temCategoria(movie, categoria);
       }
+      // Filtro de áudio (dados reais: dublado_ptbr / language).
+      if (filtroAudio === 'dublado') {
+        const dublado = movie?.dublado_ptbr === true || /dublado/i.test(String(movie?.language ?? ''));
+        if (!dublado) return false;
+      } else if (filtroAudio === 'legendado') {
+        const dublado = movie?.dublado_ptbr === true || /dublado/i.test(String(movie?.language ?? ''));
+        if (dublado) return false;
+      }
       return true;
     });
 
@@ -139,7 +150,7 @@ export function CatalogPage({ kind }: { kind: CatalogKind }) {
     }
 
     return lista;
-  }, [base, search, categoria, ordenacao, semente]);
+  }, [base, search, categoria, ordenacao, semente, filtroAudio]);
 
   // Total REAL do tipo (filmes ou séries) — independe da busca/filtro ativo.
   const totalTipo = base.length;
@@ -147,8 +158,8 @@ export function CatalogPage({ kind }: { kind: CatalogKind }) {
   const visiveis = useMemo(() => results.slice(0, limite), [results, limite]);
   // Paginação/ordenação muda → volta ao início da lista.
   const mudouFiltro = useMemo(
-    () => `${search}|${categoria}|${ordenacao}`,
-    [search, categoria, ordenacao],
+    () => `${search}|${categoria}|${ordenacao}|${filtroAudio}`,
+    [search, categoria, ordenacao, filtroAudio],
   );
   const ultimoFiltro = useRef(mudouFiltro);
   if (ultimoFiltro.current !== mudouFiltro) {
@@ -232,6 +243,28 @@ export function CatalogPage({ kind }: { kind: CatalogKind }) {
           ))}
         </div>
       )}
+
+      {/* Filtro de áudio: Todos / Dublado PT-BR / Legendado */}
+      <div className="mb-8 flex flex-wrap gap-2">
+        {([
+          { id: 'todos', label: 'Todos' },
+          { id: 'dublado', label: 'Dublado PT-BR' },
+          { id: 'legendado', label: 'Legendado' },
+        ] as { id: FiltroAudio; label: string }[]).map((f) => (
+          <button
+            key={f.id}
+            onClick={() => setFiltroAudio(f.id)}
+            className={cn(
+              'rounded-full border px-3 py-1.5 text-xs font-medium transition',
+              filtroAudio === f.id
+                ? 'border-roxo-500/60 bg-roxo-500/15 text-roxo-200'
+                : 'border-white/10 bg-white/5 text-ink-300 hover:text-white',
+            )}
+          >
+            {f.label}
+          </button>
+        ))}
+      </div>
 
       {movies.isLoading ? (
         <FullScreenLoader label="Carregando catálogo..." />

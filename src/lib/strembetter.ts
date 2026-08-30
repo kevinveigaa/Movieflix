@@ -1,67 +1,49 @@
 /**
- * ═══════════════════════════════════════════════════════════════════════════
- * STREAMBETTER — fonte oficial de filmes e séries do Movieflix
- * ═══════════════════════════════════════════════════════════════════════════
+ * ════════════════════════════════════════════════════════════════════════════
+ * VIDCORE — player principal de filmes e séries do Movieflix
+ * ════════════════════════════════════════════════════════════════════════════
  *
- * Todos os títulos do catálogo vêm de https://streambetter.shop (API de
- * streaming com catálogo próprio e player embutível). Nada de players de
- * terceiros (vidlink.pro, megaembedapi, VidZee etc.) — o player do
- * StreamBetter é embutido DENTRO do site Movieflix, via <iframe>.
+ * O player do Movieflix usa o VidCore (https://www.vidcore.org), um serviço de
+ * embed de filmes e séries baseado em TMDB ID. O VidCore resolve as fontes,
+ * legendas, áudio e qualidade do outro lado, num player self-contained
+ * (ArtPlayer + hls.js) — sem overlay "Abrir link", sem redirecionamento
+ * externo e sem anúncios próprios do Movieflix.
  *
- * ── Catálogo ────────────────────────────────────────────────────────────────
- *   O catálogo é gerado offline por `node gerar-catalogo.cjs` e publicado em
- *   filmes/filmes.json + filmes/series.json (importados pelo front). A API
- *   pública https://streambetter.shop/api/titles continua sendo a fonte
- *   original dos dados.
+ *   Filmes : https://www.vidcore.org/embed/movie/{tmdbId}
+ *   Séries : https://www.vidcore.org/embed/tv/{tmdbId}/{temporada}/{episodio}
  *
- * ── Player embed ────────────────────────────────────────────────────────────
- *   Filmes : https://streambetter.shop/filme/{tmdb_id}?lang=pt-BR
- *   Séries : https://streambetter.shop/serie/{tmdb_id}/{temporada}/{episodio}?lang=pt-BR
- *   O player resolve as fontes, legendas e fallbacks do outro lado.
+ * O embed é gerado AUTOMATICAMENTE a partir do TMDB ID (que já existe no
+ * catálogo) — não há URLs manuais por título. Vale para todo o catálogo atual
+ * e para novos títulos adicionados futuramente.
  *
  * ── Áudio pt-BR ─────────────────────────────────────────────────────────────
- *   O player do StreamBetter seleciona automaticamente a faixa de áudio em
- *   português quando disponível (verificado no bundle do player: procura
- *   trilhas cujo lang começa com "pt"/"por" ou cujo nome contém "portug").
- *   `lang=pt-BR` na URL reforça a preferência.
+ * O player do VidCore seleciona a faixa de áudio disponível. O Movieflix
+ * identifica a disponibilidade real de dublagem pelo campo `dublado_ptbr` do
+ * catálogo (nunca inventado) e exibe "Dublado PT-BR" / "Legendado" nos cards.
  *
  * ── Anúncios ────────────────────────────────────────────────────────────────
- *   O Movieflix não injeta nenhum anúncio próprio. O embed gratuito segue o
- *   player padrão do StreamBetter e pode exibir o anúncio do plano free;
- *   para um embed 100% sem anúncios é preciso o plano Creator (chave
- *   sb_pk_* com trava de domínio) — ver https://streambetter.shop/planos.
- *   NÃO usamos sandbox/blockers no iframe (o StreamBetter detecta e recusa
- *   exibir o conteúdo).
+ *   O Movieflix não injeta nenhum anúncio próprio. O embed do VidCore é
+ *   incorporado DENTRO do site/app (iframe), sem redirecionamento externo.
  */
 
-const STREAMBETTER_BASE = 'https://streambetter.shop';
+const VIDCORE_BASE = 'https://www.vidcore.org';
 
-/** Parâmetro de preferência de idioma no embed (pt-BR). */
+/** Parâmetro de preferência de idioma (pt-BR) — reforço, não garantia. */
 export const AUDIO_PTBR = 'pt-BR';
 
-/**
- * Chave pública do plano Creator do StreamBetter (opcional).
- * Sem anúncios no embed: https://streambetter.shop/planos → Creator →
- * gere a chave sb_pk_* e cadastre o domínio do Movieflix. Defina
- * VITE_STREAMBETTER_KEY no build para ativá-la (a chave é pública por
- * natureza — vai na URL do iframe).
- */
-const STREAMBETTER_KEY = (import.meta.env.VITE_STREAMBETTER_KEY as string) || '';
-
-function withLangAndKey(url: string, startSeconds?: number): string {
+function withLang(url: string, startSeconds?: number): string {
   const params = new URLSearchParams({ lang: AUDIO_PTBR });
-  if (STREAMBETTER_KEY) params.set('key', STREAMBETTER_KEY);
   if (startSeconds && startSeconds > 0) params.set('t', String(startSeconds));
   return `${url}?${params.toString()}`;
 }
 
-/** URL do player do StreamBetter para um filme, com áudio pt-BR preferido. */
+/** URL do player do VidCore para um filme, com áudio pt-BR preferido. */
 export function streamBetterMovieUrl(tmdbId: number | string | null | undefined, startSeconds?: number): string {
   if (tmdbId == null) return '';
-  return withLangAndKey(`${STREAMBETTER_BASE}/filme/${tmdbId}`, startSeconds);
+  return withLang(`${VIDCORE_BASE}/embed/movie/${tmdbId}`, startSeconds);
 }
 
-/** URL do player do StreamBetter para um episódio de série, com áudio pt-BR. */
+/** URL do player do VidCore para um episódio de série, com áudio pt-BR. */
 export function streamBetterSeriesUrl(
   tmdbId: number | string | null | undefined,
   season: number,
@@ -69,7 +51,7 @@ export function streamBetterSeriesUrl(
   startSeconds?: number,
 ): string {
   if (tmdbId == null) return '';
-  return withLangAndKey(`${STREAMBETTER_BASE}/serie/${tmdbId}/${season}/${episode}`, startSeconds);
+  return withLang(`${VIDCORE_BASE}/embed/tv/${tmdbId}/${season}/${episode}`, startSeconds);
 }
 
 /**
@@ -100,11 +82,21 @@ export function primeiroEpisodioDisponivel(
   return ordenados[0];
 }
 
-/** Atalho: URL de embed do StreamBetter a partir de um título do catálogo. */
+/** Atalho: URL de embed do VidCore a partir de um título do catálogo. */
 export function movieEmbedUrl(
   movie: { video_url?: string; tmdb_id?: number | string } | null | undefined,
 ): string {
   if (!movie) return '';
   if (movie.video_url) return movie.video_url;
   return streamBetterMovieUrl(movie.tmdb_id);
+}
+
+/** É uma URL de embed do VidCore? (player principal do Movieflix) */
+export function ehEmbedVidCore(url: string): boolean {
+  try {
+    const u = new URL(url);
+    return u.hostname === 'vidcore.org' || u.hostname.endsWith('.vidcore.org');
+  } catch {
+    return false;
+  }
 }

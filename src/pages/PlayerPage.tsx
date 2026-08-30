@@ -1,150 +1,86 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { useParams, useNavigate, useSearchParams, Link } from 'react-router-dom';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
 import { supabase } from '@/lib/supabase';
-import { getVideoSources, getTvSource, normalizeDubbedSource } from '@/lib/videoSources';
-import { streamBetterMovieUrl, streamBetterSeriesUrl } from '@/lib/strembetter';
-import { resolverStreamBetterDireto, ehEmbedStreamBetter } from '@/lib/streambetterDirect';
-import { gateStream, consumeTrialTime, fetchTrialInfo } from '@/lib/trialGate';
-import { TrialOverlay } from '@/components/player/TrialOverlay';
+import { streamBetterMovieUrl, streamBetterSeriesUrl, ehEmbedVidCore } from '@/lib/strembetter';
 import { SubscriptionPaywall } from '@/components/player/SubscriptionPaywall';
 import { hasActiveSubscription } from '@/context/AuthContext';
 import { protegerIframeContraRedirect } from '@/lib/antiAds';
 import { useUpsertHistory, fetchHistoryForMovie } from '@/hooks/useWatchHistory';
 import { useMovies } from '@/hooks/useMovies';
-import { usePlaybackSession } from '@/hooks/usePlaybackSession';
 import { useEntitlements } from '@/hooks/useEntitlements';
 import { useTvPlayerControls } from '@/hooks/useTvPlayerControls';
 import { ehTelaDeTv } from '@/lib/tv';
 import {
   temProgressoReal,
   ehProgressoLixo,
-  formatarTempoRelogio,
   rotuloPontoParada,
 } from '@/lib/watchProgress';
-import { downloadVideo } from '@/lib/hlsDownload';
-import { registerDownload, alreadyDownloaded } from '@/lib/downloads';
-import Hls from 'hls.js';
-import { cn } from '@/lib/cn';
-import { ChevronLeft, Film, Gamepad2, Loader2, RefreshCw, AlertCircle, RotateCcw, Play, Clock, Gauge } from 'lucide-react';
-
-// Velocidades de reprodução disponíveis no player nativo (MP4/HLS).
-const VELOCIDADES = [0.5, 0.75, 1, 1.25, 1.5, 2];
+import { ChevronLeft, Film, Gamepad2, Loader2, RotateCcw, Play, Clock, AlertTriangle } from 'lucide-react';
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Player com suporte a DUBLAGEM pt-BR.
+// Player do Movieflix — VIDCORE (https://www.vidcore.org)
 //
-// O `video_url` do banco é a fonte de verdade. Quando ele aponta para uma
-// fonte cujo áudio JÁ É dublado em pt-BR (YouTube "Filme Completo em
-// Português", MP4/HLS dublado, Google Drive), o player renderiza a forma
-// adequada:
-//   - YouTube  → iframe oficial (youtube-nocookie) com hl=pt-BR
-//   - MP4/HLS  → <video> nativo + hls.js (sem depender de iframe)
-//   - Drive    → iframe de preview do Google Drive
-//   - demais   → iframe genérico (VidZee etc., com hints pt-BR em
-//                src/lib/videoSources.ts — melhor esforço)
+// O player principal é o VidCore, um serviço de embed de filmes e séries
+// baseado em TMDB ID. O embed é gerado AUTOMATICAMENTE a partir do tmdb_id
+// (filme) ou tmdb_id + temporada + episódio (série) — sem URLs manuais por
+// título. O VidCore resolve fontes, legendas, áudio e qualidade do outro lado,
+// num player self-contained (ArtPlayer + hls.js), sem overlay "Abrir link",
+// sem redirecionamento externo e sem anúncios próprios do Movieflix.
 //
-// Para YouTube o timeout de "não carregou" é DESATIVADO: o iframe oficial
-// nunca dispara eventos de load confiáveis e um vídeo dublado pode demorar
-// para iniciar; mostrar erro falso seria pior do que aguardar.
+//   Filmes : https://www.vidcore.org/embed/movie/{tmdbId}
+//   Séries : https://www.vidcore.org/embed/tv/{tmdbId}/{temporada}/{episodio}
 //
-// PROGRESSO ("Continuar assistindo") — regra nova:
-//   - O prompt de retomada SÓ aparece para títulos com progresso REAL:
-//     posição salva >= 10 minutos (ou >= 30% da duração, p/ títulos curtos).
-//   - A posição é salva a cada 20 s durante a reprodução (nunca no load).
-//   - Ao reabrir, "Sim" retoma do segundo exato via ?t=segundos na URL do
-//     embed do StreamBetter (que aceita o parâmetro `t`).
-//   - Séries: salva temporada/episódio e mostra "T1 · E3" no modal.
+// O embed é renderizado DENTRO do site/app via <iframe> (allowFullScreen,
+// responsivo). O Movieflix não injeta anúncios e não redireciona o usuário
+// para fora — a proteção anti-redirect (antiAds) restaura a URL do player se
+// um anúncio tentar mudar o documento do iframe.
+//
+// PROGRESSO ("Continuar assistindo"):
+//   - O prompt de retomada SÓ aparece para títulos com progresso REAL
+//     (posição salva >= 10 min ou >= 30% da duração).
+//   - A posição é estimada (posição base + tempo decorrido com a aba visível)
+//     e salva a cada 20s no histórico.
 // ─────────────────────────────────────────────────────────────────────────────
-const TIMEOUT_FONTE = 10000;
-const YT_TIMEOUT_FONTE = 0; // desativado para YouTube
-const SAVE_INTERVAL_MS = 20000; // salva progresso a cada 20s
+const SAVE_INTERVAL_MS = 20000;
 
 export function PlayerPage() {
   const { id } = useParams();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { user, activeViewerProfile, subscription, loading: authLoading } = useAuth();
-  // Assinatura ativa? (o servidor também valida — este flag só decide o caminho
-  // de autorização do stream e o comportamento do teste grátis de 20s.)
   const assinante = hasActiveSubscription(subscription);
   const upsertHistory = useUpsertHistory();
-  // A identidade de `upsertHistory.mutate` é estável entre renders (TanStack
-  // Query v5 mantém a função mutate memoizada). Guardamos a função direto para
-  // que nenhum useCallback/useEffect dependa do objeto do hook (recriado a
-  // cada render) — isso evita loop infinito de renders (React #185).
   const mutateHistory = upsertHistory.mutate;
   const { entitlements } = useEntitlements();
   const movies = useMovies();
-  const { blocked: telasBloqueadas, activeScreens } = usePlaybackSession(
-    user?.id,
-    entitlements.screens,
-    Boolean(user) && entitlements.screens > 0,
-  );
+  const { blocked: telasBloqueadas, activeScreens } = usePlaybackSession(user?.id, entitlements.screens, Boolean(user) && entitlements.screens > 0);
 
   const [movie, setMovie] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
-  // Episódio atual da série (?season=&ep=) — usado para montar o embed.
   const [epAtual, setEpAtual] = useState<{ season: number; episode: number } | null>(null);
 
-  // Teste grátis de 20 segundos (server-side)──────────────────────────
-  // `trialMode`: 'off' (assinante ou fluxo normal), 'countdown' (teste rodando),
-  // 'blocked' (teste esgotado — overlay não-dispensável cobre o player).
-  const [trialMode, setTrialMode] = useState<'off' | 'countdown' | 'blocked'>('off');
-  const [trialRemaining, setTrialRemaining] = useState(0);
-  const trialTokenRef = useRef<string | null>(null);
-  const trialConsumedRef = useRef(0); // segundos já consumidos NESTE player
-  const trialExpiredRef = useRef(false); // o servidor confirmou esgotamento
-  const trialStartRef = useRef<number | null>(null);
-  const trialLastSentRef = useRef(0);
-  const trialTickRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const trialCheckedRef = useRef(false); // já leu o saldo do banco neste mount
-
-  // Única fonte de vídeo (fonte 1).
+  // URL do embed do VidCore (fonte única).
   const [sourceUrl, setSourceUrl] = useState<string | null>(null);
-  // True quando o timeout expirou (a fonte não carregou de verdade).
-  const [esgotado, setEsgotado] = useState(false);
-  // Resolução do stream direto (StreamBetter) em andamento / falhou.
-  // Enquanto não resolver, o embed do provedor NUNCA é renderizado — é ele que
-  // exibe o overlay "Só mais um passo / Abrir link" (link externo do plano free
-  // do provedor). Sem iframe, não existe diálogo "Abrir link" nem saída do app.
-  const [resolvendoDireto, setResolvendoDireto] = useState(false);
-  const [diretoFalhou, setDiretoFalhou] = useState(false);
-  // Tipo de reprodução da fonte atual.
-  const [sourceKind, setSourceKind] = useState<'youtube' | 'drive' | 'direct' | 'iframe' | null>(null);
 
-  const videoRef = useRef<HTMLVideoElement>(null);
-  const hlsRef = useRef<Hls | null>(null);
-  const timeoutRef = useRef<number | null>(null);
-  const lastSavedRef = useRef(0);
-  const embedTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const embedLastTickRef = useRef(0);
+  const playerFrameRef = useRef<HTMLIFrameElement>(null);
+  const playerBoxRef = useRef<HTMLDivElement>(null);
 
   // Modal "Quer continuar de onde parou?" — mostrado ao reabrir um título que
-  // JÁ TEM progresso real salvo (>= 10 min ou >= 30%). "Sim" retoma da posição
-  // salva (?t=segundos na URL do embed); "Não" zera o progresso e começa do início.
+  // JÁ TEM progresso real salvo (>= 10 min ou >= 30%).
   const [showResumeModal, setShowResumeModal] = useState(false);
   const [resumeSeconds, setResumeSeconds] = useState(0);
   const [resumeSeason, setResumeSeason] = useState<number | null>(null);
   const [resumeEpisode, setResumeEpisode] = useState<number | null>(null);
   const [isResuming, setIsResuming] = useState(true);
 
-  // Modo "CONTROLE DO PLAYER" (TV / TV Box): ativado/desativado segurando OK
-  // ~1s. Quando ativo, as setas do controle operam os controles internos do
-  // player; um toque rápido de OK mantém o comportamento normal do vídeo.
+  // Modo "CONTROLE DO PLAYER" (TV / TV Box): ativado/desativado segurando OK.
   const [modoPlayerAtivo, setModoPlayerAtivo] = useState(false);
-
-  // Velocidade de reprodução (player nativo MP4/HLS).
-  const [velocidade, setVelocidade] = useState(1);
 
   const currentUrl = sourceUrl;
 
-  // Controle por controle remoto (TV / TV Box): segurar OK ~1s alterna o modo
-  // "controle do player" (setas = controles internos do vídeo); toque rápido de
-  // OK = ação normal; Voltar = sair da página.
-  const playerFrameRef = useRef<HTMLIFrameElement>(null);
-  const playerBoxRef = useRef<HTMLDivElement>(null);
+  // Controle por controle remoto (TV / TV Box).
   useTvPlayerControls(
     Boolean(currentUrl) && ehTelaDeTv(),
     modoPlayerAtivo,
@@ -162,62 +98,20 @@ export function PlayerPage() {
     return () => window.removeEventListener('mf-player-mode-change', onModeChange);
   }, []);
 
-  // Guarda de redirect do iframe (antiAds REFORÇADO): se um anúncio
-  // redirecionar o DOCUMENTO do iframe para fora do player, restaura a URL
-  // original do player automaticamente e em silêncio (contador global com
-  // janela 2min). Nenhuma mensagem é mostrada ao usuário. YouTube/Drive
-  // navegam legitimamente — não são protegidos.
+  // Guarda de redirect do iframe (antiAds): se um anúncio redirecionar o
+  // DOCUMENTO do iframe para fora do player, restaura a URL original
+  // automaticamente e em silêncio. O VidCore é um player self-contained —
+  // não navega legitimamente para fora.
   useEffect(() => {
-    if (sourceKind !== 'iframe' || !currentUrl) return;
+    if (!currentUrl || !ehEmbedVidCore(currentUrl)) return;
     const iframe = playerFrameRef.current;
     if (!iframe) return;
-    // Só protege embeds de terceiros (StreamBetter/VidZee etc.), nunca
-    // YouTube/Drive (que navegam legitimamente).
-    const host = (() => {
-      try {
-        return new URL(currentUrl).hostname;
-      } catch {
-        return '';
-      }
-    })();
-    const navegacaoLegitima = host.includes('youtube') || host.includes('youtu.be') || host.includes('drive.google');
-    if (navegacaoLegitima) return;
-    // Marca o iframe com a URL original (usada pela sanitização global do
-    // antiAds para restaurar caso um anúncio mude o src).
     iframe.setAttribute('data-player-src', currentUrl);
     const limpar = protegerIframeContraRedirect(iframe, currentUrl);
     return limpar;
-  }, [sourceKind, currentUrl]);
+  }, [currentUrl]);
 
-  const limparTimeout = useCallback(() => {
-    if (timeoutRef.current !== null) {
-      window.clearTimeout(timeoutRef.current);
-      timeoutRef.current = null;
-    }
-  }, []);
-
-  const reiniciarFonte = useCallback(() => {
-    // Recarrega a fonte 1 do zero (nova key no iframe).
-    setEsgotado(false);
-    setDiretoFalhou(false);
-    limparTimeout();
-    if (currentUrl) {
-      setSourceUrl(null);
-      requestAnimationFrame(() => setSourceUrl(currentUrl));
-    }
-  }, [currentUrl, limparTimeout]);
-
-  // Destrói o Hls ao trocar de fonte/desmontar.
-  useEffect(() => {
-    return () => {
-      if (hlsRef.current) {
-        hlsRef.current.destroy();
-        hlsRef.current = null;
-      }
-    };
-  }, []);
-
-  // Monta a URL da fonte 1 a partir do banco + IDs (filme ou episódio/série).
+  // Monta a URL do embed do VidCore a partir do banco + IDs (filme ou episódio/série).
   useEffect(() => {
     async function load() {
       try {
@@ -228,13 +122,11 @@ export function PlayerPage() {
 
         // Aceita `episode` (URL canônica) OU `ep` (usado por CatalogPage,
         // HomePage, TitleDetailPage e EpisodioSelector ao navegar para
-        // /assistir/{id}?season=X&ep=Y). Sem isso, séries nunca reproduziam
-        // (o player caía no fluxo de filme e mostrava "Título não encontrado").
+        // /assistir/{id}?season=X&ep=Y).
         const epRaw = searchParams.get('episode') ?? searchParams.get('ep');
         const seasonRaw = searchParams.get('season');
         const epParam = searchParams.get('ep');
         const epId = epRaw ? parseInt(epRaw, 10) : null;
-        // Tempo de retomada ("Continuar assistindo"): ?t=segundos
         const tRaw = searchParams.get('t');
         const startSeconds = tRaw && !isNaN(Number(tRaw)) ? Number(tRaw) : undefined;
 
@@ -255,8 +147,7 @@ export function PlayerPage() {
         // Fallback: o catálogo do front (filmes/filmes.json + filmes/series.json)
         // usa id = String(tmdb_id), que não corresponde ao id numérico da tabela
         // `movies`. Quando a tabela não encontra o título, resolvemos pelo
-        // catálogo (a fonte de verdade do front) para que o player funcione e o
-        // histórico de reprodução seja gravado corretamente.
+        // catálogo (a fonte de verdade do front).
 
         let dataResolved: any = data;
         if (!dataResolved) {
@@ -279,7 +170,7 @@ export function PlayerPage() {
             const { data: eps } = await supabase.from('episodes').select('*').eq('season_id', seasons[0].id).not('video_url', 'is', null).order('episode_number', { ascending: true }).limit(1);
             if (eps && eps.length > 0) {
               setMovie({ ...dataResolved, title: `${dataResolved.title} — T${seasons[0].season_number} E${eps[0].episode_number}: ${eps[0].title}`, season_number: seasons[0].season_number, episode_number: eps[0].episode_number });
-              const vidlink = getTvSource(dataResolved.tmdb_id, seasons[0].season_number || 1, eps[0].episode_number || 1);
+              const vidlink = streamBetterSeriesUrl(dataResolved.tmdb_id, seasons[0].season_number || 1, eps[0].episode_number || 1, startSeconds);
               const lista = [eps[0].video_url, dataResolved.video_url, vidlink].filter(
                 (u): u is string => Boolean(u),
               );
@@ -292,25 +183,18 @@ export function PlayerPage() {
 
         setMovie(dataResolved);
         const tipo = (dataResolved.type === 'tv' || dataResolved.type === 'series' || dataResolved.type === 'anime' || dataResolved.media_type === 'tv') ? 'tv' : 'movie';
-        const builtins = getVideoSources({
-          imdbId: dataResolved.imdb_id,
-          tmdbId: dataResolved.tmdb_id,
-          mediaType: tipo,
-        });
-        // Fonte primária: `video_url` do banco (fontes comprovadamente dubladas
-        // em pt-BR). O vidlink.pro (builtins) fica apenas como fallback — ele
-        // não garante dublagem pt-BR (maioria dos títulos em MP4 com áudio EN).
-        // Para títulos do catálogo (sem video_url direto), usa o embed do
-        // StreamBetter (streamBetterMovieUrl) como fonte primária.
-        const embedUrl = !dataResolved.video_url && dataResolved.tmdb_id
-          ? streamBetterMovieUrl(dataResolved.tmdb_id, startSeconds)
+        // Fonte primária: `video_url` do banco (se houver). Para títulos do
+        // catálogo (sem video_url direto), usa o embed do VidCore montado a
+        // partir do tmdb_id (filme) — sempre a primeira opção.
+        const embedUrl = dataResolved.tmdb_id
+          ? (tipo === 'tv'
+              ? streamBetterSeriesUrl(dataResolved.tmdb_id, 1, 1, startSeconds)
+              : streamBetterMovieUrl(dataResolved.tmdb_id, startSeconds))
           : null;
-        const lista = [dataResolved.video_url, embedUrl, ...builtins].filter((u): u is string => Boolean(u));
+        const lista = [dataResolved.video_url, embedUrl].filter((u): u is string => Boolean(u));
         setSourceUrl(lista.length > 0 ? lista[0] : null);
         setLoading(false);
       } catch (erro) {
-        // Falha de rede/Supabase ao montar a fonte: nunca derruba a página —
-        // mostra a tela de erro do player em vez do ErrorBoundary.
         console.error('[PlayerPage] falha ao carregar fonte:', erro);
         setErrorMsg('Não foi possível carregar este título. Verifique sua conexão e tente novamente.');
         setLoading(false);
@@ -320,287 +204,7 @@ export function PlayerPage() {
     load();
   }, [id, searchParams, movies.data]);
 
-  // Detecta o tipo de reprodução da fonte atual.
-  useEffect(() => {
-    const norm = currentUrl ? normalizeDubbedSource(currentUrl) : null;
-    setSourceKind(norm ? norm.kind : 'iframe');
-  }, [currentUrl]);
-
-  // ── MODO DIRETO StreamBetter (SEM IFRAME → SEM ANÚNCIOS) ──────────────────
-  // Quando a fonte é um embed do StreamBetter, pedimos ao backend que resolva
-  // o stream HLS real. A autorização é validada NO SERVIDOR:
-  //   - Assinante      → /api/streambetter-resolve libera direto.
-  //   - Sem assinatura → /api/trial-gate valida o saldo do teste grátis no
-  //     banco (20s por conta) ANTES de devolver o stream; se esgotado, o
-  //     servidor NÃO devolve URL (402) e o player mostra o bloqueio.
-  useEffect(() => {
-    if (!currentUrl || !ehEmbedStreamBetter(currentUrl)) return;
-    let cancelado = false;
-
-    const tRaw = searchParams.get('t');
-    const t = tRaw && !isNaN(Number(tRaw)) ? Number(tRaw) : undefined;
-
-    setResolvendoDireto(true);
-    setDiretoFalhou(false);
-
-    (async () => {
-      // Tenta resolver o stream direto algumas vezes (rede instável do
-      // provedor). NÃO caímos mais no iframe do provedor em caso de falha:
-      // o embed free abre o overlay "Só mais um passo → Abrir link", que manda
-      // o usuário para fora do MovieFlix. Aqui a reprodução acontece sempre
-      // dentro do app (player nativo <video> + hls.js).
-      for (let tentativa = 0; tentativa < 3 && !cancelado; tentativa += 1) {
-        try {
-          const gate =
-            assinante
-              ? await resolverStreamBetterDireto(currentUrl, t)
-              : await gateStream(currentUrl, t);
-          if (cancelado) return;
-          const autorizado = 'authorized' in gate ? gate.authorized : gate.success;
-          if (autorizado && gate.url) {
-            setSourceUrl(gate.url);
-            setSourceKind(gate.kind === 'mp4' ? 'direct' : 'direct');
-            // Teste grátis: registra o token e inicia o cronômetro de 20s.
-            if (!assinante && 'trialToken' in gate && gate.trialToken) {
-              trialTokenRef.current = gate.trialToken;
-              iniciarCronometroTrial('trial' in gate ? gate.trial?.remainingSeconds : undefined);
-            }
-            setResolvendoDireto(false);
-            return;
-          }
-          if (!assinante && gate.motivo === 'assinatura_necessaria') {
-            // Servidor negou por falta de assinatura/teste esgotado → bloqueia já.
-            trialExpiredRef.current = true;
-            setTrialMode('blocked');
-            setTrialRemaining(0);
-            setResolvendoDireto(false);
-            return;
-          }
-        } catch (e) {
-          console.warn('[PlayerPage] falha no modo direto StreamBetter:', e);
-        }
-        // Espera curta antes de tentar de novo.
-        await new Promise((r) => setTimeout(r, 1200));
-      }
-      if (cancelado) return;
-      setResolvendoDireto(false);
-      setDiretoFalhou(true);
-    })();
-    return () => {
-      cancelado = true;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentUrl, searchParams, assinante]);
-
-  // Reprodução nativa de MP4/HLS quando a fonte é direta.
-  useEffect(() => {
-    if (sourceKind !== 'direct' || !currentUrl || !videoRef.current) return;
-    const video = videoRef.current;
-    if (hlsRef.current) {
-      hlsRef.current.destroy();
-      hlsRef.current = null;
-    }
-    video.playbackRate = velocidade;
-    if (currentUrl.includes('.m3u8') && Hls.isSupported()) {
-      const hls = new Hls();
-      hls.loadSource(currentUrl);
-      hls.attachMedia(video);
-      hlsRef.current = hls;
-      hls.on(Hls.Events.MANIFEST_PARSED, () => {
-        video.play().catch(() => undefined);
-      });
-    } else {
-      video.src = currentUrl;
-      video.play().catch(() => undefined);
-    }
-  }, [sourceKind, currentUrl, velocidade]);
-
-  // Retoma de onde parou (?t=segundos) no player nativo.
-  useEffect(() => {
-    const t = searchParams.get('t');
-    if (sourceKind !== 'direct' || !t || !videoRef.current) return;
-    const secs = parseFloat(t);
-    if (!Number.isFinite(secs) || secs <= 0) return;
-    const trySeek = () => {
-      const v = videoRef.current;
-      if (!v) return;
-      if (v.readyState >= 1) {
-        try { v.currentTime = secs; } catch { /* ignora */ }
-      } else {
-        window.setTimeout(trySeek, 300);
-      }
-    };
-    trySeek();
-  }, [sourceKind, currentUrl, searchParams]);
-
-  // ---- Teste grátis de 20 segundos (server-side) ----
-
-  // Para o cronômetro e o heartbeat do teste (desmontagem / bloqueio).
-  const pararCronometroTrial = useCallback(() => {
-    if (trialTickRef.current !== null) {
-      clearInterval(trialTickRef.current);
-      trialTickRef.current = null;
-    }
-  }, []);
-
-  // Consome no banco o tempo de teste decorrido desde o último envio.
-  const enviarConsumoTrial = useCallback(() => {
-    const token = trialTokenRef.current;
-    if (!token || trialExpiredRef.current) return;
-    const agora = Date.now();
-    if (agora - trialLastSentRef.current < 4000) return;
-    const decorrido = Math.floor((agora - (trialStartRef.current ?? agora)) / 1000) - trialConsumedRef.current;
-    if (decorrido <= 0) return;
-    trialLastSentRef.current = agora;
-    trialConsumedRef.current += decorrido;
-    consumeTrialTime(token, decorrido).then((res) => {
-      // O servidor confirmou que o teste esgotou → bloqueia imediatamente.
-      if (res.expired) {
-        trialExpiredRef.current = true;
-        setTrialMode('blocked');
-        setTrialRemaining(0);
-      }
-    });
-  }, []);
-
-  // Inicia (ou reinicia) o cronômetro do teste com o saldo vindo do servidor.
-  const iniciarCronometroTrial = useCallback(
-    (saldoServidor?: number) => {
-      pararCronometroTrial();
-      const saldo = saldoServidor != null && Number.isFinite(saldoServidor) ? Math.max(0, Math.floor(saldoServidor)) : 20;
-      if (saldo <= 0 || trialExpiredRef.current) {
-        trialExpiredRef.current = true;
-        setTrialMode('blocked');
-        setTrialRemaining(0);
-        return;
-      }
-      setTrialMode('countdown');
-      setTrialRemaining(saldo);
-      trialStartRef.current = Date.now();
-      trialConsumedRef.current = 0;
-      trialLastSentRef.current = Date.now();
-      trialTickRef.current = setInterval(() => {
-        if (trialExpiredRef.current) return;
-        const decorrido = Math.floor((Date.now() - (trialStartRef.current ?? Date.now())) / 1000);
-        const restante = Math.max(0, saldo - decorrido);
-        setTrialRemaining(restante);
-        enviarConsumoTrial();
-        if (restante <= 0) {
-          trialExpiredRef.current = true;
-          pararCronometroTrial();
-          // Última sincronização para fechar o saldo no banco.
-          enviarConsumoTrial();
-          setTrialMode('blocked');
-          setTrialRemaining(0);
-        }
-      }, 1000);
-    },
-    [pararCronometroTrial, enviarConsumoTrial],
-  );
-
-  // Ao montar sem assinatura: consulta o saldo do teste no banco (persistido
-  // por conta). Se já estiver esgotado, bloqueia na hora — recarregar a página
-  // ou trocar de dispositivo NÃO zera o teste.
-  useEffect(() => {
-    if (!user || assinante || trialCheckedRef.current) return;
-    trialCheckedRef.current = true;
-    (async () => {
-      const info = await fetchTrialInfo(user.id);
-      if (!info || trialExpiredRef.current) return;
-      if (info.remainingSeconds <= 0) {
-        trialExpiredRef.current = true;
-        setTrialMode('blocked');
-        setTrialRemaining(0);
-      }
-    })();
-  }, [user, assinante]);
-
-  // Heartbeat + trava: enquanto o teste está rodando, consome o tempo no banco
-  // a cada 5s e salva uma última vez ao sair da página (pagehide/beforeunload)
-  // — fechar a aba também conta como tempo assistido.
-  useEffect(() => {
-    if (trialMode !== 'countdown' || !trialTokenRef.current) return;
-    const beat = setInterval(enviarConsumoTrial, 5000);
-    const salvar = () => {
-      // Força o consumo final ignorando o throttle de 4s.
-      const token = trialTokenRef.current;
-      const agora = Date.now();
-      if (token && !trialExpiredRef.current) {
-        const decorrido = Math.floor((agora - (trialStartRef.current ?? agora)) / 1000) - trialConsumedRef.current;
-        if (decorrido > 0) {
-          trialConsumedRef.current += decorrido;
-          void consumeTrialTime(token, decorrido);
-        }
-      }
-    };
-    window.addEventListener('pagehide', salvar);
-    window.addEventListener('beforeunload', salvar);
-    return () => {
-      clearInterval(beat);
-      window.removeEventListener('pagehide', salvar);
-      window.removeEventListener('beforeunload', salvar);
-    };
-  }, [trialMode, enviarConsumoTrial]);
-
-  // Limpeza ao desmontar o player.
-  useEffect(() => {
-    return () => {
-      pararCronometroTrial();
-      // Registra o tempo de teste restante no momento da saída.
-      const token = trialTokenRef.current;
-      if (token && !trialExpiredRef.current && trialStartRef.current) {
-        const decorrido = Math.floor((Date.now() - trialStartRef.current) / 1000) - trialConsumedRef.current;
-        if (decorrido > 0) void consumeTrialTime(token, decorrido);
-      }
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  // ---- Salvar progresso ----
-
-  // Grava o progresso do player nativo (MP4/HLS direto).
-  const salvarProgresso = useCallback(() => {
-    const video = videoRef.current;
-    if (!video || !movie || !user) return;
-    const now = Date.now();
-    if (now - lastSavedRef.current < SAVE_INTERVAL_MS) return;
-    lastSavedRef.current = now;
-    const mediaType = (movie.type === 'series' || movie.type === 'tv' || movie.type === 'anime' || movie.media_type === 'tv') ? 'tv' : 'movie';
-    mutateHistory({
-      movieId: movie.id,
-      tmdbId: Number(movie.tmdb_id ?? 0) || undefined,
-      mediaType,
-      title: movie.title,
-      posterPath: movie.poster_url,
-      backdropPath: movie.backdrop_url,
-      positionSeconds: Math.floor(video.currentTime || 0),
-      durationSeconds: Math.floor(video.duration || 0),
-      season: movie.season_number ?? epAtual?.season ?? null,
-      episode: movie.episode_number ?? epAtual?.episode ?? null,
-    });
-  }, [movie, user, mutateHistory, epAtual]);
-
-  const salvarProgressoFinal = useCallback(() => {
-    const video = videoRef.current;
-    if (!video || !movie || !user) return;
-    const mediaType = (movie.type === 'series' || movie.type === 'tv' || movie.type === 'anime' || movie.media_type === 'tv') ? 'tv' : 'movie';
-    mutateHistory({
-      movieId: movie.id,
-      tmdbId: Number(movie.tmdb_id ?? 0) || undefined,
-      mediaType,
-      title: movie.title,
-      posterPath: movie.poster_url,
-      backdropPath: movie.backdrop_url,
-      positionSeconds: Math.floor(video.currentTime || 0),
-      durationSeconds: Math.floor(video.duration || 0),
-      season: movie.season_number ?? epAtual?.season ?? null,
-      episode: movie.episode_number ?? epAtual?.episode ?? null,
-    });
-  }, [movie, user, mutateHistory, epAtual]);
-
-  // Grava o progresso estimado de players embed (iframe cross-origin):
-  // a posição é o tempo salvo + o tempo decorrido desde que o embed carregou.
-  // O contador só anda com a aba visível (document.hidden === false).
+  // ---- Salvar progresso (player embed cross-origin) ----
   const salvarProgressoEmbed = useCallback(() => {
     if (!movie || !user || !resumeBaseRef.current) return;
     const mediaType = (movie.type === 'series' || movie.type === 'tv' || movie.type === 'anime' || movie.media_type === 'tv') ? 'tv' : 'movie';
@@ -622,7 +226,6 @@ export function PlayerPage() {
     });
   }, [movie, user, mutateHistory, epAtual]);
 
-  // Para o contador do embed (desmontagem, troca de fonte).
   const pararContadorEmbed = useCallback(() => {
     if (embedTimerRef.current !== null) {
       clearInterval(embedTimerRef.current);
@@ -630,26 +233,15 @@ export function PlayerPage() {
     }
   }, []);
 
-  // Guarda a base da retomada do embed: posição salva, duração e o instante em
-  // que a contagem começou (0 = contagem pausada, ex.: modal aberto).
   const resumeBaseRef = useRef<{ position: number; duration: number; startedAt: number } | null>(null);
+  const embedTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const embedLastTickRef = useRef(0);
 
-  // Players embed (iframe cross-origin — YouTube/Drive/StreamBetter):
-  //  - Ao carregar, busca o progresso salvo desta obra no banco;
-  //  - Se houver progresso REAL (>= 10 min ou >= 30% da duração), abre o modal
-  //    "Quer continuar de onde parou?" — "Sim" inicia o contador na posição
-  //    salva; "Não" zera o progresso e começa do início;
-  //  - NUNCA mostra o modal para títulos sem progresso real (não assistidos
-  //    ou com menos de 10 minutos);
-  //  - Um contador local (tick a cada segundo) estima a posição (posição base
-  //    + tempo decorrido com a aba visível) e salva a cada 20s no histórico.
+  // Players embed (iframe cross-origin — VidCore): busca o progresso salvo e
+  // oferece retomada quando há progresso REAL.
   useEffect(() => {
     if (!currentUrl || !movie || !user) return;
-    if (sourceKind === 'direct') return; // o player nativo cuida do progresso
     pararContadorEmbed();
-
-    // Começa pausado: o contador só anda depois da decisão do modal (ou já
-    // direto, quando não há progresso para retomar).
     resumeBaseRef.current = { position: 0, duration: 0, startedAt: 0 };
 
     const movieId = movie.id ? String(movie.id) : null;
@@ -662,10 +254,6 @@ export function PlayerPage() {
         if (cancel) return;
         const duration = Number(row?.duration_seconds) || 0;
         const position = Number(row?.position_seconds) || 0;
-        // REGRA NOVA: só oferece retomada para progresso REAL (>= 10 min ou
-        // >= 30% da duração). Progresso "lixo" (posição 0 / duração 0 de
-        // gravações antigas) e títulos sem nunca ter sido assistidos NUNCA
-        // mostram o modal.
         const temProgresso = !ehProgressoLixo(position, duration) && temProgressoReal(position, duration);
         if (temProgresso) {
           setResumeSeconds(position);
@@ -676,12 +264,9 @@ export function PlayerPage() {
           resumeBaseRef.current = { position, duration, startedAt: 0 };
         } else {
           setIsResuming(false);
-          // Sem retomada: conta do zero a partir de agora.
           resumeBaseRef.current = { position: 0, duration, startedAt: Date.now() };
         }
       } catch (erro) {
-        // Falha ao consultar o histórico (rede/RLS): segue sem modal de
-        // retomada e conta do zero — nunca derruba o player.
         if (cancel) return;
         console.error('[PlayerPage] falha ao buscar histórico de retomada:', erro);
         setIsResuming(false);
@@ -689,7 +274,6 @@ export function PlayerPage() {
       }
     })();
 
-    // Tick de 1s: só conta com a aba visível e salva a cada 20s.
     embedLastTickRef.current = Date.now();
     embedTimerRef.current = setInterval(() => {
       const base = resumeBaseRef.current;
@@ -705,9 +289,9 @@ export function PlayerPage() {
       cancel = true;
       pararContadorEmbed();
     };
-  }, [currentUrl, sourceKind, movie, user, activeViewerProfile?.id, pararContadorEmbed, salvarProgressoEmbed]);
+  }, [currentUrl, movie, user, activeViewerProfile?.id, pararContadorEmbed, salvarProgressoEmbed]);
 
-  // Salva uma última vez ao sair da página (fecha a aba / navega).
+  // Salva uma última vez ao sair da página.
   useEffect(() => {
     if (!movie || !user) return;
     const salvar = () => salvarProgressoEmbed();
@@ -720,25 +304,6 @@ export function PlayerPage() {
     };
   }, [movie, user, salvarProgressoEmbed]);
 
-  // Reinicia o timeout quando a URL da fonte muda; se o iframe não confirmar
-  // o carregamento a tempo, marcamos como esgotado para oferecer
-  // "Abrir no navegador" em vez de deixar o usuário preso numa tela infinita.
-  // Para YouTube o timeout é desativado (o iframe oficial não expõe eventos
-  // confiáveis de load e um vídeo dublado pode demorar a iniciar).
-  useEffect(() => {
-    limparTimeout();
-    setEsgotado(false);
-    if (!currentUrl || sourceKind === 'youtube' || sourceKind === 'direct' || sourceKind === 'drive') return;
-    timeoutRef.current = window.setTimeout(() => {
-      setEsgotado(true);
-    }, TIMEOUT_FONTE);
-    return limparTimeout;
-  }, [currentUrl, sourceKind, limparTimeout]);
-
-  // ── Download / player externo removidos ─────────────────────────────────
-  // O conteúdo é reproduzido APENAS dentro do MovieFlix (player embutido),
-  // conforme pedido: não há mais "Baixar" nem "Abrir player externo".
-
   if (loading || authLoading) {
     return (
       <div className="flex h-screen items-center justify-center bg-black">
@@ -747,10 +312,8 @@ export function PlayerPage() {
     );
   }
 
-  // GUARDA DE ROTA (requisito 3): a rota /assistir/:id RE-VERIFICA auth +
-  // assinatura ANTES de montar qualquer player/iframe. Acessar a URL do
-  // player diretamente sem assinatura ativa NÃO libera o conteúdo — redireciona
-  // para /minha-assinatura (replace, sem voltar ao player pelo histórico).
+  // GUARDA DE ROTA: a rota /assistir/:id RE-VERIFICA auth + assinatura ANTES
+  // de montar qualquer player/iframe.
   if (!user) {
     return (
       <div className="flex h-screen flex-col items-center justify-center bg-black text-white gap-4">
@@ -761,9 +324,7 @@ export function PlayerPage() {
     );
   }
 
-  // BLOQUEIO DE ASSINATURA (bloqueio imediato): sem NENHUM dos planos ativos,
-  // não há reprodução — nem teste grátis, nem iframe, nem stream. O trial-gate
-  // do servidor (/api/trial-gate) permanece como defesa em profundidade.
+  // BLOQUEIO DE ASSINATURA: sem NENHUM dos planos ativos, não há reprodução.
   if (!assinante) {
     return <SubscriptionPaywall />;
   }
@@ -777,13 +338,6 @@ export function PlayerPage() {
       </div>
     );
   }
-
-  // O embed do StreamBetter só existe enquanto o stream direto não foi
-  // resolvido. Nunca o exibimos: o iframe do plano free do provedor mostra
-  // "Só mais um passo → Abrir link" e joga o usuário para fora do MovieFlix.
-  const embedBloqueado = Boolean(
-    currentUrl && sourceKind !== 'direct' && ehEmbedStreamBetter(currentUrl),
-  );
 
   return (
     <div className="min-h-screen bg-black text-white">
@@ -804,70 +358,19 @@ export function PlayerPage() {
               data-tv-player-box
               className="relative w-full aspect-video rounded-xl overflow-hidden bg-black shadow-2xl shadow-red-900/20 ring-1 ring-white/10"
             >
-              {embedBloqueado ? (
-                /* Embed do provedor NÃO é renderizado: é ele que injeta o
-                   overlay "Só mais um passo / Abrir link" (link externo).
-                   Aqui mostramos o estado dentro do próprio MovieFlix. */
-                <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-black px-6 text-center">
-                  {resolvendoDireto && !diretoFalhou ? (
-                    <>
-                      <Loader2 className="h-8 w-8 animate-spin text-red-500" />
-                      <p className="text-sm text-zinc-300">Preparando a reprodução...</p>
-                    </>
-                  ) : (
-                    <>
-                      <AlertCircle className="h-8 w-8 text-red-500" />
-                      <p className="text-sm text-zinc-300">
-                        Não foi possível preparar o vídeo agora.
-                      </p>
-                      <button
-                        onClick={reiniciarFonte}
-                        data-tv-focusable
-                        className="flex items-center gap-2 rounded-lg bg-red-600 px-4 py-2 text-xs font-semibold transition hover:bg-red-500"
-                      >
-                        <RefreshCw className="h-4 w-4" />
-                        Tentar novamente
-                      </button>
-                    </>
-                  )}
-                </div>
-              ) : sourceKind === 'direct' ? (
-                <video
-                  key={currentUrl}
-                  ref={videoRef}
-                  controls
-                  autoPlay
-                  playsInline
-                  data-mf-player
-                  data-tv-focusable
-                  data-tv-player-box
-                  onTimeUpdate={salvarProgresso}
-                  onPause={salvarProgressoFinal}
-                  onEnded={salvarProgressoFinal}
-                  className="absolute inset-0 w-full h-full"
-                  style={{ backgroundColor: '#000' }}
-                />
-              ) : (                <iframe
-                  key={currentUrl}
-                  ref={playerFrameRef}
-                  id="player-frame"
-                  src={currentUrl}
-                  data-player-src={currentUrl}
-                  title={`Player — ${movie?.title || ''}`}
-                  className="tv-player absolute inset-0 w-full h-full border-0"
-                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share; fullscreen"
-                  allowFullScreen
-                  referrerPolicy="origin"
-                  data-tv-focusable
-                  // NOTA: o sandbox NÃO pode ser usado aqui — o vidlink.pro
-                  // detecta iframes com atributo sandbox e recusa carregar
-                  // ("Please Disable Sandbox"). O player é embutido sem
-                  // sandbox para funcionar; a dublagem pt-BR vem do parâmetro
-                  // lang=pt-BR na URL (src/lib/strembetter.ts). A proteção
-                  // total anti-redirect é feita pela janela pai (antiAds.ts)
-                  // + camada nativa no APK (MainActivity).
-                />
-              )}
+              <iframe
+                key={currentUrl}
+                ref={playerFrameRef}
+                id="player-frame"
+                src={currentUrl}
+                data-player-src={currentUrl}
+                title={`Player — ${movie?.title || ''}`}
+                className="tv-player absolute inset-0 w-full h-full border-0"
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share; fullscreen"
+                allowFullScreen
+                referrerPolicy="origin"
+                data-tv-focusable
+              />
             </div>
 
             {/* Indicador de modo controle do player (TV / TV Box) */}
@@ -881,36 +384,7 @@ export function PlayerPage() {
               </div>
             )}
 
-            {/* Seletor de velocidade (player nativo MP4/HLS) */}
-            {sourceKind === 'direct' && (
-              <div className="mx-auto mt-3 flex w-fit flex-wrap items-center justify-center gap-1.5">
-                <span className="flex items-center gap-1 pr-1 text-[11px] font-semibold uppercase tracking-wide text-zinc-500">
-                  <Gauge className="h-3.5 w-3.5" />
-                  Velocidade
-                </span>
-                {VELOCIDADES.map((v) => (
-                  <button
-                    key={v}
-                    type="button"
-                    data-tv-focusable
-                    onClick={() => {
-                      setVelocidade(v);
-                      if (videoRef.current) videoRef.current.playbackRate = v;
-                    }}
-                    className={cn(
-                      'rounded-full border px-2.5 py-1 text-[11px] font-medium transition',
-                      velocidade === v
-                        ? 'border-roxo-500/60 bg-roxo-500/15 text-roxo-200 shadow-md shadow-roxo-900/30'
-                        : 'border-white/10 bg-white/5 text-zinc-400 hover:text-white',
-                    )}
-                  >
-                    {v === 1 ? 'Normal' : `${v}×`}
-                  </button>
-                ))}
-              </div>
-            )}
-
-            {/* Dica de controle remoto: como entrar/sair dos controles do player */}
+            {/* Dica de controle remoto */}
             <p className="mt-2 text-center text-[11px] text-zinc-500 sm:text-xs">
               🎮 Controle remoto:{' '}
               <span className="font-semibold text-red-400">segure OK</span> para
@@ -919,40 +393,15 @@ export function PlayerPage() {
               para sair.
             </p>
 
-            {/* Mensagens de download (removidas) */}
-
-            {esgotado ? (
-              <div className="mt-3 flex flex-col items-center gap-3 rounded-xl border border-white/10 bg-white/5 p-4 text-center">
-                <p className="text-sm text-zinc-300">
-                  O vídeo não carregou pela fonte principal.
-                </p>
-                <div className="flex flex-wrap items-center justify-center gap-3">
-                  <button
-                    onClick={reiniciarFonte}
-                    className="flex items-center gap-2 rounded-lg bg-red-600 px-4 py-2 text-xs font-semibold hover:bg-red-500 transition"
-                  >
-                    <RefreshCw className="h-4 w-4" />
-                    Tentar novamente
-                  </button>
-                </div>
-                <p className="text-[11px] text-zinc-500">
-                  O conteúdo é reproduzido dentro do MovieFlix. Se não carregar,
-                  tente novamente em alguns instantes.
-                </p>
-              </div>
-            ) : (
-              <p className="mt-2 text-center text-xs text-zinc-500">
-                {currentUrl && (
-                  <button onClick={reiniciarFonte} className="text-red-400 underline hover:text-red-300">
-                    Recarregar player
-                  </button>
-                )}
-              </p>
-            )}
+            <p className="mt-2 text-center text-xs text-zinc-500">
+              <button onClick={() => setSourceUrl(null) || requestAnimationFrame(() => setSourceUrl(currentUrl))} className="text-red-400 underline hover:text-red-300">
+                Recarregar player
+              </button>
+            </p>
           </div>
         ) : (
           <div className="flex flex-col items-center gap-4 text-zinc-400 text-center mt-10">
-            <Film className="h-20 w-20 text-zinc-700" />
+            <AlertTriangle className="h-20 w-20 text-zinc-700" />
             <p>Vídeo não disponível</p>
             <p className="text-sm">Nenhuma fonte de vídeo encontrada para este título.</p>
             <button onClick={() => navigate(-1)} className="rounded-xl bg-red-600 px-8 py-3 font-semibold">Voltar</button>
@@ -960,21 +409,7 @@ export function PlayerPage() {
         )}
       </div>
 
-      {/* Teste grátis de 20 segundos (sem assinatura): overlay de contagem
-          regressiva e, ao esgotar, bloqueio NÃO-dispensável cobrindo o player. */}
-      {!assinante && trialMode === 'countdown' && (
-        <TrialOverlay mode="countdown" remaining={trialRemaining} total={20} />
-      )}
-      {!assinante && trialMode === 'blocked' && (
-        <>
-          {/* Pausa e silencia o player nativo (MP4/HLS) no momento do bloqueio —
-              não basta cobrir com overlay, o áudio não pode continuar. */}
-          <HardBlockVideoPause videoRef={videoRef} />
-          <TrialOverlay mode="blocked" />
-        </>
-      )}
-
-      {/* Modal: Quer continuar de onde parou? (players embed) */}
+      {/* Modal: Quer continuar de onde parou? */}
       {showResumeModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
           <div className="w-full max-w-sm rounded-2xl border border-white/10 bg-ink-900 p-6 text-center">
@@ -992,7 +427,6 @@ export function PlayerPage() {
                 onClick={() => {
                   setShowResumeModal(false);
                   setIsResuming(false);
-                  // "Não": zera o progresso salvo e começa do início.
                   if (movie && user) {
                     const mediaType = (movie.type === 'series' || movie.type === 'tv' || movie.type === 'anime' || movie.media_type === 'tv') ? 'tv' : 'movie';
                     mutateHistory({
@@ -1019,11 +453,6 @@ export function PlayerPage() {
                 onClick={() => {
                   setShowResumeModal(false);
                   setIsResuming(false);
-                  // "Sim": retoma da posição salva. A URL do embed já foi
-                  // montada com ?t=segundos (streamBetterMovieUrl/SeriesUrl
-                  // recebem startSeconds do query param ?t=). Para o caso de
-                  // o embed já estar carregado sem ?t=, recarregamos com o
-                  // tempo salvo.
                   const base = resumeBaseRef.current;
                   const pos = base ? base.position : resumeSeconds;
                   resumeBaseRef.current = {
@@ -1031,8 +460,7 @@ export function PlayerPage() {
                     duration: base ? base.duration : 0,
                     startedAt: Date.now(),
                   };
-                  // Garante retomada exata: se a URL atual não tem ?t=,
-                  // remonta com o tempo salvo.
+                  // Garante retomada exata: se a URL atual não tem ?t=, remonta.
                   if (currentUrl && !currentUrl.includes('t=')) {
                     const sep = currentUrl.includes('?') ? '&' : '?';
                     setSourceUrl(`${currentUrl}${sep}t=${Math.floor(pos)}`);
@@ -1049,19 +477,4 @@ export function PlayerPage() {
       )}
     </div>
   );
-}
-
-/** Pausa e silencia o <video> nativo no instante em que o teste grátis esgota. */
-function HardBlockVideoPause({ videoRef }: { videoRef: React.RefObject<HTMLVideoElement | null> }) {
-  useEffect(() => {
-    const v = videoRef.current;
-    if (!v) return;
-    try {
-      v.pause();
-      v.muted = true;
-    } catch {
-      /* ignora */
-    }
-  }, [videoRef]);
-  return null;
 }

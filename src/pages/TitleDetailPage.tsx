@@ -6,7 +6,6 @@ import { useWatchHistory } from "@/hooks/useWatchHistory";
 import { useMovies } from "@/hooks/useMovies";
 import { useSeriesHidden } from "@/hooks/useSeriesHidden";
 import { ehSerie } from "@/lib/media";
-import { streamBetterMovieUrl } from "@/lib/strembetter";
 import { primeiroEpisodio, temporadasDisponiveis, totalEpisodios, type EpisodioRef } from "@/lib/episodes";
 import { EpisodioSelector } from "@/components/series/EpisodioSelector";
 
