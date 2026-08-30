@@ -9,16 +9,14 @@ export type VideoIds = {
 /**
  * Fonte de reprodução para um título do catálogo.
  *
- * PLAYER ÚNICO: WatchPlayer (https://watchplayer.shop)
- *   - Filmes → https://watchplayer.shop/movie/{tmdbId}
- *   - Séries → https://watchplayer.shop/tvshow/{tmdbId}/{season}/{episode}
+ * PLAYER ÚNICO: StreamBetter (https://streambetter.shop), resolvido pelo
+ * backend e reproduzido no <video> nativo do MovieFlix.
+ *   - Filmes → https://streambetter.shop/filme/{tmdbId}
+ *   - Séries → https://streambetter.shop/serie/{tmdbId}/{season}/{episode}
  *
- * O player é embutido DENTRO do site Movieflix via <iframe> (ver PlayerPage).
- * O WatchPlayer fornece o PRÓPRIO player (ArtPlayer + hls.js) e seleciona
- * automaticamente o áudio pt-BR quando disponível.
+ * O áudio pt-BR é priorizado pelo resolver do backend quando disponível.
  *
- * NENHUM player de terceiros (vidlink, StreamBetter, VidZee, VidCore) é
- * usado — todo o catálogo usa o WatchPlayer.
+ * NENHUM iframe de player externo é montado; o catálogo usa o player nativo.
  */
 export function getVideoSources(ids: VideoIds): string[] {
   const tipo =
@@ -40,9 +38,9 @@ export function getVideoSources(ids: VideoIds): string[] {
 }
 
 /**
- * Monta a URL do WatchPlayer para um episódio específico de série.
+ * Monta a URL do StreamBetter para um episódio específico de série.
  * Ex.: TMDB 1396 (Breaking Bad), temporada 1, episódio 1 →
- * https://watchplayer.shop/tvshow/1396/1/1
+ * https://streambetter.shop/serie/1396/1/1
  */
 export function getTvSource(tmdbId: string | number | null, season: number, episode: number): string {
   if (tmdbId == null) return '';

@@ -5,7 +5,7 @@ import { useMovies } from '@/hooks/useMovies';
 import { useAuth } from '@/context/AuthContext';
 import { hasActiveSubscription } from '@/context/AuthContext';
 import { streambetterSeriesEmbedUrl, streambetterMovieEmbedUrl, primeiroEpisodioDisponivel } from '@/lib/strembetter';
-import { protegerIframeContraRedirect } from '@/lib/antiAds';
+import { NativeHlsPlayer } from '@/components/player/NativeHlsPlayer';
 import { useTvPlayerControls } from '@/hooks/useTvPlayerControls';
 import { cn } from '@/lib/cn';
 
@@ -36,7 +36,6 @@ export function TvPlayerPage() {
   const { user, subscription, loading: authLoading } = useAuth();
   const assinante = hasActiveSubscription(subscription);
   const frameRef = useRef<HTMLDivElement>(null);
-  const iframeRef = useRef<HTMLIFrameElement>(null);
   const [playerMode, setPlayerMode] = useState(false);
 
   const movie = (movies.data ?? []).find((m) => String(m.id) === String(id)) ?? null;
@@ -50,8 +49,8 @@ export function TvPlayerPage() {
     return () => window.removeEventListener('mf-player-mode-change', onChange);
   }, []);
 
-  // Fonte do catálogo: o embed do WatchPlayer (montado do tmdb_id) é a fonte
-  // PRIMÁRIA; `video_url` do banco (StreamBetter) fica apenas como fallback.
+  // Fonte do catálogo: o embed do StreamBetter é resolvido pelo backend e
+  // reproduzido no vídeo nativo; `video_url` fica como fallback compatível.
   const src = (() => {
     if (!movie) return '';
     const ehSerie = movie.type === 'series' || movie.type === 'tv' || movie.media_type === 'tv';
@@ -63,14 +62,6 @@ export function TvPlayerPage() {
     if (movie.video_url) return movie.video_url;
     return '';
   })();
-
-  // Guarda de redirect do iframe do player (antiAds): se o iframe tentar
-  // navegar para um host de anúncio, restaura a URL original do player.
-  useEffect(() => {
-    const iframe = iframeRef.current;
-    if (!iframe || !src) return;
-    return protegerIframeContraRedirect(iframe, src);
-  }, [src]);
 
   useTvPlayerControls(
     Boolean(user) && assinante && Boolean(src),
@@ -162,18 +153,10 @@ export function TvPlayerPage() {
       </div>
 
       <div className="tv-player-box" data-tv-player-box ref={frameRef}>
-        {/* Player único: iframe do WatchPlayer (fornece o próprio player,
-            ArtPlayer + hls.js, áudio pt-BR automático). Protegido pelo
-            antiAds (guard de redirect + bloqueio de popups). */}
-        <iframe
+        <NativeHlsPlayer
           key={src}
-          ref={iframeRef}
-          src={src}
-          className="h-full w-full"
-          allow="autoplay; fullscreen; picture-in-picture; encrypted-media; clipboard-write"
-          allowFullScreen
-          referrerPolicy="origin"
-          title="Player de vídeo"
+          embedUrl={src}
+          onReady={(video) => video.setAttribute('data-tv-focusable', '')}
         />
       </div>
 

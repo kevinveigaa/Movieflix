@@ -3,8 +3,8 @@ import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
 import { supabase } from '@/lib/supabase';
 import { streambetterMovieEmbedUrl, streambetterSeriesEmbedUrl } from '@/lib/strembetter';
+import { NativeHlsPlayer } from '@/components/player/NativeHlsPlayer';
 import { SubscriptionPaywall } from '@/components/player/SubscriptionPaywall';
-import { protegerIframeContraRedirect } from '@/lib/antiAds';
 import { hasActiveSubscription } from '@/context/AuthContext';
 import { useUpsertHistory, fetchHistoryForMovie } from '@/hooks/useWatchHistory';
 import { useMovies } from '@/hooks/useMovies';
@@ -62,14 +62,12 @@ export function PlayerPage() {
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [epAtual, setEpAtual] = useState<{ season: number; episode: number } | null>(null);
 
-  // URL do embed do WatchPlayer (fonte única) que o player renderiza.
+  // URL do embed do StreamBetter que o resolver do backend transforma em HLS.
   const [sourceUrl, setSourceUrl] = useState<string | null>(null);
   // Chave de reprodução: muda para recriar o player (ex.: retomada de posição).
   const [playbackKey, setPlaybackKey] = useState(0);
 
   const playerBoxRef = useRef<HTMLDivElement>(null);
-  const iframeRef = useRef<HTMLIFrameElement>(null);
-
   // Modal "Quer continuar de onde parou?" — mostrado ao reabrir um título que
   // JÁ TEM progresso real salvo (>= 10 min ou >= 30%).
   const [showResumeModal, setShowResumeModal] = useState(false);
@@ -82,14 +80,6 @@ export function PlayerPage() {
   const [modoPlayerAtivo, setModoPlayerAtivo] = useState(false);
 
   const currentUrl = sourceUrl;
-
-  // Guarda de redirect do iframe do player: se o iframe tentar navegar para um
-  // host de anúncio, restaura a URL original do player (antiAds).
-  useEffect(() => {
-    const iframe = iframeRef.current;
-    if (!iframe || !currentUrl) return;
-    return protegerIframeContraRedirect(iframe, currentUrl);
-  }, [currentUrl, playbackKey]);
 
   // Controle por controle remoto (TV / TV Box).
   useTvPlayerControls(
@@ -109,7 +99,7 @@ export function PlayerPage() {
     return () => window.removeEventListener('mf-player-mode-change', onModeChange);
   }, []);
 
-  // Monta a URL do embed do WatchPlayer a partir do banco + IDs (filme ou episódio/série).
+  // Monta a URL do StreamBetter a partir do banco + IDs (filme ou episódio/série).
   useEffect(() => {
     async function load() {
       try {
@@ -169,8 +159,8 @@ export function PlayerPage() {
             if (eps && eps.length > 0) {
               setMovie({ ...dataResolved, title: `${dataResolved.title} — T${seasons[0].season_number} E${eps[0].episode_number}: ${eps[0].title}`, season_number: seasons[0].season_number, episode_number: eps[0].episode_number });
               const vidlink = streambetterSeriesEmbedUrl(dataResolved.tmdb_id, seasons[0].season_number || 1, eps[0].episode_number || 1);
-              // WatchPlayer (embed do tmdb_id) é a fonte PRIMÁRIA; video_url do banco
-              // fica apenas como fallback.
+              // StreamBetter (embed do tmdb_id) é a fonte primária; video_url
+              // do banco fica apenas como fallback compatível.
               const lista = [vidlink, eps[0].video_url, dataResolved.video_url].filter(
                 (u): u is string => Boolean(u),
               );
@@ -183,7 +173,7 @@ export function PlayerPage() {
 
         setMovie(dataResolved);
         const tipo = (dataResolved.type === 'tv' || dataResolved.type === 'series' || dataResolved.type === 'anime' || dataResolved.media_type === 'tv') ? 'tv' : 'movie';
-        // Fonte primária: embed do WatchPlayer montado a partir do tmdb_id (filme).
+        // Fonte primária: embed do StreamBetter montado a partir do tmdb_id.
         // `video_url` do banco (StreamBetter) fica apenas como fallback.
         const embedUrl = dataResolved.tmdb_id
           ? (tipo === 'tv'
@@ -236,8 +226,8 @@ export function PlayerPage() {
   const embedTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const embedLastTickRef = useRef(0);
 
-  // Player embed (iframe cross-origin — WatchPlayer): busca o progresso salvo e
-  // oferece retomada quando há progresso REAL.
+  // O player nativo não expõe eventos para este componente; o progresso é
+  // estimado com base no tempo ativo, preservando o comportamento existente.
   useEffect(() => {
     if (!currentUrl || !movie || !user) return;
     pararContadorEmbed();
@@ -357,18 +347,13 @@ export function PlayerPage() {
               data-tv-player-box
               className="relative w-full aspect-video rounded-xl overflow-hidden bg-black shadow-2xl shadow-red-900/20 ring-1 ring-white/10"
             >
-              {/* Player único: iframe do WatchPlayer (fornece o próprio player,
-                  ArtPlayer + hls.js, áudio pt-BR automático). Protegido pelo
-                  antiAds (guard de redirect + bloqueio de popups). */}
-              <iframe
+              {/* O HLS é resolvido pelo backend e reproduzido neste <video>;
+                  nenhum iframe ou janela externa é criado. */}
+              <NativeHlsPlayer
                 key={`${currentUrl}-${playbackKey}`}
-                ref={iframeRef}
-                src={currentUrl}
-                className="h-full w-full"
-                allow="autoplay; fullscreen; picture-in-picture; encrypted-media; clipboard-write"
-                allowFullScreen
-                referrerPolicy="origin"
-                title="Player de vídeo"
+                embedUrl={currentUrl}
+                startSeconds={resumeSeconds > 0 ? resumeSeconds : undefined}
+                onReady={(video) => video.setAttribute('data-tv-focusable', '')}
               />
             </div>
 

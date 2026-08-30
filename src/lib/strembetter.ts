@@ -112,35 +112,33 @@ export function ehEmbedYapGrid(url: string): boolean {
 /** Alias de compatibilidade (nome antigo) — verifica o domínio do YapGrid. */
 export const ehEmbedVidCore = ehEmbedYapGrid;
 
-// ─── WatchPlayer (player embed — fonte única) ───────────────────────────────
-// O player do Movieflix é o WatchPlayer (https://watchplayer.shop), que
-// fornece o PRÓPRIO player (ArtPlayer + hls.js) e usa o TMDB ID direto:
-//   Filmes : watchplayer.shop/movie/{tmdbId}
-//   Séries : watchplayer.shop/tvshow/{tmdbId}/{temporada}/{episodio}
-// O áudio pt-BR é selecionado automaticamente pelo player quando disponível.
-const WATCHPLAYER_BASE = 'https://watchplayer.shop';
+// ─── StreamBetter (fonte do resolver do backend) ────────────────────────────
+// O player nativo do MovieFlix resolve o HLS real via o backend
+// (/api/streambetter-resolve → /api/streambetter-hls), que consulta o
+// StreamBetter com preferência de áudio pt-BR.
+const STREAMBETTER_BASE = 'https://streambetter.shop';
 
-/** URL do player do WatchPlayer para um filme (tmdb_id). */
+/** URL do embed do StreamBetter para um filme (tmdb_id). */
 export function streambetterMovieEmbedUrl(tmdbId: number | string | null | undefined): string {
   if (tmdbId == null) return '';
-  return `${WATCHPLAYER_BASE}/movie/${tmdbId}`;
+  return `${STREAMBETTER_BASE}/filme/${tmdbId}`;
 }
 
-/** URL do player do WatchPlayer para um episódio de série (tmdb_id + s + e). */
+/** URL do embed do StreamBetter para um episódio de série. */
 export function streambetterSeriesEmbedUrl(
   tmdbId: number | string | null | undefined,
   season: number,
   episode: number,
 ): string {
   if (tmdbId == null) return '';
-  return `${WATCHPLAYER_BASE}/tvshow/${tmdbId}/${season}/${episode}`;
+  return `${STREAMBETTER_BASE}/serie/${tmdbId}/${season}/${episode}`;
 }
 
-/** É uma URL de embed do WatchPlayer? (fonte do player) */
+/** É uma URL do StreamBetter? (fonte resolvida pelo player nativo) */
 export function ehEmbedStreamBetter(url: string): boolean {
   try {
     const u = new URL(url);
-    return u.hostname === 'watchplayer.shop' || u.hostname.endsWith('.watchplayer.shop');
+    return u.hostname === 'streambetter.shop' || u.hostname.endsWith('.streambetter.shop');
   } catch {
     return false;
   }

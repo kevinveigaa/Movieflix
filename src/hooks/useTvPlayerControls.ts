@@ -103,12 +103,12 @@ export function useTvPlayerControls(
       return !!ativo.closest?.('[data-tv-player-box]');
     }
 
-    /** Dentro do iframe: envia a tecla para o documento interno (cross-origin: falha silenciosa). */
+  /** Compatibilidade legada: envia a tecla para um iframe quando existir. */
     function teclaNoIframe(e: KeyboardEvent) {
-      const iframe = frameRef.current?.current;
-      if (!iframe) return false;
+    const frame = frameRef.current?.current;
+    if (!(frame instanceof HTMLIFrameElement)) return false;
       try {
-        const doc = iframe.contentDocument;
+      const doc = frame.contentDocument;
         if (!doc) return false;
         const ev = new KeyboardEvent('keydown', {
           key: e.key,
