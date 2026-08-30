@@ -1,49 +1,50 @@
 /**
  * ════════════════════════════════════════════════════════════════════════════
- * VIDCORE — player principal de filmes e séries do Movieflix
+ * CINESRC — player principal de filmes e séries do Movieflix
  * ════════════════════════════════════════════════════════════════════════════
  *
- * O player do Movieflix usa o VidCore (https://www.vidcore.org), um serviço de
- * embed de filmes e séries baseado em TMDB ID. O VidCore resolve as fontes,
- * legendas, áudio e qualidade do outro lado, num player self-contained
- * (ArtPlayer + hls.js) — sem overlay "Abrir link", sem redirecionamento
- * externo e sem anúncios próprios do Movieflix.
+ * O player do Movieflix usa o CineSrc (https://cinesrc.st), um serviço de
+ * embed de filmes e séries baseado em TMDB ID (mantido pela equipe ShuttleTV).
+ * O CineSrc resolve as fontes, legendas, áudio e qualidade do outro lado, num
+ * player self-contained (com play, seek, volume, fullscreen, PiP e cast) — sem
+ * overlay "Abrir link", sem redirecionamento externo e sem anúncios próprios
+ * do Movieflix.
  *
- *   Filmes : https://www.vidcore.org/embed/movie/{tmdbId}
- *   Séries : https://www.vidcore.org/embed/tv/{tmdbId}/{temporada}/{episodio}
+ *   Filmes : https://cinesrc.st/embed/movie/{tmdbId}
+ *   Séries : https://cinesrc.st/embed/tv/{tmdbId}?s={temporada}&e={episodio}
  *
  * O embed é gerado AUTOMATICAMENTE a partir do TMDB ID (que já existe no
  * catálogo) — não há URLs manuais por título. Vale para todo o catálogo atual
  * e para novos títulos adicionados futuramente.
  *
- * ── Áudio pt-BR ─────────────────────────────────────────────────────────────
- * O player do VidCore seleciona a faixa de áudio disponível. O Movieflix
+ * ── Áudio pt-BR ────────────────────────────────────────────────────────────
+ * O player do CineSrc seleciona a faixa de áudio disponível. O Movieflix
  * identifica a disponibilidade real de dublagem pelo campo `dublado_ptbr` do
  * catálogo (nunca inventado) e exibe "Dublado PT-BR" / "Legendado" nos cards.
  *
- * ── Anúncios ────────────────────────────────────────────────────────────────
- *   O Movieflix não injeta nenhum anúncio próprio. O embed do VidCore é
+ * ── Anúncios ───────────────────────────────────────────────────────────────
+ *   O Movieflix não injeta nenhum anúncio próprio. O embed do CineSrc é
  *   incorporado DENTRO do site/app (iframe), sem redirecionamento externo.
  */
 
-const VIDCORE_BASE = 'https://www.vidcore.org';
+const CINESRC_BASE = 'https://cinesrc.st';
 
 /** Parâmetro de preferência de idioma (pt-BR) — reforço, não garantia. */
 export const AUDIO_PTBR = 'pt-BR';
 
 function withLang(url: string, startSeconds?: number): string {
   const params = new URLSearchParams({ lang: AUDIO_PTBR });
-  if (startSeconds && startSeconds > 0) params.set('t', String(startSeconds));
+  if (startSeconds && startSeconds > 0) params.set('seek', String(startSeconds));
   return `${url}?${params.toString()}`;
 }
 
-/** URL do player do VidCore para um filme, com áudio pt-BR preferido. */
+/** URL do player do CineSrc para um filme, com áudio pt-BR preferido. */
 export function streamBetterMovieUrl(tmdbId: number | string | null | undefined, startSeconds?: number): string {
   if (tmdbId == null) return '';
-  return withLang(`${VIDCORE_BASE}/embed/movie/${tmdbId}`, startSeconds);
+  return withLang(`${CINESRC_BASE}/embed/movie/${tmdbId}`, startSeconds);
 }
 
-/** URL do player do VidCore para um episódio de série, com áudio pt-BR. */
+/** URL do player do CineSrc para um episódio de série, com áudio pt-BR. */
 export function streamBetterSeriesUrl(
   tmdbId: number | string | null | undefined,
   season: number,
@@ -51,7 +52,7 @@ export function streamBetterSeriesUrl(
   startSeconds?: number,
 ): string {
   if (tmdbId == null) return '';
-  return withLang(`${VIDCORE_BASE}/embed/tv/${tmdbId}/${season}/${episode}`, startSeconds);
+  return withLang(`${CINESRC_BASE}/embed/tv/${tmdbId}?s=${season}&e=${episode}`, startSeconds);
 }
 
 /**
@@ -82,7 +83,7 @@ export function primeiroEpisodioDisponivel(
   return ordenados[0];
 }
 
-/** Atalho: URL de embed do VidCore a partir de um título do catálogo. */
+/** Atalho: URL de embed do CineSrc a partir de um título do catálogo. */
 export function movieEmbedUrl(
   movie: { video_url?: string; tmdb_id?: number | string } | null | undefined,
 ): string {
@@ -91,11 +92,11 @@ export function movieEmbedUrl(
   return streamBetterMovieUrl(movie.tmdb_id);
 }
 
-/** É uma URL de embed do VidCore? (player principal do Movieflix) */
+/** É uma URL de embed do CineSrc? (player principal do Movieflix) */
 export function ehEmbedVidCore(url: string): boolean {
   try {
     const u = new URL(url);
-    return u.hostname === 'vidcore.org' || u.hostname.endsWith('.vidcore.org');
+    return u.hostname === 'cinesrc.st' || u.hostname.endsWith('.cinesrc.st');
   } catch {
     return false;
   }

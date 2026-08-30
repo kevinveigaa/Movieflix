@@ -5,20 +5,20 @@ import { useMovies } from '@/hooks/useMovies';
 import { useAuth } from '@/context/AuthContext';
 import { hasActiveSubscription } from '@/context/AuthContext';
 import { protegerIframeContraRedirect } from '@/lib/antiAds';
-import { streamBetterSeriesUrl, primeiroEpisodioDisponivel, ehEmbedVidCore } from '@/lib/strembetter';
+import { streamBetterSeriesUrl, primeiroEpisodioDisponivel, ehEmbedVidCore, streamBetterMovieUrl } from '@/lib/strembetter';
 import { useTvPlayerControls } from '@/hooks/useTvPlayerControls';
 import { cn } from '@/lib/cn';
 
 /**
  * TvPlayerPage — player do MovieFlix TV.
  *
- * - Mesma lógica do PlayerPage do site: o player principal é o VidCore
- *   (https://www.vidcore.org), um serviço de embed de filmes e séries baseado
+ * - Mesma lógica do PlayerPage do site: o player principal é o CineSrc
+ *   (https://cinesrc.st), um serviço de embed de filmes e séries baseado
  *   em TMDB ID. O embed é gerado AUTOMATICAMENTE a partir do tmdb_id (filme)
  *   ou tmdb_id + temporada + episódio (série) e renderizado DENTRO do app via
- *   <iframe> (allowFullScreen, responsivo). O VidCore é self-contained
- *   (ArtPlayer + hls.js) — sem overlay "Abrir link", sem redirecionamento
- *   externo e sem anúncios próprios do Movieflix.
+ *   <iframe> (allowFullScreen, responsivo). O CineSrc é self-contained
+ *   (play, seek, volume, fullscreen, PiP e cast) — sem overlay "Abrir link",
+ *   sem redirecionamento externo e sem anúncios próprios do Movieflix.
  * - PROTEÇÃO: só monta o player depois de verificar auth + assinatura ativa
  *   (mesma regra do PlayerPage do site). Sem assinatura → redirect para
  *   /tv/assinatura.
@@ -50,17 +50,17 @@ export function TvPlayerPage() {
     return () => window.removeEventListener('mf-player-mode-change', onChange);
   }, []);
 
-  // Fonte do catálogo: filme usa video_url (embed VidCore); série usa o embed
-  // do VidCore montado a partir do tmdb_id + primeiro episódio disponível
-  // (mesma regra do site — o catálogo de séries não traz video_url).
+  // Fonte do catálogo: o embed do CineSrc (montado do tmdb_id) é a fonte
+  // PRIMÁRIA; `video_url` do banco (StreamBetter) fica apenas como fallback.
   const src = (() => {
     if (!movie) return '';
-    if (movie.video_url) return movie.video_url;
     const ehSerie = movie.type === 'series' || movie.type === 'tv' || movie.media_type === 'tv';
     if (ehSerie && movie.tmdb_id) {
       const ep = primeiroEpisodioDisponivel(movie);
       if (ep) return streamBetterSeriesUrl(movie.tmdb_id, ep.season, ep.episode);
     }
+    if (movie.tmdb_id) return streamBetterMovieUrl(movie.tmdb_id);
+    if (movie.video_url) return movie.video_url;
     return '';
   })();
 

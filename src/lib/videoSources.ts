@@ -9,16 +9,16 @@ export type VideoIds = {
 /**
  * Fonte de reprodução para um título do catálogo.
  *
- * PLAYER ÚNICO: StreamBetter (https://streambetter.shop)
- *   - Filmes → https://streambetter.shop/filme/{tmdbId}?lang=pt-BR
- *   - Séries → https://streambetter.shop/serie/{tmdbId}/{season}/{episode}?lang=pt-BR
+ * PLAYER ÚNICO: CineSrc (https://cinesrc.st)
+ *   - Filmes → https://cinesrc.st/embed/movie/{tmdbId}?lang=pt-BR
+ *   - Séries → https://cinesrc.st/embed/tv/{tmdbId}?s={season}&e={episode}&lang=pt-BR
  *
  * O player é embutido DENTRO do site Movieflix via <iframe> (ver PlayerPage).
- * Áudio pt-BR: o player do StreamBetter seleciona automaticamente a faixa em
+ * Áudio pt-BR: o player do CineSrc seleciona automaticamente a faixa em
  * português quando disponível; `lang=pt-BR` reforça a preferência.
  *
- * NENHUM player de terceiros (vidlink.pro, megaembedapi, VidZee) é usado —
- * todo o catálogo foi migrado para o StreamBetter.
+ * NENHUM player de terceiros (vidlink.pro, megaembedapi, VidZee, VidCore) é
+ * usado — todo o catálogo foi migrado para o CineSrc.
  */
 export function getVideoSources(ids: VideoIds): string[] {
   const tipo =
@@ -40,9 +40,9 @@ export function getVideoSources(ids: VideoIds): string[] {
 }
 
 /**
- * Monta a URL do StreamBetter para um episódio específico de série.
+ * Monta a URL do CineSrc para um episódio específico de série.
  * Ex.: TMDB 1396 (Breaking Bad), temporada 1, episódio 1 →
- * https://streambetter.shop/serie/1396/1/1?lang=pt-BR
+ * https://cinesrc.st/embed/tv/1396?s=1&e=1&lang=pt-BR
  */
 export function getTvSource(tmdbId: string | number | null, season: number, episode: number): string {
   if (tmdbId == null) return '';

@@ -20,17 +20,18 @@ import {
 import { ChevronLeft, Film, Gamepad2, Loader2, RotateCcw, Play, Clock, AlertTriangle } from 'lucide-react';
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Player do Movieflix — VIDCORE (https://www.vidcore.org)
+// Player do Movieflix — CINESRC (https://cinesrc.st)
 //
-// O player principal é o VidCore, um serviço de embed de filmes e séries
+// O player principal é o CineSrc, um serviço de embed de filmes e séries
 // baseado em TMDB ID. O embed é gerado AUTOMATICAMENTE a partir do tmdb_id
 // (filme) ou tmdb_id + temporada + episódio (série) — sem URLs manuais por
-// título. O VidCore resolve fontes, legendas, áudio e qualidade do outro lado,
-// num player self-contained (ArtPlayer + hls.js), sem overlay "Abrir link",
-// sem redirecionamento externo e sem anúncios próprios do Movieflix.
+// título. O CineSrc resolve fontes, legendas, áudio e qualidade do outro lado,
+// num player self-contained (play, seek, volume, fullscreen, PiP e cast), sem
+// overlay "Abrir link", sem redirecionamento externo e sem anúncios próprios
+// do Movieflix.
 //
-//   Filmes : https://www.vidcore.org/embed/movie/{tmdbId}
-//   Séries : https://www.vidcore.org/embed/tv/{tmdbId}/{temporada}/{episodio}
+//   Filmes : https://cinesrc.st/embed/movie/{tmdbId}
+//   Séries : https://cinesrc.st/embed/tv/{tmdbId}?s={temporada}&e={episodio}
 //
 // O embed é renderizado DENTRO do site/app via <iframe> (allowFullScreen,
 // responsivo). O Movieflix não injeta anúncios e não redireciona o usuário
@@ -62,7 +63,7 @@ export function PlayerPage() {
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [epAtual, setEpAtual] = useState<{ season: number; episode: number } | null>(null);
 
-  // URL do embed do VidCore (fonte única).
+  // URL do embed do CineSrc (fonte única).
   const [sourceUrl, setSourceUrl] = useState<string | null>(null);
 
   const playerFrameRef = useRef<HTMLIFrameElement>(null);
@@ -101,7 +102,7 @@ export function PlayerPage() {
 
   // Guarda de redirect do iframe (antiAds): se um anúncio redirecionar o
   // DOCUMENTO do iframe para fora do player, restaura a URL original
-  // automaticamente e em silêncio. O VidCore é um player self-contained —
+  // automaticamente e em silêncio. O CineSrc é um player self-contained —
   // não navega legitimamente para fora.
   useEffect(() => {
     if (!currentUrl || !ehEmbedVidCore(currentUrl)) return;
@@ -112,7 +113,7 @@ export function PlayerPage() {
     return limpar;
   }, [currentUrl]);
 
-  // Monta a URL do embed do VidCore a partir do banco + IDs (filme ou episódio/série).
+  // Monta a URL do embed do CineSrc a partir do banco + IDs (filme ou episódio/série).
   useEffect(() => {
     async function load() {
       try {
@@ -172,7 +173,9 @@ export function PlayerPage() {
             if (eps && eps.length > 0) {
               setMovie({ ...dataResolved, title: `${dataResolved.title} — T${seasons[0].season_number} E${eps[0].episode_number}: ${eps[0].title}`, season_number: seasons[0].season_number, episode_number: eps[0].episode_number });
               const vidlink = streamBetterSeriesUrl(dataResolved.tmdb_id, seasons[0].season_number || 1, eps[0].episode_number || 1, startSeconds);
-              const lista = [eps[0].video_url, dataResolved.video_url, vidlink].filter(
+              // CineSrc (embed do tmdb_id) é a fonte PRIMÁRIA; video_url do banco
+              // (StreamBetter) fica apenas como fallback.
+              const lista = [vidlink, eps[0].video_url, dataResolved.video_url].filter(
                 (u): u is string => Boolean(u),
               );
               setSourceUrl(lista.length > 0 ? lista[0] : null);
@@ -184,15 +187,14 @@ export function PlayerPage() {
 
         setMovie(dataResolved);
         const tipo = (dataResolved.type === 'tv' || dataResolved.type === 'series' || dataResolved.type === 'anime' || dataResolved.media_type === 'tv') ? 'tv' : 'movie';
-        // Fonte primária: `video_url` do banco (se houver). Para títulos do
-        // catálogo (sem video_url direto), usa o embed do VidCore montado a
-        // partir do tmdb_id (filme) — sempre a primeira opção.
+        // Fonte primária: embed do CineSrc montado a partir do tmdb_id (filme).
+        // `video_url` do banco (StreamBetter) fica apenas como fallback.
         const embedUrl = dataResolved.tmdb_id
           ? (tipo === 'tv'
               ? streamBetterSeriesUrl(dataResolved.tmdb_id, 1, 1, startSeconds)
               : streamBetterMovieUrl(dataResolved.tmdb_id, startSeconds))
           : null;
-        const lista = [dataResolved.video_url, embedUrl].filter((u): u is string => Boolean(u));
+        const lista = [embedUrl, dataResolved.video_url].filter((u): u is string => Boolean(u));
         setSourceUrl(lista.length > 0 ? lista[0] : null);
         setLoading(false);
       } catch (erro) {
@@ -238,7 +240,7 @@ export function PlayerPage() {
   const embedTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const embedLastTickRef = useRef(0);
 
-  // Players embed (iframe cross-origin — VidCore): busca o progresso salvo e
+  // Players embed (iframe cross-origin — CineSrc): busca o progresso salvo e
   // oferece retomada quando há progresso REAL.
   useEffect(() => {
     if (!currentUrl || !movie || !user) return;
