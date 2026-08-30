@@ -4,22 +4,20 @@ import { ArrowLeft, Gamepad2, Loader2, AlertCircle } from 'lucide-react';
 import { useMovies } from '@/hooks/useMovies';
 import { useAuth } from '@/context/AuthContext';
 import { hasActiveSubscription } from '@/context/AuthContext';
-import { protegerIframeContraRedirect } from '@/lib/antiAds';
-import { streamBetterSeriesUrl, primeiroEpisodioDisponivel, ehEmbedVidCore, streamBetterMovieUrl } from '@/lib/strembetter';
+import { streambetterSeriesEmbedUrl, streambetterMovieEmbedUrl, primeiroEpisodioDisponivel } from '@/lib/strembetter';
+import { NativeHlsPlayer } from '@/components/player/NativeHlsPlayer';
 import { useTvPlayerControls } from '@/hooks/useTvPlayerControls';
 import { cn } from '@/lib/cn';
 
 /**
  * TvPlayerPage — player do MovieFlix TV.
  *
-* - Mesma lógica do PlayerPage do site: o player principal é o YapGrid
- *   (https://yapgrid.com), um serviço de embed de filmes e séries baseado
- *   em TMDB ID, sem anúncios e sem API key. O embed é gerado AUTOMATICAMENTE
- *   a partir do tmdb_id (filme) ou tmdb_id + temporada + episódio (série) e
- *   renderizado DENTRO do app via <iframe> (allowFullScreen, responsivo, com
- *   sandbox restrito). O YapGrid é self-contained (hls.js) — sem overlay
- *   "Abrir link", sem redirecionamento externo e sem anúncios próprios do
- *   Movieflix.
+ * - Mesma lógica do PlayerPage do site: o player principal é NATIVO — um
+ *   <video> + hls.js alimentado pelo backend do próprio Movieflix
+ *   (/api/streambetter-resolve → /api/streambetter-hls), que resolve o HLS
+ *   REAL do título a partir do tmdb_id (filme) ou tmdb_id + temporada +
+ *   episódio (série). Não há iframe de terceiros: ZERO anúncios, ZERO popup,
+ *   ZERO redirecionamento externo, e o usuário permanece dentro do app.
  * - PROTEÇÃO: só monta o player depois de verificar auth + assinatura ativa
  *   (mesma regra do PlayerPage do site). Sem assinatura → redirect para
  *   /tv/assinatura.
@@ -27,8 +25,8 @@ import { cn } from '@/lib/cn';
  *   entre MODO APP (setas navegam a página) e MODO PLAYER (setas controlam o
  *   player). Segurar OK de novo sai.
  * - Back: sai do player (volta para a página de detalhes).
- * - Bloqueio silencioso de popups/redirects (antiAds global + guarda do
- *   iframe via protegerIframeContraRedirect).
+ * - O <video> nativo (data-mf-player) é controlado pelo useTvPlayerControls
+ *   (play/pause, volume, setas) — sem iframe, sem popups, sem redirects.
  */
 
 export function TvPlayerPage() {
@@ -37,7 +35,7 @@ export function TvPlayerPage() {
   const movies = useMovies();
   const { user, subscription, loading: authLoading } = useAuth();
   const assinante = hasActiveSubscription(subscription);
-  const frameRef = useRef<HTMLIFrameElement>(null);
+  const frameRef = useRef<HTMLDivElement>(null);
   const [playerMode, setPlayerMode] = useState(false);
 
   const movie = (movies.data ?? []).find((m) => String(m.id) === String(id)) ?? null;
@@ -58,22 +56,12 @@ export function TvPlayerPage() {
     const ehSerie = movie.type === 'series' || movie.type === 'tv' || movie.media_type === 'tv';
     if (ehSerie && movie.tmdb_id) {
       const ep = primeiroEpisodioDisponivel(movie);
-      if (ep) return streamBetterSeriesUrl(movie.tmdb_id, ep.season, ep.episode);
+      if (ep) return streambetterSeriesEmbedUrl(movie.tmdb_id, ep.season, ep.episode);
     }
-    if (movie.tmdb_id) return streamBetterMovieUrl(movie.tmdb_id);
+    if (movie.tmdb_id) return streambetterMovieEmbedUrl(movie.tmdb_id);
     if (movie.video_url) return movie.video_url;
     return '';
   })();
-
-  // Guarda de redirect do iframe (antiAds) — restaura a URL do player se um
-  // anúncio redirecionar o documento do iframe para fora.
-  useEffect(() => {
-    const iframe = frameRef.current;
-    if (!iframe || !src || !ehEmbedVidCore(src)) return;
-    iframe.setAttribute('data-player-src', src);
-    const limpar = protegerIframeContraRedirect(iframe, src);
-    return limpar;
-  }, [src]);
 
   useTvPlayerControls(
     Boolean(user) && assinante && Boolean(src),
@@ -164,21 +152,13 @@ export function TvPlayerPage() {
         <div className="tv-player-title">{movie.title}</div>
       </div>
 
-      <div className="tv-player-box" data-tv-player-box>
-        <iframe
+      <div className="tv-player-box" data-tv-player-box ref={frameRef}>
+        <NativeHlsPlayer
           key={src}
-          ref={frameRef}
-          id="tv-player-frame"
-          src={src}
-          data-player-src={src}
-          title={`Player — ${movie.title}`}
-          className="tv-player-frame"
-          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share; fullscreen"
-          allowFullScreen
-          referrerPolicy="origin"
-          sandbox="allow-scripts allow-same-origin allow-presentation allow-forms"
-          data-tv-focusable
-          data-tv-player-box
+          embedUrl={src}
+          onReady={(video) => {
+            video.setAttribute('data-tv-focusable', '');
+          }}
         />
       </div>
 

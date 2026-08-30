@@ -2,10 +2,10 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
 import { supabase } from '@/lib/supabase';
-import { streamBetterMovieUrl, streamBetterSeriesUrl, ehEmbedVidCore } from '@/lib/strembetter';
+import { streambetterMovieEmbedUrl, streambetterSeriesEmbedUrl } from '@/lib/strembetter';
+import { NativeHlsPlayer } from '@/components/player/NativeHlsPlayer';
 import { SubscriptionPaywall } from '@/components/player/SubscriptionPaywall';
 import { hasActiveSubscription } from '@/context/AuthContext';
-import { protegerIframeContraRedirect } from '@/lib/antiAds';
 import { useUpsertHistory, fetchHistoryForMovie } from '@/hooks/useWatchHistory';
 import { useMovies } from '@/hooks/useMovies';
 import { useEntitlements } from '@/hooks/useEntitlements';
@@ -20,30 +20,22 @@ import {
 import { ChevronLeft, Film, Gamepad2, Loader2, RotateCcw, Play, Clock, AlertTriangle } from 'lucide-react';
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Player do Movieflix — YAPGRID (https://yapgrid.com)
+// Player do Movieflix — NATIVO (hls.js + resolver do backend)
 //
-// O player principal é o YapGrid, um serviço de embed de filmes e séries
-// baseado em TMDB ID, SEM anúncios e SEM API key. O embed é gerado
-// AUTOMATICAMENTE a partir do tmdb_id (filme) ou tmdb_id + temporada +
-// episódio (série) — sem URLs manuais por título. O YapGrid resolve fontes,
-// legendas, áudio e qualidade do outro lado, num player self-contained
-// (hls.js), sem overlay "Abrir link", sem redirecionamento externo e sem
-// anúncios próprios do Movieflix.
+// O player principal é NATIVO: um <video> + hls.js alimentado pelo backend do
+// próprio Movieflix (/api/streambetter-resolve → /api/streambetter-hls), que
+// resolve o HLS REAL do título a partir do tmdb_id (filme) ou tmdb_id +
+// temporada + episódio (série) — sem URLs manuais por título. Não há iframe
+// de terceiros: logo, ZERO anúncios, ZERO popup, ZERO redirecionamento, e o
+// usuário permanece dentro do Movieflix.
 //
-//   Filmes : https://yapgrid.com/embed/movie/{tmdbId}
-//   Séries : https://yapgrid.com/embed/tv/{tmdbId}/{temporada}/{episodio}
+//   Filmes : streambetter.shop/filme/{tmdbId}
+//   Séries : streambetter.shop/serie/{tmdbId}/{temporada}/{episodio}
 //
-// O embed é renderizado DENTRO do site/app via <iframe> (allowFullScreen,
-// responsivo, com sandbox restrito — sem allow-top-navigation, sem
-// allow-popups). O Movieflix não injeta anúncios e não redireciona o usuário
-// para fora — a proteção anti-redirect (antiAds) restaura a URL do player se
-// um anúncio tentar mudar o documento do iframe.
-//
-// O embed é renderizado DENTRO do site/app via <iframe> (allowFullScreen,
-// responsivo, com sandbox restrito — sem allow-top-navigation, sem
-// allow-popups). O Movieflix não injeta anúncios e não redireciona o usuário
-// para fora — a proteção anti-redirect (antiAds) restaura a URL do player se
-// um anúncio tentar mudar o documento do iframe.
+// O áudio PT-BR é priorizado pelo resolver (busca lang=pt-BR e identifica
+// fontes dubladas). A qualidade é escolhida automaticamente pelo hls.js
+// (1080p+ quando disponível). Funciona em celular, PC, tablet, Android TV,
+// Google TV e TV Box (controle remoto via useTvPlayerControls).
 //
 // PROGRESSO ("Continuar assistindo"):
 //   - O prompt de retomada SÓ aparece para títulos com progresso REAL
@@ -70,10 +62,11 @@ export function PlayerPage() {
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [epAtual, setEpAtual] = useState<{ season: number; episode: number } | null>(null);
 
-  // URL do embed do CineSrc (fonte única).
+  // URL do embed do StreamBetter (fonte única) que o resolver do backend resolve.
   const [sourceUrl, setSourceUrl] = useState<string | null>(null);
+  // Chave de reprodução: muda para recriar o player (ex.: retomada de posição).
+  const [playbackKey, setPlaybackKey] = useState(0);
 
-  const playerFrameRef = useRef<HTMLIFrameElement>(null);
   const playerBoxRef = useRef<HTMLDivElement>(null);
 
   // Modal "Quer continuar de onde parou?" — mostrado ao reabrir um título que
@@ -93,7 +86,7 @@ export function PlayerPage() {
   useTvPlayerControls(
     Boolean(currentUrl) && ehTelaDeTv(),
     modoPlayerAtivo,
-    playerFrameRef,
+    playerBoxRef,
     () => navigate(-1),
   );
 
@@ -106,19 +99,6 @@ export function PlayerPage() {
     window.addEventListener('mf-player-mode-change', onModeChange);
     return () => window.removeEventListener('mf-player-mode-change', onModeChange);
   }, []);
-
-  // Guarda de redirect do iframe (antiAds): se um anúncio redirecionar o
-  // DOCUMENTO do iframe para fora do player, restaura a URL original
-  // automaticamente e em silêncio. O CineSrc é um player self-contained —
-  // não navega legitimamente para fora.
-  useEffect(() => {
-    if (!currentUrl || !ehEmbedVidCore(currentUrl)) return;
-    const iframe = playerFrameRef.current;
-    if (!iframe) return;
-    iframe.setAttribute('data-player-src', currentUrl);
-    const limpar = protegerIframeContraRedirect(iframe, currentUrl);
-    return limpar;
-  }, [currentUrl]);
 
   // Monta a URL do embed do CineSrc a partir do banco + IDs (filme ou episódio/série).
   useEffect(() => {
@@ -146,7 +126,7 @@ export function PlayerPage() {
           const episode = epParam ? Number(epParam) : epId;
           setMovie({ title: `Episódio ${episode}`, type: 'series', tmdb_id: tituloId, season_number: season, episode_number: episode });
           setEpAtual({ season, episode });
-          const src = streamBetterSeriesUrl(tituloId || null, season, episode, startSeconds);
+          const src = streambetterSeriesEmbedUrl(tituloId || null, season, episode);
           setSourceUrl(src || null);
           setLoading(false);
           return;
@@ -179,7 +159,7 @@ export function PlayerPage() {
             const { data: eps } = await supabase.from('episodes').select('*').eq('season_id', seasons[0].id).not('video_url', 'is', null).order('episode_number', { ascending: true }).limit(1);
             if (eps && eps.length > 0) {
               setMovie({ ...dataResolved, title: `${dataResolved.title} — T${seasons[0].season_number} E${eps[0].episode_number}: ${eps[0].title}`, season_number: seasons[0].season_number, episode_number: eps[0].episode_number });
-              const vidlink = streamBetterSeriesUrl(dataResolved.tmdb_id, seasons[0].season_number || 1, eps[0].episode_number || 1, startSeconds);
+              const vidlink = streambetterSeriesEmbedUrl(dataResolved.tmdb_id, seasons[0].season_number || 1, eps[0].episode_number || 1);
               // CineSrc (embed do tmdb_id) é a fonte PRIMÁRIA; video_url do banco
               // (StreamBetter) fica apenas como fallback.
               const lista = [vidlink, eps[0].video_url, dataResolved.video_url].filter(
@@ -198,8 +178,8 @@ export function PlayerPage() {
         // `video_url` do banco (StreamBetter) fica apenas como fallback.
         const embedUrl = dataResolved.tmdb_id
           ? (tipo === 'tv'
-              ? streamBetterSeriesUrl(dataResolved.tmdb_id, 1, 1, startSeconds)
-              : streamBetterMovieUrl(dataResolved.tmdb_id, startSeconds))
+              ? streambetterSeriesEmbedUrl(dataResolved.tmdb_id, 1, 1)
+              : streambetterMovieEmbedUrl(dataResolved.tmdb_id))
           : null;
         const lista = [embedUrl, dataResolved.video_url].filter((u): u is string => Boolean(u));
         setSourceUrl(lista.length > 0 ? lista[0] : null);
@@ -368,19 +348,14 @@ export function PlayerPage() {
               data-tv-player-box
               className="relative w-full aspect-video rounded-xl overflow-hidden bg-black shadow-2xl shadow-red-900/20 ring-1 ring-white/10"
             >
-              <iframe
-                key={currentUrl}
-                ref={playerFrameRef}
-                id="player-frame"
-                src={currentUrl}
-                data-player-src={currentUrl}
-                title={`Player — ${movie?.title || ''}`}
-                className="tv-player absolute inset-0 w-full h-full border-0"
-                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share; fullscreen"
-                allowFullScreen
-                referrerPolicy="origin"
-                sandbox="allow-scripts allow-same-origin allow-presentation allow-forms"
-                data-tv-focusable
+              <NativeHlsPlayer
+                key={`${currentUrl}-${playbackKey}`}
+                embedUrl={currentUrl}
+                startSeconds={resumeSeconds > 0 ? resumeSeconds : undefined}
+                onReady={(video) => {
+                  // Garante que o foco fique no player para o controle remoto.
+                  video.setAttribute('data-tv-focusable', '');
+                }}
               />
             </div>
 
@@ -471,11 +446,9 @@ export function PlayerPage() {
                     duration: base ? base.duration : 0,
                     startedAt: Date.now(),
                   };
-                  // Garante retomada exata: se a URL atual não tem ?t=, remonta.
-                  if (currentUrl && !currentUrl.includes('t=')) {
-                    const sep = currentUrl.includes('?') ? '&' : '?';
-                    setSourceUrl(`${currentUrl}${sep}t=${Math.floor(pos)}`);
-                  }
+                  // Garante retomada exata: recria o player com a posição salva.
+                  setResumeSeconds(Math.floor(pos));
+                  setPlaybackKey((k) => k + 1);
                 }}
                 className="flex-1 rounded-lg bg-brand-600 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-brand-500 flex items-center justify-center gap-2"
               >

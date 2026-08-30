@@ -31,7 +31,7 @@ import { useEffect, useRef, type RefObject } from 'react';
 export function useTvPlayerControls(
   enabled: boolean,
   playerMode: boolean,
-  playerFrameRef: RefObject<HTMLIFrameElement | null>,
+  playerFrameRef: RefObject<HTMLElement | null>,
   onBack: () => void,
 ) {
   const onBackRef = useRef(onBack);

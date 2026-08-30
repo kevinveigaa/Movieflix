@@ -1,4 +1,4 @@
-import { streamBetterMovieUrl, streamBetterSeriesUrl } from '@/lib/strembetter';
+import { streambetterMovieEmbedUrl, streambetterSeriesEmbedUrl } from '@/lib/strembetter';
 
 export type VideoIds = {
   imdbId?: string | null;
@@ -30,9 +30,9 @@ export function getVideoSources(ids: VideoIds): string[] {
 
   if (ids.tmdbId != null) {
     if (tipo === 'tv') {
-      sources.push(streamBetterSeriesUrl(ids.tmdbId, 1, 1));
+      sources.push(streambetterSeriesEmbedUrl(ids.tmdbId, 1, 1));
     } else {
-      sources.push(streamBetterMovieUrl(ids.tmdbId));
+      sources.push(streambetterMovieEmbedUrl(ids.tmdbId));
     }
   }
 
@@ -46,7 +46,7 @@ export function getVideoSources(ids: VideoIds): string[] {
  */
 export function getTvSource(tmdbId: string | number | null, season: number, episode: number): string {
   if (tmdbId == null) return '';
-  return streamBetterSeriesUrl(tmdbId, season, episode);
+  return streambetterSeriesEmbedUrl(tmdbId, season, episode);
 }
 
 /** Mantém compatibilidade com o resto do código que usa getVidsrcUrl. */

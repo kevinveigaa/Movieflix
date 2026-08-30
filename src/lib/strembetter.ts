@@ -1,38 +1,37 @@
 /**
  * ════════════════════════════════════════════════════════════════════════════
- * YAPGRID — player principal de filmes e séries do Movieflix
+ * PLAYER NATIVO — player principal de filmes e séries do Movieflix
  * ════════════════════════════════════════════════════════════════════════════
  *
- * O player do Movieflix usa o YapGrid (https://yapgrid.com), um serviço de
- * embed de filmes e séries baseado em TMDB ID, SEM anúncios e SEM API key.
- * O YapGrid resolve fontes, legendas, áudio e qualidade do outro lado, num
- * player self-contained (hls.js) — sem overlay "Abrir link", sem
- * redirecionamento externo e sem anúncios próprios do Movieflix.
+ * O player do Movieflix é NATIVO: um <video> + hls.js alimentado pelo backend
+ * do próprio Movieflix (/api/streambetter-resolve → /api/streambetter-hls),
+ * que resolve o HLS REAL do título a partir do TMDB ID. Não há iframe de
+ * terceiros — logo, por construção: ZERO anúncios, ZERO popups, ZERO
+ * redirecionamento externo, e o usuário permanece dentro do Movieflix.
  *
- *   Filmes : https://yapgrid.com/embed/movie/{tmdbId}
- *   Séries : https://yapgrid.com/embed/tv/{tmdbId}/{temporada}/{episodio}
+ *   Filmes : streambetter.shop/filme/{tmdbId}
+ *   Séries : streambetter.shop/serie/{tmdbId}/{temporada}/{episodio}
  *
  * O embed é gerado AUTOMATICAMENTE a partir do TMDB ID (que já existe no
  * catálogo) — não há URLs manuais por título. Vale para todo o catálogo atual
  * e para novos títulos adicionados futuramente.
  *
  * ── Áudio pt-BR ─────────────────────────────────────────────────────────────
- * IMPORTANTE (documentação oficial do YapGrid — docs/parameters.md): o
- * parâmetro `lang` controla APENAS o idioma da LEGENDA (subtitle language).
- * O YapGrid NÃO expõe um parâmetro oficial para forçar a faixa de ÁUDIO —
- * o áudio é determinado pelo servidor selecionado (Server X/Y/Z, que o
- * usuário pode trocar dentro do player). Portanto, `lang=pt` garante
- * legendas em português, mas NÃO garante áudio dublado em PT-BR.
+ * O resolver do player busca a fonte do StreamBetter com lang=pt-BR e
+ * identifica fontes dubladas (label "Dublado"). O áudio é muxado no HLS (não
+ * há faixas separadas), então a faixa dublada já vem entregue quando a fonte
+ * é dublada. O Movieflix identifica a disponibilidade real de dublagem pelo
+ * campo `dublado_ptbr` do catálogo (nunca inventado) e exibe "Dublado PT-BR"
+ * / "Legendado" nos cards.
  *
- * O Movieflix identifica a disponibilidade real de dublagem pelo campo
- * `dublado_ptbr` do catálogo (nunca inventado) e exibe "Dublado PT-BR" /
- * "Legendado" nos cards. A seleção efetiva da faixa de áudio dublado, quando
- * existir, é feita pelo usuário no seletor de servidor do player.
+ * ── Anúncios ────────────────────────────────────────────────────────────────
+ *   O player nativo não injeta anúncios e não há iframe de terceiros — a
+ *   reprodução é 100% dentro do Movieflix, sem redirecionamento externo.
  *
- * ── Anúncios ──────────────────────────────────────────────────────────────
- *   O YapGrid é um player publicamente ad-free (sem anúncios). O Movieflix
- *   não injeta nenhum anúncio próprio. O embed é incorporado DENTRO do
- *   site/app (iframe), sem redirecionamento externo.
+ * ── Legado ──────────────────────────────────────────────────────────────────
+ *   As funções streamBetterMovieUrl/streamBetterSeriesUrl/ehEmbedYapGrid
+ *   abaixo são LEGADAS (do antigo player YapGrid) e não são mais usadas pelo
+ *   player principal. Mantidas apenas para compatibilidade.
  */
 
 const YAPGRID_BASE = 'https://yapgrid.com';
@@ -112,3 +111,36 @@ export function ehEmbedYapGrid(url: string): boolean {
 
 /** Alias de compatibilidade (nome antigo) — verifica o domínio do YapGrid. */
 export const ehEmbedVidCore = ehEmbedYapGrid;
+
+// ─── StreamBetter (fonte do resolver do backend) ────────────────────────────
+// O player nativo do Movieflix resolve o HLS REAL via o backend
+// (/api/streambetter-resolve → /api/streambetter-hls), que busca a fonte no
+// StreamBetter e identifica fontes dubladas (label "Dublado"). Estas URLs são
+// o que o resolver espera (filme / serie/{s}/{e}).
+const STREAMBETTER_BASE = 'https://streambetter.shop';
+
+/** URL do embed do StreamBetter para um filme (o que o resolver resolve). */
+export function streambetterMovieEmbedUrl(tmdbId: number | string | null | undefined): string {
+  if (tmdbId == null) return '';
+  return `${STREAMBETTER_BASE}/filme/${tmdbId}`;
+}
+
+/** URL do embed do StreamBetter para um episódio de série. */
+export function streambetterSeriesEmbedUrl(
+  tmdbId: number | string | null | undefined,
+  season: number,
+  episode: number,
+): string {
+  if (tmdbId == null) return '';
+  return `${STREAMBETTER_BASE}/serie/${tmdbId}/${season}/${episode}`;
+}
+
+/** É uma URL de embed do StreamBetter? (fonte do player nativo) */
+export function ehEmbedStreamBetter(url: string): boolean {
+  try {
+    const u = new URL(url);
+    return u.hostname === 'streambetter.shop' || u.hostname.endsWith('.streambetter.shop');
+  } catch {
+    return false;
+  }
+}
