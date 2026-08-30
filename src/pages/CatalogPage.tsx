@@ -101,19 +101,24 @@ export function CatalogPage({ kind }: { kind: CatalogKind }) {
     let lista = base.filter((movie: any) => {
       const tituloOk = !termo || String(movie.title ?? '').toLowerCase().includes(termo);
       if (!tituloOk) return false;
+
+      // Filtro por categoria/gênero (independente do filtro de áudio).
       if (categoria) {
-        return isCategoriaKids(categoria) ? ehInfantil(movie) : temCategoria(movie, categoria);
+        const catOk = isCategoriaKids(categoria) ? ehInfantil(movie) : temCategoria(movie, categoria);
+        if (!catOk) return false;
       }
-      // Filtro de áudio (dados reais: dublado_ptbr / language).
-      if (filtroAudio === 'dublado') {
+
+      // Filtro de áudio (dados reais: dublado_ptbr / language) — SEMPRE aplicado,
+      // inclusive quando há uma categoria selecionada.
+      if (filtroAudio !== 'todos') {
         const dublado = movie?.dublado_ptbr === true || /dublado/i.test(String(movie?.language ?? ''));
-        if (!dublado) return false;
-      } else if (filtroAudio === 'legendado') {
-        const dublado = movie?.dublado_ptbr === true || /dublado/i.test(String(movie?.language ?? ''));
-        if (dublado) return false;
+        if (filtroAudio === 'dublado' && !dublado) return false;
+        if (filtroAudio === 'legendado' && dublado) return false;
       }
+
       return true;
     });
+
 
     const ano = (m: any) => Number(m.year ?? 0);
     const nota = (m: any) => Number(m.vote_average ?? 0);
@@ -180,8 +185,10 @@ export function CatalogPage({ kind }: { kind: CatalogKind }) {
       <p className="mb-6 text-sm text-ink-400">
         {totalTipo} {kind === 'filmes' ? (totalTipo === 1 ? 'filme disponível' : 'filmes disponíveis') : totalTipo === 1 ? 'série disponível' : 'séries disponíveis'}
         {search.trim() ? ` · ${results.length} resultado(s) para "${search.trim()}"` : ''}
-        {' '}· Dublado em pt-BR · Sem anúncios
+        {!search.trim() && (categoria || filtroAudio !== 'todos') ? ` · ${results.length} exibido(s) no filtro atual` : ''}
+        {' '}· Sem anúncios
       </p>
+
 
       {/* Busca + ordenação */}
       <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center">
