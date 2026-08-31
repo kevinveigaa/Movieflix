@@ -62,7 +62,9 @@ export function NativeHlsPlayer({
           marcarErro(
             resolvido.motivo === 'sem_stream_direto'
               ? 'Não há uma fonte dublada em PT-BR reproduzível para este título.'
-              : 'Não foi possível preparar o vídeo agora. Tente novamente em instantes.',
+              : resolvido.motivo === 'provedor_bloqueado'
+                ? 'O provedor de vídeo está exigindo verificação e bloqueou o acesso do MovieFlix. Estamos restabelecendo o acesso — tente novamente mais tarde.'
+                : 'Não foi possível preparar o vídeo agora. Tente novamente em instantes.',
             resolvido.motivo || 'sem_stream',
           );
           return;

@@ -28,6 +28,81 @@
 
 const STREAMBETTER_BASE = 'https://streambetter.shop';
 
+/**
+ * Chave do plano Creator do StreamBetter (sb_pk_*).
+ *
+ * O provedor passou a proteger as páginas de embed com um desafio
+ * anti-bot (Cloudflare Turnstile: "Confirmando que você é uma pessoa de
+ * verdade..."). Uma requisição servidor→servidor NUNCA resolve esse
+ * desafio, então o HTML devolvido não tem `sources=[...]` e o resolver
+ * retornava `sem_fontes` para TODOS os títulos (player quebrado no
+ * catálogo inteiro).
+ *
+ * A chave Creator libera o acesso programático (embed com ?key= e a API
+ * /api/sources), sem desafio e sem anúncios. Defina STREAMBETTER_KEY
+ * (ou VITE_STREAMBETTER_KEY) no ambiente do backend (Render).
+ */
+function chaveStreambetter() {
+  return process.env.STREAMBETTER_KEY || process.env.VITE_STREAMBETTER_KEY || '';
+}
+
+/** A resposta é a página de verificação anti-bot do provedor? */
+function ehDesafioAntiBot(html) {
+  return /challenges\.cloudflare\.com\/turnstile|cf-turnstile|turnstile-verify/i.test(html);
+}
+
+/** Cabeçalhos padrão das chamadas ao provedor (inclui a chave quando existe). */
+function cabecalhosProvedor(extra = {}) {
+  const key = chaveStreambetter();
+  return {
+    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+    Referer: STREAMBETTER_BASE,
+    'Accept-Language': 'pt-BR,pt;q=0.9,en;q=0.8',
+    ...(key ? { 'X-Api-Key': key, Authorization: `Bearer ${key}` } : {}),
+    ...extra,
+  };
+}
+
+/**
+ * Consulta a API autenticada do provedor (/api/sources), que não passa pelo
+ * desafio anti-bot. Só funciona com a chave Creator configurada.
+ * Devolve o array de fontes ou null.
+ */
+async function buscarFontesViaApi(tipo, tmdbId, season, episode) {
+  const key = chaveStreambetter();
+  if (!key || !tmdbId) return null;
+  const params = new URLSearchParams({ tmdb: String(tmdbId), lang: 'pt-BR', key });
+  if (tipo === 'serie') {
+    params.set('season', String(season || 1));
+    params.set('episode', String(episode || 1));
+  }
+  try {
+    const resp = await fetch(`${STREAMBETTER_BASE}/api/sources?${params.toString()}`, {
+      headers: cabecalhosProvedor({ Accept: 'application/json' }),
+      signal: AbortSignal.timeout(20000),
+    });
+    if (!resp.ok) return null;
+    const data = await resp.json();
+    const fontes = Array.isArray(data?.sources) ? data.sources : Array.isArray(data) ? data : null;
+    return fontes && fontes.length > 0 ? fontes : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Extrai tipo/tmdbId/temporada/episódio de uma URL de embed do StreamBetter. */
+function dadosDoEmbed(embedUrl) {
+  try {
+    const partes = new URL(embedUrl).pathname.split('/').filter(Boolean);
+    if (partes[0] === 'serie') {
+      return { tipo: 'serie', tmdbId: partes[1], season: Number(partes[2]) || 1, episode: Number(partes[3]) || 1 };
+    }
+    return { tipo: 'filme', tmdbId: partes[1], season: 1, episode: 1 };
+  } catch {
+    return { tipo: 'filme', tmdbId: null, season: 1, episode: 1 };
+  }
+}
+
 // Kinds de fonte que o provedor resolve via /api/extract-<kind>?t=<token>,
 // devolvendo { success, url } com um HLS (/api/proxy?...&ext=m3u8).
 // O provedor mudou o formato das fontes: além de `embedplayer`, hoje usa
@@ -102,13 +177,12 @@ function extrairParam(html, chave) {
 
 /** Resolve uma fonte do tipo `kind` para a URL de stream real via /api/extract-<kind>. */
 async function resolverExtract(kind, urlToken) {
-  const apiUrl = `${STREAMBETTER_BASE}/api/extract-${kind}?t=${encodeURIComponent(urlToken)}`;
+  const key = chaveStreambetter();
+  const apiUrl =
+    `${STREAMBETTER_BASE}/api/extract-${kind}?t=${encodeURIComponent(urlToken)}` +
+    (key ? `&key=${encodeURIComponent(key)}` : '');
   const resp = await fetch(apiUrl, {
-    headers: {
-      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-      Referer: STREAMBETTER_BASE,
-      Accept: 'application/json',
-    },
+    headers: cabecalhosProvedor({ Accept: 'application/json' }),
     signal: AbortSignal.timeout(20000),
   });
   if (!resp.ok) throw new Error(`extract-${kind} HTTP ${resp.status}`);
@@ -151,27 +225,45 @@ async function validarFonte(url) {
 async function resolverEmbed(embedUrl, startSeconds) {
   const url = new URL(embedUrl);
   url.searchParams.set('lang', 'pt-BR');
+  const key = chaveStreambetter();
+  if (key) url.searchParams.set('key', key);
   if (startSeconds && startSeconds > 0) url.searchParams.set('t', String(startSeconds));
 
   const resp = await fetch(url.toString(), {
-    headers: {
-      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-      Accept: 'text/html,application/xhtml+xml',
-      'Accept-Language': 'pt-BR,pt;q=0.9,en;q=0.8',
-    },
+    headers: cabecalhosProvedor({ Accept: 'text/html,application/xhtml+xml' }),
     signal: AbortSignal.timeout(25000),
   });
   if (!resp.ok) throw new Error(`embed HTTP ${resp.status}`);
 
   const html = await resp.text();
 
-  const sources = extrairJsonScript(html, 'sources');
+  let sources = extrairJsonScript(html, 'sources');
   const caps = extrairJsonScript(html, 'window.__PLAYER_CAPS__');
   const titleId = extrairParam(html, 'titleId');
   const episodeId = extrairParam(html, 'episodeId');
 
+  // Caminho alternativo: API autenticada do provedor (sem desafio anti-bot).
   if (!Array.isArray(sources) || sources.length === 0) {
-    return { success: false, motivo: 'sem_fontes', titleId, episodeId, showAds: caps?.showAds === true };
+    const { tipo, tmdbId, season, episode } = dadosDoEmbed(embedUrl);
+    sources = await buscarFontesViaApi(tipo, tmdbId, season, episode);
+  }
+
+  if (!Array.isArray(sources) || sources.length === 0) {
+    // Distingue "o provedor exigiu verificação humana" (falha de acesso, que
+    // afeta todo o catálogo) de "este título não tem fontes".
+    const bloqueado = ehDesafioAntiBot(html);
+    return {
+      success: false,
+      motivo: bloqueado ? 'provedor_bloqueado' : 'sem_fontes',
+      detalhe: bloqueado
+        ? (key
+            ? 'O provedor exigiu verificação humana mesmo com a chave configurada — verifique se a chave Creator é válida e se o domínio está cadastrado.'
+            : 'O provedor exigiu verificação humana (Turnstile). Configure STREAMBETTER_KEY (plano Creator) no backend para o acesso programático.')
+        : undefined,
+      titleId,
+      episodeId,
+      showAds: caps?.showAds === true,
+    };
   }
 
   const erros = [];
