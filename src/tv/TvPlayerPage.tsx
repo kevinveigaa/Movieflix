@@ -157,6 +157,7 @@ export function TvPlayerPage() {
           key={src}
           embedUrl={src}
           onReady={(video) => video.setAttribute('data-tv-focusable', '')}
+          onBack={() => navigate(-1)}
         />
       </div>
 

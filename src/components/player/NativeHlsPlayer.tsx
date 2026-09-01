@@ -1,99 +1,60 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import Hls from 'hls.js';
-import { Loader2, AlertTriangle, RefreshCw, Maximize, Minimize } from 'lucide-react';
+import { Loader2, AlertTriangle, RefreshCw, Maximize, Minimize, ArrowLeft } from 'lucide-react';
 import { resolverStreamBetterDireto } from '@/lib/streambetterDirect';
 
 /**
- * Player do MovieFlix — DUAS CAMADAS (nativo primeiro, embed como fallback).
+ * Player do MovieFlix — NATIVO (HLS via backend, SEM iframe/embed).
  *
  * Estratégia (a mesma que o app nativo usa para tocar direto, sem Cloudflare):
  *
- *   CAMADA 1 — PLAYER NATIVO (HLS): o backend do MovieFlix resolve o HLS REAL
- *   do título via /api/streambetter-resolve (que consulta a API oficial de
- *   link direto /api/v1/stream do StreamBetter) e devolve a URL do m3u8
- *   através do proxy /api/streambetter-hls (CORS aberto). O vídeo é tocado num
- *   <video> nativo + hls.js — SEM iframe, SEM embed, SEM verificação Cloudflare,
- *   SEM anúncios, SEM popup, SEM redirecionamento. É exatamente o caminho que
- *   o app nativo (ExoPlayer) usa.
+ *   O backend do MovieFlix resolve o HLS REAL do título via
+ *   /api/streambetter-resolve (que consulta a API oficial de link direto
+ *   /api/v1/stream do StreamBetter com a chave SECRETA sb_sk_* do plano API) e
+ *   devolve a URL do m3u8 através do proxy /api/streambetter-hls (CORS aberto).
+ *   O vídeo é tocado num <video> nativo + hls.js — SEM iframe, SEM embed, SEM
+ *   verificação Cloudflare, SEM anúncios, SEM popup, SEM redirecionamento.
  *
- *   CAMADA 2 — EMBED OFICIAL (fallback ÚNICO): quando o backend NÃO consegue
- *   resolver o HLS direto (ex.: chave secreta sb_sk_* do plano API não
- *   configurada → retorna secret_key_required), o player abre o embed oficial
- *   do StreamBetter com a chave pública (plano Creator) UMA única vez por
- *   sessão. O embed exibe a verificação anti-bot Cloudflare Turnstile — isso é
- *   comportamento LEGÍTIMO do provedor e NÃO deve ser contornado. Para o
- *   Turnstile completar naturalmente e o vídeo tocar e PERMANECER tocando, o
- *   iframe é montado UMA única vez com src estável:
- *     - SEM atributo `sandbox` (a documentação do StreamBetter bloqueia o
- *       conteúdo se detectar sandbox, deixando preso na verificação);
- *     - SEM force-close (fechar o embed durante a verificação legítima cria o
- *       loop percebido embed → verificação → erro → retry → embed);
- *     - SEM re-trigger / re-mount (o iframe NÃO é recriado nem recarregado
- *       pelo nosso código — o `src` é estável e montado uma vez);
- *     - O `key` do iframe é estável, então o React não re-monta.
+ *   IMPORTANTE — NÃO há fallback automático para o embed oficial
+ *   (streambetter.shop/filme/...). O embed passou a exigir verificação
+ *   anti-bot Cloudflare Turnstile que NUNCA completa em navegadores modernos /
+ *   WebView (cookies de terceiros bloqueados), deixando o usuário preso em
+ *   "Verificando..." para sempre. Por isso o player usa EXCLUSIVAMENTE a rota
+ *   oficial de API (que evita o desafio por design). Se o backend não conseguir
+ *   resolver (ex.: chave secreta sb_sk_* não configurada), o player mostra um
+ *   erro claro com o motivo real + "Tentar novamente" + "Voltar" — nunca cai
+ *   no embed quebrado.
  *
- * O embed roda DENTRO do MovieFlix (iframe), sem pop-up e sem redirecionamento
- * externo. O botão de download (benefício do plano Creator) aparece no player
- * do provedor quando disponível.
+ * Estados do player (nunca misturados):
+ *   - 'carregando'  : resolvendo a fonte via backend (com timeout).
+ *   - 'nativo'      : <video> + hls.js reproduzindo.
+ *   - 'erro'        : erro amigável com motivo + retry + voltar.
  *
- * - SEM overlay próprio do MovieFlix sobre o vídeo: o vídeo ocupa toda a área
- *   do player. Nenhum badge/etiqueta "Reproduzindo via StreamBetter" é criado.
- * - FULLSCREEN: no player nativo, um botão do MovieFlix chama a Fullscreen API
- *   real (com fallback CSS). No embed, o iframe mantém `allowFullScreen` +
- *   `allow="...fullscreen..."` para o botão de tela cheia NATIVO do player do
- *   StreamBetter funcionar onde o navegador/WebView suporta.
- * - Tema vermelho/roxo apenas nos estados de carregamento/erro do MovieFlix.
+ * - FULLSCREEN: botão do MovieFlix chama a Fullscreen API real (com fallback
+ *   CSS para WebView/Android que não expõem a API nativa).
  * - Sem bypass de proteção, sem pop-ups, sem redirecionamento externo.
  */
-
-// Chave PÚBLICA do StreamBetter (plano Creator) — não é segredo, pode ir no
-// bundle. Usada no embed oficial (fallback). Vem do render.yaml.
-const STREAMBETTER_PUBLIC_KEY =
-  (import.meta.env.VITE_STREAMBETTER_PUBLIC_KEY as string) ||
-  'sb_pk_19fe7c75a49585cd84ced96806703a2176768fa4f77a7ea4';
-
-/**
- * Anexa a chave pública e o idioma pt-BR a uma URL de embed do StreamBetter.
- * NÃO adiciona personalização (accent/surface/brand) — o embed é o padrão do
- * provedor, como o usuário pediu.
- */
-function embedComChave(url: string): string {
-  try {
-    const u = new URL(url);
-    u.searchParams.set('key', STREAMBETTER_PUBLIC_KEY);
-    u.searchParams.set('lang', 'pt-BR');
-    return u.toString();
-  } catch {
-    return url;
-  }
-}
 
 export function NativeHlsPlayer({
   embedUrl,
   startSeconds,
   onReady,
   onError,
+  onBack,
 }: {
   embedUrl: string;
   startSeconds?: number;
   onReady?: (video: HTMLVideoElement) => void;
   onError?: (msg: string) => void;
+  onBack?: () => void;
 }) {
   const onReadyRef = useRef(onReady);
   const onErrorRef = useRef(onError);
-  // Guarda o embed: só monta UMA vez por sessão de reprodução. Resetada quando
-  // embedUrl/startSeconds mudam (novo título/episódio).
-  const embedMontadoRef = useRef(false);
-  const [status, setStatus] = useState<'carregando' | 'nativo' | 'embed' | 'erro'>('carregando');
+  const onBackRef = useRef(onBack);
+  const [status, setStatus] = useState<'carregando' | 'nativo' | 'erro'>('carregando');
   const [erroMsg, setErroMsg] = useState<string | null>(null);
   const [hlsUrl, setHlsUrl] = useState<string | null>(null);
-  const [embedSrc, setEmbedSrc] = useState<string | null>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
-  const [mostrarDicaCookies, setMostrarDicaCookies] = useState(false);
-  // Contador de tentativas manuais do embed: incrementar força o React a
-  // remontar o iframe (key muda) — o usuário decide quando recarregar, em vez
-  // de ficar preso no loop de verificação do provedor.
-  const [tentativaEmbed, setTentativaEmbed] = useState(0);
   const containerRef = useRef<HTMLDivElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const hlsRef = useRef<Hls | null>(null);
@@ -101,9 +62,10 @@ export function NativeHlsPlayer({
   useEffect(() => {
     onReadyRef.current = onReady;
     onErrorRef.current = onError;
-  }, [onReady, onError]);
+    onBackRef.current = onBack;
+  }, [onReady, onError, onBack]);
 
-  // Resolve a fonte: tenta o HLS direto (nativo) e, se falhar, cai no embed.
+  // Resolve a fonte via backend (rota oficial de API — sem iframe, sem Cloudflare).
   useEffect(() => {
     if (!embedUrl) {
       setStatus('erro');
@@ -116,9 +78,7 @@ export function NativeHlsPlayer({
     async function carregar() {
       setStatus('carregando');
       setHlsUrl(null);
-      setEmbedSrc(null);
 
-      // CAMADA 1 — tenta o HLS direto via backend (sem iframe, sem Cloudflare).
       const resultado = await resolverStreamBetterDireto(embedUrl, startSeconds);
       if (cancelado) return;
 
@@ -128,19 +88,29 @@ export function NativeHlsPlayer({
         return;
       }
 
-      // CAMADA 2 — fallback: embed oficial do StreamBetter (UMA única vez).
-      if (!embedMontadoRef.current) {
-        embedMontadoRef.current = true;
-        setEmbedSrc(embedComChave(embedUrl));
-        setStatus('embed');
+      // Falha na resolução: mostra o motivo real (nunca cai no embed quebrado).
+      const motivo = resultado.motivo || 'sem_stream_direto';
+      const detalhe = resultado.detalhe || '';
+
+      let msg: string;
+      if (motivo === 'secret_key_required') {
+        msg =
+          'O provedor de vídeo não está configurado no servidor (falta a chave de API). ' +
+          'Entre em contato com o administrador.';
+      } else if (motivo === 'plan_api_ausente') {
+        msg =
+          'O plano de API do provedor de vídeo não está ativo. Entre em contato com o administrador.';
+      } else if (motivo === 'http_404' || motivo === 'sem_stream_direto') {
+        msg = 'Este título não está disponível no momento. Tente outro.';
+      } else if (motivo === 'network') {
+        msg = 'Falha de conexão ao carregar o vídeo. Verifique sua internet e tente novamente.';
       } else {
-        setStatus('erro');
-        setErroMsg(
-          resultado.detalhe ||
-            resultado.motivo ||
-            'Não foi possível carregar o vídeo. Tente novamente.',
-        );
+        msg = detalhe || 'Não foi possível carregar o vídeo. Tente novamente.';
       }
+
+      setErroMsg(msg);
+      setStatus('erro');
+      onErrorRef.current?.(msg);
     }
 
     carregar();
@@ -148,6 +118,20 @@ export function NativeHlsPlayer({
       cancelado = true;
     };
   }, [embedUrl, startSeconds]);
+
+  // Timeout de resolução: se o backend não responder em tempo razoável, sai do
+  // estado 'carregando' e mostra erro — o usuário nunca fica preso indefinidamente.
+  useEffect(() => {
+    if (status !== 'carregando') return;
+    const t = setTimeout(() => {
+      setErroMsg(
+        'O provedor de vídeo demorou para responder. Verifique sua conexão e tente novamente.',
+      );
+      setStatus('erro');
+      onErrorRef.current?.('timeout');
+    }, 20000);
+    return () => clearTimeout(t);
+  }, [status]);
 
   // Inicializa o hls.js no <video> nativo quando a URL HLS chega.
   useEffect(() => {
@@ -256,19 +240,6 @@ export function NativeHlsPlayer({
     return () => document.removeEventListener('fullscreenchange', onFsChange);
   }, []);
 
-  // Aviso NÃO-destrutivo: se o embed ficar preso na verificação do provedor por
-  // um tempo, mostra uma dica discreta (não fecha o iframe, não é bypass) sobre
-  // cookies de terceiros — a causa mais comum de o Turnstile não completar no
-  // navegador. O usuário pode dispensar. O embed continua tentando naturalmente.
-  useEffect(() => {
-    if (status !== 'embed') {
-      setMostrarDicaCookies(false);
-      return;
-    }
-    const t = setTimeout(() => setMostrarDicaCookies(true), 9000);
-    return () => clearTimeout(t);
-  }, [status, embedSrc]);
-
   // Alterna a tela cheia do CONTÊINER do player (funciona no browser e no
   // WebView do app via WebChromeClient.onShowCustomView). Fallback CSS quando
   // a Fullscreen API nativa não existe no ambiente.
@@ -340,75 +311,6 @@ export function NativeHlsPlayer({
     );
   }
 
-  // Estado EMBED: o iframe oficial do StreamBetter (fallback único).
-  if (status === 'embed' && embedSrc) {
-    return (
-      <div
-        ref={containerRef}
-        className="relative h-full w-full bg-black mf-player-container"
-      >
-        <iframe
-          key={`${embedSrc}#t${tentativaEmbed}`}
-          src={embedSrc}
-          title="StreamBetter"
-          className="h-full w-full border-0"
-          allow="autoplay; fullscreen; encrypted-media; picture-in-picture"
-          allowFullScreen
-          referrerPolicy="origin"
-          loading="eager"
-        />
-        {/* Aviso discreto e dispensável (não cobre o vídeo, não fecha o embed,
-            não é bypass). Ajuda quando o Turnstile não completa por bloqueio de
-            cookies de terceiros no navegador. */}
-        {mostrarDicaCookies && (
-          <div className="absolute bottom-3 left-1/2 z-10 w-[92%] max-w-md -translate-x-1/2 rounded-lg border border-roxo-500/30 bg-ink-950/90 px-4 py-3 text-center shadow-lg backdrop-blur">
-            <p className="text-xs leading-relaxed text-zinc-200">
-              A verificação do provedor não completou. No navegador, libere{' '}
-              <span className="font-semibold text-amber-300">cookies de terceiros</span>{' '}
-              para <span className="font-mono text-amber-300">streambetter.shop</span>{' '}
-              e recarregue. No app (WebView) isso já é permitido, por isso toca direto.
-            </p>
-            <div className="mt-2 flex items-center justify-center gap-2">
-              <button
-                type="button"
-                onClick={() => setMostrarDicaCookies(false)}
-                className="rounded-full bg-white/10 px-3 py-1 text-[11px] font-medium text-zinc-300 transition hover:bg-white/20"
-              >
-                Dispensar
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  // Recarrega o iframe manualmente (remonta com key nova).
-                  // O usuário decide quando tentar de novo, em vez de ficar
-                  // preso no loop de verificação do provedor.
-                  setTentativaEmbed((n) => n + 1);
-                  setMostrarDicaCookies(false);
-                }}
-                className="rounded-full bg-brand-500/90 px-3 py-1 text-[11px] font-semibold text-white transition hover:bg-brand-500"
-              >
-                <RefreshCw className="mr-1 inline h-3 w-3" />
-                Tentar novamente
-              </button>
-            </div>
-          </div>
-        )}
-        {/* Botão de tela cheia do MovieFlix — reforço para o fullscreen
-            funcionar no WebView do app e em navegadores que não propagam o
-            fullscreen do iframe cross-origin. Discreto, não cobre o vídeo. */}
-        <button
-          type="button"
-          onClick={toggleFullscreen}
-          aria-label={isFullscreen ? 'Sair da tela cheia' : 'Tela cheia'}
-          title={isFullscreen ? 'Sair da tela cheia' : 'Tela cheia'}
-          className="absolute right-3 top-3 z-10 flex h-9 w-9 items-center justify-center rounded-full bg-black/50 text-white opacity-80 transition hover:bg-black/70 hover:opacity-100"
-        >
-          {isFullscreen ? <Minimize className="h-4 w-4" /> : <Maximize className="h-4 w-4" />}
-        </button>
-      </div>
-    );
-  }
-
   return (
     <div className="relative h-full w-full bg-black">
       {status === 'carregando' && (
@@ -422,38 +324,48 @@ export function NativeHlsPlayer({
         <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-black px-6 text-center text-white">
           <AlertTriangle className="h-10 w-10 text-roxo-400" />
           <p className="text-sm text-zinc-300">{erroMsg}</p>
-          <button
-            type="button"
-            onClick={() => {
-              embedMontadoRef.current = false;
-              setStatus('carregando');
-              setHlsUrl(null);
-              setEmbedSrc(null);
-              requestAnimationFrame(() => {
-                // Re-tenta a resolução completa (nativo → embed).
-                resolverStreamBetterDireto(embedUrl, startSeconds)
-                  .then((r) => {
-                    if (r.success && r.url) {
-                      setHlsUrl(r.url);
-                      setStatus('nativo');
-                    } else {
-                      embedMontadoRef.current = true;
-                      setEmbedSrc(embedComChave(embedUrl));
-                      setStatus('embed');
-                    }
-                  })
-                  .catch(() => {
-                    // Falha de rede/erro inesperado: volta ao estado de erro.
-                    setStatus('erro');
-                    setErroMsg('Não foi possível carregar o vídeo. Tente novamente.');
-                  });
+          <div className="mt-1 flex flex-wrap items-center justify-center gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                // Re-tenta a resolução completa (rota oficial de API).
+                setStatus('carregando');
+                setHlsUrl(null);
+                requestAnimationFrame(() => {
+                  resolverStreamBetterDireto(embedUrl, startSeconds)
+                    .then((r) => {
+                      if (r.success && r.url) {
+                        setHlsUrl(r.url);
+                        setStatus('nativo');
+                      } else {
+                        setErroMsg(
+                          r.detalhe || 'Não foi possível carregar o vídeo. Tente novamente.',
+                        );
+                        setStatus('erro');
+                      }
+                    })
+                    .catch(() => {
+                      // Falha de rede/erro inesperado: volta ao estado de erro.
+                      setStatus('erro');
+                      setErroMsg('Não foi possível carregar o vídeo. Tente novamente.');
+                    });
               });
             }}
             className="btn-primary text-xs"
           >
             <RefreshCw className="h-4 w-4" /> Tentar novamente
           </button>
+          {onBack && (
+            <button
+              type="button"
+              onClick={() => onBackRef.current?.()}
+              className="rounded-full bg-white/10 px-4 py-2 text-xs font-medium text-white transition hover:bg-white/20"
+            >
+              <ArrowLeft className="mr-1 inline h-4 w-4" /> Voltar
+            </button>
+          )}
         </div>
+      </div>
       )}
     </div>
   );
