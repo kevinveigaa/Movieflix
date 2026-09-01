@@ -43,12 +43,26 @@ const STREAMBETTER_PUBLIC_KEY =
   (import.meta.env.VITE_STREAMBETTER_PUBLIC_KEY as string) ||
   'sb_pk_19fe7c75a49585cd84ced96806703a2176768fa4f77a7ea4';
 
-/** Anexa a chave pública e o idioma pt-BR a uma URL de embed do StreamBetter. */
+/**
+ * Anexa a chave pública, o idioma pt-BR e a personalização do plano Creator a
+ * uma URL de embed do StreamBetter.
+ *
+ * A documentação oficial do StreamBetter (plano Creator) suporta:
+ *   - `key=sb_pk_*`  -> remove anúncios e libera download;
+ *   - `accent`       -> cor de destaque (barra de progresso, volume, realces);
+ *   - `surface`      -> cor de fundo dos menus;
+ *   - `brand`        -> marca do site no canto superior esquerdo.
+ * Isso mantém o tema vermelho/roxo do MovieFlix DENTRO do player do provedor.
+ */
 function embedComChave(url: string): string {
   try {
     const u = new URL(url);
     u.searchParams.set('key', STREAMBETTER_PUBLIC_KEY);
     u.searchParams.set('lang', 'pt-BR');
+    // Personalização do plano Creator (tema vermelho/roxo do MovieFlix).
+    u.searchParams.set('accent', 'DF0A15'); // vermelho MovieFlix
+    u.searchParams.set('surface', '0d0b1a'); // roxo escuro
+    u.searchParams.set('brand', 'MovieFlix');
     return u.toString();
   } catch {
     return url;
