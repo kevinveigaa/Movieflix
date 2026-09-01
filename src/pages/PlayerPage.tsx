@@ -3,7 +3,7 @@ import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
 import { supabase } from '@/lib/supabase';
 import { streambetterMovieEmbedUrl, streambetterSeriesEmbedUrl } from '@/lib/strembetter';
-import { NativeHlsPlayer } from '@/components/player/NativeHlsPlayer';
+import { StreamBetterEmbed } from '@/components/player/StreamBetterEmbed';
 import { SubscriptionPaywall } from '@/components/player/SubscriptionPaywall';
 import { hasActiveSubscription } from '@/context/AuthContext';
 import { useUpsertHistory, fetchHistoryForMovie } from '@/hooks/useWatchHistory';
@@ -20,22 +20,17 @@ import {
 import { ChevronLeft, Film, Gamepad2, Loader2, RotateCcw, Play, Clock, AlertTriangle } from 'lucide-react';
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Player do Movieflix — NATIVO (hls.js + resolver do backend)
+// Player do Movieflix — EMBED OFICIAL do StreamBetter (plano Creator)
 //
-// O player principal é NATIVO: um <video> + hls.js alimentado pelo backend do
-// próprio Movieflix (/api/streambetter-resolve → /api/streambetter-hls), que
-// resolve o HLS REAL do título a partir do tmdb_id (filme) ou tmdb_id +
-// temporada + episódio (série) — sem URLs manuais por título. Não há iframe
-// de terceiros: logo, ZERO anúncios, ZERO popup, ZERO redirecionamento, e o
-// usuário permanece dentro do Movieflix.
+// O player principal usa o EMBED OFICIAL do StreamBetter (plano Creator, chave
+// pública sb_pk_*), montado num iframe. O provedor controla player, fontes,
+// legendas, áudio e reprodução — o MovieFlix apenas hospeda o iframe.
 //
-//   Filmes : streambetter.shop/filme/{tmdbId}
-//   Séries : streambetter.shop/serie/{tmdbId}/{temporada}/{episodio}
+//   Filmes : streambetter.shop/filme/{tmdbId}?key=sb_pk_...
+//   Séries : streambetter.shop/serie/{tmdbId}/{temporada}/{episodio}?key=sb_pk_...
 //
-// O áudio PT-BR é priorizado pelo resolver (busca lang=pt-BR e identifica
-// fontes dubladas). A qualidade é escolhida automaticamente pelo hls.js
-// (1080p+ quando disponível). Funciona em celular, PC, tablet, Android TV,
-// Google TV e TV Box (controle remoto via useTvPlayerControls).
+// NÃO usamos a API de link direto (plano API / chave secreta sb_sk_*). A chave
+// pública é injetada na URL do embed (VITE_STREAMBETTER_PUBLIC_KEY).
 //
 // PROGRESSO ("Continuar assistindo"):
 //   - O prompt de retomada SÓ aparece para títulos com progresso REAL
@@ -347,13 +342,11 @@ export function PlayerPage() {
               data-tv-player-box
               className="relative w-full aspect-video rounded-xl overflow-hidden bg-black shadow-2xl shadow-roxo-900/30 ring-1 ring-roxo-500/20"
             >
-              {/* O HLS é resolvido pelo backend e reproduzido neste <video>;
-                  nenhum iframe ou janela externa é criado. */}
-              <NativeHlsPlayer
+              {/* Embed oficial do StreamBetter (plano Creator) — o provedor
+                  controla player, fontes, legendas e reprodução. */}
+              <StreamBetterEmbed
                 key={`${currentUrl}-${playbackKey}`}
                 embedUrl={currentUrl}
-                startSeconds={resumeSeconds > 0 ? resumeSeconds : undefined}
-                onReady={(video) => video.setAttribute('data-tv-focusable', '')}
                 onBack={() => navigate(-1)}
               />
             </div>

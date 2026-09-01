@@ -7,8 +7,6 @@ const cors = require("cors");
 const compression = require("compression");
 const { MercadoPagoConfig, Preference } = require("mercadopago");
 const { registrarPlayerProxy } = require("./player-proxy");
-const { registrarStreambetterResolver } = require("./streambetter-resolver");
-const { registrarTrialGate } = require("./trial-gate");
 
 const app = express();
 
@@ -27,13 +25,11 @@ const TMDB_API_BASE = "https://api.themoviedb.org/3";
 // Reprodução sempre dentro do site (remove bloqueios de exibição em iframe).
 registrarPlayerProxy(app);
 
-// Resolvedor de stream HLS direto do StreamBetter (SEM iframe → SEM anúncios
-// e SEM possibilidade de redirecionamento). Ver streambetter-resolver.js.
-registrarStreambetterResolver(app);
-
 // Teste grátis de 20 segundos — autorização server-side (assinatura ativa OU
 // tempo de teste restante no banco). Ver trial-gate.js.
-registrarTrialGate(app);
+// NOTA: o player usa o EMBED OFICIAL do StreamBetter (plano Creator, chave
+// pública sb_pk_*), então não há mais resolver HLS via backend. O trial-gate
+// foi removido junto com a arquitetura do plano API.
 
 // Proxy da API TMDb: o frontend chama /api/tmdb/* e o servidor repassa a
 // chamada com a chave de acesso, mantendo-a fora do navegador.
@@ -139,7 +135,6 @@ app.get("/api/version", (req, res) => {
     commit: process.env.RENDER_GIT_COMMIT || null,
     branch: process.env.RENDER_GIT_BRANCH || null,
     bundle,
-    streambetterApiKeyConfigurada: Boolean(process.env.STREAMBETTER_API_KEY),
     startedAt: STARTED_AT,
   });
 });

@@ -9,14 +9,13 @@ export type VideoIds = {
 /**
  * Fonte de reprodução para um título do catálogo.
  *
- * PLAYER ÚNICO: StreamBetter (https://streambetter.shop), resolvido pelo
- * backend e reproduzido no <video> nativo do MovieFlix.
- *   - Filmes → https://streambetter.shop/filme/{tmdbId}
- *   - Séries → https://streambetter.shop/serie/{tmdbId}/{season}/{episode}
+ * PLAYER ÚNICO: StreamBetter (https://streambetter.shop) via EMBED OFICIAL do
+ * plano Creator (chave pública sb_pk_*), montado por src/lib/streamEmbed.ts.
+ *   - Filmes → https://streambetter.shop/filme/{tmdbId}?key=sb_pk_...
+ *   - Séries → https://streambetter.shop/serie/{tmdbId}/{season}/{episode}?key=sb_pk_...
  *
- * O áudio pt-BR é priorizado pelo resolver do backend quando disponível.
- *
- * NENHUM iframe de player externo é montado; o catálogo usa o player nativo.
+ * O embed é hospedado num iframe (StreamBetterEmbed); o provedor controla
+ * player, fontes, legendas, áudio e fallbacks.
  */
 export function getVideoSources(ids: VideoIds): string[] {
   const tipo =

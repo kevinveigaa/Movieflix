@@ -24,6 +24,7 @@ dist-ssr
 
 .vercel
 .env*
+!.env.example
 .catalogo-cache/
 
 # Capacitor / Android / iOS build artifacts (regenerate with npm run apk)

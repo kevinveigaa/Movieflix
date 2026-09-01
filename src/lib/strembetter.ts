@@ -112,26 +112,26 @@ export function ehEmbedYapGrid(url: string): boolean {
 /** Alias de compatibilidade (nome antigo) — verifica o domínio do YapGrid. */
 export const ehEmbedVidCore = ehEmbedYapGrid;
 
-// ──── StreamBetter (fonte do resolver do backend) ────────────────────────────
-// O player nativo do MovieFlix resolve o HLS real via o backend
-// (/api/streambetter-resolve → /api/streambetter-hls), que consulta a API
-// oficial de link direto do StreamBetter (/api/v1/stream) com a chave secreta
-// (sb_sk_*), sem passar pelo embed (que exige verificação Cloudflare).
-const STREAMBETTER_BASE = 'https://streambetter.shop';
+// ──── StreamBetter (EMBED OFICIAL — plano Creator, chave pública sb_pk_*) ────
+// O player do MovieFlix usa o EMBED OFICIAL do StreamBetter (plano Creator),
+// montado com a chave pública sb_pk_* (VITE_STREAMBETTER_PUBLIC_KEY). NÃO
+// usamos a API de link direto (/api/v1/stream), que exige o plano API / chave
+// secreta sb_sk_*. A montagem da URL (com a chave) fica centralizada em
+// src/lib/streamEmbed.ts — estas funções apenas delegam para manter a
+// compatibilidade com o resto do código.
+import { buildStreamBetterMovieUrl, buildStreamBetterSeriesUrl } from '@/lib/streamEmbed';
 
-/** URL canônica do StreamBetter para um filme (tmdb_id) — usada pelo resolver. */
+/** URL do embed oficial do StreamBetter para um filme (tmdb_id), com a chave pública. */
 export function streambetterMovieEmbedUrl(tmdbId: number | string | null | undefined): string {
-  if (tmdbId == null) return '';
-  return `${STREAMBETTER_BASE}/filme/${tmdbId}`;
+  return buildStreamBetterMovieUrl(tmdbId);
 }
 
-/** URL canônica do StreamBetter para um episódio de série — usada pelo resolver. */
+/** URL do embed oficial do StreamBetter para um episódio de série, com a chave pública. */
 export function streambetterSeriesEmbedUrl(
   tmdbId: number | string | null | undefined,
   season: number,
   episode: number,
 ): string {
-  if (tmdbId == null) return '';
-  return `${STREAMBETTER_BASE}/serie/${tmdbId}/${season}/${episode}`;
+  return buildStreamBetterSeriesUrl(tmdbId, season, episode);
 }
 

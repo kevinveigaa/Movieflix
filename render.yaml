@@ -13,12 +13,9 @@ services:
         sync: false
       - key: VITE_STREAMBETTER_KEY
         sync: false
-      # Chave PÚBLICA do StreamBetter (sb_pk_*) — usada no embed oficial que
-      # roda no navegador (fallback do player). Não é segredo.
+      # Chave PÚBLICA do StreamBetter (sb_pk_*) — plano Creator. Usada no
+      # EMBED OFICIAL que roda no navegador (VITE_STREAMBETTER_PUBLIC_KEY).
+      # Não é segredo. O domínio do site (movieflix-bszf.onrender.com) precisa
+      # estar cadastrado na conta Creator do StreamBetter.
       - key: VITE_STREAMBETTER_PUBLIC_KEY
         value: sb_pk_19fe7c75a49585cd84ced96806703a2176768fa4f77a7ea4
-      # Chave SECRETA do plano API do StreamBetter (sb_sk_*) — usada SOMENTE
-      # no backend para a rota oficial de link direto /api/v1/stream (m3u8 sem
-      # Cloudflare). Nunca vai para o bundle do frontend.
-      - key: STREAMBETTER_API_KEY
-        sync: false

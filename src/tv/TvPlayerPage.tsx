@@ -5,19 +5,16 @@ import { useMovies } from '@/hooks/useMovies';
 import { useAuth } from '@/context/AuthContext';
 import { hasActiveSubscription } from '@/context/AuthContext';
 import { streambetterSeriesEmbedUrl, streambetterMovieEmbedUrl, primeiroEpisodioDisponivel } from '@/lib/strembetter';
-import { NativeHlsPlayer } from '@/components/player/NativeHlsPlayer';
+import { StreamBetterEmbed } from '@/components/player/StreamBetterEmbed';
 import { useTvPlayerControls } from '@/hooks/useTvPlayerControls';
 import { cn } from '@/lib/cn';
 
 /**
  * TvPlayerPage — player do MovieFlix TV.
  *
- * - Mesma lógica do PlayerPage do site: o player principal é NATIVO — um
- *   <video> + hls.js alimentado pelo backend do próprio Movieflix
- *   (/api/streambetter-resolve → /api/streambetter-hls), que resolve o HLS
- *   REAL do título a partir do tmdb_id (filme) ou tmdb_id + temporada +
- *   episódio (série). Não há iframe de terceiros: ZERO anúncios, ZERO popup,
- *   ZERO redirecionamento externo, e o usuário permanece dentro do app.
+ * - Mesma lógica do PlayerPage do site: o player usa o EMBED OFICIAL do
+ *   StreamBetter (plano Creator, chave pública sb_pk_*), montado num iframe.
+ *   O provedor controla player, fontes, legendas, áudio e reprodução.
  * - PROTEÇÃO: só monta o player depois de verificar auth + assinatura ativa
  *   (mesma regra do PlayerPage do site). Sem assinatura → redirect para
  *   /tv/assinatura.
@@ -25,8 +22,6 @@ import { cn } from '@/lib/cn';
  *   entre MODO APP (setas navegam a página) e MODO PLAYER (setas controlam o
  *   player). Segurar OK de novo sai.
  * - Back: sai do player (volta para a página de detalhes).
- * - O <video> nativo (data-mf-player) é controlado pelo useTvPlayerControls
- *   (play/pause, volume, setas) — sem iframe, sem popups, sem redirects.
  */
 
 export function TvPlayerPage() {
@@ -153,10 +148,9 @@ export function TvPlayerPage() {
       </div>
 
       <div className="tv-player-box" data-tv-player-box ref={frameRef}>
-        <NativeHlsPlayer
+        <StreamBetterEmbed
           key={src}
           embedUrl={src}
-          onReady={(video) => video.setAttribute('data-tv-focusable', '')}
           onBack={() => navigate(-1)}
         />
       </div>
