@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { Loader2, AlertTriangle, RefreshCw, Maximize, Minimize } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import { Loader2, AlertTriangle, RefreshCw } from 'lucide-react';
 
 /**
  * Player do MovieFlix — EMBED OFICIAL do StreamBetter (plano Creator).
@@ -32,12 +32,10 @@ import { Loader2, AlertTriangle, RefreshCw, Maximize, Minimize } from 'lucide-re
  *
  * - SEM overlay próprio do MovieFlix sobre o vídeo: o vídeo ocupa toda a área
  *   do player. Nenhum badge/etiqueta "Reproduzindo via StreamBetter" é criado.
- * - FULLSCREEN: botão próprio do MovieFlix (canto superior direito) que chama
- *   a Fullscreen API real (requestFullscreen/exitFullscreen com prefixo
- *   webkit) no contêiner do player. Funciona em desktop, mobile, Android TV e
- *   WebView do app. Fallback CSS (fixed inset-0) apenas quando a API nativa
- *   não existe no ambiente. O iframe mantém `allowFullScreen` para que o
- *   fullscreen interno do embed também funcione onde o navegador suporta.
+ * - FULLSCREEN: o iframe mantém `allow="fullscreen"` e `allowFullScreen`, então
+ *   o botão de tela cheia NATIVO do player do StreamBetter funciona de verdade
+ *   (Fullscreen API do embed). NÃO criamos botão próprio do MovieFlix sobre o
+ *   iframe — o usuário quer apenas o botão do player original.
  * - Tema vermelho/roxo apenas nos estados de carregamento/erro do MovieFlix.
  *   O embed em si é o padrão do StreamBetter (sem personalização accent/brand).
  * - Sem bypass de proteção, sem pop-ups, sem redirecionamento externo.
@@ -81,14 +79,9 @@ export function NativeHlsPlayer({
   // Guarda o embed: só monta UMA vez por sessão de reprodução. Resetada quando
   // embedUrl/startSeconds mudam (novo título/episódio).
   const embedMontadoRef = useRef(false);
-  const containerRef = useRef<HTMLDivElement>(null);
   const [status, setStatus] = useState<'carregando' | 'embed' | 'erro'>('carregando');
   const [erroMsg, setErroMsg] = useState<string | null>(null);
   const [embedSrc, setEmbedSrc] = useState<string | null>(null);
-
-  // ---- Fullscreen (Fullscreen API real + fallback CSS) ----
-  const [isFullscreen, setIsFullscreen] = useState(false);
-  const [fsFallback, setFsFallback] = useState(false);
 
   useEffect(() => {
     onReadyRef.current = onReady;
@@ -112,76 +105,13 @@ export function NativeHlsPlayer({
     }
   }, [embedUrl, startSeconds]);
 
-  // Acompanha o estado de fullscreen (nativo) para trocar o ícone do botão.
-  useEffect(() => {
-    function onChange() {
-      const doc = document as unknown as {
-        fullscreenElement?: Element | null;
-        webkitFullscreenElement?: Element | null;
-      };
-      setIsFullscreen(!!(doc.fullscreenElement || doc.webkitFullscreenElement));
-    }
-    document.addEventListener('fullscreenchange', onChange);
-    document.addEventListener('webkitfullscreenchange', onChange);
-    return () => {
-      document.removeEventListener('fullscreenchange', onChange);
-      document.removeEventListener('webkitfullscreenchange', onChange);
-    };
-  }, []);
-
-  const toggleFullscreen = useCallback(() => {
-    const el = containerRef.current;
-    if (!el) return;
-    const doc = document as unknown as {
-      fullscreenElement?: Element | null;
-      webkitFullscreenElement?: Element | null;
-      exitFullscreen?: () => Promise<void> | void;
-      webkitExitFullscreen?: () => void;
-    };
-    const isFs = !!(doc.fullscreenElement || doc.webkitFullscreenElement);
-
-    if (isFs) {
-      const exit = doc.exitFullscreen || doc.webkitExitFullscreen;
-      if (exit) {
-        try {
-          exit.call(doc);
-        } catch {
-          setFsFallback(false);
-        }
-      } else {
-        setFsFallback(false);
-      }
-      return;
-    }
-
-    const elAny = el as unknown as {
-      requestFullscreen?: () => Promise<void> | void;
-      webkitRequestFullscreen?: () => void;
-    };
-    const req = elAny.requestFullscreen || elAny.webkitRequestFullscreen;
-    if (req) {
-      try {
-        const p = req.call(el);
-        if (p && typeof (p as Promise<void>).catch === 'function') {
-          (p as Promise<void>).catch(() => setFsFallback(true));
-        }
-      } catch {
-        // Fullscreen nativo falhou (ex.: WebView antigo) → fallback CSS.
-        setFsFallback(true);
-      }
-    } else {
-      // Ambiente sem Fullscreen API → fallback CSS (fixed inset-0).
-      setFsFallback(true);
-    }
-  }, []);
-
   // Estado EMBED: o iframe oficial do StreamBetter (via única de reprodução).
+  // O iframe tem `allowFullScreen` + `allow="...fullscreen..."` para que o
+  // botão de tela cheia NATIVO do player do embed funcione de verdade. Nenhum
+  // overlay/botão do MovieFlix é colocado sobre o iframe.
   if (status === 'embed' && embedSrc) {
     return (
-      <div
-        ref={containerRef}
-        className={`relative h-full w-full bg-black ${fsFallback ? 'fixed inset-0 z-[9999]' : ''}`}
-      >
+      <div className="relative h-full w-full bg-black">
         <iframe
           key={embedSrc}
           src={embedSrc}
@@ -192,17 +122,6 @@ export function NativeHlsPlayer({
           referrerPolicy="origin"
           loading="eager"
         />
-        {/* Botão de tela cheia do MovieFlix (Fullscreen API real). Não é um
-            overlay sobre o vídeo — é um controle de chrome do player. */}
-        <button
-          type="button"
-          onClick={toggleFullscreen}
-          aria-label={isFullscreen ? 'Sair da tela cheia' : 'Tela cheia'}
-          title={isFullscreen ? 'Sair da tela cheia' : 'Tela cheia'}
-          className="absolute right-3 top-3 z-10 flex h-9 w-9 items-center justify-center rounded-full bg-black/60 text-white shadow-lg ring-1 ring-white/20 transition hover:bg-black/80"
-        >
-          {isFullscreen ? <Minimize className="h-5 w-5" /> : <Maximize className="h-5 w-5" />}
-        </button>
       </div>
     );
   }
