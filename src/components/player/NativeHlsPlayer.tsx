@@ -404,14 +404,14 @@ export function NativeHlsPlayer({
   return (
     <div className="relative h-full w-full bg-black">
       {status === 'carregando' && (
-        <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-gradient-to-br from-ink-950/80 via-roxo-950/60 to-ink-950/80 text-white">
+        <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-black text-white">
           <Loader2 className="h-10 w-10 animate-spin text-brand-500" />
-          <p className="text-sm text-zinc-300">Preparando o vídeo…</p>
+          <p className="text-sm text-zinc-400">Preparando o vídeo…</p>
         </div>
       )}
 
       {status === 'erro' && (
-        <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-gradient-to-br from-ink-950/90 via-roxo-950/70 to-ink-950/90 px-6 text-center text-white">
+        <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-black px-6 text-center text-white">
           <AlertTriangle className="h-10 w-10 text-roxo-400" />
           <p className="text-sm text-zinc-300">{erroMsg}</p>
           <button

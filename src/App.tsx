@@ -28,13 +28,13 @@ const SettingsPage = lazyWithRetry(() => import('@/pages/SettingsPage').then((m)
 const SubscriptionPage = lazyWithRetry(() => import('@/pages/SubscriptionPage').then((m) => ({ default: m.SubscriptionPage })));
 const AdminPage = lazyWithRetry(() => import('@/pages/AdminPage').then((m) => ({ default: m.AdminPage })));
 const AdminSeriesPage = lazyWithRetry(() => import('@/pages/AdminSeriesPage').then((m) => ({ default: m.AdminSeriesPage })));
-import { PlayerPage } from '@/pages/PlayerPage';
+const PlayerPage = lazyWithRetry(() => import('@/pages/PlayerPage').then((m) => ({ default: m.PlayerPage })));
 const LoginPage = lazyWithRetry(() => import('@/pages/auth/LoginPage').then((m) => ({ default: m.LoginPage })));
 const SignupPage = lazyWithRetry(() => import('@/pages/auth/SignupPage').then((m) => ({ default: m.SignupPage })));
 const ForgotPasswordPage = lazyWithRetry(() => import('@/pages/auth/ForgotPasswordPage').then((m) => ({ default: m.ForgotPasswordPage })));
 const ProfileSelectPage = lazyWithRetry(() => import('@/pages/auth/ProfileSelectPage').then((m) => ({ default: m.ProfileSelectPage })));
 const DownloadAppPage = lazyWithRetry(() => import('@/pages/DownloadAppPage').then((m) => ({ default: m.DownloadAppPage })));
-import { TvApp } from '@/tv/TvApp';
+const TvApp = lazyWithRetry(() => import('@/tv/TvApp').then((m) => ({ default: m.TvApp })));
 
 const queryClient = new QueryClient({
   defaultOptions: {

@@ -91,11 +91,11 @@ async function loadCatalog(): Promise<CacheEnvelope> {
     if (cache) return cache;
 
     const [filmesBrutos, seriesBrutas, disponibilidadeJson] = await Promise.all([
-      fetch('/filmes/filmes.json').then((r) => {
+      fetch('/filmes/filmes.light.json').then((r) => {
         if (!r.ok) throw new Error(`Catálogo ${r.status}`);
         return r.json() as Promise<CatalogJson>;
       }),
-      fetch('/filmes/series.json').then((r) => {
+      fetch('/filmes/series.light.json').then((r) => {
         if (!r.ok) throw new Error(`Catálogo ${r.status}`);
         return r.json() as Promise<CatalogJson>;
       }),

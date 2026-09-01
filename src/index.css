@@ -301,7 +301,34 @@ div[aria-modal="true"][class*="advert"] {
   height: 100vh !important;
   background: #000 !important;
 }
-.mf-player-container.mf-fs-fallback iframe {
+.mf-player-container.mf-fs-fallback iframe,
+.mf-player-container.mf-fs-fallback video {
   width: 100% !important;
   height: 100% !important;
+  object-fit: contain !important;
+}
+
+/* Fullscreen API real: o container do player preenche a tela e o vídeo/iframe
+   acompanha, mantendo a proporção (letterbox) sem distorcer. */
+.mf-player-container:fullscreen {
+  width: 100vw !important;
+  height: 100vh !important;
+  background: #000 !important;
+}
+.mf-player-container:fullscreen iframe,
+.mf-player-container:fullscreen video {
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: contain !important;
+}
+.mf-player-container:-webkit-full-screen {
+  width: 100vw !important;
+  height: 100vh !important;
+  background: #000 !important;
+}
+.mf-player-container:-webkit-full-screen iframe,
+.mf-player-container:-webkit-full-screen video {
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: contain !important;
 }
