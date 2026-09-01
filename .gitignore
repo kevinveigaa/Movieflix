@@ -43,3 +43,6 @@ ios/.idea/
 *.keystore
 *.jks
 .disponibilidade-cache/
+
+# TypeScript build info
+*.tsbuildinfo
