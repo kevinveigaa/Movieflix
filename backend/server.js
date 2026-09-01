@@ -1,5 +1,6 @@
 require("dotenv").config();
 
+const fs = require("fs");
 const path = require("path");
 const express = require("express");
 const cors = require("cors");
@@ -16,6 +17,7 @@ app.use(compression());
 app.use(express.json());
 
 const PORT = process.env.PORT || 5000;
+const STARTED_AT = new Date().toISOString();
 
 // Chave da TMDb fica no servidor (nunca no bundle do frontend).
 // Defina TMDB_API_KEY (ou VITE_TMDB_TOKEN) no ambiente do backend.
@@ -124,6 +126,23 @@ app.post("/assinatura", async (req,res)=>{
 
 });
 
+
+// Diagnóstico de deploy: informa qual commit/bundle está realmente publicado.
+app.get("/api/version", (req, res) => {
+  let bundle = null;
+  try {
+    const html = fs.readFileSync(path.join(__dirname, "..", "dist", "index.html"), "utf-8");
+    const m = html.match(/assets\/(index-[^"']+\.js)/);
+    bundle = m ? m[1] : null;
+  } catch { /* dist ainda não construído */ }
+  res.json({
+    commit: process.env.RENDER_GIT_COMMIT || null,
+    branch: process.env.RENDER_GIT_BRANCH || null,
+    bundle,
+    streambetterPublicKeyConfigurada: Boolean(process.env.VITE_STREAMBETTER_PUBLIC_KEY),
+    startedAt: STARTED_AT,
+  });
+});
 
 // Serve o build estático do frontend (SPA) na mesma porta do backend.
 const DIST_DIR = path.join(__dirname, "..", "dist");
