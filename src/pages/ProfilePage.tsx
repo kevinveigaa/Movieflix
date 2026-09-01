@@ -337,7 +337,7 @@ export function ProfilePage() {
                     </span>
                   </p>
 
-                  {subscription.expires_at && (
+                  {subscription?.expires_at && (
                     <p className="flex items-center gap-1 text-ink-300">
                       <Calendar className="h-4 w-4" />
                       Vence em{' '}
