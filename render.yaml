@@ -16,7 +16,7 @@ services:
       # Chave PÚBLICA do StreamBetter (sb_pk_*) — usada no embed oficial que
       # roda no navegador (fallback do player). Não é segredo.
       - key: VITE_STREAMBETTER_PUBLIC_KEY
-        value: sb_pk_331739a18c650ce0f4c56ebcc34c39630485ffa7366a1ed5
+        value: sb_pk_19fe7c75a49585cd84ced96806703a2176768fa4f77a7ea4
       # Chave SECRETA do plano API do StreamBetter (sb_sk_*) — usada SOMENTE
       # no backend para a rota oficial de link direto /api/v1/stream (m3u8 sem
       # Cloudflare). Nunca vai para o bundle do frontend.
