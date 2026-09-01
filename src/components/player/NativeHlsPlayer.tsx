@@ -1,14 +1,14 @@
-import { useEffect, useRef, useState } from 'react';
-import { Loader2, AlertTriangle, RefreshCw } from 'lucide-react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { Loader2, AlertTriangle, RefreshCw, Maximize, Minimize } from 'lucide-react';
 
 /**
  * Player do MovieFlix — EMBED OFICIAL do StreamBetter (plano Creator).
  *
  * Estratégia: 100% embed oficial do StreamBetter com a chave PÚBLICA (sb_pk_*).
- * O plano Creator do StreamBetter funciona assim: a chave pública usada no
- * embed oficial remove anúncios e libera download. NÃO há stream direto, NÃO
- * há API de link m3u8, NÃO há chave secreta (sb_sk_*) — o embed é a via única
- * e correta para o plano Creator.
+ * O plano Creator funciona assim: a chave pública usada no embed oficial remove
+ * anúncios e libera download. NÃO há stream direto, NÃO há API de link m3u8,
+ * NÃO há chave secreta (sb_sk_*) — o embed é a via única e correta para o plano
+ * Creator.
  *
  *   Filmes : https://streambetter.shop/filme/{tmdbId}?key=sb_pk_...
  *   Séries : https://streambetter.shop/serie/{tmdbId}/{temporada}/{episodio}?key=sb_pk_...
@@ -32,10 +32,14 @@ import { Loader2, AlertTriangle, RefreshCw } from 'lucide-react';
  *
  * - SEM overlay próprio do MovieFlix sobre o vídeo: o vídeo ocupa toda a área
  *   do player. Nenhum badge/etiqueta "Reproduzindo via StreamBetter" é criado.
- * - FULLSCREEN: o iframe mantém `allow="fullscreen"` e `allowFullScreen`, então
- *   o botão de tela cheia NATIVO do player do StreamBetter funciona de verdade
- *   (Fullscreen API do embed). NÃO criamos botão próprio do MovieFlix sobre o
- *   iframe — o usuário quer apenas o botão do player original.
+ * - FULLSCREEN: o iframe mantém `allowFullScreen` + `allow="...fullscreen..."`
+ *   para que o botão de tela cheia NATIVO do player do StreamBetter funcione
+ *   onde o navegador/WebView suporta. Além disso, adicionamos um botão de tela
+ *   cheia do MovieFlix (canto superior direito) que chama a Fullscreen API no
+ *   CONTÊINER do player — isso garante o fullscreen também no WebView do app
+ *   (via WebChromeClient.onShowCustomView) e em navegadores onde o fullscreen
+ *   do iframe cross-origin não é propagado. O botão do MovieFlix é discreto e
+ *   não cobre os controles do vídeo.
  * - Tema vermelho/roxo apenas nos estados de carregamento/erro do MovieFlix.
  *   O embed em si é o padrão do StreamBetter (sem personalização accent/brand).
  * - Sem bypass de proteção, sem pop-ups, sem redirecionamento externo.
@@ -82,6 +86,8 @@ export function NativeHlsPlayer({
   const [status, setStatus] = useState<'carregando' | 'embed' | 'erro'>('carregando');
   const [erroMsg, setErroMsg] = useState<string | null>(null);
   const [embedSrc, setEmbedSrc] = useState<string | null>(null);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     onReadyRef.current = onReady;
@@ -105,13 +111,67 @@ export function NativeHlsPlayer({
     }
   }, [embedUrl, startSeconds]);
 
+  // Acompanha o estado de tela cheia (Fullscreen API) para trocar o ícone.
+  useEffect(() => {
+    function onFsChange() {
+      setIsFullscreen(Boolean(document.fullscreenElement));
+    }
+    document.addEventListener('fullscreenchange', onFsChange);
+    return () => document.removeEventListener('fullscreenchange', onFsChange);
+  }, []);
+
+  // Alterna a tela cheia do CONTÊNIDO do player (funciona no browser e no
+  // WebView do app via WebChromeClient.onShowCustomView). Fallback CSS quando
+  // a Fullscreen API nativa não existe no ambiente.
+  const toggleFullscreen = useCallback(() => {
+    const el = containerRef.current;
+    if (!el) return;
+
+    const doc = document as Document & {
+      webkitFullscreenElement?: Element | null;
+      webkitExitFullscreen?: () => Promise<void> | void;
+    };
+    const elAny = el as HTMLElement & { webkitRequestFullscreen?: () => Promise<void> | void };
+
+    const emFullscreen = Boolean(document.fullscreenElement || doc.webkitFullscreenElement);
+
+    try {
+      if (emFullscreen) {
+        if (document.exitFullscreen) {
+          document.exitFullscreen();
+        } else if (doc.webkitExitFullscreen) {
+          doc.webkitExitFullscreen();
+        }
+      } else {
+        if (el.requestFullscreen) {
+          el.requestFullscreen();
+        } else if (elAny.webkitRequestFullscreen) {
+          elAny.webkitRequestFullscreen();
+        } else {
+          // Fallback CSS: sem Fullscreen API nativa, cobre a tela.
+          el.classList.toggle('mf-fs-fallback');
+          setIsFullscreen(el.classList.contains('mf-fs-fallback'));
+        }
+      }
+    } catch {
+      // Se a API falhar (ex.: permissão), tenta o fallback CSS.
+      el.classList.toggle('mf-fs-fallback');
+      setIsFullscreen(el.classList.contains('mf-fs-fallback'));
+    }
+  }, []);
+
   // Estado EMBED: o iframe oficial do StreamBetter (via única de reprodução).
   // O iframe tem `allowFullScreen` + `allow="...fullscreen..."` para que o
-  // botão de tela cheia NATIVO do player do embed funcione de verdade. Nenhum
-  // overlay/botão do MovieFlix é colocado sobre o iframe.
+  // botão de tela cheia NATIVO do player do embed funcione de verdade. O botão
+  // do MovieFlix (canto superior direito) é um reforço que garante o fullscreen
+  // também no WebView do app e em navegadores que não propagam o fullscreen do
+  // iframe cross-origin. Nenhum overlay cobre o vídeo.
   if (status === 'embed' && embedSrc) {
     return (
-      <div className="relative h-full w-full bg-black">
+      <div
+        ref={containerRef}
+        className="relative h-full w-full bg-black mf-player-container"
+      >
         <iframe
           key={embedSrc}
           src={embedSrc}
@@ -122,6 +182,18 @@ export function NativeHlsPlayer({
           referrerPolicy="origin"
           loading="eager"
         />
+        {/* Botão de tela cheia do MovieFlix — reforço para o fullscreen
+            funcionar no WebView do app e em navegadores que não propagam o
+            fullscreen do iframe cross-origin. Discreto, não cobre o vídeo. */}
+        <button
+          type="button"
+          onClick={toggleFullscreen}
+          aria-label={isFullscreen ? 'Sair da tela cheia' : 'Tela cheia'}
+          title={isFullscreen ? 'Sair da tela cheia' : 'Tela cheia'}
+          className="absolute right-3 top-3 z-10 flex h-9 w-9 items-center justify-center rounded-full bg-black/50 text-white opacity-80 transition hover:bg-black/70 hover:opacity-100"
+        >
+          {isFullscreen ? <Minimize className="h-4 w-4" /> : <Maximize className="h-4 w-4" />}
+        </button>
       </div>
     );
   }

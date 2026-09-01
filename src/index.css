@@ -291,3 +291,17 @@ div[aria-modal="true"][class*="advert"] {
   opacity: 1;
   transform: translateX(-50%) translateY(0);
 }
+
+/* ── Fullscreen fallback do player (quando a Fullscreen API nativa não existe) ── */
+.mf-player-container.mf-fs-fallback {
+  position: fixed !important;
+  inset: 0 !important;
+  z-index: 9999 !important;
+  width: 100vw !important;
+  height: 100vh !important;
+  background: #000 !important;
+}
+.mf-player-container.mf-fs-fallback iframe {
+  width: 100% !important;
+  height: 100% !important;
+}
