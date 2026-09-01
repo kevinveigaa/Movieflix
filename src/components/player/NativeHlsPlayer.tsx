@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import Hls from 'hls.js';
 import { resolverStreamBetterDireto } from '@/lib/streambetterDirect';
 import { comChavePublica, ehEmbedStreamBetter } from '@/lib/strembetter';
-import { Loader2, AlertTriangle } from 'lucide-react';
+import { Loader2, AlertTriangle, RefreshCw } from 'lucide-react';
 
 /**
  * Player nativo do MovieFlix.
@@ -32,6 +32,7 @@ export function NativeHlsPlayer({
   // MovieFlix quando o resolver do backend não consegue a fonte direta.
   const [embedOficial, setEmbedOficial] = useState<string | null>(null);
   const [verificacaoPendente, setVerificacaoPendente] = useState(false);
+  const [tentativaEmbed, setTentativaEmbed] = useState(0);
 
   useEffect(() => {
     onReadyRef.current = onReady;
@@ -48,6 +49,7 @@ export function NativeHlsPlayer({
     const currentVideo = video;
 
     let cancelado = false;
+    let embedAtivo = false;
     setStatus('carregando');
     setErroMsg(null);
     setEmbedOficial(null);
@@ -61,6 +63,7 @@ export function NativeHlsPlayer({
       if (cancelado) return false;
       if (!ehEmbedStreamBetter(embedUrl)) return false;
       setEmbedOficial(comChavePublica(embedUrl, startSeconds));
+      embedAtivo = true;
       // O iframe executa a verificação legítima do provedor no navegador.
       // Não tentamos automatizar nem contornar esse processo.
       setVerificacaoPendente(true);
@@ -148,7 +151,21 @@ export function NativeHlsPlayer({
 
     iniciar();
 
+    // Não é possível inspecionar a página do provedor dentro de um iframe de
+    // outro domínio. Para não deixar a pessoa presa em recarregamentos do
+    // desafio do provedor, interrompemos apenas a apresentação após 25s.
+    // A nova tentativa é sempre manual, sem automatizar a verificação.
+    const limiteVerificacao = window.setTimeout(() => {
+      if (!cancelado && embedAtivo) {
+        setStatus('erro');
+        setEmbedOficial(null);
+        setVerificacaoPendente(false);
+        setErroMsg('A verificação do StreamBetter não foi concluída. Tente novamente ou use outra fonte quando disponível.');
+      }
+    }, 25_000);
+
     return () => {
+      window.clearTimeout(limiteVerificacao);
       cancelado = true;
       if (hlsRef.current) {
         hlsRef.current.destroy();
@@ -158,7 +175,7 @@ export function NativeHlsPlayer({
       currentVideo.removeAttribute('src');
       currentVideo.load();
     };
-  }, [embedUrl, startSeconds]);
+  }, [embedUrl, startSeconds, tentativaEmbed]);
 
   if (status === 'oficial' && embedOficial) {
     return (
@@ -176,7 +193,6 @@ export function NativeHlsPlayer({
           allowFullScreen
           referrerPolicy="strict-origin-when-cross-origin"
           sandbox="allow-scripts allow-same-origin allow-forms allow-presentation"
-          onLoad={() => setVerificacaoPendente(false)}
         />
         {verificacaoPendente && (
           <div className="pointer-events-none absolute inset-x-0 bottom-0 bg-black/70 px-3 py-2 text-center text-xs text-zinc-300">
@@ -212,6 +228,13 @@ export function NativeHlsPlayer({
         <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-black/80 px-6 text-center text-white">
           <AlertTriangle className="h-12 w-12 text-zinc-600" />
           <p className="text-sm text-zinc-300">{erroMsg}</p>
+          <button
+            type="button"
+            onClick={() => setTentativaEmbed((tentativa) => tentativa + 1)}
+            className="btn-primary text-xs"
+          >
+            <RefreshCw className="h-4 w-4" /> Tentar novamente
+          </button>
         </div>
       )}
     </div>
