@@ -157,6 +157,9 @@ export function NativeHlsPlayer({
 
     let hls: Hls | null = null;
     let destroyed = false;
+    // Handler do Safari/iOS: guardado para remover no cleanup (evita listener
+    // duplicado / vazamento de memória ao remontar o player).
+    let onLoadedMetadata: (() => void) | null = null;
 
     const tentarPlay = () => {
       const p = video.play();
@@ -210,7 +213,7 @@ export function NativeHlsPlayer({
     } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
       // Safari / iOS: HLS nativo.
       video.src = hlsUrl;
-      video.addEventListener('loadedmetadata', () => {
+      onLoadedMetadata = () => {
         if (destroyed) return;
         if (startSeconds && startSeconds > 0) {
           try {
@@ -220,7 +223,8 @@ export function NativeHlsPlayer({
           }
         }
         tentarPlay();
-      });
+      };
+      video.addEventListener('loadedmetadata', onLoadedMetadata);
     } else {
       onErrorRef.current?.('Seu navegador não suporta reprodução de vídeo HLS.');
       setStatus('erro');
@@ -235,6 +239,10 @@ export function NativeHlsPlayer({
       if (hls) {
         hls.destroy();
         hlsRef.current = null;
+      }
+      if (onLoadedMetadata) {
+        video.removeEventListener('loadedmetadata', onLoadedMetadata);
+        onLoadedMetadata = null;
       }
     };
   }, [status, hlsUrl, startSeconds]);
@@ -423,16 +431,22 @@ export function NativeHlsPlayer({
               setEmbedSrc(null);
               requestAnimationFrame(() => {
                 // Re-tenta a resolução completa (nativo → embed).
-                resolverStreamBetterDireto(embedUrl, startSeconds).then((r) => {
-                  if (r.success && r.url) {
-                    setHlsUrl(r.url);
-                    setStatus('nativo');
-                  } else {
-                    embedMontadoRef.current = true;
-                    setEmbedSrc(embedComChave(embedUrl));
-                    setStatus('embed');
-                  }
-                });
+                resolverStreamBetterDireto(embedUrl, startSeconds)
+                  .then((r) => {
+                    if (r.success && r.url) {
+                      setHlsUrl(r.url);
+                      setStatus('nativo');
+                    } else {
+                      embedMontadoRef.current = true;
+                      setEmbedSrc(embedComChave(embedUrl));
+                      setStatus('embed');
+                    }
+                  })
+                  .catch(() => {
+                    // Falha de rede/erro inesperado: volta ao estado de erro.
+                    setStatus('erro');
+                    setErroMsg('Não foi possível carregar o vídeo. Tente novamente.');
+                  });
               });
             }}
             className="btn-primary text-xs"

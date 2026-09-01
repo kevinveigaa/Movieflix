@@ -31,30 +31,35 @@ export function usePlaybackSession(userId: string | undefined, maxScreens: numbe
     let cancelled = false;
 
     async function beat() {
-      const since = new Date(Date.now() - STALE_SECONDS * 1000).toISOString();
+      try {
+        const since = new Date(Date.now() - STALE_SECONDS * 1000).toISOString();
 
-      const up = await supabase
-        .from('playback_sessions')
-        .upsert(
-          { user_id: userId, device_id: device, last_seen: new Date().toISOString() },
-          { onConflict: 'user_id,device_id' },
-        );
+        const up = await supabase
+          .from('playback_sessions')
+          .upsert(
+            { user_id: userId, device_id: device, last_seen: new Date().toISOString() },
+            { onConflict: 'user_id,device_id' },
+          );
 
-      // Tabela ausente / sem permissão: não bloqueia o usuário
-      if (up.error) return;
+        // Tabela ausente / sem permissão: não bloqueia o usuário
+        if (up.error) return;
 
-      const { data, error } = await supabase
-        .from('playback_sessions')
-        .select('device_id')
-        .eq('user_id', userId)
-        .gt('last_seen', since);
+        const { data, error } = await supabase
+          .from('playback_sessions')
+          .select('device_id')
+          .eq('user_id', userId)
+          .gt('last_seen', since);
 
-      if (error || cancelled) return;
+        if (error || cancelled) return;
 
-      const devices = new Set((data ?? []).map((r: { device_id: string }) => r.device_id));
-      devices.add(device);
-      setActiveScreens(devices.size);
-      setBlocked(devices.size > maxScreens);
+        const devices = new Set((data ?? []).map((r: { device_id: string }) => r.device_id));
+        devices.add(device);
+        setActiveScreens(devices.size);
+        setBlocked(devices.size > maxScreens);
+      } catch {
+        // Falha de rede/RLS: nunca derruba o player nem gera promise rejeitada.
+        if (!cancelled) setBlocked(false);
+      }
     }
 
     beat();

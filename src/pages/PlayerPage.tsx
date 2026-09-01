@@ -419,21 +419,10 @@ export function PlayerPage() {
                 onClick={() => {
                   setShowResumeModal(false);
                   setIsResuming(false);
-                  if (movie && user) {
-                    const mediaType = (movie.type === 'series' || movie.type === 'tv' || movie.type === 'anime' || movie.media_type === 'tv') ? 'tv' : 'movie';
-                    mutateHistory({
-                      movieId: movie.id,
-                      tmdbId: Number(movie.tmdb_id ?? 0) || undefined,
-                      mediaType,
-                      title: movie.title,
-                      posterPath: movie.poster_url,
-                      backdropPath: movie.backdrop_url,
-                      positionSeconds: 0,
-                      durationSeconds: 0,
-                      season: null,
-                      episode: null,
-                    });
-                  }
+                  // "Não" = começar do zero. NÃO grava um registro "lixo"
+                  // (posição 0 / duração 0) no histórico — isso poluiria o banco
+                  // e reabriria o modal de retomada na próxima visita. O
+                  // progresso antigo é simplesmente ignorado nesta sessão.
                   resumeBaseRef.current = { position: 0, duration: 0, startedAt: Date.now() };
                 }}
                 className="flex-1 rounded-lg bg-white/10 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-white/20 flex items-center justify-center gap-2"
