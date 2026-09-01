@@ -13,3 +13,6 @@ services:
         sync: false
       - key: VITE_STREAMBETTER_KEY
         sync: false
+      # Chave PÚBLICA do embed (sb_pk_*) — válida só no domínio autorizado.
+      - key: VITE_STREAMBETTER_PUBLIC_KEY
+        value: sb_pk_331739a18c650ce0f4c56ebcc34c39630485ffa7366a1ed5

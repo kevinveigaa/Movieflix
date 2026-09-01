@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import Hls from 'hls.js';
 import { resolverStreamBetterDireto } from '@/lib/streambetterDirect';
+import { comChavePublica, ehEmbedStreamBetter } from '@/lib/strembetter';
 import { Loader2, AlertTriangle } from 'lucide-react';
 
 /**
@@ -25,8 +26,11 @@ export function NativeHlsPlayer({
   const hlsRef = useRef<Hls | null>(null);
   const onReadyRef = useRef(onReady);
   const onErrorRef = useRef(onError);
-  const [status, setStatus] = useState<'carregando' | 'pronto' | 'erro'>('carregando');
+  const [status, setStatus] = useState<'carregando' | 'pronto' | 'erro' | 'oficial'>('carregando');
   const [erroMsg, setErroMsg] = useState<string | null>(null);
+  // Embed OFICIAL do StreamBetter (com a chave pública), aberto DENTRO do
+  // MovieFlix quando o resolver do backend não consegue a fonte direta.
+  const [embedOficial, setEmbedOficial] = useState<string | null>(null);
 
   useEffect(() => {
     onReadyRef.current = onReady;
@@ -45,6 +49,20 @@ export function NativeHlsPlayer({
     let cancelado = false;
     setStatus('carregando');
     setErroMsg(null);
+    setEmbedOficial(null);
+
+    // Caminho oficial de integração: o embed do provedor com a chave pública,
+    // carregado pelo navegador do usuário no domínio autorizado. Não é bypass —
+    // é o formato documentado pelo StreamBetter, e a verificação anti-bot é
+    // resolvida normalmente pelo navegador real.
+    const usarEmbedOficial = (codigo: string) => {
+      if (cancelado) return false;
+      if (!ehEmbedStreamBetter(embedUrl)) return false;
+      setEmbedOficial(comChavePublica(embedUrl, startSeconds));
+      setStatus('oficial');
+      onErrorRef.current?.(`fallback_embed_oficial:${codigo}`);
+      return true;
+    };
 
     const marcarErro = (mensagem: string, codigo: string) => {
       if (cancelado) return;
@@ -59,6 +77,10 @@ export function NativeHlsPlayer({
         if (cancelado) return;
 
         if (!resolvido.success || !resolvido.url) {
+          // Uma requisição servidor→servidor nunca resolve a verificação
+          // humana do provedor; nesse caso usamos o embed oficial com a chave
+          // pública, que roda no navegador do usuário.
+          if (usarEmbedOficial(resolvido.motivo || 'sem_stream')) return;
           marcarErro(
             resolvido.motivo === 'sem_stream_direto'
               ? 'Não há uma fonte dublada em PT-BR reproduzível para este título.'
@@ -99,7 +121,9 @@ export function NativeHlsPlayer({
           hls.attachMedia(currentVideo);
           hls.on(Hls.Events.MANIFEST_PARSED, prepararVideo);
           hls.on(Hls.Events.ERROR, (_event, data) => {
-            if (data.fatal) marcarErro('Não foi possível reproduzir o vídeo agora. Tente novamente.', data.type);
+            if (data.fatal && !usarEmbedOficial(`hls_${data.type}`)) {
+              marcarErro('Não foi possível reproduzir o vídeo agora. Tente novamente.', data.type);
+            }
           });
         } else if (currentVideo.canPlayType('application/vnd.apple.mpegurl')) {
           currentVideo.src = hlsUrl;
@@ -111,7 +135,9 @@ export function NativeHlsPlayer({
       } catch (error) {
         if (cancelado) return;
         console.error('[NativeHlsPlayer] falha ao iniciar:', error);
-        marcarErro('Não foi possível preparar o vídeo agora. Tente novamente.', 'network');
+        if (!usarEmbedOficial('network')) {
+          marcarErro('Não foi possível preparar o vídeo agora. Tente novamente.', 'network');
+        }
       }
     }
 
@@ -128,6 +154,27 @@ export function NativeHlsPlayer({
       currentVideo.load();
     };
   }, [embedUrl, startSeconds]);
+
+  if (status === 'oficial' && embedOficial) {
+    return (
+      <div className="relative h-full w-full bg-black">
+        {/* Embed OFICIAL do StreamBetter com a chave pública do MovieFlix.
+            Fica dentro do MovieFlix (sem allow-popups e sem
+            allow-top-navigation → o provedor não redireciona o usuário). */}
+        <iframe
+          title="Player"
+          src={embedOficial}
+          data-mf-player
+          data-player-src={embedOficial}
+          className="h-full w-full border-0"
+          allow="autoplay; fullscreen; encrypted-media; picture-in-picture"
+          allowFullScreen
+          referrerPolicy="origin"
+          sandbox="allow-scripts allow-same-origin allow-forms allow-presentation"
+        />
+      </div>
+    );
+  }
 
   return (
     <div className="relative h-full w-full bg-black">

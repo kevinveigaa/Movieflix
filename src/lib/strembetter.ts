@@ -118,6 +118,40 @@ export const ehEmbedVidCore = ehEmbedYapGrid;
 // StreamBetter com preferência de áudio pt-BR.
 const STREAMBETTER_BASE = 'https://streambetter.shop';
 
+/**
+ * Chave PÚBLICA do StreamBetter (sb_pk_*).
+ *
+ * É uma chave de domínio: só funciona quando a página é carregada a partir do
+ * domínio autorizado no painel do StreamBetter (movieflix-bszf.onrender.com).
+ * Por isso ela é pública por natureza e pode ir no bundle do frontend; ela
+ * NÃO substitui a chave de servidor usada pelo resolver do backend.
+ *
+ * Formato oficial do embed:  https://streambetter.shop/filme/{tmdbId}?key=...
+ */
+export const STREAMBETTER_PUBLIC_KEY =
+  (import.meta.env.VITE_STREAMBETTER_PUBLIC_KEY as string | undefined) ||
+  'sb_pk_331739a18c650ce0f4c56ebcc34c39630485ffa7366a1ed5';
+
+/**
+ * Aplica a chave pública (e o idioma pt-BR) numa URL de embed do StreamBetter.
+ * Usada quando o embed oficial é aberto DENTRO do MovieFlix — é o navegador do
+ * usuário, no domínio autorizado, que apresenta a chave ao provedor.
+ */
+export function comChavePublica(embedUrl: string, startSeconds?: number): string {
+  if (!embedUrl) return '';
+  try {
+    const u = new URL(embedUrl);
+    if (!ehEmbedStreamBetter(embedUrl)) return embedUrl;
+    u.searchParams.set('key', STREAMBETTER_PUBLIC_KEY);
+    u.searchParams.set('lang', 'pt-BR');
+    if (startSeconds && startSeconds > 0) u.searchParams.set('t', String(Math.floor(startSeconds)));
+    return u.toString();
+  } catch {
+    return embedUrl;
+  }
+}
+
+
 /** URL do embed do StreamBetter para um filme (tmdb_id). */
 export function streambetterMovieEmbedUrl(tmdbId: number | string | null | undefined): string {
   if (tmdbId == null) return '';
