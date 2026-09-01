@@ -90,6 +90,10 @@ export function NativeHlsPlayer({
   const [embedSrc, setEmbedSrc] = useState<string | null>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [mostrarDicaCookies, setMostrarDicaCookies] = useState(false);
+  // Contador de tentativas manuais do embed: incrementar força o React a
+  // remontar o iframe (key muda) — o usuário decide quando recarregar, em vez
+  // de ficar preso no loop de verificação do provedor.
+  const [tentativaEmbed, setTentativaEmbed] = useState(0);
   const containerRef = useRef<HTMLDivElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const hlsRef = useRef<Hls | null>(null);
@@ -336,7 +340,7 @@ export function NativeHlsPlayer({
         className="relative h-full w-full bg-black mf-player-container"
       >
         <iframe
-          key={embedSrc}
+          key={`${embedSrc}#t${tentativaEmbed}`}
           src={embedSrc}
           title="StreamBetter"
           className="h-full w-full border-0"
@@ -356,13 +360,29 @@ export function NativeHlsPlayer({
               para <span className="font-mono text-amber-300">streambetter.shop</span>{' '}
               e recarregue. No app (WebView) isso já é permitido, por isso toca direto.
             </p>
-            <button
-              type="button"
-              onClick={() => setMostrarDicaCookies(false)}
-              className="mt-2 rounded-full bg-white/10 px-3 py-1 text-[11px] font-medium text-zinc-300 transition hover:bg-white/20"
-            >
-              Dispensar
-            </button>
+            <div className="mt-2 flex items-center justify-center gap-2">
+              <button
+                type="button"
+                onClick={() => setMostrarDicaCookies(false)}
+                className="rounded-full bg-white/10 px-3 py-1 text-[11px] font-medium text-zinc-300 transition hover:bg-white/20"
+              >
+                Dispensar
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  // Recarrega o iframe manualmente (remonta com key nova).
+                  // O usuário decide quando tentar de novo, em vez de ficar
+                  // preso no loop de verificação do provedor.
+                  setTentativaEmbed((n) => n + 1);
+                  setMostrarDicaCookies(false);
+                }}
+                className="rounded-full bg-brand-500/90 px-3 py-1 text-[11px] font-semibold text-white transition hover:bg-brand-500"
+              >
+                <RefreshCw className="mr-1 inline h-3 w-3" />
+                Tentar novamente
+              </button>
+            </div>
           </div>
         )}
         {/* Botão de tela cheia do MovieFlix — reforço para o fullscreen
