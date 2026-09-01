@@ -1,22 +1,43 @@
 import { useEffect, useRef, useState } from 'react';
 import Hls from 'hls.js';
 import { resolverStreamBetterDireto } from '@/lib/streambetterDirect';
-import { Loader2, AlertTriangle, RefreshCw } from 'lucide-react';
+import { Loader2, AlertTriangle, RefreshCw, ExternalLink } from 'lucide-react';
 
 /**
  * Player nativo do MovieFlix.
  *
- * Reproduz APENAS o HLS resolvido pela API oficial de link direto do
- * StreamBetter (backend → /api/v1/stream com a chave secreta sb_sk_*) em um
- * <video> HTML5 + hls.js. NENHUM iframe/embed do StreamBetter é montado:
- * o embed oficial passou a exigir verificação anti-bot (Cloudflare Turnstile)
- * para todos os títulos e ficava preso na verificação — removido por completo.
+ * Reproduz o HLS resolvido pela API oficial de link direto do StreamBetter
+ * (backend → /api/v1/stream com a chave secreta sb_sk_*) em um <video> HTML5 +
+ * hls.js. Quando a API direta não está disponível (ex.: o plano atual não
+ * inclui a API de link direto, retornando plan_missing_feature), o player abre
+ * o embed OFICIAL do StreamBetter como fallback ÚNICO — carregado UMA vez por
+ * sessão, sem loop, sem force-close que interrompa a verificação legítima.
  *
- * - Player nativo HLS é a ÚNICA opção de reprodução.
+ * - Player nativo HLS é a PRIMEIRA opção.
+ * - Embed oficial do StreamBetter é o fallback (1x por sessão).
  * - Autoplay com fallback muted (política de autoplay do navegador).
- * - Tema vermelho/roxo nos estados de carregamento/erro.
+ * - Tema vermelho/roxo nos estados de carregamento/erro e no fallback.
  * - Sem pop-ups, sem redirecionamento externo, sem bypass de proteção.
  */
+
+// Chave PÚBLICA do StreamBetter (sb_pk_*) — usada SOMENTE no embed oficial que
+// roda no navegador. Nunca é uma chave secreta; não vai para o backend.
+const STREAMBETTER_PUBLIC_KEY =
+  (import.meta.env.VITE_STREAMBETTER_PUBLIC_KEY as string) ||
+  'sb_pk_331739a18c650ce0f4c56ebcc34c39630485ffa7366a1ed5';
+
+/** Monta a URL do embed oficial do StreamBetter com a chave pública e pt-BR. */
+function embedOficialComChave(embedUrl: string): string {
+  try {
+    const u = new URL(embedUrl);
+    u.searchParams.set('key', STREAMBETTER_PUBLIC_KEY);
+    u.searchParams.set('lang', 'pt-BR');
+    return u.toString();
+  } catch {
+    return embedUrl;
+  }
+}
+
 export function NativeHlsPlayer({
   embedUrl,
   startSeconds,
@@ -32,9 +53,13 @@ export function NativeHlsPlayer({
   const hlsRef = useRef<Hls | null>(null);
   const onReadyRef = useRef(onReady);
   const onErrorRef = useRef(onError);
-  const [status, setStatus] = useState<'carregando' | 'pronto' | 'erro'>('carregando');
+  // Trava anti-loop: o fallback do embed oficial só é tentado UMA vez por
+  // sessão de reprodução. Resetada quando o embedUrl/startSeconds muda.
+  const fallbackTentadoRef = useRef(false);
+  const [status, setStatus] = useState<'carregando' | 'pronto' | 'erro' | 'embed'>('carregando');
   const [erroMsg, setErroMsg] = useState<string | null>(null);
   const [tentativa, setTentativa] = useState(0);
+  const [embedSrc, setEmbedSrc] = useState<string | null>(null);
 
   useEffect(() => {
     onReadyRef.current = onReady;
@@ -53,6 +78,7 @@ export function NativeHlsPlayer({
     let cancelado = false;
     setStatus('carregando');
     setErroMsg(null);
+    setEmbedSrc(null);
 
     const marcarErro = (mensagem: string, codigo: string) => {
       if (cancelado) return;
@@ -61,37 +87,35 @@ export function NativeHlsPlayer({
       onErrorRef.current?.(codigo);
     };
 
+    // Abre o embed oficial do StreamBetter como fallback ÚNICO (1x por sessão).
+    // O embed roda dentro do MovieFlix (iframe), sem pop-up e sem redirecionar
+    // para fora. Não há force-close: a verificação legítima pode terminar.
+    const abrirEmbedOficial = (motivo: string) => {
+      if (cancelado) return;
+      if (fallbackTentadoRef.current) {
+        // Já tentamos o embed nesta sessão — não re-trigger (evita loop).
+        marcarErro(
+          'Não foi possível reproduzir o vídeo agora. Tente novamente.',
+          motivo,
+        );
+        return;
+      }
+      fallbackTentadoRef.current = true;
+      setEmbedSrc(embedOficialComChave(embedUrl));
+      setStatus('embed');
+      onErrorRef.current?.(motivo);
+    };
+
     async function iniciar() {
       try {
         const resolvido = await resolverStreamBetterDireto(embedUrl, startSeconds);
         if (cancelado) return;
 
         if (!resolvido.success || !resolvido.url) {
-          // Sem fonte direta: o embed oficial NÃO é mais usado como fallback
-          // (ele exige verificação Cloudflare anti-bot e fica preso em loop).
-          // Mostra uma mensagem clara e estável — sem iframe, sem re-tentativa
-          // automática, sem redirecionamento.
-          if (resolvido.motivo === 'secret_key_required') {
-            marcarErro(
-              'Streaming direto indisponível: a chave de API do StreamBetter (sb_sk_*) não está configurada no servidor. Configure STREAMBETTER_API_KEY no Render para ativar a reprodução.',
-              resolvido.motivo,
-            );
-          } else if (resolvido.motivo === 'plan_api_ausente') {
-            marcarErro(
-              'Streaming direto indisponível: o plano atual do StreamBetter não inclui a API de link direto (plano API necessário).',
-              resolvido.motivo,
-            );
-          } else if (resolvido.motivo === 'sem_stream_direto') {
-            marcarErro(
-              'Não há uma fonte dublada em PT-BR reproduzível para este título.',
-              resolvido.motivo,
-            );
-          } else {
-            marcarErro(
-              'Não foi possível preparar o vídeo agora. Tente novamente em instantes.',
-              resolvido.motivo || 'sem_stream',
-            );
-          }
+          // Sem fonte direta: abre o embed oficial como fallback único.
+          // Motivos de configuração (chave secreta ausente / plano sem API)
+          // também caem no embed — é a única via legítima com a chave pública.
+          abrirEmbedOficial(resolvido.motivo || 'sem_stream_direto');
           return;
         }
 
@@ -120,8 +144,6 @@ export function NativeHlsPlayer({
             }
           };
           tentarAutoplay();
-          // Se o autoplay foi forçado mudo, restaura o som quando o usuário
-          // interagir com o player (play manual / clique).
           const restaurarSom = () => {
             if (currentVideo.muted) {
               currentVideo.muted = false;
@@ -143,10 +165,8 @@ export function NativeHlsPlayer({
           hls.on(Hls.Events.MANIFEST_PARSED, prepararVideo);
           hls.on(Hls.Events.ERROR, (_event, data) => {
             if (data.fatal) {
-              marcarErro(
-                'Não foi possível reproduzir o vídeo agora. Tente novamente.',
-                `hls_${data.type}`,
-              );
+              // Erro fatal do HLS → fallback único do embed oficial.
+              abrirEmbedOficial(`hls_${data.type}`);
             }
           });
         } else if (currentVideo.canPlayType('application/vnd.apple.mpegurl')) {
@@ -154,16 +174,16 @@ export function NativeHlsPlayer({
           currentVideo.addEventListener('loadedmetadata', prepararVideo, { once: true });
           currentVideo.addEventListener(
             'error',
-            () => marcarErro('Não foi possível reproduzir o vídeo agora. Tente novamente.', 'native_error'),
+            () => abrirEmbedOficial('native_error'),
             { once: true },
           );
         } else {
-          marcarErro('Seu dispositivo não suporta reprodução HLS.', 'hls_unsupported');
+          abrirEmbedOficial('hls_unsupported');
         }
       } catch (error) {
         if (cancelado) return;
         console.error('[NativeHlsPlayer] falha ao iniciar:', error);
-        marcarErro('Não foi possível preparar o vídeo agora. Tente novamente.', 'network');
+        abrirEmbedOficial('network');
       }
     }
 
@@ -180,6 +200,26 @@ export function NativeHlsPlayer({
       currentVideo.load();
     };
   }, [embedUrl, startSeconds, tentativa]);
+
+  // Fallback do embed oficial do StreamBetter (dentro do MovieFlix).
+  if (status === 'embed' && embedSrc) {
+    return (
+      <div className="relative h-full w-full bg-black">
+        <iframe
+          src={embedSrc}
+          title="StreamBetter"
+          className="h-full w-full border-0"
+          allow="autoplay; fullscreen; encrypted-media; picture-in-picture"
+          allowFullScreen
+          referrerPolicy="origin"
+        />
+        <div className="pointer-events-none absolute bottom-2 right-2 flex items-center gap-1.5 rounded-full bg-roxo-950/80 px-3 py-1 text-[10px] font-semibold text-roxo-200 ring-1 ring-roxo-500/40">
+          <ExternalLink className="h-3 w-3" />
+          Reproduzindo via StreamBetter
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="relative h-full w-full bg-black">
