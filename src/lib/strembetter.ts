@@ -144,6 +144,11 @@ export function comChavePublica(embedUrl: string, startSeconds?: number): string
     if (!ehEmbedStreamBetter(embedUrl)) return embedUrl;
     u.searchParams.set('key', STREAMBETTER_PUBLIC_KEY);
     u.searchParams.set('lang', 'pt-BR');
+    // Tema vermelho/roxo do MovieFlix no player do StreamBetter (parâmetros
+    // oficiais de personalização do embed: accent/bg/brand).
+    u.searchParams.set('accent', 'DF0A15'); // vermelho MovieFlix
+    u.searchParams.set('bg', '0d0b1a'); // roxo-escuro profundo
+    u.searchParams.set('brand', 'MovieFlix');
     if (startSeconds && startSeconds > 0) u.searchParams.set('t', String(Math.floor(startSeconds)));
     return u.toString();
   } catch {

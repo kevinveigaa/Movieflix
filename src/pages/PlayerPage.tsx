@@ -345,7 +345,7 @@ export function PlayerPage() {
             <div
               ref={playerBoxRef}
               data-tv-player-box
-              className="relative w-full aspect-video rounded-xl overflow-hidden bg-black shadow-2xl shadow-red-900/20 ring-1 ring-white/10"
+              className="relative w-full aspect-video rounded-xl overflow-hidden bg-black shadow-2xl shadow-roxo-900/30 ring-1 ring-roxo-500/20"
             >
               {/* O HLS é resolvido pelo backend e reproduzido neste <video>;
                   nenhum iframe ou janela externa é criado. */}

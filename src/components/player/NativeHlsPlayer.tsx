@@ -206,7 +206,15 @@ export function NativeHlsPlayer({
         {/* Embed OFICIAL do StreamBetter com a chave pública do MovieFlix.
             Fica dentro do MovieFlix (sem allow-popups e sem
             allow-top-navigation → o provedor não redireciona o usuário). */}
+        {/* IMPORTANTE: NÃO usar o atributo `sandbox` no iframe do embed. A
+            documentação oficial do StreamBetter proíbe explicitamente:
+            "Não use o atributo sandbox no iframe... Se detectarmos isso, o
+            conteúdo não será exibido." O sandbox fazia o provedor bloquear o
+            conteúdo e o player ficava preso na verificação (loop). O embed
+            roda dentro do MovieFlix e o provedor não redireciona o usuário
+            para fora. */}
         <iframe
+          key={embedOficial}
           title="Player StreamBetter"
           src={embedOficial}
           data-mf-player
@@ -215,10 +223,9 @@ export function NativeHlsPlayer({
           allow="autoplay; fullscreen; encrypted-media; picture-in-picture"
           allowFullScreen
           referrerPolicy="strict-origin-when-cross-origin"
-          sandbox="allow-scripts allow-same-origin allow-forms allow-presentation"
         />
         {verificacaoPendente && (
-          <div className="pointer-events-none absolute inset-x-0 bottom-0 bg-black/70 px-3 py-2 text-center text-xs text-zinc-300">
+          <div className="pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-r from-roxo-950/80 via-ink-950/80 to-roxo-950/80 px-3 py-2 text-center text-xs text-roxo-200">
             O StreamBetter pode solicitar uma verificação de segurança no próprio player.
           </div>
         )}
@@ -241,15 +248,15 @@ export function NativeHlsPlayer({
       />
 
       {status === 'carregando' && (
-        <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-black/60 text-white">
-          <Loader2 className="h-10 w-10 animate-spin text-red-600" />
+        <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-gradient-to-br from-ink-950/80 via-roxo-950/60 to-ink-950/80 text-white">
+          <Loader2 className="h-10 w-10 animate-spin text-brand-500" />
           <p className="text-sm text-zinc-300">Preparando o vídeo…</p>
         </div>
       )}
 
       {status === 'erro' && (
-        <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-black/80 px-6 text-center text-white">
-          <AlertTriangle className="h-12 w-12 text-zinc-600" />
+        <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-gradient-to-br from-ink-950/90 via-roxo-950/70 to-ink-950/90 px-6 text-center text-white">
+          <AlertTriangle className="h-12 w-12 text-roxo-400" />
           <p className="text-sm text-zinc-300">{erroMsg}</p>
           <button
             type="button"
