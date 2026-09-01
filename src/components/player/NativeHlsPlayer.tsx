@@ -89,6 +89,7 @@ export function NativeHlsPlayer({
   const [hlsUrl, setHlsUrl] = useState<string | null>(null);
   const [embedSrc, setEmbedSrc] = useState<string | null>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [mostrarDicaCookies, setMostrarDicaCookies] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const hlsRef = useRef<Hls | null>(null);
@@ -243,6 +244,19 @@ export function NativeHlsPlayer({
     return () => document.removeEventListener('fullscreenchange', onFsChange);
   }, []);
 
+  // Aviso NÃO-destrutivo: se o embed ficar preso na verificação do provedor por
+  // um tempo, mostra uma dica discreta (não fecha o iframe, não é bypass) sobre
+  // cookies de terceiros — a causa mais comum de o Turnstile não completar no
+  // navegador. O usuário pode dispensar. O embed continua tentando naturalmente.
+  useEffect(() => {
+    if (status !== 'embed') {
+      setMostrarDicaCookies(false);
+      return;
+    }
+    const t = setTimeout(() => setMostrarDicaCookies(true), 9000);
+    return () => clearTimeout(t);
+  }, [status, embedSrc]);
+
   // Alterna a tela cheia do CONTÊINER do player (funciona no browser e no
   // WebView do app via WebChromeClient.onShowCustomView). Fallback CSS quando
   // a Fullscreen API nativa não existe no ambiente.
@@ -331,6 +345,26 @@ export function NativeHlsPlayer({
           referrerPolicy="origin"
           loading="eager"
         />
+        {/* Aviso discreto e dispensável (não cobre o vídeo, não fecha o embed,
+            não é bypass). Ajuda quando o Turnstile não completa por bloqueio de
+            cookies de terceiros no navegador. */}
+        {mostrarDicaCookies && (
+          <div className="absolute bottom-3 left-1/2 z-10 w-[92%] max-w-md -translate-x-1/2 rounded-lg border border-roxo-500/30 bg-ink-950/90 px-4 py-3 text-center shadow-lg backdrop-blur">
+            <p className="text-xs leading-relaxed text-zinc-200">
+              A verificação do provedor não completou. No navegador, libere{' '}
+              <span className="font-semibold text-amber-300">cookies de terceiros</span>{' '}
+              para <span className="font-mono text-amber-300">streambetter.shop</span>{' '}
+              e recarregue. No app (WebView) isso já é permitido, por isso toca direto.
+            </p>
+            <button
+              type="button"
+              onClick={() => setMostrarDicaCookies(false)}
+              className="mt-2 rounded-full bg-white/10 px-3 py-1 text-[11px] font-medium text-zinc-300 transition hover:bg-white/20"
+            >
+              Dispensar
+            </button>
+          </div>
+        )}
         {/* Botão de tela cheia do MovieFlix — reforço para o fullscreen
             funcionar no WebView do app e em navegadores que não propagam o
             fullscreen do iframe cross-origin. Discreto, não cobre o vídeo. */}
