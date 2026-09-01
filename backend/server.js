@@ -139,7 +139,7 @@ app.get("/api/version", (req, res) => {
     commit: process.env.RENDER_GIT_COMMIT || null,
     branch: process.env.RENDER_GIT_BRANCH || null,
     bundle,
-    streambetterPublicKeyConfigurada: Boolean(process.env.VITE_STREAMBETTER_PUBLIC_KEY),
+    streambetterApiKeyConfigurada: Boolean(process.env.STREAMBETTER_API_KEY),
     startedAt: STARTED_AT,
   });
 });

@@ -112,58 +112,20 @@ export function ehEmbedYapGrid(url: string): boolean {
 /** Alias de compatibilidade (nome antigo) — verifica o domínio do YapGrid. */
 export const ehEmbedVidCore = ehEmbedYapGrid;
 
-// ─── StreamBetter (fonte do resolver do backend) ────────────────────────────
+// ──── StreamBetter (fonte do resolver do backend) ────────────────────────────
 // O player nativo do MovieFlix resolve o HLS real via o backend
-// (/api/streambetter-resolve → /api/streambetter-hls), que consulta o
-// StreamBetter com preferência de áudio pt-BR.
+// (/api/streambetter-resolve → /api/streambetter-hls), que consulta a API
+// oficial de link direto do StreamBetter (/api/v1/stream) com a chave secreta
+// (sb_sk_*), sem passar pelo embed (que exige verificação Cloudflare).
 const STREAMBETTER_BASE = 'https://streambetter.shop';
 
-/**
- * Chave PÚBLICA do StreamBetter (sb_pk_*).
- *
- * É uma chave de domínio: só funciona quando a página é carregada a partir do
- * domínio autorizado no painel do StreamBetter (movieflix-bszf.onrender.com).
- * Por isso ela é pública por natureza e pode ir no bundle do frontend; ela
- * NÃO substitui a chave de servidor usada pelo resolver do backend.
- *
- * Formato oficial do embed:  https://streambetter.shop/filme/{tmdbId}?key=...
- */
-export const STREAMBETTER_PUBLIC_KEY =
-  (import.meta.env.VITE_STREAMBETTER_PUBLIC_KEY as string | undefined) ||
-  'sb_pk_331739a18c650ce0f4c56ebcc34c39630485ffa7366a1ed5';
-
-/**
- * Aplica a chave pública (e o idioma pt-BR) numa URL de embed do StreamBetter.
- * Usada quando o embed oficial é aberto DENTRO do MovieFlix — é o navegador do
- * usuário, no domínio autorizado, que apresenta a chave ao provedor.
- */
-export function comChavePublica(embedUrl: string, startSeconds?: number): string {
-  if (!embedUrl) return '';
-  try {
-    const u = new URL(embedUrl);
-    if (!ehEmbedStreamBetter(embedUrl)) return embedUrl;
-    u.searchParams.set('key', STREAMBETTER_PUBLIC_KEY);
-    u.searchParams.set('lang', 'pt-BR');
-    // Tema vermelho/roxo do MovieFlix no player do StreamBetter (parâmetros
-    // oficiais de personalização do embed: accent/bg/brand).
-    u.searchParams.set('accent', 'DF0A15'); // vermelho MovieFlix
-    u.searchParams.set('bg', '0d0b1a'); // roxo-escuro profundo
-    u.searchParams.set('brand', 'MovieFlix');
-    if (startSeconds && startSeconds > 0) u.searchParams.set('t', String(Math.floor(startSeconds)));
-    return u.toString();
-  } catch {
-    return embedUrl;
-  }
-}
-
-
-/** URL do embed do StreamBetter para um filme (tmdb_id). */
+/** URL canônica do StreamBetter para um filme (tmdb_id) — usada pelo resolver. */
 export function streambetterMovieEmbedUrl(tmdbId: number | string | null | undefined): string {
   if (tmdbId == null) return '';
   return `${STREAMBETTER_BASE}/filme/${tmdbId}`;
 }
 
-/** URL do embed do StreamBetter para um episódio de série. */
+/** URL canônica do StreamBetter para um episódio de série — usada pelo resolver. */
 export function streambetterSeriesEmbedUrl(
   tmdbId: number | string | null | undefined,
   season: number,
@@ -171,15 +133,5 @@ export function streambetterSeriesEmbedUrl(
 ): string {
   if (tmdbId == null) return '';
   return `${STREAMBETTER_BASE}/serie/${tmdbId}/${season}/${episode}`;
-}
-
-/** É uma URL do StreamBetter? (fonte resolvida pelo player nativo) */
-export function ehEmbedStreamBetter(url: string): boolean {
-  try {
-    const u = new URL(url);
-    return u.hostname === 'streambetter.shop' || u.hostname.endsWith('.streambetter.shop');
-  } catch {
-    return false;
-  }
 }
 

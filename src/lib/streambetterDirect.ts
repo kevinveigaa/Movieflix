@@ -1,10 +1,12 @@
 /**
  * StreamBetter Direct — cliente frontend.
  *
- * O MovieFlix não abre o iframe do provedor. Em vez disso, pede ao backend
- * para resolver a fonte HLS e reproduz o resultado em um <video> nativo.
- * Assim, pop-ups, anúncios e redirecionamentos do player externo nunca entram
- * na árvore de documentos do MovieFlix.
+ * O MovieFlix NÃO abre o iframe do provedor (o embed oficial passou a exigir
+ * verificação anti-bot Cloudflare e ficava preso em loop). Em vez disso, pede
+ * ao backend a fonte HLS via a API oficial de link direto
+ * (/api/v1/stream, chave secreta sb_sk_*) e reproduz o resultado em um
+ * <video> nativo. Assim, pop-ups, anúncios, redirecionamentos e o desafio
+ * Cloudflare nunca entram na árvore de documentos do MovieFlix.
  */
 
 // Em produção o frontend pode ser um Static Site, então /api pode não existir
