@@ -378,7 +378,15 @@ export function PlayerPage() {
             </p>
 
             <p className="mt-2 text-center text-xs text-zinc-500">
-              <button onClick={() => { setSourceUrl(null); requestAnimationFrame(() => setSourceUrl(currentUrl)); }} className="text-red-400 underline hover:text-red-300">
+              <button
+                onClick={() => {
+                  // Reinicia o player de verdade: incrementa a playbackKey para
+                  // o React DESMONTAR e REMONTAR o NativeHlsPlayer (novo iframe,
+                  // novo estado, sem duplicar). O embed é recriado uma única vez.
+                  setPlaybackKey((k) => k + 1);
+                }}
+                className="text-red-400 underline hover:text-red-300"
+              >
                 Recarregar player
               </button>
             </p>
