@@ -1,68 +1,56 @@
 import { useEffect, useRef, useState } from 'react';
-import Hls from 'hls.js';
-import { resolverStreamBetterDireto } from '@/lib/streambetterDirect';
-import { Loader2, AlertTriangle, RefreshCw, KeyRound, Play } from 'lucide-react';
+import { Loader2, AlertTriangle, RefreshCw, Play } from 'lucide-react';
 
 /**
- * Player nativo do MovieFlix.
+ * Player do MovieFlix — EMBED OFICIAL do StreamBetter (plano Creator).
  *
- * Estratégia em duas camadas (plano Creator do StreamBetter = chave pública):
+ * Estratégia: 100% embed oficial do StreamBetter com a chave PÚBLICA (sb_pk_*).
+ * O plano Creator do StreamBetter funciona assim: a chave pública usada no
+ * embed oficial remove anúncios e libera download. NÃO há stream direto, NÃO
+ * há API de link m3u8, NÃO há chave secreta (sb_sk_*) — o embed é a via única
+ * e correta para o plano Creator.
  *
- * 1) STREAM DIRETO (primeira opção): pede ao backend o m3u8 via a API oficial
- *    de link direto (/api/v1/stream, chave SECRETA sb_sk_*). Quando a chave
- *    secreta está configurada no backend, o vídeo toca num <video> nativo +
- *    hls.js, SEM iframe e SEM Cloudflare.
+ *   Filmes : https://streambetter.shop/filme/{tmdbId}?key=sb_pk_...
+ *   Séries : https://streambetter.shop/serie/{tmdbId}/{temporada}/{episodio}?key=sb_pk_...
  *
- * 2) EMBED OFICIAL (fallback ÚNICO): quando o stream direto não está
- *    disponível (plano Creator / sem chave secreta / plan_missing_feature),
- *    monta o embed oficial do StreamBetter com a chave pública (sb_pk_*), que
- *    é o que o plano Creator oferece (remove anúncios e libera download).
+ * O embed oficial exibe a verificação anti-bot Cloudflare Turnstile
+ * ("Confirmando que você é uma pessoa de verdade..."). Isso é o comportamento
+ * LEGÍTIMO do provedor e NÃO deve ser contornado. Para o Turnstile completar
+ * naturalmente e o vídeo tocar e PERMANECER tocando, o iframe é montado UMA
+ * ÚNICA vez por sessão de reprodução:
+ *   - SEM atributo `sandbox` (a documentação do StreamBetter bloqueia o
+ *     conteúdo se detectar sandbox, deixando preso na verificação);
+ *   - SEM force-close (fechar o embed durante a verificação legítima cria o
+ *     loop percebido embed → verificação → erro → retry → embed);
+ *   - SEM re-trigger / re-mount (o iframe NÃO é recriado nem recarregado pelo
+ *     nosso código — o `src` é estável e montado uma vez);
+ *   - O `key` do iframe é estável (não muda), então o React não re-monta.
  *
- *    O embed oficial exibe a verificação anti-bot Cloudflare Turnstile
- *    ("Confirmando que você é uma pessoa de verdade..."). Isso é o
- *    comportamento LEGÍTIMO do provedor e NÃO deve ser contornado. Para o
- *    Turnstile completar naturalmente e o vídeo tocar, o iframe é montado UMA
- *    ÚNICA vez por sessão de reprodução:
- *      - SEM atributo `sandbox` (a documentação do StreamBetter bloqueia o
- *        conteúdo se detectar sandbox, deixando preso na verificação);
- *      - SEM force-close (fechar o embed durante a verificação legítima cria
- *        o loop percebido embed → verificação → erro → retry → embed);
- *      - SEM re-trigger / re-mount (o iframe não é recriado nem recarregado
- *        pelo nosso código — o `src` é estável e montado uma vez).
- *    O embed roda DENTRO do MovieFlix (iframe), sem pop-up e sem
- *    redirecionamento externo.
+ * O embed roda DENTRO do MovieFlix (iframe), sem pop-up e sem redirecionamento
+ * externo. O botão de download (benefício do plano Creator) aparece no player
+ * do provedor quando disponível.
  *
- * - Autoplay com fallback muted (política de autoplay do navegador).
- * - Tema vermelho/roxo nos estados de carregamento/erro e no fallback.
+ * - Tema vermelho/roxo apenas nos estados de carregamento/erro do MovieFlix.
+ *   O embed em si é o padrão do StreamBetter (sem personalização accent/brand).
  * - Sem bypass de proteção, sem pop-ups, sem redirecionamento externo.
  */
 
 // Chave PÚBLICA do StreamBetter (plano Creator) — não é segredo, pode ir no
-// bundle. Usada no embed oficial (fallback). Vem do render.yaml.
+// bundle. Usada no embed oficial. Vem do render.yaml.
 const STREAMBETTER_PUBLIC_KEY =
   (import.meta.env.VITE_STREAMBETTER_PUBLIC_KEY as string) ||
   'sb_pk_19fe7c75a49585cd84ced96806703a2176768fa4f77a7ea4';
 
 /**
- * Anexa a chave pública, o idioma pt-BR e a personalização do plano Creator a
- * uma URL de embed do StreamBetter.
- *
- * A documentação oficial do StreamBetter (plano Creator) suporta:
- *   - `key=sb_pk_*`  -> remove anúncios e libera download;
- *   - `accent`       -> cor de destaque (barra de progresso, volume, realces);
- *   - `surface`      -> cor de fundo dos menus;
- *   - `brand`        -> marca do site no canto superior esquerdo.
- * Isso mantém o tema vermelho/roxo do MovieFlix DENTRO do player do provedor.
+ * Anexa a chave pública e o idioma pt-BR a uma URL de embed do StreamBetter.
+ * NÃO adiciona personalização (accent/surface/brand) — o embed é o padrão do
+ * provedor, como o usuário pediu.
  */
 function embedComChave(url: string): string {
   try {
     const u = new URL(url);
     u.searchParams.set('key', STREAMBETTER_PUBLIC_KEY);
     u.searchParams.set('lang', 'pt-BR');
-    // Personalização do plano Creator (tema vermelho/roxo do MovieFlix).
-    u.searchParams.set('accent', 'DF0A15'); // vermelho MovieFlix
-    u.searchParams.set('surface', '0d0b1a'); // roxo escuro
-    u.searchParams.set('brand', 'MovieFlix');
     return u.toString();
   } catch {
     return url;
@@ -80,17 +68,13 @@ export function NativeHlsPlayer({
   onReady?: (video: HTMLVideoElement) => void;
   onError?: (msg: string) => void;
 }) {
-  const videoRef = useRef<HTMLVideoElement>(null);
-  const hlsRef = useRef<Hls | null>(null);
   const onReadyRef = useRef(onReady);
   const onErrorRef = useRef(onError);
-  // Guarda o fallback do embed: só monta UMA vez por sessão de reprodução.
-  // Resetada quando embedUrl/startSeconds mudam (novo título/episódio).
-  const fallbackTentadoRef = useRef(false);
-  const [status, setStatus] = useState<'carregando' | 'pronto' | 'erro' | 'embed'>('carregando');
+  // Guarda o embed: só monta UMA vez por sessão de reprodução. Resetada quando
+  // embedUrl/startSeconds mudam (novo título/episódio).
+  const embedMontadoRef = useRef(false);
+  const [status, setStatus] = useState<'carregando' | 'embed' | 'erro'>('carregando');
   const [erroMsg, setErroMsg] = useState<string | null>(null);
-  const [erroTipo, setErroTipo] = useState<string | null>(null);
-  const [tentativa, setTentativa] = useState(0);
   const [embedSrc, setEmbedSrc] = useState<string | null>(null);
 
   useEffect(() => {
@@ -99,130 +83,23 @@ export function NativeHlsPlayer({
   }, [onReady, onError]);
 
   useEffect(() => {
-    const video = videoRef.current;
-    if (!video || !embedUrl) {
+    if (!embedUrl) {
       setStatus('erro');
       setErroMsg('Nenhuma fonte de vídeo encontrada para este título.');
       return;
     }
-    const currentVideo = video;
 
-    let cancelado = false;
-    setStatus('carregando');
-    setErroMsg(null);
-    setErroTipo(null);
-    setEmbedSrc(null);
-
-    const marcarErro = (mensagem: string, codigo: string) => {
-      if (cancelado) return;
-      setStatus('erro');
-      setErroMsg(mensagem);
-      setErroTipo(codigo);
-      onErrorRef.current?.(codigo);
-    };
-
-    // Monta o embed oficial do StreamBetter (fallback único, 1x por sessão).
-    const abrirEmbed = () => {
-      if (cancelado || fallbackTentadoRef.current) return;
-      fallbackTentadoRef.current = true;
+    // Monta o embed oficial do StreamBetter UMA única vez por sessão.
+    // O `src` é estável e o iframe não é recriado nem recarregado pelo nosso
+    // código — o Turnstile completa naturalmente e o vídeo toca e permanece.
+    if (!embedMontadoRef.current) {
+      embedMontadoRef.current = true;
       setEmbedSrc(embedComChave(embedUrl));
       setStatus('embed');
-    };
-
-    async function iniciar() {
-      try {
-        const resolvido = await resolverStreamBetterDireto(embedUrl, startSeconds);
-        if (cancelado) return;
-
-        if (!resolvido.success || !resolvido.url) {
-          // Sem stream direto (plano Creator / sem chave secreta). Abre o embed
-          // oficial UMA vez — a via legítima do plano Creator.
-          abrirEmbed();
-          return;
-        }
-
-        const hlsUrl = resolvido.url;
-        const prepararVideo = () => {
-          if (cancelado) return;
-          setStatus('pronto');
-          onReadyRef.current?.(currentVideo);
-          if (startSeconds && startSeconds > 0) {
-            try {
-              currentVideo.currentTime = startSeconds;
-            } catch {
-              // O navegador pode ainda não aceitar currentTime neste evento.
-            }
-          }
-          // AUTOPLAY ROBUSTO: tenta com som; se o navegador bloquear, tenta
-          // muted autoplay (sempre permitido) e restaura o som no 1º play.
-          const tentarAutoplay = () => {
-            const p = currentVideo.play();
-            if (p) {
-              p.catch(() => {
-                currentVideo.muted = true;
-                currentVideo.play().catch(() => undefined);
-              });
-            }
-          };
-          tentarAutoplay();
-          const restaurarSom = () => {
-            if (currentVideo.muted) {
-              currentVideo.muted = false;
-            }
-          };
-          currentVideo.addEventListener('play', restaurarSom, { once: true });
-        };
-
-        if (Hls.isSupported()) {
-          const hls = new Hls({
-            enableWorker: true,
-            xhrSetup: (xhr) => {
-              xhr.withCredentials = false;
-            },
-          });
-          hlsRef.current = hls;
-          hls.loadSource(hlsUrl);
-          hls.attachMedia(currentVideo);
-          hls.on(Hls.Events.MANIFEST_PARSED, prepararVideo);
-          hls.on(Hls.Events.ERROR, (_event, data) => {
-            if (data.fatal) {
-              // Erro fatal no HLS direto → cai no embed oficial (1x).
-              abrirEmbed();
-            }
-          });
-        } else if (currentVideo.canPlayType('application/vnd.apple.mpegurl')) {
-          currentVideo.src = hlsUrl;
-          currentVideo.addEventListener('loadedmetadata', prepararVideo, { once: true });
-          currentVideo.addEventListener(
-            'error',
-            () => abrirEmbed(),
-            { once: true },
-          );
-        } else {
-          abrirEmbed();
-        }
-      } catch (error) {
-        if (cancelado) return;
-        console.error('[NativeHlsPlayer] falha ao iniciar:', error);
-        abrirEmbed();
-      }
     }
+  }, [embedUrl, startSeconds]);
 
-    iniciar();
-
-    return () => {
-      cancelado = true;
-      if (hlsRef.current) {
-        hlsRef.current.destroy();
-        hlsRef.current = null;
-      }
-      currentVideo.pause();
-      currentVideo.removeAttribute('src');
-      currentVideo.load();
-    };
-  }, [embedUrl, startSeconds, tentativa]);
-
-  // Estado EMBED: o iframe oficial do StreamBetter (fallback único).
+  // Estado EMBED: o iframe oficial do StreamBetter (via única de reprodução).
   if (status === 'embed' && embedSrc) {
     return (
       <div className="relative h-full w-full bg-black">
@@ -236,7 +113,7 @@ export function NativeHlsPlayer({
           referrerPolicy="origin"
           loading="eager"
         />
-        {/* Badge discreto do fallback (tema vermelho/roxo) */}
+        {/* Badge discreto (tema vermelho/roxo) */}
         <div className="pointer-events-none absolute bottom-2 right-2 rounded-full border border-roxo-500/40 bg-roxo-950/70 px-2.5 py-1 text-[10px] font-semibold tracking-wide text-roxo-200 backdrop-blur">
           <Play className="mr-1 inline h-3 w-3" fill="currentColor" />
           Reproduzindo via StreamBetter
@@ -247,18 +124,6 @@ export function NativeHlsPlayer({
 
   return (
     <div className="relative h-full w-full bg-black">
-      <video
-        ref={videoRef}
-        data-mf-player
-        data-player-src={embedUrl}
-        data-tv-focusable
-        className="h-full w-full"
-        controls
-        playsInline
-        autoPlay
-        preload="auto"
-      />
-
       {status === 'carregando' && (
         <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-gradient-to-br from-ink-950/80 via-roxo-950/60 to-ink-950/80 text-white">
           <Loader2 className="h-10 w-10 animate-spin text-brand-500" />
@@ -268,15 +133,19 @@ export function NativeHlsPlayer({
 
       {status === 'erro' && (
         <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-gradient-to-br from-ink-950/90 via-roxo-950/70 to-ink-950/90 px-6 text-center text-white">
-          {erroTipo === 'secret_key_required' || erroTipo === 'plan_api_ausente' ? (
-            <KeyRound className="h-12 w-12 text-roxo-400" />
-          ) : (
-            <AlertTriangle className="h-12 w-12 text-roxo-400" />
-          )}
           <p className="text-sm text-zinc-300">{erroMsg}</p>
           <button
             type="button"
-            onClick={() => setTentativa((t) => t + 1)}
+            onClick={() => {
+              embedMontadoRef.current = false;
+              setStatus('carregando');
+              setEmbedSrc(null);
+              requestAnimationFrame(() => {
+                embedMontadoRef.current = true;
+                setEmbedSrc(embedComChave(embedUrl));
+                setStatus('embed');
+              });
+            }}
             className="btn-primary text-xs"
           >
             <RefreshCw className="h-4 w-4" /> Tentar novamente
