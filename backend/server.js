@@ -5,7 +5,6 @@ const path = require("path");
 const express = require("express");
 const cors = require("cors");
 const compression = require("compression");
-const { MercadoPagoConfig, Preference } = require("mercadopago");
 const { registrarPlayerProxy } = require("./player-proxy");
 
 const app = express();
@@ -64,62 +63,22 @@ app.use("/api/tmdb", async (req, res) => {
   }
 });
 
-const client = new MercadoPagoConfig({
-  accessToken: process.env.MP_ACCESS_TOKEN
-});
-
-const preference = new Preference(client);
-
 app.get("/", (req, res) => {
   res.sendFile(path.join(DIST_DIR, "index.html"));
 });
 
-app.post("/assinatura", async (req,res)=>{
-
-  try {
-
-    const { plano } = req.body;
-
-    let valor = 19.90;
-
-    if(plano === "standard") valor = 29.90;
-    if(plano === "premium") valor = 39.90;
-
-    const pagamento = await preference.create({
-      body:{
-        items:[
-          {
-            title:"MovieFlix Plano " + plano,
-            quantity:1,
-            currency_id:"BRL",
-            unit_price:valor
-          }
-        ],
-        back_urls:{
-          success:"https://www.google.com",
-          failure:"https://www.google.com",
-          pending:"https://www.google.com"
-        },
-        auto_return:"approved"
-      }
-    });
-
-    res.json({
-      link: pagamento.init_point
-    });
-
-  } catch(error){
-
-    console.log("ERRO MP:", error);
-    console.log(error);
-
-    res.status(500).json({
-      erro:error.message,
-      detalhe:error.cause || error
-    });
-
-  }
-
+// ============================================================
+// ASSINATURA — ATIVAÇÃO MANUAL VIA WHATSAPP
+// ============================================================
+// O MovieFlix NÃO usa mais o fluxo automático do Mercado Pago. A ativação é
+// feita manualmente pelo admin (e-mail + plano) através da função SQL
+// `activate_subscription_by_email` (SECURITY DEFINER) no Supabase. O endpoint
+// /assinatura abaixo foi DESATIVADO (early-return) — mantido apenas para não
+// quebrar referências antigas; não é chamado pelo fluxo atual.
+app.post("/assinatura", async (req, res) => {
+  return res.status(410).json({
+    erro: "Pagamento automático desativado. A assinatura é ativada manualmente via WhatsApp.",
+  });
 });
 
 

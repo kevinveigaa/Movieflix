@@ -18,10 +18,12 @@ import {
   Plus,
   Baby,
   ArrowLeftRight,
+  MessageCircle,
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { ErrorBanner } from '@/pages/auth/LoginPage';
 import type { ViewerProfile } from '@/types';
+import { linkContratarPlano, linkRenovarPlano, linkSuporte, WHATSAPP_LABEL } from '@/lib/whatsapp';
 
 export function ProfilePage() {
   const { user, profile, subscription, refreshProfile, activeViewerProfile, setActiveViewerProfile } = useAuth();
@@ -319,7 +321,7 @@ export function ProfilePage() {
                 Assinatura
               </h2>
 
-              {subscription && subscription.status === 'active' ? (
+              {hasPlan ? (
                 <div className="mt-3 space-y-2 text-sm">
                   <p className="text-ink-300">
                     Plano:{' '}
@@ -352,20 +354,71 @@ export function ProfilePage() {
                     Gerenciar assinatura
                   </Link>
                 </div>
-              ) : (
+              ) : subscription ? (
+                /* Assinatura expirada */
                 <div className="mt-3 space-y-3 text-sm">
                   <p className="text-ink-300">
-                    Você não tem assinatura ativa.
+                    Status:{' '}
+                    <span className="font-semibold text-red-400">
+                      Expirada
+                    </span>
                   </p>
-
+                  <p className="text-ink-300">
+                    Sua assinatura venceu. Renove pelo WhatsApp para voltar a assistir.
+                  </p>
+                  <a
+                    href={linkRenovarPlano({ email: user.email ?? '', planoNome: planName, planoCodigo: subscription.plan_code })}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="btn-primary flex w-full items-center justify-center gap-2"
+                  >
+                    <MessageCircle className="h-4 w-4" /> RENOVAR PELO WHATSAPP
+                  </a>
+                </div>
+              ) : (
+                /* Sem assinatura (aguardando ativação manual) */
+                <div className="mt-3 space-y-3 text-sm">
+                  <p className="text-ink-300">
+                    Status:{' '}
+                    <span className="font-semibold text-amber-400">
+                      Pendente
+                    </span>
+                  </p>
+                  <p className="text-ink-300">
+                    Seu cadastro foi realizado, mas sua assinatura ainda não está ativa.
+                    Contrate pelo WhatsApp para ativar.
+                  </p>
+                  <a
+                    href={linkContratarPlano({
+                      email: user?.email ?? '',
+                      planoNome: 'Plano 1',
+                      planoCodigo: 'simple',
+                      valorCents: 1990,
+                    })}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="btn-primary flex w-full items-center justify-center gap-2"
+                  >
+                    <MessageCircle className="h-4 w-4" /> CONTRATAR PELO WHATSAPP
+                  </a>
                   <Link
                     to="/minha-assinatura"
-                    className="btn-primary w-full"
+                    className="btn-outline w-full"
                   >
-                    Assinar agora
+                    Ver planos
                   </Link>
                 </div>
               )}
+
+              <a
+                href={linkSuporte(user?.email ?? '')}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="mt-3 flex items-center justify-center gap-2 text-xs text-ink-400 transition hover:text-white"
+              >
+                <MessageCircle className="h-3.5 w-3.5 text-emerald-400" />
+                Falar com o {WHATSAPP_LABEL}
+              </a>
             </div>
 
             {profile?.is_admin && (

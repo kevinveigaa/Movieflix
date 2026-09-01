@@ -4,7 +4,7 @@ import { useAuth } from "@/context/AuthContext";
 import { tmdb, img } from "@/lib/tmdb";
 import {
   Pencil, Trash2, Plus, Search, X, Save, RefreshCw, Layers,
-  ListFilter, ChevronDown, ChevronUp, Film, Eye, EyeOff
+  ListFilter, ChevronDown, ChevronUp, Film, Eye, EyeOff, Crown, UserCheck, UserX, SearchCheck
 } from "lucide-react";
 import { CATEGORIAS, categoriasDoFilme, normalizar } from "@/lib/categorias";
 import { useQueryClient } from "@tanstack/react-query";
@@ -73,6 +73,16 @@ export function AdminPage() {
   const [salvando, setSalvando] = useState(false);
   const [msg, setMsg] = useState<{ tipo: "ok" | "erro"; texto: string } | null>(null);
 
+  // === ATIVAÇÃO MANUAL DE ASSINATURA (WhatsApp) ===
+  const [subEmail, setSubEmail] = useState("");
+  const [subPlano, setSubPlano] = useState("simple");
+  const [subPlans, setSubPlans] = useState<any[]>([]);
+  const [subBusy, setSubBusy] = useState(false);
+  const [subResultado, setSubResultado] = useState<{ tipo: "ok" | "erro"; texto: string } | null>(null);
+  const [consultaEmail, setConsultaEmail] = useState("");
+  const [consultaResultado, setConsultaResultado] = useState<{ tipo: "ok" | "erro"; texto: string } | null>(null);
+  const [consultaBusy, setConsultaBusy] = useState(false);
+
   // === TEMPORADAS E EPISÓDIOS ===
   const [seriesData, setSeriesData] = useState<any>(null);
   const [seasons, setSeasons] = useState<Season[]>([]);
@@ -126,6 +136,99 @@ export function AdminPage() {
     if (ehAdmin) carregarFilmes();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ehAdmin]);
+
+  // Carrega os planos para o formulário de ativação manual.
+  useEffect(() => {
+    if (!ehAdmin) return;
+    (async () => {
+      const { data } = await supabase.from("plans").select("*").order("price_cents", { ascending: true });
+      setSubPlans(data ?? []);
+    })();
+  }, [ehAdmin]);
+
+  // === ATIVAÇÃO MANUAL (e-mail + plano) ===
+  async function ativarAssinatura() {
+    const email = subEmail.trim();
+    if (!email) {
+      setSubResultado({ tipo: "erro", texto: "Informe o e-mail do cliente." });
+      return;
+    }
+    setSubBusy(true);
+    setSubResultado(null);
+    try {
+      const { data, error } = await supabase.rpc("activate_subscription_by_email", {
+        p_email: email,
+        p_plano: subPlano,
+      });
+      if (error) throw error;
+      const res = data as { ok?: boolean; mensagem?: string; erro?: string; plano?: string; expiracao?: string } | null;
+      if (res && res.ok === false) {
+        setSubResultado({ tipo: "erro", texto: res.erro ?? "Não foi possível ativar." });
+      } else {
+        setSubResultado({
+          tipo: "ok",
+          texto: `${res?.mensagem ?? "Ativação realizada"} — Plano: ${res?.plano ?? subPlano} · Expira em: ${res?.expiracao ?? "—"}`,
+        });
+        setSubEmail("");
+      }
+    } catch (e: any) {
+      setSubResultado({ tipo: "erro", texto: e?.message ?? "Erro ao ativar assinatura." });
+    }
+    setSubBusy(false);
+  }
+
+  async function desativarAssinatura() {
+    const email = subEmail.trim();
+    if (!email) {
+      setSubResultado({ tipo: "erro", texto: "Informe o e-mail do cliente." });
+      return;
+    }
+    if (!window.confirm(`Desativar a assinatura de ${email}? O histórico será preservado.`)) return;
+    setSubBusy(true);
+    setSubResultado(null);
+    try {
+      const { data, error } = await supabase.rpc("deactivate_subscription_by_email", { p_email: email });
+      if (error) throw error;
+      const res = data as { ok?: boolean; mensagem?: string; erro?: string } | null;
+      if (res && res.ok === false) {
+        setSubResultado({ tipo: "erro", texto: res.erro ?? "Não foi possível desativar." });
+      } else {
+        setSubResultado({ tipo: "ok", texto: res?.mensagem ?? "Assinatura desativada." });
+      }
+    } catch (e: any) {
+      setSubResultado({ tipo: "erro", texto: e?.message ?? "Erro ao desativar assinatura." });
+    }
+    setSubBusy(false);
+  }
+
+  async function consultarAssinatura() {
+    const email = consultaEmail.trim();
+    if (!email) {
+      setConsultaResultado({ tipo: "erro", texto: "Informe o e-mail do cliente." });
+      return;
+    }
+    setConsultaBusy(true);
+    setConsultaResultado(null);
+    try {
+      const { data, error } = await supabase.rpc("get_subscription_by_email", { p_email: email });
+      if (error) throw error;
+      const res = data as { ok?: boolean; erro?: string; assinatura?: any } | null;
+      if (res && res.ok === false) {
+        setConsultaResultado({ tipo: "erro", texto: res.erro ?? "Erro ao consultar." });
+      } else if (!res?.assinatura) {
+        setConsultaResultado({ tipo: "erro", texto: "Este usuário não possui assinatura registrada." });
+      } else {
+        const a = res.assinatura;
+        setConsultaResultado({
+          tipo: "ok",
+          texto: `E-mail: ${email} · Plano: ${a.plano ?? "—"} · Status: ${a.status ?? "—"} · Início: ${a.inicio ?? "—"} · Expira: ${a.expiracao ?? "—"}`,
+        });
+      }
+    } catch (e: any) {
+      setConsultaResultado({ tipo: "erro", texto: e?.message ?? "Erro ao consultar." });
+    }
+    setConsultaBusy(false);
+  }
 
   useEffect(() => {
     if (mostrarTemporadas && editandoId) {
@@ -575,6 +678,70 @@ export function AdminPage() {
         {seriesError && (
           <p className="w-full text-xs text-red-400">
             Não foi possível salvar a configuração: {(seriesError as Error).message}
+          </p>
+        )}
+      </div>
+
+      {/* Ativação manual de assinatura (WhatsApp) — e-mail + plano */}
+      <div className="mb-6 rounded-2xl border border-emerald-500/20 bg-emerald-500/5 p-4">
+        <div className="flex items-center gap-2">
+          <Crown className="h-5 w-5 shrink-0 text-emerald-400" />
+          <h2 className="text-sm font-bold text-white">Ativação manual de assinatura (WhatsApp)</h2>
+        </div>
+        <p className="mt-1 text-xs text-gray-400">
+          Informe SOMENTE o e-mail do cliente e o plano. O sistema localiza o usuário, ativa a assinatura e calcula a validade automaticamente.
+        </p>
+
+        <div className="mt-3 flex flex-wrap items-end gap-3">
+          <label className="block flex-1 min-w-[220px]">
+            <span className="mb-1 block text-xs font-medium text-gray-400">E-mail do cliente</span>
+            <input
+              className="input"
+              placeholder="cliente@email.com"
+              value={subEmail}
+              onChange={(e) => setSubEmail(e.target.value)}
+            />
+          </label>
+          <label className="block w-44">
+            <span className="mb-1 block text-xs font-medium text-gray-400">Plano</span>
+            <select className="input" value={subPlano} onChange={(e) => setSubPlano(e.target.value)}>
+              {(subPlans.length > 0 ? subPlans : [{ code: "simple", name: "Plano 1" }, { code: "standard", name: "Plano 2" }, { code: "premium", name: "Plano 3" }]).map((p) => (
+                <option key={p.code} value={p.code}>{p.name} ({p.code})</option>
+              ))}
+            </select>
+          </label>
+          <button onClick={ativarAssinatura} disabled={subBusy} className="btn-primary">
+            <UserCheck className="h-4 w-4" /> {subBusy ? "Ativando…" : "Ativar assinatura"}
+          </button>
+          <button onClick={desativarAssinatura} disabled={subBusy} className="btn-outline border-red-500/30 text-red-300 hover:bg-red-500/10">
+            <UserX className="h-4 w-4" /> Desativar
+          </button>
+        </div>
+
+        {subResultado && (
+          <p className={`mt-3 text-sm ${subResultado.tipo === "ok" ? "text-emerald-300" : "text-red-300"}`}>
+            {subResultado.texto}
+          </p>
+        )}
+
+        {/* Consulta por e-mail */}
+        <div className="mt-4 flex flex-wrap items-end gap-3 border-t border-white/10 pt-4">
+          <label className="block flex-1 min-w-[220px]">
+            <span className="mb-1 block text-xs font-medium text-gray-400">Consultar assinatura por e-mail</span>
+            <input
+              className="input"
+              placeholder="cliente@email.com"
+              value={consultaEmail}
+              onChange={(e) => setConsultaEmail(e.target.value)}
+            />
+          </label>
+          <button onClick={consultarAssinatura} disabled={consultaBusy} className="btn-outline">
+            <SearchCheck className="h-4 w-4" /> {consultaBusy ? "Consultando…" : "Consultar"}
+          </button>
+        </div>
+        {consultaResultado && (
+          <p className={`mt-2 text-sm ${consultaResultado.tipo === "ok" ? "text-emerald-300" : "text-red-300"}`}>
+            {consultaResultado.texto}
           </p>
         )}
       </div>

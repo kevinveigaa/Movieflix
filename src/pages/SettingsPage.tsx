@@ -1,9 +1,10 @@
 import { useState } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { supabase } from '@/lib/supabase';
-import { Lock, Loader2, Check, Bell, Globe, Moon, Trash2 } from 'lucide-react';
+import { Lock, Loader2, Check, Bell, Globe, Moon, Trash2, MessageCircle } from 'lucide-react';
 import { ErrorBanner } from '@/pages/auth/LoginPage';
 import { Link } from 'react-router-dom';
+import { linkSuporte, WHATSAPP_LABEL } from '@/lib/whatsapp';
 
 export function SettingsPage() {
   const { user, signOut } = useAuth();
@@ -37,19 +38,22 @@ export function SettingsPage() {
 
   const cancelSubscription = async () => {
     if (!user || !confirm('Deseja realmente cancelar sua assinatura? O acesso será bloqueado ao fim do período.')) return;
-    const { data: sub } = await supabase
-      .from('subscriptions')
-      .select('*')
-      .eq('user_id', user.id)
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .maybeSingle();
-    if (sub) {
-      await supabase
-        .from('subscriptions')
-        .update({ status: 'cancelled', cancelled_at: new Date().toISOString() })
-        .eq('id', sub.id);
+    setLoading(true);
+    setError('');
+    setOk('');
+    try {
+      // Usa a função SECURITY DEFINER (o UPDATE direto falhava por RLS).
+      const { data, error } = await supabase.rpc('cancel_my_subscription');
+      if (error) throw error;
+      const res = data as { ok?: boolean; mensagem?: string; erro?: string } | null;
+      if (res && res.ok === false) throw new Error(res.erro ?? 'Não foi possível cancelar.');
+      setOk(res?.mensagem ?? 'Assinatura cancelada.');
+      await new Promise((r) => setTimeout(r, 1200));
       window.location.reload();
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setLoading(false);
     }
   };
 

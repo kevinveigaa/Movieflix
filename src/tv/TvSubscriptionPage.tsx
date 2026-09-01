@@ -1,13 +1,14 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { Crown, Check, ArrowRight, AlertTriangle, CalendarClock } from 'lucide-react';
+import { Crown, Check, ArrowRight, AlertTriangle, CalendarClock, MessageCircle } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/context/AuthContext';
 import { hasActiveSubscription } from '@/context/AuthContext';
 import { diasRestantes, formatarVencimento, avisoVencimento, entitlementHighlights } from '@/lib/plans';
 import type { Plan } from '@/types';
 import { cn } from '@/lib/cn';
+import { linkContratarPlano, linkRenovarPlano } from '@/lib/whatsapp';
 
 /**
  * TvSubscriptionPage — planos e status da assinatura (TV).
@@ -15,8 +16,7 @@ import { cn } from '@/lib/cn';
  * - Se tem assinatura ativa: mostra plano, status, dias restantes,
  *   vencimento e aviso de proximidade (5/3/1 dias — mesmas regras do site).
  * - Se não tem: mostra os planos disponíveis (do banco `plans`) com
- *   botão para assinar (leva para a página de assinatura do site, que
- *   tem o fluxo Pix/Mercado Pago completo — mesma conta, mesma assinatura).
+ *   botão para contratar via WhatsApp (ativação manual pela equipe).
  * - Navegação 100% por controle remoto.
  */
 
@@ -37,6 +37,7 @@ export function TvSubscriptionPage() {
   const assinante = hasActiveSubscription(subscription);
   const dias = diasRestantes(subscription?.expires_at);
   const aviso = avisoVencimento(subscription?.expires_at);
+  const email = user?.email ?? '';
 
   if (loading) {
     return (
@@ -98,9 +99,16 @@ export function TvSubscriptionPage() {
               {aviso.mensagem}
             </div>
           ) : null}
-          <button data-tv-focusable tabIndex={0} className="tv-btn tv-btn-primary tv-btn-lg" onClick={() => setVerPlanos(true)}>
-            Renovar plano <ArrowRight className="tv-icon" />
-          </button>
+          <a
+            data-tv-focusable
+            tabIndex={0}
+            className="tv-btn tv-btn-primary tv-btn-lg"
+            href={linkRenovarPlano({ email, planoNome: subscription.plan?.name, planoCodigo: subscription.plan_code })}
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            Renovar pelo WhatsApp <ArrowRight className="tv-icon" />
+          </a>
         </div>
       ) : (
         <div className="tv-sub-empty">
@@ -131,14 +139,21 @@ export function TvSubscriptionPage() {
                       </li>
                     ))}
                   </ul>
-                  <button
+                  <a
                     data-tv-focusable
                     tabIndex={0}
                     className="tv-btn tv-btn-primary"
-                    onClick={() => navigate('/minha-assinatura')}
+                    href={linkContratarPlano({
+                      email,
+                      planoNome: plan.name,
+                      planoCodigo: plan.code,
+                      valorCents: plan.price_cents,
+                    })}
+                    target="_blank"
+                    rel="noopener noreferrer"
                   >
-                    Assinar <ArrowRight className="tv-icon" />
-                  </button>
+                    <MessageCircle className="tv-icon tv-icon-sm" /> Contratar pelo WhatsApp <ArrowRight className="tv-icon" />
+                  </a>
                 </div>
               ))}
           <button data-tv-focusable tabIndex={0} className="tv-btn tv-btn-ghost" onClick={() => setVerPlanos(false)}>
@@ -149,7 +164,7 @@ export function TvSubscriptionPage() {
 
       <p className="tv-sub-note">
         <CalendarClock className="tv-icon tv-icon-sm" />
-        O pagamento é processado pelo MovieFlix (Pix/Mercado Pago). Renovação antes do vencimento soma os dias restantes ao novo período.
+        O pagamento é feito pelo WhatsApp e a ativação é manual pela equipe MovieFlix. Renovação antes do vencimento soma os dias restantes ao novo período.
       </p>
     </div>
   );

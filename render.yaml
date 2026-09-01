@@ -19,3 +19,6 @@ services:
       # estar cadastrado na conta Creator do StreamBetter.
       - key: VITE_STREAMBETTER_PUBLIC_KEY
         value: sb_pk_19fe7c75a49585cd84ced96806703a2176768fa4f77a7ea4
+      # ASSINATURA: ativação MANUAL via WhatsApp (e-mail + plano). Nenhuma
+      # variável de Mercado Pago é necessária no fluxo atual. O admin ativa a
+      # conta pela função SQL activate_subscription_by_email no Supabase.

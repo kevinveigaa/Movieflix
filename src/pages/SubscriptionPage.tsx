@@ -1,17 +1,28 @@
-import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Link, useNavigate } from 'react-router-dom';
-import { Check, Crown, CreditCard, Loader2, Clock, CheckCircle2, ArrowUpCircle, ArrowDownCircle, AlertTriangle, RefreshCw } from 'lucide-react';
+import { Check, Crown, MessageCircle, AlertTriangle, CheckCircle2, CalendarClock, Clock, RefreshCw } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useAuth, hasActiveSubscription } from '@/context/AuthContext';
-import { createPixPayment, pollPaymentStatus } from '@/lib/mercadopago';
-import { PixModal } from '@/components/PixModal';
-import type { Plan, Payment } from '@/types';
+import type { Plan } from '@/types';
 import { entitlementHighlights, resolveSubscriptionPlan, diasRestantes, formatarVencimento, avisoVencimento } from '@/lib/plans';
+import { linkContratarPlano, linkRenovarPlano, linkSuporte, WHATSAPP_LABEL } from '@/lib/whatsapp';
+
+/**
+ * SubscriptionPage — ATIVAÇÃO MANUAL VIA WHATSAPP.
+ *
+ * O MovieFlix NÃO usa mais pagamento automático (Mercado Pago). O fluxo é:
+ *   1. Usuário escolhe um plano.
+ *   2. Clica em "CONTRATAR PELO WHATSAPP" → abre o WhatsApp do admin com a
+ *      mensagem pré-preenchida (e-mail da conta + plano + valor).
+ *   3. Admin recebe o pagamento manualmente e ativa a conta informando
+ *      SOMENTE e-mail + plano (função activate_subscription_by_email).
+ *   4. A assinatura passa a ATIVA imediatamente e o acesso é liberado.
+ *
+ * O frontend NUNCA ativa a assinatura sozinho — a ativação é feita no banco
+ * (SECURITY DEFINER, só admin). Aqui mostramos o estado real e os botões.
+ */
 
 export function SubscriptionPage() {
-  const { user, subscription, refreshSubscription } = useAuth();
-  const navigate = useNavigate();
+  const { user, subscription } = useAuth();
   const plans = useQuery({
     queryKey: ['plans'],
     queryFn: async () => {
@@ -22,81 +33,15 @@ export function SubscriptionPage() {
     retry: 1,
   });
 
-  const [pixOpen, setPixOpen] = useState(false);
-  const [currentPayment, setCurrentPayment] = useState<Payment | null>(null);
-  const [qrCode, setQrCode] = useState('');
-  const [qrBase64, setQrBase64] = useState('');
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState('');
-
   const active = hasActiveSubscription(subscription);
   const currentPlan = active ? resolveSubscriptionPlan(subscription, plans.data) : undefined;
-  const currentPrice = currentPlan?.price_cents ?? 0;
   const dias = diasRestantes(subscription?.expires_at);
   const venc = formatarVencimento(subscription?.expires_at);
   const aviso = avisoVencimento(subscription?.expires_at);
+  const email = user?.email ?? '';
 
-  function planAction(plan: Plan) {
-    if (!active) return { label: 'Assinar', disabled: false, kind: 'new' as const };
-    if (currentPlan && plan.id === currentPlan.id) {
-      return { label: 'Plano atual', disabled: true, kind: 'current' as const };
-    }
-    if (plan.price_cents > currentPrice) {
-      return { label: 'Fazer upgrade', disabled: false, kind: 'upgrade' as const };
-    }
-    return { label: 'Trocar para este plano', disabled: false, kind: 'downgrade' as const };
-  }
-
-  async function subscribe(plan: Plan) {
-    setError('');
-    if (!user) {
-      navigate('/login');
-      return;
-    }
-    setBusy(true);
-    try {
-      const res = await createPixPayment(plan);
-      setCurrentPayment(res.payment);
-      setQrCode(res.qr_code);
-      setQrBase64(res.qr_base64);
-      setPixOpen(true);
-      startPolling(res.payment.id);
-    } catch (err) {
-      setError((err as Error).message ?? 'Não foi possível gerar o pagamento.');
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  function startPolling(paymentId: string) {
-    const start = Date.now();
-    const interval = setInterval(async () => {
-      if (Date.now() - start > 1000 * 60 * 15) {
-        clearInterval(interval);
-        return;
-      }
-      // Revalida a assinatura a cada tick: se o webhook já ativou, a UI
-      // atualiza imediatamente (sem depender do status do pagamento).
-      const refreshed = await refreshSubscription();
-      if (hasActiveSubscription(refreshed)) {
-        clearInterval(interval);
-        setPixOpen(false);
-        return;
-      }
-      const p = await pollPaymentStatus(paymentId);
-      if (p && p.status === 'approved') {
-        clearInterval(interval);
-        setCurrentPayment(p);
-        await refreshSubscription();
-        setTimeout(() => {
-          setPixOpen(false);
-        }, 2500);
-      } else if (p && (p.status === 'rejected' || p.status === 'cancelled')) {
-        clearInterval(interval);
-        setCurrentPayment(p);
-      }
-    }, 4000);
-  }
+  const temAssinatura = !!subscription;
+  const expirada = temAssinatura && !active;
 
   return (
     <div className="container-app py-10">
@@ -108,10 +53,11 @@ export function SubscriptionPage() {
           <span className="text-gradient-strong">Escolha o seu plano</span>
         </h1>
         <p className="mx-auto mt-3 max-w-xl text-sm text-ink-300">
-          Assinatura mensal. Cancele quando quiser. Pagamento via Pix com confirmação automática.
+          Assinatura mensal. Cancele quando quiser. Ativação manual via WhatsApp após a confirmação do pagamento.
         </p>
       </div>
 
+      {/* ---- ASSINATURA ATIVA ---- */}
       {active && subscription && (
         <div className="mx-auto mt-8 max-w-2xl rounded-2xl border border-emerald-500/30 bg-emerald-500/10 p-5 text-center">
           <CheckCircle2 className="mx-auto h-8 w-8 text-emerald-400" />
@@ -120,11 +66,9 @@ export function SubscriptionPage() {
             Plano: <span className="font-semibold text-white">{currentPlan?.name ?? 'Ativo'}</span>
             {subscription.expires_at && ` • Válido até ${new Date(subscription.expires_at).toLocaleDateString('pt-BR')}`}
           </p>
-          {/* Dias restantes (cálculo real por UTC) */}
           <p className="mt-2 text-sm font-semibold text-emerald-300">
             {dias > 0 ? `Faltam ${dias} ${dias === 1 ? 'dia' : 'dias'} · Vencimento: ${venc}` : 'Assinatura expirada'}
           </p>
-          {/* Aviso automático de vencimento próximo (5/3/1 dia) */}
           {aviso.mensagem && (
             <div className={`mx-auto mt-4 flex max-w-lg items-start gap-2 rounded-xl border px-4 py-3 text-left text-xs font-medium ${
               aviso.nivel === '1'
@@ -141,26 +85,40 @@ export function SubscriptionPage() {
         </div>
       )}
 
-      {/* Sem assinatura ativa: aviso claro */}
-      {!active && subscription && (
+      {/* ---- ASSINATURA EXPIRADA ---- */}
+      {expirada && (
         <div className="mx-auto mt-8 max-w-2xl rounded-2xl border border-red-500/30 bg-red-500/10 p-5 text-center">
           <AlertTriangle className="mx-auto h-8 w-8 text-red-400" />
           <p className="mt-2 font-semibold text-white">Assinatura expirada</p>
           <p className="mt-1 text-sm text-ink-300">
-            {subscription.expires_at
+            {subscription?.expires_at
               ? `Seu plano venceu em ${formatarVencimento(subscription.expires_at)}. Renove abaixo para voltar a assistir.`
-              : 'Você não possui uma assinatura ativa. Escolha um plano abaixo para começar.'}
+              : 'Sua assinatura não está mais ativa. Renove abaixo para voltar a assistir.'}
+          </p>
+          <a
+            href={linkRenovarPlano({ email, planoNome: currentPlan?.name, planoCodigo: currentPlan?.code })}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="btn-primary mt-5 inline-flex items-center gap-2"
+          >
+            <MessageCircle className="h-4 w-4" /> RENOVAR PELO WHATSAPP
+          </a>
+        </div>
+      )}
+
+      {/* ---- SEM ASSINATURA (aguardando ativação) ---- */}
+      {!active && !expirada && (
+        <div className="mx-auto mt-8 max-w-2xl rounded-2xl border border-amber-500/30 bg-amber-500/10 p-5 text-center">
+          <Clock className="mx-auto h-8 w-8 text-amber-400" />
+          <p className="mt-2 font-semibold text-white">Assinatura necessária</p>
+          <p className="mt-1 text-sm text-ink-300">
+            Seu cadastro foi realizado, mas sua assinatura ainda não está ativa. Escolha um plano abaixo e
+            contrate via WhatsApp. Após a confirmação do pagamento, sua assinatura será ativada manualmente.
           </p>
         </div>
       )}
 
-      {error && (
-        <div className="mx-auto mt-6 max-w-xl rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-300">
-          {error}
-        </div>
-      )}
-
-      {/* Falha temporária ao consultar planos: nunca trava a página */}
+      {/* ---- Erro ao carregar planos ---- */}
       {plans.isError && (
         <div className="mx-auto mt-6 max-w-xl rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-200">
           Não foi possível carregar os planos. Verifique sua conexão e tente novamente.
@@ -191,7 +149,7 @@ export function SubscriptionPage() {
                   } ${isCurrent ? 'ring-2 ring-emerald-500/60' : ''}`}
                 >
                   {isCurrent && (
-                    <span className="absolute -top-3 right-4 rounded-full bg-emerald-500 px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-white">
+                    <span className="absolute -top-3 right-4 rounded-full bg-emerald-500 px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-black">
                       Seu plano
                     </span>
                   )}
@@ -204,7 +162,7 @@ export function SubscriptionPage() {
                   <p className="mt-1 text-sm text-ink-400">{plan.description}</p>
                   <div className="mt-4 flex items-baseline gap-1">
                     <span className="font-display text-4xl text-white">R$ {(plan.price_cents / 100).toFixed(2).replace('.', ',')}</span>
-                    <span className="text-sm text-ink-400">/ms</span>
+                    <span className="text-sm text-ink-400">/mês</span>
                   </div>
                   <ul className="mt-5 flex-1 space-y-2.5">
                     {[...entitlementHighlights(plan), ...(plan.features ?? [])].map((f) => (
@@ -213,65 +171,61 @@ export function SubscriptionPage() {
                       </li>
                     ))}
                   </ul>
-                  {(() => {
-                    const action = planAction(plan);
-                    return (
-                      <>
-                        {action.kind === 'upgrade' && (
-                          <p className="mt-5 text-xs text-roxo-300">
-                            Você paga apenas a diferença na próxima cobrança e o upgrade vale na hora.
-                          </p>
-                        )}
-                        <button
-                          onClick={() => subscribe(plan)}
-                          disabled={busy || action.disabled}
-                          className={
-                            (action.kind === 'upgrade' || featured ? 'btn-primary' : 'btn-outline') + ' mt-6 w-full'
-                          }
-                        >
-                          {busy ? (
-                            <Loader2 className="h-4 w-4 animate-spin" />
-                          ) : action.kind === 'upgrade' ? (
-                            <ArrowUpCircle className="h-4 w-4" />
-                          ) : action.kind === 'downgrade' ? (
-                            <ArrowDownCircle className="h-4 w-4" />
-                          ) : (
-                            <CreditCard className="h-4 w-4" />
-                          )}
-                          {action.label}
-                        </button>
-                      </>
-                    );
-                  })()}
+
+                  {isCurrent ? (
+                    <p className="btn-outline mt-6 w-full cursor-not-allowed opacity-60">
+                      <CheckCircle2 className="h-4 w-4" /> Plano atual
+                    </p>
+                  ) : (
+                    <a
+                      href={linkContratarPlano({
+                        email,
+                        planoNome: plan.name,
+                        planoCodigo: plan.code,
+                        valorCents: plan.price_cents,
+                      })}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className={(featured ? 'btn-primary' : 'btn-outline') + ' mt-6 flex w-full items-center justify-center gap-2'}
+                    >
+                      <MessageCircle className="h-4 w-4" />
+                      {active ? 'TROCAR PELO WHATSAPP' : 'CONTRATAR PELO WHATSAPP'}
+                    </a>
+                  )}
                 </div>
               );
             })}
       </div>
 
+      {/* ---- Explicação da ativação manual ---- */}
       <div className="mx-auto mt-12 max-w-2xl rounded-2xl border border-white/10 bg-ink-900/50 p-6">
         <h3 className="flex items-center gap-2 font-semibold text-white">
-          <Clock className="h-5 w-5 text-roxo-400" /> Como funciona o pagamento
+          <CalendarClock className="h-5 w-5 text-roxo-400" /> Como funciona a ativação
         </h3>
         <ol className="mt-3 space-y-2 text-sm text-ink-300">
-          <li>1. Escolha um plano e clique em Assinar.</li>
-          <li>2. Geramos um pagamento Pix com QR Code e o código Copia e Cola.</li>
-          <li>3. Pague no app do seu banco e a confirmação é automática.</li>
-          <li>4. Sua assinatura é liberada na hora.</li>
+          <li>1. Escolha um plano e clique em <strong className="text-white">CONTRATAR PELO WHATSAPP</strong>.</li>
+          <li>2. O WhatsApp abre com a mensagem preenchida (e-mail + plano + valor).</li>
+          <li>3. Converse com a equipe e realize o pagamento.</li>
+          <li>4. Após a confirmação, sua assinatura é ativada manualmente e o acesso é liberado na hora.</li>
           <li>5. Já é assinante? Você pode trocar de plano (upgrade ou downgrade) a qualquer momento.</li>
         </ol>
+        <div className="mt-4 rounded-xl border border-emerald-500/20 bg-emerald-500/5 px-4 py-3 text-xs text-emerald-200">
+          <strong>ATIVAÇÃO MANUAL</strong> — Após realizar o pagamento, sua assinatura será ativada manualmente pela equipe MovieFlix.
+        </div>
       </div>
 
-      <PixModal
-        open={pixOpen}
-        onClose={() => setPixOpen(false)}
-        qrCode={qrCode}
-        qrBase64={qrBase64}
-        payment={currentPayment}
-      />
+      {/* Suporte */}
+      <div className="mx-auto mt-6 max-w-2xl text-center">
+        <a
+          href={linkSuporte(email)}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex items-center gap-2 text-sm text-ink-300 transition hover:text-white"
+        >
+          <MessageCircle className="h-4 w-4 text-emerald-400" />
+          Falar com o {WHATSAPP_LABEL}
+        </a>
+      </div>
     </div>
   );
 }
-
-
-
-
