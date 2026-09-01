@@ -31,6 +31,7 @@ export function NativeHlsPlayer({
   // Embed OFICIAL do StreamBetter (com a chave pública), aberto DENTRO do
   // MovieFlix quando o resolver do backend não consegue a fonte direta.
   const [embedOficial, setEmbedOficial] = useState<string | null>(null);
+  const [verificacaoPendente, setVerificacaoPendente] = useState(false);
 
   useEffect(() => {
     onReadyRef.current = onReady;
@@ -50,6 +51,7 @@ export function NativeHlsPlayer({
     setStatus('carregando');
     setErroMsg(null);
     setEmbedOficial(null);
+    setVerificacaoPendente(false);
 
     // Caminho oficial de integração: o embed do provedor com a chave pública,
     // carregado pelo navegador do usuário no domínio autorizado. Não é bypass —
@@ -59,6 +61,9 @@ export function NativeHlsPlayer({
       if (cancelado) return false;
       if (!ehEmbedStreamBetter(embedUrl)) return false;
       setEmbedOficial(comChavePublica(embedUrl, startSeconds));
+      // O iframe executa a verificação legítima do provedor no navegador.
+      // Não tentamos automatizar nem contornar esse processo.
+      setVerificacaoPendente(true);
       setStatus('oficial');
       onErrorRef.current?.(`fallback_embed_oficial:${codigo}`);
       return true;
@@ -162,16 +167,22 @@ export function NativeHlsPlayer({
             Fica dentro do MovieFlix (sem allow-popups e sem
             allow-top-navigation → o provedor não redireciona o usuário). */}
         <iframe
-          title="Player"
+          title="Player StreamBetter"
           src={embedOficial}
           data-mf-player
           data-player-src={embedOficial}
           className="h-full w-full border-0"
           allow="autoplay; fullscreen; encrypted-media; picture-in-picture"
           allowFullScreen
-          referrerPolicy="origin"
+          referrerPolicy="strict-origin-when-cross-origin"
           sandbox="allow-scripts allow-same-origin allow-forms allow-presentation"
+          onLoad={() => setVerificacaoPendente(false)}
         />
+        {verificacaoPendente && (
+          <div className="pointer-events-none absolute inset-x-0 bottom-0 bg-black/70 px-3 py-2 text-center text-xs text-zinc-300">
+            O StreamBetter pode solicitar uma verificação de segurança no próprio player.
+          </div>
+        )}
       </div>
     );
   }
