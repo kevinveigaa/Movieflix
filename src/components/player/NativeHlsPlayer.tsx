@@ -26,6 +26,11 @@ export function NativeHlsPlayer({
   const hlsRef = useRef<Hls | null>(null);
   const onReadyRef = useRef(onReady);
   const onErrorRef = useRef(onError);
+  // TRAVA ANTI-LOOP: o fallback do embed oficial do StreamBetter só pode ser
+  // tentado UMA vez por sessão de reprodução. Sem essa trava, um erro fatal do
+  // HLS (ou uma falha do resolver) re-disparava o fallback em ciclo infinito
+  // (nativo → embed → erro → nativo → ...), travando o player em recarregamentos.
+  const fallbackTentadoRef = useRef(false);
   const [status, setStatus] = useState<'carregando' | 'pronto' | 'erro' | 'oficial'>('carregando');
   const [erroMsg, setErroMsg] = useState<string | null>(null);
   // Embed OFICIAL do StreamBetter (com a chave pública), aberto DENTRO do
@@ -54,6 +59,9 @@ export function NativeHlsPlayer({
     setErroMsg(null);
     setEmbedOficial(null);
     setVerificacaoPendente(false);
+    // Nova sessão de reprodução: libera a trava para que o fallback possa ser
+    // tentado UMA vez neste ciclo (e apenas uma).
+    fallbackTentadoRef.current = false;
 
     // Caminho oficial de integração: o embed do provedor com a chave pública,
     // carregado pelo navegador do usuário no domínio autorizado. Não é bypass —
@@ -62,6 +70,10 @@ export function NativeHlsPlayer({
     const usarEmbedOficial = (codigo: string) => {
       if (cancelado) return false;
       if (!ehEmbedStreamBetter(embedUrl)) return false;
+      // TRAVA ANTI-LOOP: se o fallback já foi tentado nesta sessão, NÃO tenta
+      // de novo — cai no estado de erro estável (sem re-triggerar o embed).
+      if (fallbackTentadoRef.current) return false;
+      fallbackTentadoRef.current = true;
       setEmbedOficial(comChavePublica(embedUrl, startSeconds));
       embedAtivo = true;
       // O iframe executa a verificação legítima do provedor no navegador.
@@ -112,9 +124,27 @@ export function NativeHlsPlayer({
               // O navegador pode ainda não aceitar currentTime neste evento.
             }
           }
-          // O autoplay pode ser bloqueado pelo dispositivo; os controles
-          // nativos continuam disponíveis para iniciar manualmente.
-          currentVideo.play().catch(() => undefined);
+          // AUTOPLAY ROBUSTO: tenta reproduzir com som; se o navegador bloquear
+          // (política de autoplay), tenta muted autoplay — que é sempre
+          // permitido — e restaura o som no primeiro toque/play do usuário.
+          const tentarAutoplay = () => {
+            const p = currentVideo.play();
+            if (p) {
+              p.catch(() => {
+                currentVideo.muted = true;
+                currentVideo.play().catch(() => undefined);
+              });
+            }
+          };
+          tentarAutoplay();
+          // Se o autoplay foi forçado mudo, restaura o som quando o usuário
+          // interagir com o player (play manual / clique).
+          const restaurarSom = () => {
+            if (currentVideo.muted) {
+              currentVideo.muted = false;
+            }
+          };
+          currentVideo.addEventListener('play', restaurarSom, { once: true });
         };
 
         if (Hls.isSupported()) {
