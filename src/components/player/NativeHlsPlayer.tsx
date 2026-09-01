@@ -54,7 +54,6 @@ export function NativeHlsPlayer({
     const currentVideo = video;
 
     let cancelado = false;
-    let embedAtivo = false;
     setStatus('carregando');
     setErroMsg(null);
     setEmbedOficial(null);
@@ -75,7 +74,6 @@ export function NativeHlsPlayer({
       if (fallbackTentadoRef.current) return false;
       fallbackTentadoRef.current = true;
       setEmbedOficial(comChavePublica(embedUrl, startSeconds));
-      embedAtivo = true;
       // O iframe executa a verificação legítima do provedor no navegador.
       // Não tentamos automatizar nem contornar esse processo.
       setVerificacaoPendente(true);
@@ -181,21 +179,16 @@ export function NativeHlsPlayer({
 
     iniciar();
 
-    // Não é possível inspecionar a página do provedor dentro de um iframe de
-    // outro domínio. Para não deixar a pessoa presa em recarregamentos do
-    // desafio do provedor, interrompemos apenas a apresentação após 25s.
-    // A nova tentativa é sempre manual, sem automatizar a verificação.
-    const limiteVerificacao = window.setTimeout(() => {
-      if (!cancelado && embedAtivo) {
-        setStatus('erro');
-        setEmbedOficial(null);
-        setVerificacaoPendente(false);
-        setErroMsg('A verificação do StreamBetter não foi concluída. Tente novamente ou use outra fonte quando disponível.');
-      }
-    }, 25_000);
+    // A verificação anti-bot do provedor (Cloudflare Turnstile) roda DENTRO do
+    // embed oficial e é legítima: o usuário precisa completá-la para o vídeo
+    // carregar. NÃO forçamos o fechamento do embed após um tempo — isso
+    // interrompia a verificação no meio e criava o ciclo percebido como loop
+    // (embed → verificação → erro → tentar de novo → embed → ...). O embed
+    // permanece aberto até o usuário concluir a verificação ou sair da página.
+    // A trava anti-loop (fallbackTentadoRef) garante que o embed só é aberto
+    // UMA vez por sessão; a nova tentativa é sempre manual.
 
     return () => {
-      window.clearTimeout(limiteVerificacao);
       cancelado = true;
       if (hlsRef.current) {
         hlsRef.current.destroy();
