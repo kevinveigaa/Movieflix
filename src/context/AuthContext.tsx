@@ -18,7 +18,7 @@ interface AuthState {
   signOut: () => Promise<void>;
   resetPassword: (email: string) => Promise<void>;
   refreshProfile: () => Promise<void>;
-  refreshSubscription: () => Promise<void>;
+  refreshSubscription: () => Promise<Subscription | null>;
 }
 
 const AuthContext = createContext<AuthState | undefined>(undefined);
@@ -85,7 +85,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }
 
-  async function loadSubscription(userId: string) {
+  async function loadSubscription(userId: string): Promise<Subscription | null> {
     const { data } = await supabase
       .from('subscriptions')
       .select('*')
@@ -93,7 +93,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       .order('created_at', { ascending: false })
       .limit(1)
       .maybeSingle();
-    setSubscription(data as Subscription | null);
+    const sub = (data as Subscription | null) ?? null;
+    setSubscription(sub);
+    return sub;
   }
 
   useEffect(() => {
@@ -170,7 +172,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (session?.user.id) await loadProfile(session.user.id);
       },
       async refreshSubscription() {
-        if (session?.user.id) await loadSubscription(session.user.id);
+        if (session?.user.id) {
+          return loadSubscription(session.user.id);
+        }
+        return null;
       },
     }),
     // eslint-disable-next-line react-hooks/exhaustive-deps

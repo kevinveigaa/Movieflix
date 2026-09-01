@@ -75,6 +75,14 @@ export function SubscriptionPage() {
         clearInterval(interval);
         return;
       }
+      // Revalida a assinatura a cada tick: se o webhook já ativou, a UI
+      // atualiza imediatamente (sem depender do status do pagamento).
+      const refreshed = await refreshSubscription();
+      if (hasActiveSubscription(refreshed)) {
+        clearInterval(interval);
+        setPixOpen(false);
+        return;
+      }
       const p = await pollPaymentStatus(paymentId);
       if (p && p.status === 'approved') {
         clearInterval(interval);

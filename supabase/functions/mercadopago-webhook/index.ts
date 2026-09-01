@@ -6,94 +6,168 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'Content-Type, Authorization, apikey',
 };
 
+// Log estruturado (sem dados sensíveis: nunca loga token, chave ou email).
+function log(...args: unknown[]) {
+  console.log('[mercadopago-webhook]', ...args);
+}
+function logError(...args: unknown[]) {
+  console.error('[mercadopago-webhook]', ...args);
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') {
-    return new Response(null, {
-      status: 200,
-      headers: corsHeaders,
-    });
+    return new Response(null, { status: 200, headers: corsHeaders });
   }
 
   try {
-    const supabase = createClient(
-      Deno.env.get('SUPABASE_URL')!,
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
-    );
+    const serviceRole = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+    const supabaseUrl = Deno.env.get('SUPABASE_URL');
+    const token = Deno.env.get('MERCADO_PAGO_ACCESS_TOKEN');
 
-    const body = await req.json();
-
-    const paymentId = String(
-      body?.data?.id ??
-      body?.id ??
-      ''
-    );
-
-    if (!paymentId) {
-      return new Response(JSON.stringify({ ok: true }), {
-        headers: {
-          ...corsHeaders,
-          'Content-Type': 'application/json',
-        },
+    if (!serviceRole || !supabaseUrl || !token) {
+      logError('Configuração ausente: SUPABASE_SERVICE_ROLE_KEY, SUPABASE_URL ou MERCADO_PAGO_ACCESS_TOKEN não definidos.');
+      return new Response(JSON.stringify({ error: 'Configuração ausente no servidor' }), {
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
 
-    const token = Deno.env.get('MERCADO_PAGO_ACCESS_TOKEN')!;
+    const supabase = createClient(supabaseUrl, serviceRole);
 
-    const mpRes = await fetch(
-      `https://api.mercadopago.com/v1/payments/${paymentId}`,
-      {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      }
-    );
+    const body = await req.json();
+    const paymentId = String(body?.data?.id ?? body?.id ?? '');
 
+    if (!paymentId) {
+      log('Notificação sem payment id (ignorada).');
+      return new Response(JSON.stringify({ ok: true }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    // Consulta o pagamento na API do Mercado Pago (fonte da verdade).
+    const mpRes = await fetch(`https://api.mercadopago.com/v1/payments/${paymentId}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!mpRes.ok) {
+      const txt = await mpRes.text();
+      logError('Falha ao consultar pagamento no MP:', mpRes.status, txt.slice(0, 200));
+      return new Response(JSON.stringify({ error: 'Falha ao consultar pagamento' }), {
+        status: 502,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
     const mp = await mpRes.json();
 
     const status = mp.status;
+    const mapped = status === 'approved' ? 'approved' : status === 'rejected' ? 'rejected' : 'pending';
 
-    const mapped =
-      status === 'approved'
-        ? 'approved'
-        : status === 'rejected'
-        ? 'rejected'
-        : 'pending';
-
-    const { data: payment } = await supabase
+    // ---- 1) Atualiza o pagamento na tabela `payments` ----
+    // Guarda de idempotência: se o pagamento JÁ está 'approved' e esta
+    // notificação também é 'approved', significa que o webhook já processou
+    // este pagamento antes (evento duplicado). NÃO renovamos a assinatura de
+    // novo — apenas confirmamos e retornamos, evitando adicionar dias duas vezes.
+    const { data: antes } = await supabase
       .from('payments')
-      .update({
-        status: mapped,
-        updated_at: new Date().toISOString(),
-      })
-      .eq('payment_id', paymentId)
+      .select('status')
+      .eq('provider_payment_id', paymentId)
+      .maybeSingle();
+
+    const { data: payment, error: payErr } = await supabase
+      .from('payments')
+      .update({ status: mapped, updated_at: new Date().toISOString() })
+      .eq('provider_payment_id', paymentId)
       .select()
       .maybeSingle();
 
-    if (mapped === 'approved' && payment) {
-      // ── RENOVAÇÃO/COMPRA: preserva dias restantes se a assinatura ainda
-      //    estiver ativa. Regra (pedido do dono):
-      //      * Assinatura ativa (não expirada) → novaData = dataAtualDeVencimento
-      //        + duraçãoDoNovoPlano (ex.: 5 dias restantes + 30 = 35).
-      //      * Expirada ou inexistente           → novaData = agora + duração.
-      //    A duração vem da tabela `plans` (dias), com fallback de 30 dias.
+    if (payErr) {
+      logError('Erro ao atualizar payments:', payErr.message);
+      return new Response(JSON.stringify({ error: 'Falha ao atualizar pagamento' }), {
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
 
-      // Duração em dias do plano (coluna `duration_days` se existir, senão 30).
+    // Evento duplicado já processado: não re-ativa nem estende dias de novo.
+    if (mapped === 'approved' && antes?.status === 'approved') {
+      log('Webhook duplicado (pagamento já aprovado) — ignorado para evitar dias extras.');
+      return new Response(JSON.stringify({ ok: true }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    // Fallback: se não achou por provider_payment_id, tenta por external_reference
+    // (metadata) e depois pelo id legado `payment_id`.
+    let payment = payment;
+    if (!payment) {
+      const extRef = mp.external_reference;
+      if (extRef) {
+        const { data: byRef } = await supabase
+          .from('payments')
+          .update({ status: mapped, updated_at: new Date().toISOString() })
+          .eq('external_reference', extRef)
+          .select()
+          .maybeSingle();
+        payment = byRef;
+      }
+    }
+    if (!payment) {
+      const { data: byLegacy } = await supabase
+        .from('payments')
+        .update({ status: mapped, updated_at: new Date().toISOString() })
+        .eq('payment_id', paymentId)
+        .select()
+        .maybeSingle();
+      payment = byLegacy;
+    }
+
+    // Se ainda não achou o pagamento, tenta criar a assinatura a partir do
+    // metadata do próprio pagamento do MP (fallback para pagamentos criados
+    // antes da migration canônica).
+    if (!payment && mapped === 'approved') {
+      const meta = mp.metadata ?? {};
+      const userId = meta.user_id;
+      const planCode = meta.plan_code;
+      const planId = meta.plan_id;
+      if (userId && planCode) {
+        log('Pagamento aprovado sem registro local; criando assinatura via metadata.');
+        const { data: plan } = await supabase
+          .from('plans')
+          .select('id, code, duration_days')
+          .eq('code', planCode)
+          .maybeSingle();
+        const duracaoDias = plan?.duration_days && Number(plan.duration_days) > 0 ? Number(plan.duration_days) : 30;
+        const agora = new Date();
+        const expires = new Date(agora.getTime());
+        expires.setDate(expires.getDate() + duracaoDias);
+        await supabase.from('subscriptions').insert({
+          user_id: userId,
+          plan_code: planCode,
+          plan_id: plan?.id ?? planId ?? null,
+          status: 'active',
+          starts_at: agora.toISOString(),
+          expires_at: expires.toISOString(),
+        });
+        return new Response(JSON.stringify({ ok: true }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+    }
+
+    if (mapped === 'approved' && payment) {
+      // ---2) Duração do plano (fallback 30 dias) ---
       const { data: plan } = await supabase
         .from('plans')
         .select('id, code, duration_days')
         .eq('code', payment.plan_code)
         .maybeSingle();
-      const duracaoDias =
-        plan && plan.duration_days && Number(plan.duration_days) > 0
-          ? Number(plan.duration_days)
-          : 30;
+      const duracaoDias = plan?.duration_days && Number(plan.duration_days) > 0 ? Number(plan.duration_days) : 30;
 
       const agora = new Date();
 
-      // Assinatura atual do usuário (a mais recente).
+      // ---3) Assinatura atual do usuário (a mais recente) ---
       const { data: atual } = await supabase
         .from('subscriptions')
-        .select('id, status, expires_at')
+        .select('id, status, expires_at, starts_at')
         .eq('user_id', payment.user_id)
         .order('created_at', { ascending: false })
         .limit(1)
@@ -105,61 +179,56 @@ Deno.serve(async (req: Request) => {
         atual.expires_at &&
         new Date(atual.expires_at).getTime() > agora.getTime();
 
-      // base = vencimento atual se ainda ativo; senão agora.
+      // Renovação antecipada: estende a partir do vencimento atual (não sobrescreve).
       const base = ativaAinda && atual.expires_at ? new Date(atual.expires_at) : agora;
       const expires = new Date(base.getTime());
       expires.setDate(expires.getDate() + duracaoDias);
 
-      // starts_at: mantém o início original se ainda ativo (renovação estende
-      // o período), ou usa agora para uma nova assinatura.
       const startsAt = ativaAinda && atual.starts_at ? atual.starts_at : agora.toISOString();
 
-      // Upsert SEM duplicidade: se já existe linha para este usuário + plano,
-      // atualiza (novo vencimento estendido); senão cria. A coluna `user_id`
-      // precisa ter unique constraint — sem ela o upsert insere em vez de
-      // atualizar (comportamento padrão do PostgREST). Para máxima segurança
-      // contra duplicidade em bancos antigos, primeiro tentamos atualizar a
-      // linha mais recente do usuário; se não existir, inserimos.
-      const alvo = atual && atual.id ? atual.id : null;
       const assinatura = {
         user_id: payment.user_id,
         plan_code: payment.plan_code,
-        plan_id: plan?.id ?? null,
+        plan_id: plan?.id ?? payment.plan_id ?? null,
         payment_id: payment.id,
         status: 'active',
         starts_at: startsAt,
         expires_at: expires.toISOString(),
       };
 
+      // ---4) Upsert idempotente: atualiza a linha mais recente ou insere ---
+      const alvo = atual && atual.id ? atual.id : null;
       if (alvo) {
-        await supabase.from('subscriptions').update(assinatura).eq('id', alvo);
+        const { error: updErr } = await supabase.from('subscriptions').update(assinatura).eq('id', alvo);
+        if (updErr) {
+          logError('Erro ao atualizar assinatura:', updErr.message);
+          return new Response(JSON.stringify({ error: 'Falha ao ativar assinatura' }), {
+            status: 500,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          });
+        }
       } else {
-        await supabase.from('subscriptions').insert(assinatura);
+        const { error: insErr } = await supabase.from('subscriptions').insert(assinatura);
+        if (insErr) {
+          logError('Erro ao criar assinatura:', insErr.message);
+          return new Response(JSON.stringify({ error: 'Falha ao criar assinatura' }), {
+            status: 500,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          });
+        }
       }
+
+      log('Assinatura ativada para usuário', payment.user_id, 'plano', payment.plan_code, 'vence', expires.toISOString());
     }
 
-    return new Response(
-      JSON.stringify({ ok: true }),
-      {
-        headers: {
-          ...corsHeaders,
-          'Content-Type': 'application/json',
-        },
-      }
-    );
-
+    return new Response(JSON.stringify({ ok: true }), {
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
   } catch (err) {
-    return new Response(
-      JSON.stringify({
-        error: String(err)
-      }),
-      {
-        status: 500,
-        headers: {
-          ...corsHeaders,
-          'Content-Type': 'application/json',
-        },
-      }
-    );
+    logError('Erro inesperado:', (err as Error).message);
+    return new Response(JSON.stringify({ error: String(err) }), {
+      status: 500,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
   }
 });

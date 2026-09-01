@@ -39,3 +39,17 @@ export async function pollPaymentStatus(paymentId: string): Promise<Payment | nu
   if (error) return null;
   return data as Payment | null;
 }
+
+/**
+ * Consulta o status de um pagamento pelo ID do provedor (Mercado Pago).
+ * Usado quando o webhook atualiza a linha por provider_payment_id.
+ */
+export async function pollPaymentByProviderId(providerPaymentId: string): Promise<Payment | null> {
+  const { data, error } = await supabase
+    .from('payments')
+    .select('*')
+    .eq('provider_payment_id', providerPaymentId)
+    .maybeSingle();
+  if (error) return null;
+  return data as Payment | null;
+}
