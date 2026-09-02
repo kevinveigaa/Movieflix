@@ -23,8 +23,8 @@ import { ehEmbedStreamBetter } from '@/lib/streamEmbed';
  * nenhuma. O iframe fica no ar até o provedor responder ou o usuário sair.
  *
  * FULLSCREEN: o iframe tem allowfullscreen + allow="autoplay; encrypted-media;
- * picture-in-picture; fullscreen". O botão do MovieFlix também chama a
- * Fullscreen API real (com fallback CSS para WebView/Android).
+ * picture-in-picture; fullscreen". O botão do MovieFlix (na barra de controle
+ * inferior) chama a Fullscreen API real, com fallback CSS para WebView/Android.
  *
  * NÃO usamos sandbox: o embed oficial do StreamBetter precisa de recursos
  * (cookies, storage, mídia) que o sandbox bloquearia. A proteção contra
@@ -64,9 +64,9 @@ export function StreamBetterEmbed({
     return () => document.removeEventListener('fullscreenchange', onFsChange);
   }, []);
 
-  // Alterna a tela cheia do CONTÊINER do player (funciona no browser e no
-  // WebView do app via WebChromeClient.onShowCustomView). Fallback CSS quando
-  // a Fullscreen API nativa não existe no ambiente.
+  // Alterna a tela cheia do CONTÊINER do player (funciona no browser e, no
+  // WebView/Android, cai no fallback CSS quando a Fullscreen API nativa não
+  // consegue engatar — ex.: fullscreen de elemento que não é <video>).
   const toggleFullscreen = useCallback(() => {
     const el = containerRef.current;
     if (!el) return;
@@ -77,30 +77,44 @@ export function StreamBetterEmbed({
     };
     const elAny = el as HTMLElement & { webkitRequestFullscreen?: () => Promise<void> | void };
 
-    const emFullscreen = Boolean(document.fullscreenElement || doc.webkitFullscreenElement);
+    const emFullscreenNativo = Boolean(document.fullscreenElement || doc.webkitFullscreenElement);
+    const emFallback = el.classList.contains('mf-fs-fallback');
 
+    const aplicarFallback = () => {
+      el.classList.add('mf-fs-fallback');
+      setIsFullscreen(true);
+    };
+
+    // Sair: remove o fallback CSS e/ou sai da Fullscreen API nativa.
+    if (emFullscreenNativo || emFallback) {
+      if (emFallback) {
+        el.classList.remove('mf-fs-fallback');
+        setIsFullscreen(false);
+      }
+      if (document.fullscreenElement) {
+        document.exitFullscreen().catch(() => undefined);
+      } else if (doc.webkitFullscreenElement && doc.webkitExitFullscreen) {
+        doc.webkitExitFullscreen();
+      }
+      return;
+    }
+
+    // Entrar: tenta a Fullscreen API nativa. Em WebView/Android, requestFullscreen
+    // de um elemento que não é <video> rejeita (Promise) — o catch assíncrono
+    // aplica o fallback CSS para o player ainda cobrir a tela, em vez de o
+    // botão "não fazer nada".
     try {
-      if (emFullscreen) {
-        if (document.exitFullscreen) {
-          document.exitFullscreen();
-        } else if (doc.webkitExitFullscreen) {
-          doc.webkitExitFullscreen();
-        }
+      const req = el.requestFullscreen
+        ? el.requestFullscreen()
+        : elAny.webkitRequestFullscreen?.();
+      if (req && typeof req.catch === 'function') {
+        req.catch(() => aplicarFallback());
       } else {
-        if (el.requestFullscreen) {
-          el.requestFullscreen();
-        } else if (elAny.webkitRequestFullscreen) {
-          elAny.webkitRequestFullscreen();
-        } else {
-          // Fallback CSS: sem Fullscreen API nativa, cobre a tela.
-          el.classList.toggle('mf-fs-fallback');
-          setIsFullscreen(el.classList.contains('mf-fs-fallback'));
-        }
+        aplicarFallback();
       }
     } catch {
-      // Se a API falhar (ex.: permissão), tenta o fallback CSS.
-      el.classList.toggle('mf-fs-fallback');
-      setIsFullscreen(el.classList.contains('mf-fs-fallback'));
+      // Se a API falhar de forma síncrona (ex.: permissão), usa o fallback CSS.
+      aplicarFallback();
     }
   }, []);
 
@@ -165,16 +179,18 @@ export function StreamBetterEmbed({
         onLoad={() => setStatus('player')}
       />
 
-      {/* Botão de tela cheia do MovieFlix — Fullscreen API real com fallback. */}
-      <button
-        type="button"
-        onClick={toggleFullscreen}
-        aria-label={isFullscreen ? 'Sair da tela cheia' : 'Tela cheia'}
-        title={isFullscreen ? 'Sair da tela cheia' : 'Tela cheia'}
-        className="absolute right-3 top-3 z-20 flex h-9 w-9 items-center justify-center rounded-full bg-black/50 text-white opacity-80 transition hover:bg-black/70 hover:opacity-100"
-      >
-        {isFullscreen ? <Minimize className="h-4 w-4" /> : <Maximize className="h-4 w-4" />}
-      </button>
+      {/* Barra de controle inferior do MovieFlix — botão de tela cheia. */}
+      <div className="pointer-events-none absolute inset-x-0 bottom-0 z-20 flex items-center justify-end bg-gradient-to-t from-black/70 via-black/20 to-transparent px-3 pb-2.5 pt-8">
+        <button
+          type="button"
+          onClick={toggleFullscreen}
+          aria-label={isFullscreen ? 'Sair da tela cheia' : 'Tela cheia'}
+          title={isFullscreen ? 'Sair da tela cheia' : 'Tela cheia'}
+          className="pointer-events-auto flex h-9 w-9 items-center justify-center rounded-full bg-black/50 text-white opacity-90 transition hover:bg-black/70 hover:opacity-100"
+        >
+          {isFullscreen ? <Minimize className="h-4 w-4" /> : <Maximize className="h-4 w-4" />}
+        </button>
+      </div>
     </div>
   );
 }
