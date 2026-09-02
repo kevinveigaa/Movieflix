@@ -14,6 +14,8 @@ export interface HeroItem {
   language?: string | null;
   category?: string | null;
   type?: string | null;
+  vote_average?: number | null;
+  year?: string | null;
 }
 
 export function HeroBanner({ items }: { items: HeroItem[] }) {
@@ -97,6 +99,19 @@ export function HeroBanner({ items }: { items: HeroItem[] }) {
               <p className="text-gradient-strong font-display text-lg tracking-wide sm:text-xl">
                 Assista agora
               </p>
+
+              {/* Nota + ano (dados reais do catálogo) */}
+              {(atual.vote_average || atual.year) && (
+                <div className="flex flex-wrap items-center gap-3 text-sm text-gray-200">
+                  {atual.vote_average ? (
+                    <span className="inline-flex items-center gap-1 font-semibold">
+                      <span className="text-amber-400">★</span>
+                      {Number(atual.vote_average).toFixed(1)}
+                    </span>
+                  ) : null}
+                  {atual.year ? <span className="text-zinc-300">{atual.year}</span> : null}
+                </div>
+              )}
 
               {atual.description && (
                 <p className="line-clamp-2 max-w-xl text-sm text-gray-300 sm:line-clamp-3 sm:text-base">

@@ -39,7 +39,7 @@ export function PosterCard({
         className
       )}
     >
-      <div className="relative aspect-[2/3] w-full overflow-hidden rounded-xl bg-zinc-900 shadow-md shadow-black/30 ring-1 ring-white/10 transition duration-300 lg:group-hover:ring-roxo-500/50">
+      <div className="relative aspect-[2/3] w-full overflow-hidden rounded-xl bg-zinc-900 shadow-md shadow-black/30 ring-1 ring-white/10 transition duration-300 lg:group-hover:ring-roxo-500/60 lg:group-hover:shadow-xl lg:group-hover:shadow-roxo-900/30">
         <img
           src={title?.poster_url}
           alt={title?.title}
@@ -47,7 +47,7 @@ export function PosterCard({
           onError={(e) => {
             (e.target as HTMLImageElement).style.display = "none";
           }}
-          className="h-full w-full object-cover transition duration-300 lg:group-hover:scale-105"
+          className="h-full w-full object-cover transition duration-300 lg:group-hover:scale-[1.04]"
         />
 
         {/* Badge superior esquerdo: Dublado PT-BR / Legendado (dados reais) */}

@@ -134,7 +134,7 @@
   border-radius: 0.5rem;
   box-shadow:
     0 0 0 1.5px rgba(223, 10, 21, 0.95),
-    0 0 16px rgba(124, 58, 237, 0.6);
+    0 0 18px rgba(124, 58, 237, 0.55);
   transition: box-shadow 0.15s ease, transform 0.15s ease;
   z-index: 30;
   position: relative;

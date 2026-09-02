@@ -119,11 +119,12 @@ export function TitleDetailPage() {
         }}
       >
 
-        <div className="absolute inset-0 bg-gradient-to-t from-black via-black/50 to-transparent" />
+        <div className="absolute inset-0 bg-gradient-to-t from-black via-black/60 to-black/20" />
 
         <button
           onClick={() => navigate(-1)}
-          className="absolute top-5 left-5 rounded-full bg-black/60 p-3"
+          aria-label="Voltar"
+          className="absolute top-5 left-5 rounded-full bg-black/60 p-3 backdrop-blur transition hover:bg-black/80"
         >
           <ArrowLeft />
         </button>
@@ -184,9 +185,9 @@ export function TitleDetailPage() {
                 navigate(watchUrl);
               }
             }}
-            className="mt-5 flex w-fit items-center gap-2 rounded-lg bg-white px-5 py-3 font-bold text-black"
+            className="mt-5 flex w-fit items-center gap-2 rounded-xl bg-gradient-to-r from-brand-600 via-roxo-600 to-roxo-600 px-6 py-3 font-bold text-white shadow-lg shadow-roxo-900/40 ring-1 ring-white/20 transition hover:from-brand-500 hover:via-roxo-500 hover:to-roxo-500 active:scale-[0.98]"
           >
-            <Play fill="black" />
+            <Play fill="white" />
             {canResume && historyRow ? `Continuar de ${formatTime(historyRow.position_seconds)}` : "Assistir agora"}
           </button>
 

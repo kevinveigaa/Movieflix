@@ -37,6 +37,7 @@
  */
 
 import { isAllowedExternalUrl } from '@/lib/whatsapp';
+import { ehDeepLinkMovieFlix } from '@/lib/deepLink';
 
 // Domínios de verificação do Cloudflare/Turnstile — NUNCA devem ser tocados
 // (nem fechados, nem restaurados, nem sanitizados). O desafio roda DENTRO do
@@ -362,6 +363,10 @@ export function instalarBloqueioAnuncios(): () => void {
           }
           return win;
         }
+        // Exceção: deep link do MovieFlix (movieflix://) — abre o app nativo.
+        if (ehDeepLinkMovieFlix(u.href)) {
+          return openOriginal(...args);
+        }
         if (!ehDominioPermitido(u.href)) {
           return null;
         }
@@ -403,6 +408,10 @@ export function instalarBloqueioAnuncios(): () => void {
       writable: true,
       value: function assign(url: string | URL) {
         const alvo = String(url);
+        // Deep link do MovieFlix (movieflix://) — permite abrir o app nativo.
+        if (ehDeepLinkMovieFlix(alvo)) {
+          return assignOriginal ? assignOriginal.call(window.location, url) : undefined;
+        }
         try {
           const u = new URL(alvo, window.location.href);
           if (!ehDominioPermitido(u.href)) {
@@ -422,6 +431,10 @@ export function instalarBloqueioAnuncios(): () => void {
       writable: true,
       value: function replace(url: string | URL) {
         const alvo = String(url);
+        // Deep link do MovieFlix (movieflix://) — permite abrir o app nativo.
+        if (ehDeepLinkMovieFlix(alvo)) {
+          return replaceOriginal ? replaceOriginal.call(window.location, url) : undefined;
+        }
         try {
           const u = new URL(alvo, window.location.href);
           if (!ehDominioPermitido(u.href)) {
@@ -444,6 +457,12 @@ export function instalarBloqueioAnuncios(): () => void {
       },
       set(v: string) {
         const alvo = String(v);
+        // Deep link do MovieFlix (movieflix://) — permite abrir o app nativo.
+        if (ehDeepLinkMovieFlix(alvo)) {
+          if (hrefOriginal?.set) hrefOriginal.set.call(window.location, v);
+          else window.location.assign(alvo);
+          return;
+        }
         try {
           const u = new URL(alvo, window.location.href);
           if (ehDominioPermitido(u.href)) {
@@ -469,6 +488,8 @@ export function instalarBloqueioAnuncios(): () => void {
     if (!href) return;
     if (href.startsWith('/') || href.startsWith('#') || href.startsWith('?')) return;
     if (ehDominioPermitido(href)) return;
+    // Deep link do MovieFlix (movieflix://) — permite abrir o app nativo.
+    if (ehDeepLinkMovieFlix(href)) return;
     // Exceção ÚNICA e segura: WhatsApp OFICIAL do MovieFlix (assinatura/suporte).
     // Qualquer outro link externo que não seja domínio permitido = anúncio → cancela.
     if (isAllowedExternalUrl(href)) return;
