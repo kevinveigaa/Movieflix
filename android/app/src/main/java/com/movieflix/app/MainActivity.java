@@ -209,6 +209,58 @@ public class MainActivity extends BridgeActivity {
                 // Bloqueia TODOS os downloads (o app não oferece download de arquivos).
             });
         }
+
+        // Se o app foi aberto por um deep link (movieflix://...), navega direto
+        // para a rota correspondente (o WebView já está configurado acima).
+        tratarDeepLink(getIntent());
+    }
+
+    // ── Deep link (movieflix://) ─────────────────────────────────────────────
+    // O site usa o botão "ABRIR APLICATIVO" (tela "Assista pelo aplicativo")
+    // com links movieflix://assistir/{id}?season=S&ep=E e movieflix://titulo/{id}.
+    // Quando o app já está aberto e recebe um desses links, navegamos o WebView
+    // para a rota correspondente do site (que roda dentro do app). Se o app
+    // ainda não estava aberto, o intent chega no onCreate via getIntent().
+    @Override
+    protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        setIntent(intent);
+        tratarDeepLink(intent);
+    }
+
+    /** Converte um deep link movieflix:// em rota do site e navega o WebView. */
+    private void tratarDeepLink(Intent intent) {
+        if (intent == null) return;
+        Uri uri = intent.getData();
+        if (uri == null) return;
+        String scheme = uri.getScheme();
+        if (scheme == null || !scheme.equalsIgnoreCase("movieflix")) return;
+
+        String host = uri.getHost(); // "assistir" ou "titulo"
+        String path = uri.getPath(); // "/{id}"
+        String id = path != null ? path.replace("/", "") : null;
+        if (id == null || id.isEmpty()) {
+            // Sem id: abre a home do app.
+            if (webView != null) webView.loadUrl(SITE_URL);
+            return;
+        }
+        String rota;
+        if ("titulo".equalsIgnoreCase(host)) {
+            rota = SITE_URL + "/#/titulo/movie/" + id;
+        } else {
+            // assistir: preserva season/episode se presentes.
+            String season = uri.getQueryParameter("season");
+            String ep = uri.getQueryParameter("episode");
+            if (season != null && ep != null) {
+                rota = SITE_URL + "/#/assistir/" + id + "?season=" + season + "&ep=" + ep;
+            } else {
+                rota = SITE_URL + "/#/assistir/" + id;
+            }
+        }
+        final String destino = rota;
+        if (webView != null) {
+            webView.post(() -> webView.loadUrl(destino));
+        }
     }
 
     // ── Fullscreen: helpers ─────────────────────────────────────────────────

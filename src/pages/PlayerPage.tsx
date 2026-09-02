@@ -11,6 +11,8 @@ import { useMovies } from '@/hooks/useMovies';
 import { useEntitlements } from '@/hooks/useEntitlements';
 import { useTvPlayerControls } from '@/hooks/useTvPlayerControls';
 import { usePlaybackSession } from '@/hooks/usePlaybackSession';
+import { useIsApp } from '@/hooks/useIsApp';
+import { AssistaPeloApp } from '@/components/player/AssistaPeloApp';
 import { ehTelaDeTv } from '@/lib/tv';
 import {
   temProgressoReal,
@@ -51,6 +53,12 @@ export function PlayerPage() {
   const { entitlements } = useEntitlements();
   const movies = useMovies();
   usePlaybackSession(user?.id, entitlements.screens, Boolean(user) && entitlements.screens > 0);
+
+  // REGRA DE PRODUTO: o SITE NÃO reproduz vídeo. Apenas o APP reproduz.
+  // `isApp` = true dentro do app nativo (APK/Capacitor); false no navegador.
+  // Enquanto a detecção não termina (null), não montamos o player.
+  const isApp = useIsApp();
+  const ehNavegador = isApp === false;
 
   const [movie, setMovie] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -104,6 +112,12 @@ export function PlayerPage() {
   useEffect(() => {
     async function load() {
       try {
+        // SITE NÃO reproduz vídeo: não busca fonte, não monta embed, não inicia
+        // Cloudflare. Apenas o APP (isApp === true) carrega a fonte.
+        if (isApp === false) {
+          setLoading(false);
+          return;
+        }
         if (!id) {
           setLoading(false);
           return;
@@ -191,7 +205,7 @@ export function PlayerPage() {
 
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [id, searchParams]);
+  }, [id, searchParams, isApp]);
 
   // ---- Salvar progresso (player embed cross-origin) ----
   const salvarProgressoEmbed = useCallback(() => {
@@ -298,6 +312,21 @@ export function PlayerPage() {
     );
   }
 
+  // GUARDA DE ROTA: o SITE NUNCA inicia o player. Se o usuário está num
+  // navegador (não dentro do app), mostra a tela "Assista pelo aplicativo"
+  // e NÃO monta iframe, NÃO carrega fonte, NÃO inicia Cloudflare/embed.
+  // Dentro do app (isApp === true), o player funciona normalmente.
+  if (ehNavegador) {
+    return (
+      <AssistaPeloApp
+        titulo={movie?.title}
+        id={String(id ?? '')}
+        season={epAtual?.season ?? searchParams.get('season')}
+        episode={epAtual?.episode ?? searchParams.get('ep') ?? searchParams.get('episode')}
+      />
+    );
+  }
+
   // GUARDA DE ROTA: a rota /assistir/:id RE-VERIFICA auth + assinatura ANTES
   // de montar qualquer player/iframe.
   if (!user) {
@@ -339,12 +368,14 @@ export function PlayerPage() {
       <div className="flex flex-col items-center justify-start min-h-screen px-4 sm:px-6 pt-24 pb-10 gap-6">
         {currentUrl ? (
           <div className="w-full max-w-5xl">
+            {/* Este bloco SÓ é alcançado dentro do APP (isApp === true): a guarda
+                no topo já retornou <AssistaPeloApp /> para navegador. */}
             <div
               ref={playerBoxRef}
               data-tv-player-box
               className="relative w-full aspect-video rounded-xl overflow-hidden bg-black shadow-2xl shadow-roxo-900/30 ring-1 ring-roxo-500/20"
             >
-              {/* Embed oficial do StreamBetter (plano Creator) — o provedor
+              {/* Embedding oficial do StreamBetter (plano Creator) — o provedor
                   controla player, fontes, legendas e reprodução. */}
               <StreamBetterEmbed
                 key={`${currentUrl}-${playbackKey}`}
@@ -376,9 +407,9 @@ export function PlayerPage() {
             <p className="mt-2 text-center text-xs text-zinc-500">
               <button
                 onClick={() => {
-                  // Reinicia o player de verdade: incrementa a playbackKey para
-                  // o React DESMONTAR e REMONTAR o NativeHlsPlayer (novo iframe,
-                  // novo estado, sem duplicar). O embed é recriado uma única vez.
+                  // Reinicia o player de novo: incrementa a playbackKey para
+                  // o React DESMONTAR e REMONTAR o embed (novo iframe, novo
+                  // estado, sem duplicar). O embed é recriado uma única vez.
                   setPlaybackKey((k) => k + 1);
                 }}
                 className="text-red-400 underline hover:text-red-300"

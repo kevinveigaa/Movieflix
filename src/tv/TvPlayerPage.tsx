@@ -7,6 +7,8 @@ import { hasActiveSubscription } from '@/context/AuthContext';
 import { streambetterSeriesEmbedUrl, streambetterMovieEmbedUrl, primeiroEpisodioDisponivel } from '@/lib/strembetter';
 import { StreamBetterEmbed } from '@/components/player/StreamBetterEmbed';
 import { useTvPlayerControls } from '@/hooks/useTvPlayerControls';
+import { useIsApp } from '@/hooks/useIsApp';
+import { AssistaPeloApp } from '@/components/player/AssistaPeloApp';
 import { cn } from '@/lib/cn';
 
 /**
@@ -32,6 +34,11 @@ export function TvPlayerPage() {
   const assinante = hasActiveSubscription(subscription);
   const frameRef = useRef<HTMLDivElement>(null);
   const [playerMode, setPlayerMode] = useState(false);
+
+  // REGRA DE PRODUTO: o SITE NÃO reproduz vídeo. Apenas o APP reproduz.
+  // `isApp` = true dentro do app nativo (APK/Capacitor); false no navegador.
+  const isApp = useIsApp();
+  const ehNavegador = isApp === false;
 
   const movie = (movies.data ?? []).find((m) => String(m.id) === String(id)) ?? null;
 
@@ -116,6 +123,21 @@ export function TvPlayerPage() {
           </div>
         </div>
       </div>
+    );
+  }
+
+  // GUARDA DE ROTA: o SITE NUNCA inicia o player. Se o usuário está num
+  // navegador (não dentro do app), mostra a tela "Assista pelo aplicativo"
+  // e NÃO monta iframe, NÃO carrega fonte, NÃO inicia Cloudflare/embed.
+  // Dentro do app (isApp === true), o player funciona normalmente.
+  if (ehNavegador) {
+    return (
+      <AssistaPeloApp
+        titulo={movie?.title}
+        id={String(id ?? '')}
+        season={movie?.season_number ?? null}
+        episode={movie?.episode_number ?? null}
+      />
     );
   }
 

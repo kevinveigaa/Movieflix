@@ -30,6 +30,17 @@
                 <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
             </intent-filter>
 
+            <!-- Deep link do site: movieflix://assistir/{id}?season=S&ep=E e
+                 movieflix://titulo/{id}. O site usa estes links no botão
+                 "ABRIR APLICATIVO" (tela "Assista pelo aplicativo") para abrir
+                 o app direto no conteúdo escolhido. -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="movieflix" />
+            </intent-filter>
+
         </activity>
 
         <provider

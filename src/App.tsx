@@ -10,6 +10,7 @@ import { UpdateChecker } from '@/components/ui/UpdateChecker';
 import { useTvNavigation } from '@/hooks/useTvNavigation';
 import { useSeriesHidden } from '@/hooks/useSeriesHidden';
 import { useDoubleBackExit } from '@/hooks/useDoubleBackExit';
+import { ScrollToTop } from '@/components/ScrollToTop';
 import { aplicarClasseApp } from '@/lib/appShell';
 import { instalarBloqueioAnuncios } from '@/lib/antiAds';
 import type { JSX } from 'react';
@@ -92,6 +93,8 @@ function AppRoutes() {
   return (
     <>
       <Seo />
+      {/* Toda navegação de rota começa no topo (corrige detalhes abrindo no meio) */}
+      <ScrollToTop />
       {/* Aviso "Nova versão disponível" (compara versão atual com a última vista) */}
       <UpdateChecker />
       <ErrorBoundary key={location.pathname} titulo="Algo deu errado ao carregar esta página.">
