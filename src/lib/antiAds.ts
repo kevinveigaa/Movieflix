@@ -36,6 +36,25 @@
  * com as camadas acima.
  */
 
+import { isAllowedExternalUrl } from '@/lib/whatsapp';
+
+// Domínios de verificação do Cloudflare/Turnstile — NUNCA devem ser tocados
+// (nem fechados, nem restaurados, nem sanitizados). O desafio roda DENTRO do
+// iframe do player; interferir nele causa o loop "verificação → sucesso →
+// volta à verificação" relatado no site. O comportamento correto (igual ao
+// app) é: deixar o Cloudflare concluir UMA vez e seguir para o conteúdo.
+const DOMINIOS_VERIFICACAO = [
+  'challenges.cloudflare.com',
+  'cloudflare.com',
+  'turnstile',
+];
+
+/** O host pertence à verificação do Cloudflare/Turnstile (nunca tocar)? */
+function ehHostVerificacao(host: string): boolean {
+  const h = host.toLowerCase();
+  return DOMINIOS_VERIFICACAO.some((d) => h === d || h.endsWith('.' + d) || h.includes(d));
+}
+
 const DOMINIOS_PERMITIDOS = [
   'yapgrid.com',
   'streambetter.shop',
@@ -56,12 +75,14 @@ const DOMINIOS_PERMITIDOS = [
   'instagram.com',
 ];
 
-/** A URL pode ser aberta (domínio do player ou navegação interna do app)? */
+/** A URL pode ser aberta (domínio do player, verificação ou navegação interna)? */
 export function ehDominioPermitido(url: string): boolean {
   try {
     const u = new URL(url, window.location.href);
     if (u.origin === window.location.origin) return true;
     if (!u.hostname) return false;
+    // Hosts de verificação (Cloudflare/Turnstile) nunca são bloqueados.
+    if (ehHostVerificacao(u.hostname)) return true;
     return DOMINIOS_PERMITIDOS.some((d) => u.hostname === d || u.hostname.endsWith('.' + d));
   } catch {
     return false;
@@ -327,6 +348,20 @@ export function instalarBloqueioAnuncios(): () => void {
     if (url) {
       try {
         const u = new URL(url, window.location.href);
+        // Exceção ÚNICA: WhatsApp oficial do MovieFlix (assinatura/suporte).
+        if (isAllowedExternalUrl(u.href)) {
+          const win = openOriginal(...args);
+          if (win) {
+            janelasAbertas.add(win);
+            const vigia = window.setInterval(() => {
+              if (win.closed) {
+                janelasAbertas.delete(win);
+                window.clearInterval(vigia);
+              }
+            }, 1000);
+          }
+          return win;
+        }
         if (!ehDominioPermitido(u.href)) {
           return null;
         }
@@ -434,7 +469,9 @@ export function instalarBloqueioAnuncios(): () => void {
     if (!href) return;
     if (href.startsWith('/') || href.startsWith('#') || href.startsWith('?')) return;
     if (ehDominioPermitido(href)) return;
-    // Qualquer link externo que não seja domínio permitido = anúncio → cancela.
+    // Exceção ÚNICA e segura: WhatsApp OFICIAL do MovieFlix (assinatura/suporte).
+    // Qualquer outro link externo que não seja domínio permitido = anúncio → cancela.
+    if (isAllowedExternalUrl(href)) return;
     e.preventDefault();
     e.stopPropagation();
     e.stopImmediatePropagation();

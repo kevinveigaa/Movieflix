@@ -63,6 +63,13 @@ export function PlayerPage() {
   const [playbackKey, setPlaybackKey] = useState(0);
 
   const playerBoxRef = useRef<HTMLDivElement>(null);
+  // Catálogo capturado UMA vez (ref) para estabilizar a resolução da fonte:
+  // se `movies.data` mudar (refetch do catálogo), o efeito NÃO re-executa e o
+  // iframe do player NÃO é recriado (evita re-disparar o desafio Cloudflare).
+  const catalogRef = useRef<any[] | null>(null);
+  if (catalogRef.current === null && movies.data) {
+    catalogRef.current = movies.data;
+  }
   // Modal "Quer continuar de onde parou?" — mostrado ao reabrir um título que
   // JÁ TEM progresso real salvo (>= 10 min ou >= 30%).
   const [showResumeModal, setShowResumeModal] = useState(false);
@@ -131,7 +138,7 @@ export function PlayerPage() {
 
         let dataResolved: any = data;
         if (!dataResolved) {
-          const catalog = movies.data ?? [];
+          const catalog = catalogRef.current ?? movies.data ?? [];
           dataResolved =
             catalog.find((m) => String(m.id) === String(id)) ||
             catalog.find((m) => String(m.tmdb_id) === String(id)) ||
@@ -183,7 +190,8 @@ export function PlayerPage() {
     }
 
     load();
-  }, [id, searchParams, movies.data]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id, searchParams]);
 
   // ---- Salvar progresso (player embed cross-origin) ----
   const salvarProgressoEmbed = useCallback(() => {

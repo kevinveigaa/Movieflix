@@ -102,3 +102,76 @@ export function linkRenovarPlano(opts: {
 export function linkSuporte(email: string): string {
   return whatsappLink(mensagemSuporte(email));
 }
+
+// ============================================================
+// REDIRECIONAMENTO SEGURO (exceção única: WhatsApp oficial)
+// ============================================================
+// O MovieFlix bloqueia TODOS os redirecionamentos externos (antiAds + guard
+// nativo do app). A ÚNICA exceção é o WhatsApp OFICIAL do MovieFlix, usado
+// para assinar/trocar/renovar plano e falar com o suporte. Nenhum outro
+// domínio ou número é permitido. A URL/número vêm da configuração acima
+// (WHATSAPP_NUMBER / WHATSAPP_URL) — nunca inventar outro.
+
+/** O link é o WhatsApp OFICIAL do MovieFlix (wa.me com o número configurado)? */
+export function ehWhatsAppOficial(url: string): boolean {
+  try {
+    const u = new URL(url, window.location.href);
+    const host = u.hostname.toLowerCase();
+    if (host !== 'wa.me' && host !== 'api.whatsapp.com' && host !== 'web.whatsapp.com' && !host.endsWith('whatsapp.com')) {
+      return false;
+    }
+    // wa.me/{numero} — confere o número exato configurado.
+    const path = u.pathname.replace(/^\/+/, '').replace(/\/+$/, '');
+    if (host === 'wa.me') {
+      return path === WHATSAPP_NUMBER || path === `+${WHATSAPP_NUMBER}`;
+    }
+    // api.whatsapp.com/send?phone=... — confere o parâmetro phone.
+    const phone = u.searchParams.get('phone');
+    if (phone) {
+      const limpo = phone.replace(/\D/g, '');
+      return limpo === WHATSAPP_NUMBER || limpo === `+${WHATSAPP_NUMBER}`;
+    }
+    // web.whatsapp.com (sem número) — permite apenas se for o domínio oficial.
+    return host === 'web.whatsapp.com';
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Função centralizada de validação de URL externa.
+ * - WhatsApp OFICIAL do MovieFlix → PERMITE.
+ * - Qualquer outro domínio/número → BLOQUEIA.
+ * Usada pelo antiAds (camada JS) e como referência para a guarda nativa do app.
+ */
+export function isAllowedExternalUrl(url: string): boolean {
+  if (!url) return false;
+  try {
+    const u = new URL(url, window.location.href);
+    // Navegação interna do app (SPA) sempre permitida.
+    if (u.origin === window.location.origin) return true;
+    return ehWhatsAppOficial(u.href);
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Abre um link externo de forma SEGURA, respeitando a política de
+ * redirecionamento (isAllowedExternalUrl). Usado pelos botões de assinatura
+ * para abrir o WhatsApp oficial sem depender de <a target="_blank"> (que o
+ * antiAds/WebView pode bloquear). Retorna true se abriu, false se bloqueado.
+ */
+export function abrirLinkExternoPermitido(url: string): boolean {
+  if (!isAllowedExternalUrl(url)) return false;
+  try {
+    const win = window.open(url, '_blank', 'noopener,noreferrer');
+    if (!win) {
+      // Fallback: navegação direta (o antiAds permite WhatsApp oficial).
+      window.location.href = url;
+    }
+    return true;
+  } catch {
+    return false;
+  }
+}

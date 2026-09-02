@@ -83,6 +83,37 @@ function writeCache(filmes: CatalogJson, series: CatalogJson) {
 /** single-flight: todas as chamadas simultâneas dividem a MESMA Promise. */
 let inFlight: Promise<CacheEnvelope> | null = null;
 
+/**
+ * Deduplica o catálogo por tmdb_id (não destrutivo — não apaga nada dos JSONs,
+ * apenas evita exibir o mesmo título duas vezes). Quando há duplicatas, prioriza
+ * a entrada com vídeo disponível e melhor qualidade/nota.
+ */
+function deduplicar<T extends CatalogMovie>(itens: T[]): T[] {
+  const porId = new Map<string, T>();
+  for (const item of itens) {
+    const chave = String(item.tmdb_id ?? item.id ?? '').trim();
+    if (!chave) continue;
+    const existente = porId.get(chave);
+    if (!existente) {
+      porId.set(chave, item);
+      continue;
+    }
+    // Mantém o que tem vídeo; em empate, o de melhor nota.
+    const temVid = (x: T) => Boolean(x.video_url);
+    const nota = (x: T) => Number(x.vote_average ?? 0);
+    const melhor =
+      temVid(item) && !temVid(existente)
+        ? item
+        : temVid(existente) && !temVid(item)
+          ? existente
+          : nota(item) >= nota(existente)
+            ? item
+            : existente;
+    porId.set(chave, melhor);
+  }
+  return Array.from(porId.values());
+}
+
 async function loadCatalog(): Promise<CacheEnvelope> {
   if (inFlight) return inFlight;
 
@@ -108,13 +139,18 @@ async function loadCatalog(): Promise<CacheEnvelope> {
     // Só entra no catálogo público quem tem vídeo bom e reproduzível.
     // Nada é apagado dos JSONs — apenas não é exibido enquanto não houver vídeo.
     const disp = montarDisponibilidade(disponibilidadeJson);
-    const filmes = filmesBrutos.filter((f) => temVideoDisponivel(f, disp));
-    const series = seriesBrutas
-      .map((s) => {
-        const eps = episodiosComVideo(s, disp);
-        return eps === s.episodes_available ? s : { ...s, episodes_available: eps };
-      })
-      .filter((s) => temVideoDisponivel(s, disp));
+    const filmes = deduplicar(filmesBrutos.filter((f) => temVideoDisponivel(f, disp)));
+    const series = deduplicar(
+      seriesBrutas
+        .map((s) => {
+          const eps = episodiosComVideo(s, disp);
+          return eps === s.episodes_available ? s : { ...s, episodes_available: eps };
+        })
+        .filter((s) => temVideoDisponivel(s, disp)),
+    );
+
+    writeCache(filmes, series);
+    return { savedAt: Date.now(), filmes, series };
 
     writeCache(filmes, series);
     return { savedAt: Date.now(), filmes, series };
