@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { useAuth, hasActiveSubscription } from '@/context/AuthContext';
 import { useEntitlements } from '@/hooks/useEntitlements';
 import { useViewerProfiles } from '@/hooks/useViewerProfiles';
@@ -22,13 +23,28 @@ import {
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { ErrorBanner } from '@/pages/auth/LoginPage';
-import type { ViewerProfile } from '@/types';
+import type { ViewerProfile, Plan } from '@/types';
 import { linkContratarPlano, linkRenovarPlano, linkSuporte, WHATSAPP_LABEL } from '@/lib/whatsapp';
 
 export function ProfilePage() {
   const { user, profile, subscription, refreshProfile, activeViewerProfile, setActiveViewerProfile } = useAuth();
   const { planName, entitlements } = useEntitlements();
   const { profiles, loading: loadingProfiles, create, update, remove } = useViewerProfiles();
+
+  // Planos disponíveis (mesma fonte da página de planos) — usados para montar
+  // a mensagem de contratação com o plano/valor REAIS do banco (nunca fixos).
+  const plans = useQuery({
+    queryKey: ['plans'],
+    queryFn: async () => {
+      const { data, error } = await supabase.from('plans').select('*').order('price_cents', { ascending: true });
+      if (error) throw error;
+      return data as Plan[];
+    },
+    retry: 1,
+  });
+  // Plano sugerido no atalho: o plano "standard" (destaque) ou, na falta dele,
+  // o primeiro/mais barato da lista — sempre dinâmico.
+  const planoPadrao = plans.data?.find((p) => p.code === 'standard') ?? plans.data?.[0] ?? null;
 
   const [name, setName] = useState(profile?.email ?? '');
   const [saving, setSaving] = useState(false);
@@ -388,19 +404,25 @@ export function ProfilePage() {
                     Seu cadastro foi realizado, mas sua assinatura ainda não está ativa.
                     Contrate pelo WhatsApp para ativar.
                   </p>
-                  <a
-                    href={linkContratarPlano({
-                      email: user?.email ?? '',
-                      planoNome: 'Plano 1',
-                      planoCodigo: 'simple',
-                      valorCents: 1990,
-                    })}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="btn-primary flex w-full items-center justify-center gap-2"
-                  >
-                    <MessageCircle className="h-4 w-4" /> CONTRATAR PELO WHATSAPP
-                  </a>
+                  {planoPadrao ? (
+                    <a
+                      href={linkContratarPlano({
+                        email: user?.email ?? '',
+                        planoNome: planoPadrao.name,
+                        planoCodigo: planoPadrao.code,
+                        valorCents: planoPadrao.price_cents,
+                      })}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="btn-primary flex w-full items-center justify-center gap-2"
+                    >
+                      <MessageCircle className="h-4 w-4" /> CONTRATAR PELO WHATSAPP
+                    </a>
+                  ) : (
+                    <span className="btn-primary flex w-full items-center justify-center gap-2 opacity-70">
+                      <Loader2 className="h-4 w-4 animate-spin" /> Carregando planos…
+                    </span>
+                  )}
                   <Link
                     to="/minha-assinatura"
                     className="btn-outline w-full"

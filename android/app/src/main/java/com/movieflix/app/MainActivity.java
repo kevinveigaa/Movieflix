@@ -1,6 +1,9 @@
 package com.movieflix.app;
 
 import android.annotation.SuppressLint;
+import android.content.Intent;
+import android.content.pm.ActivityInfo;
+import android.content.res.Configuration;
 import android.graphics.Color;
 import android.net.Uri;
 import android.os.Build;
@@ -8,6 +11,7 @@ import android.os.Bundle;
 import android.view.KeyEvent;
 import android.view.View;
 import android.view.ViewGroup;
+import android.view.WindowManager;
 import android.webkit.GeolocationPermissions;
 import android.webkit.WebChromeClient;
 import android.webkit.WebResourceRequest;
@@ -69,15 +73,25 @@ public class MainActivity extends BridgeActivity {
     // O botão de "tela cheia" do <video> nativo do site chama
     // WebChromeClient.onShowCustomView. Sem implementá-lo, o fullscreen NÃO
     // funciona no WebView (o vídeo fica preso no tamanho do player). Aqui
-    // mostramos o vídeo em tela cheia num FrameLayout próprio e escondemos o
-    // WebView, restaurando tudo ao sair (onHideCustomView / back).
+    // mostramos o vídeo em tela cheia num FrameLayout próprio, escondemos as
+    // barras do sistema (modo imersivo) e giramos para paisagem; ao sair
+    // (onHideCustomView / back) restauramos a UI sem recarregar o player.
     private View customView = null;
     private WebChromeClient.CustomViewCallback customViewCallback = null;
     private int originalSystemUiVisibility = 0;
+    private int orientationOriginal = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED;
+    private boolean fullscreenAtivo = false;
     private static final FrameLayout.LayoutParams COVER_SCREEN_PARAMS =
             new FrameLayout.LayoutParams(
                     ViewGroup.LayoutParams.MATCH_PARENT,
                     ViewGroup.LayoutParams.MATCH_PARENT);
+    private static final int FLAGS_IMERSIVOS =
+            View.SYSTEM_UI_FLAG_FULLSCREEN
+                    | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
+                    | View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
+                    | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
+                    | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
+                    | View.SYSTEM_UI_FLAG_LAYOUT_STABLE;
 
     @SuppressLint("SetJavaScriptEnabled")
     @Override
@@ -122,40 +136,25 @@ public class MainActivity extends BridgeActivity {
 
                 // ── Fullscreen do player (vídeo) ────────────────────────────
                 // O botão "tela cheia" do <video> nativo chama este método.
-                // Sem ele, o fullscreen não funciona no WebView. Mostramos o
-                // vídeo em tela cheia num FrameLayout próprio e escondemos o
-                // WebView; ao sair (onHideCustomView / back) restauramos tudo.
+                // Mostramos o vídeo em tela cheia num FrameLayout próprio,
+                // escondemos barras do sistema (imersivo) e giramos para
+                // paisagem. Ao sair, tudo é restaurado SEM recriar o iframe.
                 @Override
                 public void onShowCustomView(View view, WebChromeClient.CustomViewCallback callback) {
-                    if (customView != null) {
-                        callback.onCustomViewHidden();
-                        return;
-                    }
-                    customView = view;
-                    customViewCallback = callback;
+                    entrarFullscreen(view, callback);
+                }
 
-                    FrameLayout decor = (FrameLayout) getWindow().getDecorView();
-                    decor.addView(customView, COVER_SCREEN_PARAMS);
-
-                    // Esconde a barra de sistema para uma experiência imersiva.
-                    originalSystemUiVisibility = decor.getSystemUiVisibility();
-                    decor.setSystemUiVisibility(
-                            View.SYSTEM_UI_FLAG_FULLSCREEN
-                                    | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
-                                    | View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
-                                    | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
-                                    | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
-                                    | View.SYSTEM_UI_FLAG_LAYOUT_STABLE);
+                @Override
+                public void onShowCustomView(View view, int requestedOrientation, WebChromeClient.CustomViewCallback callback) {
+                    // O WebView pode sugerir uma orientação para o vídeo. O
+                    // player do MovieFlix é sempre usado em paisagem durante o
+                    // fullscreen, independentemente da sugestão.
+                    entrarFullscreen(view, callback);
                 }
 
                 @Override
                 public void onHideCustomView() {
-                    if (customView == null) return;
-                    FrameLayout decor = (FrameLayout) getWindow().getDecorView();
-                    decor.removeView(customView);
-                    customView = null;
-                    customViewCallback = null;
-                    decor.setSystemUiVisibility(originalSystemUiVisibility);
+                    removerCustomView(false);
                 }
             });
 
@@ -209,6 +208,113 @@ public class MainActivity extends BridgeActivity {
             webView.setDownloadListener((url, userAgent, contentDisposition, mimetype, contentLength) -> {
                 // Bloqueia TODOS os downloads (o app não oferece download de arquivos).
             });
+        }
+    }
+
+    // ── Fullscreen: helpers ─────────────────────────────────────────────────
+
+    /** FrameLayout de conteúdo da janela (onde o vídeo fullscreen é inserido). */
+    private FrameLayout contentFrame() {
+        View root = findViewById(android.R.id.content);
+        return root instanceof FrameLayout ? (FrameLayout) root : null;
+    }
+
+    /** Entra no fullscreen do vídeo (WebChromeClient.onShowCustomView). */
+    private void entrarFullscreen(View view, WebChromeClient.CustomViewCallback callback) {
+        if (customView != null) {
+            // Já está em fullscreen: descarta a nova solicitação sem recriar.
+            if (callback != null) callback.onCustomViewHidden();
+            return;
+        }
+        customView = view;
+        customViewCallback = callback;
+
+        FrameLayout decor = (FrameLayout) getWindow().getDecorView();
+        FrameLayout content = contentFrame();
+
+        // Captura o estado original para restaurar na saída.
+        originalSystemUiVisibility = decor.getSystemUiVisibility();
+        orientationOriginal = getRequestedOrientation();
+
+        // Adiciona o vídeo por cima do WebView (o player continua vivo atrás,
+        // sem reload/recriação do iframe).
+        (content != null ? content : decor).addView(view, COVER_SCREEN_PARAMS);
+
+        fullscreenAtivo = true;
+        aplicarImersao();
+        // Player fullscreen = paisagem (assim como o player no site/browser).
+        setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE);
+    }
+
+    /** Sai do fullscreen (onHideCustomView ou BACK) e restaura a UI. */
+    private void removerCustomView(boolean notificarWebView) {
+        if (customView == null) return;
+
+        View view = customView;
+        WebChromeClient.CustomViewCallback cb = customViewCallback;
+        customView = null;
+        customViewCallback = null;
+        fullscreenAtivo = false;
+
+        FrameLayout decor = (FrameLayout) getWindow().getDecorView();
+        FrameLayout content = contentFrame();
+        (content != null ? content : decor).removeView(view);
+
+        // Restaura barras do sistema, flags da janela e orientação original.
+        decor.setSystemUiVisibility(originalSystemUiVisibility);
+        restaurarFlagsJanela();
+        if (orientationOriginal != ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED) {
+            setRequestedOrientation(orientationOriginal);
+        }
+
+        if (webView != null) webView.requestFocus();
+        if (notificarWebView && cb != null) cb.onCustomViewHidden();
+    }
+
+    /** Aplica as flags de janela + barras imersivas durante o fullscreen. */
+    private void aplicarImersao() {
+        getWindow().addFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN);
+        getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+        FrameLayout decor = (FrameLayout) getWindow().getDecorView();
+        decor.setSystemUiVisibility(FLAGS_IMERSIVOS);
+    }
+
+    /** Remove as flags de janela que adicionamos no fullscreen. */
+    private void restaurarFlagsJanela() {
+        getWindow().clearFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN);
+        getWindow().clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+    }
+
+    /** Ao girar durante o fullscreen, o sistema pode resetar as barras — reaplica. */
+    @Override
+    public void onConfigurationChanged(Configuration newConfig) {
+        super.onConfigurationChanged(newConfig);
+        if (fullscreenAtivo) {
+            aplicarImersao();
+        }
+    }
+
+    // ── WhatsApp: abre no app nativo e NUNCA navega o WebView ───────────────
+
+    /** O link é de WhatsApp (wa.me / whatsapp.com)? */
+    private boolean ehWhatsApp(Uri uri) {
+        if (uri == null) return false;
+        String scheme = uri.getScheme() == null ? "" : uri.getScheme().toLowerCase();
+        if (!scheme.equals("https") && !scheme.equals("http")) return false;
+        String host = uri.getHost();
+        if (host == null) return false;
+        String h = host.toLowerCase();
+        return h.equals("wa.me") || h.endsWith("whatsapp.com");
+    }
+
+    /** Abre o WhatsApp nativo (ou o navegador, se não instalado) via intent. */
+    private void abrirWhatsApp(Uri uri) {
+        try {
+            Intent intent = new Intent(Intent.ACTION_VIEW, uri);
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            startActivity(intent);
+        } catch (Exception ignored) {
+            // Sem app que trate o link: não navega o WebView para fora do site.
         }
     }
 
@@ -300,6 +406,13 @@ public class MainActivity extends BridgeActivity {
      */
     private boolean tratarNavegacao(WebView view, Uri uri, boolean isMainFrame) {
         if (uri == null) return true;
+        // WhatsApp: abre no app nativo e deixa o WebView onde está. Isso evita
+        // que o WebView navegue para wa.me → intent:// e seja "puxado" de volta
+        // ao site pelo guard de redirect (o usuário fica no WhatsApp).
+        if (isMainFrame && ehWhatsApp(uri)) {
+            abrirWhatsApp(uri);
+            return true;
+        }
         if (shouldBlock(uri)) {
             restaurarUltimaPaginaValida(view);
             return true;
@@ -336,14 +449,7 @@ public class MainActivity extends BridgeActivity {
         // Se o vídeo está em tela cheia, o Voltar sai do fullscreen primeiro
         // (nunca sai do app nem navega para trás enquanto estiver em fullscreen).
         if (customView != null) {
-            if (customViewCallback != null) {
-                customViewCallback.onCustomViewHidden();
-            }
-            FrameLayout decor = (FrameLayout) getWindow().getDecorView();
-            decor.removeView(customView);
-            customView = null;
-            customViewCallback = null;
-            decor.setSystemUiVisibility(originalSystemUiVisibility);
+            removerCustomView(true);
             return;
         }
 

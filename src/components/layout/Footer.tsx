@@ -2,8 +2,8 @@ import { Link } from 'react-router-dom';
 import { Instagram, MessageCircle } from 'lucide-react';
 import { useSeriesHidden } from '@/hooks/useSeriesHidden';
 import { BrandLogo } from '@/components/BrandLogo';
+import { WHATSAPP_URL } from '@/lib/whatsapp';
 
-const WHATSAPP_URL = 'https://wa.me/11943750307';
 const INSTAGRAM_URL = 'https://instagram.com/movieflixplaybr';
 
 const cols = [

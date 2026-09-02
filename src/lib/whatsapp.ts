@@ -10,7 +10,7 @@
  */
 
 /** Número do admin (formato internacional, sem +). */
-export const WHATSAPP_NUMBER = '11943750307';
+export const WHATSAPP_NUMBER = '5511943750307';
 
 /** Link oficial do WhatsApp do admin. */
 export const WHATSAPP_URL = `https://wa.me/${WHATSAPP_NUMBER}`;
