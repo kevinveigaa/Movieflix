@@ -120,7 +120,6 @@ export function CatalogPage({ kind }: { kind: CatalogKind }) {
     });
 
 
-    const ano = (m: any) => Number(m.year ?? 0);
     const nota = (m: any) => Number(m.vote_average ?? 0);
     const popularidade = (m: any) => Number(m.popularity ?? 0);
     // Data de lançamento completa (release_date) com fallback para o ano:

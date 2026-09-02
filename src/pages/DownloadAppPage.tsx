@@ -1,7 +1,7 @@
 import { Link } from 'react-router-dom';
 import { QRCodeSVG } from 'qrcode.react';
-import { Smartphone, Download, ShieldCheck, Play, Monitor, RotateCcw, Apple, CheckCircle2, QrCode } from 'lucide-react';
-import { APP_INFO, APK_URL, APK_SIZE_MB, APK_ABSOLUTE_URL, DOWNLOAD_PAGE_URL } from '@/lib/appInfo';
+import { Smartphone, Download, ShieldCheck, Monitor, RotateCcw, Apple, CheckCircle2 } from 'lucide-react';
+import { APP_INFO, APK_ABSOLUTE_URL, DOWNLOAD_PAGE_URL, APK_SIZE_MB } from '@/lib/appInfo';
 
 /**
  * DownloadAppPage — página de download do app oficial MovieFlix.

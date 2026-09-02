@@ -46,7 +46,7 @@ export function SearchPage() {
     return true;
   });
 
-  const { termo, setTermo, results, resultsFallback, total, temBusca } = useFuzzySearch(
+  const { termo, setTermo, results, resultsFallback, temBusca } = useFuzzySearch(
     base,
     initial,
   );

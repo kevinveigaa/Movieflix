@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { Play, Heart, ArrowLeft, Star, Clock } from 'lucide-react';
+import { Play, Heart, ArrowLeft, Star } from 'lucide-react';
 import { useMovies } from '@/hooks/useMovies';
 import { useAuth } from '@/context/AuthContext';
 import { hasActiveSubscription } from '@/context/AuthContext';

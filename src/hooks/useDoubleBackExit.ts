@@ -1,7 +1,6 @@
 import { useEffect } from 'react';
 import {
   instalarGuardDeSalida,
-  pedirSaidaPorTecla,
   sairDeVerdade,
 } from '@/lib/doubleBackExit';
 

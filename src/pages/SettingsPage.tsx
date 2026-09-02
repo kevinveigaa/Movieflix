@@ -1,10 +1,8 @@
 import { useState } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { supabase } from '@/lib/supabase';
-import { Lock, Loader2, Check, Bell, Globe, Moon, Trash2, MessageCircle } from 'lucide-react';
+import { Lock, Loader2, Check, Bell, Globe, Moon, Trash2 } from 'lucide-react';
 import { ErrorBanner } from '@/pages/auth/LoginPage';
-import { Link } from 'react-router-dom';
-import { linkSuporte, WHATSAPP_LABEL } from '@/lib/whatsapp';
 
 export function SettingsPage() {
   const { user, signOut } = useAuth();

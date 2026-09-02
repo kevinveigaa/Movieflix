@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/context/AuthContext';
-import { ArrowLeft, Plus, Trash2, Save, Film, ChevronDown, ChevronUp } from 'lucide-react';
+import { ArrowLeft, Plus, Trash2, Film, ChevronDown, ChevronUp } from 'lucide-react';
 
 interface Season {
   id: string;
@@ -126,45 +126,6 @@ export function AdminSeriesPage() {
     await loadSeries();
   }
 
-  async function addEpisode(seasonId?: string) {
-    const targetSeasonId = seasonId || newEpisode.seasonId;
-    const targetEpisode = seasonId
-      ? newEpisode
-      : newEpisode;
-
-    if (!targetSeasonId || !newEpisode.title || !newEpisode.videoUrl) {
-      setMsg({ tipo: 'erro', texto: 'Preencha título e URL do vídeo!' });
-      return;
-    }
-    try {
-      const { error } = await supabase.from('episodes').insert({
-        season_id: targetSeasonId,
-        episode_number: newEpisode.episodeNumber,
-        title: newEpisode.title,
-        description: newEpisode.description || null,
-        video_url: newEpisode.videoUrl,
-        duration_seconds: newEpisode.durationSeconds || null,
-        thumbnail_url: newEpisode.thumbnailUrl || null,
-      });
-      if (error) {
-        setMsg({ tipo: 'erro', texto: error.message });
-      } else {
-        setMsg({ tipo: 'ok', texto: 'Episódio adicionado!' });
-        setNewEpisode((prev) => ({ 
-          ...prev, 
-          seasonId: targetSeasonId,
-          episodeNumber: prev.episodeNumber + 1, 
-          title: '', 
-          videoUrl: '', 
-          description: '' 
-        }));
-        await loadSeries();
-      }
-    } catch (err: any) {
-      setMsg({ tipo: 'erro', texto: err?.message || 'Erro ao adicionar episódio' });
-    }
-  }
-
   async function addEpisodeToSeason(seasonId: string) {
     if (!newEpisode.title || !newEpisode.videoUrl) {
       setMsg({ tipo: 'erro', texto: 'Preencha título e URL do vídeo!' });
@@ -199,7 +160,7 @@ export function AdminSeriesPage() {
     }
   }
 
-  async function deleteEpisode(episodeId: string, seasonId: string) {
+  async function deleteEpisode(episodeId: string) {
     if (!window.confirm('Excluir este episódio?')) return;
     await supabase.from('episodes').delete().eq('id', episodeId);
     setMsg({ tipo: 'ok', texto: 'Episódio excluído!' });
@@ -310,7 +271,7 @@ export function AdminSeriesPage() {
                         <p className="truncate text-xs text-zinc-500">{ep?.video_url || ''}</p>
                       </div>
                       <button
-                        onClick={() => ep?.id && deleteEpisode(ep.id, season.id)}
+                        onClick={() => ep?.id && deleteEpisode(ep.id)}
                         className="rounded-full p-2 text-red-400 hover:bg-red-600/20"
                       >
                         <Trash2 className="h-4 w-4" />

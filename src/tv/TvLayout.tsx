@@ -51,12 +51,6 @@ export function TvLayout({ children }: { children: ReactNode }) {
   }, [location.pathname, splash]);
 
   const sair = () => {
-    if (user) {
-      void import('@/context/AuthContext').then(({ useAuth }) => {
-        // logout via hook não é possível fora do componente; usa o botão
-        // dentro de Assinatura/Página — aqui apenas navega para o início.
-      });
-    }
     navigate('/tv');
   };
 

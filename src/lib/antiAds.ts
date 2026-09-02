@@ -170,32 +170,6 @@ function resetarJanelaRestauracoes() {
   totalRestauracoes = 0;
 }
 
-/** Fecha imediatamente uma janela aberta se ela for de anúncio. */
-function fecharJanelaSeAnuncio(win: Window | null): void {
-  if (!win || win.closed) return;
-  try {
-    const url = win.location?.href || '';
-    if (url && ehAnuncio(url)) {
-      win.close();
-      return;
-    }
-  } catch {
-    // Cross-origin: não dá para ler a URL. Fecha por precaução apenas se a
-    // janela NÃO for a própria aba (popups de anúncio são janelas extras).
-    if (win !== window && win.opener === window) {
-      // Pode ser uma aba legítima aberta pelo app (WhatsApp/Instagram).
-      // O varredor periódico decide com mais contexto.
-    }
-    return;
-  }
-  // Janela aberta mas ainda carregando: agenda checagem.
-  if (win !== window && !win.closed) {
-    const t = window.setTimeout(() => fecharJanelaSeAnuncio(win), 800);
-    // Timeout curto de segurança para não vazar handles.
-    window.setTimeout(() => window.clearTimeout(t), 5000);
-  }
-}
-
 /** Varredura periódica: fecha popups de anúncio abertos (com ou sem X). */
 function iniciarVarreduraPopups(): void {
   if (janelaVarredura !== null) return;

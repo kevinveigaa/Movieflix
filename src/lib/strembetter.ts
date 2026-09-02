@@ -1,66 +1,36 @@
 /**
  * ════════════════════════════════════════════════════════════════════════════
- * PLAYER NATIVO — player principal de filmes e séries do Movieflix
+ * PLAYER — EMBED OFICIAL do StreamBetter (plano Creator, chave pública sb_pk_*)
  * ════════════════════════════════════════════════════════════════════════════
  *
- * O player do Movieflix é NATIVO: um <video> + hls.js alimentado pelo backend
- * do próprio Movieflix (/api/streambetter-resolve → /api/streambetter-hls),
- * que resolve o HLS REAL do título a partir do TMDB ID. Não há iframe de
- * terceiros — logo, por construção: ZERO anúncios, ZERO popups, ZERO
- * redirecionamento externo, e o usuário permanece dentro do Movieflix.
+ * O player do MovieFlix usa o EMBED OFICIAL do StreamBetter (plano Creator,
+ * chave pública sb_pk_*), montado num iframe. O provedor controla player,
+ * fontes, legendas, áudio e reprodução — o MovieFlix apenas hospeda o iframe.
  *
- *   Filmes : streambetter.shop/filme/{tmdbId}
- *   Séries : streambetter.shop/serie/{tmdbId}/{temporada}/{episodio}
+ *   Filmes : streambetter.shop/filme/{tmdbId}?key=sb_pk_...
+ *   Séries : streambetter.shop/serie/{tmdbId}/{temporada}/{episodio}?key=sb_pk_...
  *
- * O embed é gerado AUTOMATICAMENTE a partir do TMDB ID (que já existe no
- * catálogo) — não há URLs manuais por título. Vale para todo o catálogo atual
- * e para novos títulos adicionados futuramente.
+ * NÃO usamos a API de link direto (/api/v1/stream), que exige o plano API /
+ * chave secreta sb_sk_*. A montagem da URL (com a chave pública) fica
+ * centralizada em src/lib/streamEmbed.ts — estas funções apenas delegam para
+ * manter a compatibilidade com o resto do código.
  *
  * ── Áudio pt-BR ─────────────────────────────────────────────────────────────
  * O resolver do player busca a fonte do StreamBetter com lang=pt-BR e
  * identifica fontes dubladas (label "Dublado"). O áudio é muxado no HLS (não
  * há faixas separadas), então a faixa dublada já vem entregue quando a fonte
- * é dublada. O Movieflix identifica a disponibilidade real de dublagem pelo
- * campo `dublado_ptbr` do catálogo (nunca inventado) e exibe "Dublado PT-BR"
- * / "Legendado" nos cards.
+ * é dublada. O MovieFlix identifica a disponibilidade real de dublagem pelo
+ * campo `dublado_ptbr` do catálogo (nunca inventado).
  *
  * ── Anúncios ────────────────────────────────────────────────────────────────
- *   O player nativo não injeta anúncios e não há iframe de terceiros — a
- *   reprodução é 100% dentro do Movieflix, sem redirecionamento externo.
- *
- * ── Legado ──────────────────────────────────────────────────────────────────
- *   As funções streamBetterMovieUrl/streamBetterSeriesUrl/ehEmbedYapGrid
- *   abaixo são LEGADAS (do antigo player YapGrid) e não são mais usadas pelo
- *   player principal. Mantidas apenas para compatibilidade.
+ * O embed oficial não injeta anúncios e não há iframe de terceiros — a
+ * reprodução é 100% dentro do MovieFlix, sem redirecionamento externo. A
+ * proteção contra popups/redirects é feita pelo antiAds global
+ * (src/lib/antiAds.ts).
  */
-
-const YAPGRID_BASE = 'https://yapgrid.com';
 
 /** Parâmetro de preferência de idioma (pt) — reforço, não garantia. */
 export const AUDIO_PTBR = 'pt';
-
-function withLang(url: string, startSeconds?: number): string {
-  const params = new URLSearchParams({ lang: AUDIO_PTBR });
-  if (startSeconds && startSeconds > 0) params.set('t', String(startSeconds));
-  return `${url}?${params.toString()}`;
-}
-
-/** URL do player do YapGrid para um filme, com áudio pt-BR preferido. */
-export function streamBetterMovieUrl(tmdbId: number | string | null | undefined, startSeconds?: number): string {
-  if (tmdbId == null) return '';
-  return withLang(`${YAPGRID_BASE}/embed/movie/${tmdbId}`, startSeconds);
-}
-
-/** URL do player do YapGrid para um episódio de série, com áudio pt-BR. */
-export function streamBetterSeriesUrl(
-  tmdbId: number | string | null | undefined,
-  season: number,
-  episode: number,
-  startSeconds?: number,
-): string {
-  if (tmdbId == null) return '';
-  return withLang(`${YAPGRID_BASE}/embed/tv/${tmdbId}/${season}/${episode}`, startSeconds);
-}
 
 /**
  * Melhor episódio disponível de uma série (usa o primeiro episódio com fonte
@@ -90,29 +60,7 @@ export function primeiroEpisodioDisponivel(
   return ordenados[0];
 }
 
-/** Atalho: URL de embed do YapGrid a partir de um título do catálogo. */
-export function movieEmbedUrl(
-  movie: { video_url?: string; tmdb_id?: number | string } | null | undefined,
-): string {
-  if (!movie) return '';
-  if (movie.video_url) return movie.video_url;
-  return streamBetterMovieUrl(movie.tmdb_id);
-}
-
-/** É uma URL de embed do YapGrid? (player principal do Movieflix) */
-export function ehEmbedYapGrid(url: string): boolean {
-  try {
-    const u = new URL(url);
-    return u.hostname === 'yapgrid.com' || u.hostname.endsWith('.yapgrid.com');
-  } catch {
-    return false;
-  }
-}
-
-/** Alias de compatibilidade (nome antigo) — verifica o domínio do YapGrid. */
-export const ehEmbedVidCore = ehEmbedYapGrid;
-
-// ──── StreamBetter (EMBED OFICIAL — plano Creator, chave pública sb_pk_*) ────
+// ──────── StreamBetter (EMBED OFICIAL — plano Creator, chave pública sb_pk_*) ────────
 // O player do MovieFlix usa o EMBED OFICIAL do StreamBetter (plano Creator),
 // montado com a chave pública sb_pk_* (VITE_STREAMBETTER_PUBLIC_KEY). NÃO
 // usamos a API de link direto (/api/v1/stream), que exige o plano API / chave
@@ -134,4 +82,3 @@ export function streambetterSeriesEmbedUrl(
 ): string {
   return buildStreamBetterSeriesUrl(tmdbId, season, episode);
 }
-

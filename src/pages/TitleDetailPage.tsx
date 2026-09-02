@@ -1,7 +1,6 @@
 import { useParams, useNavigate } from "react-router-dom";
 import { useMemo, useState } from "react";
 import { Play, ArrowLeft, Clock, RotateCcw, Film, Layers } from "lucide-react";
-import { useAuth } from "@/context/AuthContext";
 import { useWatchHistory } from "@/hooks/useWatchHistory";
 import { useMovies } from "@/hooks/useMovies";
 import { useSeriesHidden } from "@/hooks/useSeriesHidden";
@@ -41,7 +40,6 @@ export function TitleDetailPage() {
   const { id } = useParams();
   const navigate = useNavigate();
 
-  const { user } = useAuth();
   const history = useWatchHistory();
   const movies = useMovies();
   const { seriesHidden } = useSeriesHidden();

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, NavLink, useNavigate, useLocation } from 'react-router-dom';
-import { Search, Menu, X, User, LogOut, Settings, CreditCard, Shield, Smartphone, ChevronDown, Baby, Users, Heart, PlayCircle, Tv } from 'lucide-react';
+import { Search, Menu, X, User, LogOut, Settings, CreditCard, Shield, Smartphone, ChevronDown, Baby, Users, Heart } from 'lucide-react';
 import { useMovies } from '@/hooks/useMovies';
 import { useSeriesHidden } from '@/hooks/useSeriesHidden';
 import { categoriasDoFilme, ehInfantil, ordenarCategorias } from '@/lib/categorias';

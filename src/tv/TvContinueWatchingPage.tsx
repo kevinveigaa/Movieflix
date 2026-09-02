@@ -1,7 +1,6 @@
 import { useNavigate } from 'react-router-dom';
 import { useCatalogWatchHistory } from '@/hooks/useWatchHistory';
 import { TvPosterCard } from './TvPosterCard';
-import { formatDuration } from './tvUi';
 import type { TvItem } from './tvUi';
 
 /**

@@ -5,7 +5,6 @@ const path = require("path");
 const express = require("express");
 const cors = require("cors");
 const compression = require("compression");
-const { registrarPlayerProxy } = require("./player-proxy");
 
 const app = express();
 
@@ -22,13 +21,9 @@ const TMDB_API_KEY = process.env.TMDB_API_KEY || process.env.VITE_TMDB_TOKEN;
 const TMDB_API_BASE = "https://api.themoviedb.org/3";
 
 // Reprodução sempre dentro do site (remove bloqueios de exibição em iframe).
-registrarPlayerProxy(app);
-
-// Teste grátis de 20 segundos — autorização server-side (assinatura ativa OU
-// tempo de teste restante no banco). Ver trial-gate.js.
 // NOTA: o player usa o EMBED OFICIAL do StreamBetter (plano Creator, chave
-// pública sb_pk_*), então não há mais resolver HLS via backend. O trial-gate
-// foi removido junto com a arquitetura do plano API.
+// pública sb_pk_*), então não há mais proxy de player nem resolver HLS via
+// backend. O trial-gate foi removido junto com a arquitetura do plano API.
 
 // Proxy da API TMDb: o frontend chama /api/tmdb/* e o servidor repassa a
 // chamada com a chave de acesso, mantendo-a fora do navegador.

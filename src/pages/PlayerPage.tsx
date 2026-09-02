@@ -50,7 +50,7 @@ export function PlayerPage() {
   const mutateHistory = upsertHistory.mutate;
   const { entitlements } = useEntitlements();
   const movies = useMovies();
-  const { blocked: telasBloqueadas, activeScreens } = usePlaybackSession(user?.id, entitlements.screens, Boolean(user) && entitlements.screens > 0);
+  usePlaybackSession(user?.id, entitlements.screens, Boolean(user) && entitlements.screens > 0);
 
   const [movie, setMovie] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -69,7 +69,6 @@ export function PlayerPage() {
   const [resumeSeconds, setResumeSeconds] = useState(0);
   const [resumeSeason, setResumeSeason] = useState<number | null>(null);
   const [resumeEpisode, setResumeEpisode] = useState<number | null>(null);
-  const [isResuming, setIsResuming] = useState(true);
 
   // Modo "CONTROLE DO PLAYER" (TV / TV Box): ativado/desativado segurando OK.
   const [modoPlayerAtivo, setModoPlayerAtivo] = useState(false);
@@ -110,8 +109,6 @@ export function PlayerPage() {
         const seasonRaw = searchParams.get('season');
         const epParam = searchParams.get('ep');
         const epId = epRaw ? parseInt(epRaw, 10) : null;
-        const tRaw = searchParams.get('t');
-        const startSeconds = tRaw && !isNaN(Number(tRaw)) ? Number(tRaw) : undefined;
 
         // Série com episódio explícito via query (?season=&ep=): monta o embed.
         if (epId && !isNaN(epId)) {
@@ -244,16 +241,13 @@ export function PlayerPage() {
           setResumeSeason(row?.season_number ?? null);
           setResumeEpisode(row?.episode_number ?? null);
           setShowResumeModal(true);
-          setIsResuming(true);
           resumeBaseRef.current = { position, duration, startedAt: 0 };
         } else {
-          setIsResuming(false);
           resumeBaseRef.current = { position: 0, duration, startedAt: Date.now() };
         }
       } catch (erro) {
         if (cancel) return;
         console.error('[PlayerPage] falha ao buscar histórico de retomada:', erro);
-        setIsResuming(false);
         resumeBaseRef.current = { position: 0, duration: 0, startedAt: Date.now() };
       }
     })();
@@ -412,7 +406,6 @@ export function PlayerPage() {
               <button
                 onClick={() => {
                   setShowResumeModal(false);
-                  setIsResuming(false);
                   // "Não" = começar do zero. NÃO grava um registro "lixo"
                   // (posição 0 / duração 0) no histórico — isso poluiria o banco
                   // e reabriria o modal de retomada na próxima visita. O
@@ -427,7 +420,6 @@ export function PlayerPage() {
               <button
                 onClick={() => {
                   setShowResumeModal(false);
-                  setIsResuming(false);
                   const base = resumeBaseRef.current;
                   const pos = base ? base.position : resumeSeconds;
                   resumeBaseRef.current = {

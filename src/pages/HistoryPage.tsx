@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { History as HistoryIcon, Trash2, Film, Check, AlertTriangle, Play } from 'lucide-react';
+import { History as HistoryIcon, Trash2, Film, Check, AlertTriangle } from 'lucide-react';
 import { useCatalogWatchHistory, useRemoveHistory, useClearHistory, useMarkAsWatched } from '@/hooks/useWatchHistory';
 import { useSeriesHidden } from '@/hooks/useSeriesHidden';
 import { useAuth } from '@/context/AuthContext';
@@ -56,6 +56,7 @@ export function HistoryPage() {
     const pct = h.duration_seconds ? h.position_seconds / h.duration_seconds : 0;
     return pct >= 0.02 && pct < 0.95;
   });
+  void continuar;
 
   return (
     <div className="container-app py-8">

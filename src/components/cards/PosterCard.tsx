@@ -18,7 +18,6 @@ export function PosterCard({
   title,
   className,
   forceType,
-  mediaType = "movie",
   progress,
 }: MovieCardProps) {
   const tipo = title?.type === "series" || title?.type === "tv" ? "tv" : "movie";
@@ -54,7 +53,6 @@ export function PosterCard({
         {/* Badge superior esquerdo: Dublado PT-BR / Legendado (dados reais) */}
         {(() => {
           const dublado = title?.dublado_ptbr === true || /dublado/i.test(String(title?.language ?? ''));
-          const legendado = !dublado;
           return (
             <span className="absolute left-1.5 top-1.5 inline-flex items-center gap-1 rounded-md bg-emerald-600/90 px-1.5 py-0.5 text-[9px] font-bold text-white shadow sm:left-2 sm:top-2 sm:px-2 sm:py-1 sm:text-[10px]">
               <Mic2 className="h-2.5 w-2.5" />

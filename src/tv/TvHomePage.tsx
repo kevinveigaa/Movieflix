@@ -27,7 +27,6 @@ export function TvHomePage() {
     const base = movies.data ?? [];
     if (!base.length) return [];
     const filmes = base.filter((m) => m.type !== 'series');
-    const series = base.filter((m) => m.type === 'series');
 
     const toItem = (m: (typeof base)[number]): TvItem => ({
       id: m.id,

@@ -84,7 +84,6 @@ export function AdminPage() {
   const [consultaBusy, setConsultaBusy] = useState(false);
 
   // === TEMPORADAS E EPISÓDIOS ===
-  const [seriesData, setSeriesData] = useState<any>(null);
   const [seasons, setSeasons] = useState<Season[]>([]);
   const [episodes, setEpisodes] = useState<Record<string, Episode[]>>({});
   const [loadingSeries, setLoadingSeries] = useState(false);
@@ -240,8 +239,6 @@ export function AdminPage() {
   async function loadSeasonsAndEpisodes(seriesId: string) {
     setLoadingSeries(true);
     try {
-      const { data: sData } = await supabase.from("movies").select("*").eq("id", seriesId).single();
-      setSeriesData(sData);
       const { data: seasonsData } = await supabase
         .from("seasons")
         .select("*")
@@ -579,7 +576,7 @@ export function AdminPage() {
       const PUBLIC_API_URL = "https://movieflix-api-udsv.onrender.com";
       const API_URL = (import.meta.env.VITE_API_URL as string) || PUBLIC_API_URL;
 
-      let response = await fetch(
+      const response = await fetch(
         `${API_URL}/api/tmdb/tv/${serie.id}/season/${seasonNum}/episode/${epNum}?language=pt-BR`
       );
       if (!response.ok) {

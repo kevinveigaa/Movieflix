@@ -32,7 +32,6 @@ export function ehTelaDeTv(): boolean {
   if (UA_TV.test(ua)) return true;
 
   const largura = window.innerWidth;
-  const altura = window.innerHeight;
 
   // Android TV Box (WebView genérico): Android + tela grande (> 11") +
   // sem mouse real (coarse/none) => quase certamente TV.
