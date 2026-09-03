@@ -113,7 +113,7 @@ export function TitleDetailPage() {
     <div className="min-h-screen bg-black text-white">
 
       <div
-        className="relative min-h-[600px] md:h-[500px] bg-cover bg-center"
+        className="relative min-h-[600px] md:h-[500px] bg-cover bg-top"
         style={{
           backgroundImage: `url(${movie.backdrop_url || movie.poster_url})`
         }}

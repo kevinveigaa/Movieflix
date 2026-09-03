@@ -24,7 +24,7 @@ import {
 import { Link } from 'react-router-dom';
 import { ErrorBanner } from '@/pages/auth/LoginPage';
 import type { ViewerProfile, Plan } from '@/types';
-import { linkContratarPlano, linkRenovarPlano, linkSuporte, WHATSAPP_LABEL } from '@/lib/whatsapp';
+import { linkContratarPlano, linkRenovarPlano, linkSuporte, abrirWhatsApp, WHATSAPP_LABEL } from '@/lib/whatsapp';
 
 export function ProfilePage() {
   const { user, profile, subscription, refreshProfile, activeViewerProfile, setActiveViewerProfile } = useAuth();
@@ -384,8 +384,10 @@ export function ProfilePage() {
                   </p>
                   <a
                     href={linkRenovarPlano({ email: user.email ?? '', planoNome: planName, planoCodigo: subscription.plan_code })}
-                    target="_blank"
-                    rel="noopener noreferrer"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      abrirWhatsApp(linkRenovarPlano({ email: user.email ?? '', planoNome: planName, planoCodigo: subscription.plan_code }));
+                    }}
                     className="btn-primary flex w-full items-center justify-center gap-2"
                   >
                     <MessageCircle className="h-4 w-4" /> RENOVAR PELO WHATSAPP
@@ -412,8 +414,15 @@ export function ProfilePage() {
                         planoCodigo: planoPadrao.code,
                         valorCents: planoPadrao.price_cents,
                       })}
-                      target="_blank"
-                      rel="noopener noreferrer"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        abrirWhatsApp(linkContratarPlano({
+                          email: user?.email ?? '',
+                          planoNome: planoPadrao.name,
+                          planoCodigo: planoPadrao.code,
+                          valorCents: planoPadrao.price_cents,
+                        }));
+                      }}
                       className="btn-primary flex w-full items-center justify-center gap-2"
                     >
                       <MessageCircle className="h-4 w-4" /> CONTRATAR PELO WHATSAPP
@@ -434,8 +443,10 @@ export function ProfilePage() {
 
               <a
                 href={linkSuporte(user?.email ?? '')}
-                target="_blank"
-                rel="noopener noreferrer"
+                onClick={(e) => {
+                  e.preventDefault();
+                  abrirWhatsApp(linkSuporte(user?.email ?? ''));
+                }}
                 className="mt-3 flex items-center justify-center gap-2 text-xs text-ink-400 transition hover:text-white"
               >
                 <MessageCircle className="h-3.5 w-3.5 text-emerald-400" />

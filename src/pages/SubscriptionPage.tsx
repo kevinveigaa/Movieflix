@@ -4,7 +4,7 @@ import { supabase } from '@/lib/supabase';
 import { useAuth, hasActiveSubscription } from '@/context/AuthContext';
 import type { Plan } from '@/types';
 import { entitlementHighlights, resolveSubscriptionPlan, diasRestantes, formatarVencimento, avisoVencimento } from '@/lib/plans';
-import { linkContratarPlano, linkRenovarPlano, linkSuporte, WHATSAPP_LABEL } from '@/lib/whatsapp';
+import { linkContratarPlano, linkRenovarPlano, linkSuporte, abrirWhatsApp, WHATSAPP_LABEL } from '@/lib/whatsapp';
 
 /**
  * SubscriptionPage — ATIVAÇÃO MANUAL VIA WHATSAPP.
@@ -97,8 +97,10 @@ export function SubscriptionPage() {
           </p>
           <a
             href={linkRenovarPlano({ email, planoNome: currentPlan?.name, planoCodigo: currentPlan?.code })}
-            target="_blank"
-            rel="noopener noreferrer"
+            onClick={(e) => {
+              e.preventDefault();
+              abrirWhatsApp(linkRenovarPlano({ email, planoNome: currentPlan?.name, planoCodigo: currentPlan?.code }));
+            }}
             className="btn-primary mt-5 inline-flex items-center gap-2"
           >
             <MessageCircle className="h-4 w-4" /> RENOVAR PELO WHATSAPP
@@ -184,8 +186,15 @@ export function SubscriptionPage() {
                         planoCodigo: plan.code,
                         valorCents: plan.price_cents,
                       })}
-                      target="_blank"
-                      rel="noopener noreferrer"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        abrirWhatsApp(linkContratarPlano({
+                          email,
+                          planoNome: plan.name,
+                          planoCodigo: plan.code,
+                          valorCents: plan.price_cents,
+                        }));
+                      }}
                       className={(featured ? 'btn-primary' : 'btn-outline') + ' mt-6 flex w-full items-center justify-center gap-2'}
                     >
                       <MessageCircle className="h-4 w-4" />
@@ -218,8 +227,10 @@ export function SubscriptionPage() {
       <div className="mx-auto mt-6 max-w-2xl text-center">
         <a
           href={linkSuporte(email)}
-          target="_blank"
-          rel="noopener noreferrer"
+          onClick={(e) => {
+            e.preventDefault();
+            abrirWhatsApp(linkSuporte(email));
+          }}
           className="inline-flex items-center gap-2 text-sm text-ink-300 transition hover:text-white"
         >
           <MessageCircle className="h-4 w-4 text-emerald-400" />

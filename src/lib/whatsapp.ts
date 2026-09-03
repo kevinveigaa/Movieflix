@@ -103,6 +103,23 @@ export function linkSuporte(email: string): string {
   return whatsappLink(mensagemSuporte(email));
 }
 
+/**
+ * Mensagem genérica de ASSINATURA (banners/CTAs que não têm um plano específico
+ * selecionado). Inclui o e-mail do usuário para o admin localizar a conta.
+ */
+export function mensagemAssinarGenerico(email: string): string {
+  return [
+    'Olá! Quero assinar o MovieFlix.',
+    `E-mail: ${email}`,
+    'Gostaria de conhecer os planos e realizar o pagamento.',
+  ].join('\n');
+}
+
+/** Link do WhatsApp com mensagem genérica de assinatura. */
+export function linkAssinarGenerico(email: string): string {
+  return whatsappLink(mensagemAssinarGenerico(email));
+}
+
 // ============================================================
 // REDIRECIONAMENTO SEGURO (exceção única: WhatsApp oficial)
 // ============================================================
@@ -174,4 +191,16 @@ export function abrirLinkExternoPermitido(url: string): boolean {
   } catch {
     return false;
   }
+}
+
+/**
+ * Abre o WhatsApp OFICIAL do MovieFlix de forma confiável, respeitando a
+ * política de redirecionamento (isAllowedExternalUrl). Usado pelos botões de
+ * assinatura/troca/renovação de plano e suporte. Retorna true se abriu.
+ *
+ * Preferimos `window.open` (nova aba) para não sair do site; se o navegador
+ * bloquear, cai para navegação direta (o antiAds permite o WhatsApp oficial).
+ */
+export function abrirWhatsApp(url: string): boolean {
+  return abrirLinkExternoPermitido(url);
 }

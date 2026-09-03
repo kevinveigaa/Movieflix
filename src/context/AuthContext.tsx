@@ -164,7 +164,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       },
       async resetPassword(email) {
         const { error } = await supabase.auth.resetPasswordForEmail(email, {
-          redirectTo: `${window.location.origin}/login`,
+          // O link do e-mail abre a rota de redefinição, que detecta o token de
+          // recuperação (PASSWORD_RECOVERY) e permite definir a nova senha.
+          redirectTo: `${window.location.origin}/#/redefinir-senha`,
         });
         if (error) throw error;
       },

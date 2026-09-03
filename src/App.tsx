@@ -33,6 +33,7 @@ const PlayerPage = lazyWithRetry(() => import('@/pages/PlayerPage').then((m) => 
 const LoginPage = lazyWithRetry(() => import('@/pages/auth/LoginPage').then((m) => ({ default: m.LoginPage })));
 const SignupPage = lazyWithRetry(() => import('@/pages/auth/SignupPage').then((m) => ({ default: m.SignupPage })));
 const ForgotPasswordPage = lazyWithRetry(() => import('@/pages/auth/ForgotPasswordPage').then((m) => ({ default: m.ForgotPasswordPage })));
+const ResetPasswordPage = lazyWithRetry(() => import('@/pages/auth/ResetPasswordPage').then((m) => ({ default: m.ResetPasswordPage })));
 const ProfileSelectPage = lazyWithRetry(() => import('@/pages/auth/ProfileSelectPage').then((m) => ({ default: m.ProfileSelectPage })));
 const DownloadAppPage = lazyWithRetry(() => import('@/pages/DownloadAppPage').then((m) => ({ default: m.DownloadAppPage })));
 const TvApp = lazyWithRetry(() => import('@/tv/TvApp').then((m) => ({ default: m.TvApp })));
@@ -121,6 +122,7 @@ function AppRoutes() {
           <Route path="/login" element={<LoginPage />} />
           <Route path="/cadastro" element={<SignupPage />} />
           <Route path="/recuperar-senha" element={<ForgotPasswordPage />} />
+          <Route path="/redefinir-senha" element={<ResetPasswordPage />} />
           <Route path="/selecionar-perfil" element={<RequireAuth><ProfileSelectPage /></RequireAuth>} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>

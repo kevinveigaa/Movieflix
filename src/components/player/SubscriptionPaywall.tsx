@@ -5,7 +5,7 @@ import { supabase } from '@/lib/supabase';
 import type { Plan } from '@/types';
 import { entitlementHighlights } from '@/lib/plans';
 import { useAuth } from '@/context/AuthContext';
-import { linkContratarPlano } from '@/lib/whatsapp';
+import { linkContratarPlano, abrirWhatsApp } from '@/lib/whatsapp';
 
 /**
  * Paywall de assinatura — bloqueio TOTAL de reprodução.
@@ -97,8 +97,15 @@ export function SubscriptionPaywall() {
                         planoCodigo: plan.code,
                         valorCents: plan.price_cents,
                       })}
-                      target="_blank"
-                      rel="noopener noreferrer"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        abrirWhatsApp(linkContratarPlano({
+                          email,
+                          planoNome: plan.name,
+                          planoCodigo: plan.code,
+                          valorCents: plan.price_cents,
+                        }));
+                      }}
                       data-tv-focusable
                       className={(featured ? 'btn-primary' : 'btn-outline') + ' mt-5 flex w-full items-center justify-center gap-2'}
                     >

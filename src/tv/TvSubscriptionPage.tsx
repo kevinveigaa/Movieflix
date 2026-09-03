@@ -8,7 +8,7 @@ import { hasActiveSubscription } from '@/context/AuthContext';
 import { diasRestantes, formatarVencimento, avisoVencimento, entitlementHighlights } from '@/lib/plans';
 import type { Plan } from '@/types';
 import { cn } from '@/lib/cn';
-import { linkContratarPlano, linkRenovarPlano } from '@/lib/whatsapp';
+import { linkContratarPlano, linkRenovarPlano, abrirWhatsApp } from '@/lib/whatsapp';
 
 /**
  * TvSubscriptionPage — planos e status da assinatura (TV).
@@ -104,8 +104,10 @@ export function TvSubscriptionPage() {
             tabIndex={0}
             className="tv-btn tv-btn-primary tv-btn-lg"
             href={linkRenovarPlano({ email, planoNome: subscription.plan?.name, planoCodigo: subscription.plan_code })}
-            target="_blank"
-            rel="noopener noreferrer"
+            onClick={(e) => {
+              e.preventDefault();
+              abrirWhatsApp(linkRenovarPlano({ email, planoNome: subscription.plan?.name, planoCodigo: subscription.plan_code }));
+            }}
           >
             Renovar pelo WhatsApp <ArrowRight className="tv-icon" />
           </a>
@@ -149,8 +151,15 @@ export function TvSubscriptionPage() {
                       planoCodigo: plan.code,
                       valorCents: plan.price_cents,
                     })}
-                    target="_blank"
-                    rel="noopener noreferrer"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      abrirWhatsApp(linkContratarPlano({
+                        email,
+                        planoNome: plan.name,
+                        planoCodigo: plan.code,
+                        valorCents: plan.price_cents,
+                      }));
+                    }}
                   >
                     <MessageCircle className="tv-icon tv-icon-sm" /> Contratar pelo WhatsApp <ArrowRight className="tv-icon" />
                   </a>
