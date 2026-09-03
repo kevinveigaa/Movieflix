@@ -11,7 +11,7 @@ export function AppLayout() {
   return (
     <div className="flex min-h-screen flex-col bg-ink-950">
       {!isPlayer && <Navbar />}
-      <main className={cn("flex-1", !isPlayer && "pt-16")}>
+      <main className={cn("flex-1", !isPlayer && "pt-14 sm:pt-16 lg:pt-20")}>
         <Outlet />
       </main>
       {!isPlayer && <Footer />}

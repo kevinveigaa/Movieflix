@@ -1,6 +1,5 @@
 import { useNavigate } from 'react-router-dom';
-import { Smartphone, Download, ArrowLeft, Clapperboard, MonitorSmartphone, ShieldCheck, Zap } from 'lucide-react';
-import { montarDeepLink, abrirAppLink } from '@/lib/deepLink';
+import { Download, ArrowLeft, Clapperboard, MonitorSmartphone, ShieldCheck, Zap } from 'lucide-react';
 import { DOWNLOAD_PAGE_URL } from '@/lib/appInfo';
 
 /**
@@ -14,19 +13,14 @@ import { DOWNLOAD_PAGE_URL } from '@/lib/appInfo';
  *   Para uma melhor experiência e reprodução mais rápida, assista pelo
  *   aplicativo MovieFlix.
  *
- *   [📱 ABRIR APLICATIVO]   [⬇️ BAIXAR APLICATIVO]
+ *   [⬇️ BAIXAR APLICATIVO]
  *
- * - "ABRIR APLICATIVO" tenta abrir o app via deep link (preservando o título
- *   escolhido). Se o app não estiver instalado, cai para a página de download.
- * - "BAIXAR APLICATIVO" leva à página oficial de download.
+ * - "BAIXAR APLICATIVO" leva à página oficial de download do app.
  *
  * DENTRO do app esta tela NUNCA aparece (o app reproduz normalmente).
  */
 export function AssistaPeloApp({
   titulo,
-  id,
-  season,
-  episode,
 }: {
   titulo?: string | null;
   id: string;
@@ -34,11 +28,6 @@ export function AssistaPeloApp({
   episode?: number | string | null;
 }) {
   const navigate = useNavigate();
-
-  const abrirApp = () => {
-    const link = montarDeepLink({ id, season, episode, tipo: 'assistir' });
-    abrirAppLink(link);
-  };
 
   return (
     <div className="relative flex min-h-screen flex-col items-center justify-center overflow-hidden bg-black px-6 py-12 text-center text-white">
@@ -74,24 +63,14 @@ export function AssistaPeloApp({
           </p>
         )}
 
-        {/* Botões */}
+        {/* Botão principal: BAIXAR APLICATIVO */}
         <div className="mt-9 flex w-full flex-col gap-3">
-          <button
-            type="button"
-            onClick={abrirApp}
-            data-tv-focusable
-            className="group flex w-full items-center justify-center gap-2.5 rounded-2xl bg-gradient-to-r from-brand-600 via-roxo-600 to-roxo-600 px-6 py-4 text-base font-bold text-white shadow-xl shadow-roxo-900/50 ring-1 ring-white/20 transition hover:from-brand-500 hover:via-roxo-500 hover:to-roxo-500 active:scale-[0.98]"
-          >
-            <Smartphone className="h-5 w-5 transition group-hover:scale-110" />
-            📱 ABRIR APLICATIVO
-          </button>
-
           <a
             href={DOWNLOAD_PAGE_URL}
             data-tv-focusable
-            className="flex w-full items-center justify-center gap-2.5 rounded-2xl border border-white/15 bg-white/5 px-6 py-4 text-base font-semibold text-white backdrop-blur transition hover:border-white/30 hover:bg-white/10 active:scale-[0.98]"
+            className="group flex w-full items-center justify-center gap-2.5 rounded-2xl bg-gradient-to-r from-brand-600 via-roxo-600 to-roxo-600 px-6 py-4 text-base font-bold text-white shadow-xl shadow-roxo-900/50 ring-1 ring-white/20 transition hover:from-brand-500 hover:via-roxo-500 hover:to-roxo-500 active:scale-[0.98]"
           >
-            <Download className="h-5 w-5" />
+            <Download className="h-5 w-5 transition group-hover:scale-110" />
             ⬇️ BAIXAR APLICATIVO
           </a>
         </div>
