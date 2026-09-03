@@ -99,7 +99,7 @@ export function SubscriptionPaywall() {
                       })}
                       onClick={(e) => {
                         e.preventDefault();
-                        abrirWhatsApp(linkContratarPlano({
+                        void abrirWhatsApp(linkContratarPlano({
                           email,
                           planoNome: plan.name,
                           planoCodigo: plan.code,

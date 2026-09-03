@@ -39,6 +39,41 @@ public class MovieFlixPlugin extends Plugin {
     }
 
     /**
+     * Abre o WhatsApp OFICIAL do MovieFlix no app nativo (intent ACTION_VIEW).
+     *
+     * Motivo: dentro do WebView do app, `window.open` é bloqueado por
+     * `setSupportMultipleWindows(false)` (retorna um Window inútil, não-nulo) e
+     * a navegação via `location.href` passa pela interceptação do
+     * shouldOverrideUrlLoading. Para abrir o WhatsApp de forma CONFIÁVEL no app,
+     * o JS chama esta ponte nativa, que valida a URL (só o WhatsApp oficial) e
+     * dispara o intent diretamente — sem depender de window.open/location.href.
+     *
+     * Segurança: só aceita URLs do WhatsApp OFICIAL do MovieFlix (wa.me /
+     * whatsapp.com com o número configurado). Qualquer outra URL é rejeitada.
+     */
+    @PluginMethod
+    public void abrirWhatsApp(PluginCall call) {
+        String url = call.getString("url");
+        if (url == null || url.isEmpty()) {
+            call.reject("URL obrigatória");
+            return;
+        }
+        try {
+            Uri uri = Uri.parse(url);
+            if (!MainActivity.ehWhatsAppOficial(uri)) {
+                call.reject("URL não permitida");
+                return;
+            }
+            Intent intent = new Intent(Intent.ACTION_VIEW, uri);
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            getActivity().startActivity(intent);
+            call.resolve();
+        } catch (Exception e) {
+            call.reject("Não foi possível abrir o WhatsApp", e);
+        }
+    }
+
+    /**
      * Sai do app (duplo-back confirmado pelo site). Chamado pelo JS via
      * `MovieFlixApp.exitApp()` quando o usuário pulsa "voltar" duas vezes na
      * raiz — fecha o app de verdade (o equivalente a super.onBackPressed()

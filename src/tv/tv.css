@@ -416,7 +416,7 @@
   position: absolute;
   inset: 0;
   background-size: cover;
-  background-position: center 30%;
+  background-position: top;
   opacity: 0.28;
   z-index: 0;
 }

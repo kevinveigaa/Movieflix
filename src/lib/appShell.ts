@@ -45,6 +45,37 @@ export function ehAppSincrono(): boolean {
   return cache === true;
 }
 
+/**
+ * Abre o WhatsApp OFICIAL do MovieFlix DENTRO do app nativo (APK/Capacitor).
+ *
+ * Motivo: no WebView do app, `window.open` é bloqueado por
+ * `setSupportMultipleWindows(false)` (retorna um Window inútil, não-nulo) e a
+ * navegação via `location.href` passa pela interceptação do shouldOverrideUrlLoading
+ * do MainActivity. Para abrir o WhatsApp de forma CONFIÁVEL no app, chamamos a
+ * ponte nativa `MovieFlixApp.abrirWhatsApp(url)`, que valida a URL (só o
+ * WhatsApp oficial) e dispara o intent ACTION_VIEW diretamente.
+ *
+ * Retorna true se o app nativo assumiu a abertura; false se não estiver no app
+ * (navegador) ou se a ponte não existir — nesse caso o chamador usa o fallback
+ * do navegador (window.open / location.href).
+ */
+export async function abrirWhatsAppNoApp(url: string): Promise<boolean> {
+  try {
+    const w = window as any;
+    const cap = w.Capacitor;
+    if (cap && cap.isNativePlatform && cap.isNativePlatform()) {
+      const plugin = cap.Plugins?.MovieFlixApp;
+      if (plugin?.abrirWhatsApp) {
+        await plugin.abrirWhatsApp({ url });
+        return true;
+      }
+    }
+  } catch {
+    // Ponte falhou (ex.: URL rejeitada) — cai para o fallback do navegador.
+  }
+  return false;
+}
+
 /** Adiciona a classe `is-native-app` no <html> quando dentro do app. */
 export async function aplicarClasseApp() {
   try {

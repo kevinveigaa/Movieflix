@@ -386,7 +386,7 @@ export function ProfilePage() {
                     href={linkRenovarPlano({ email: user.email ?? '', planoNome: planName, planoCodigo: subscription.plan_code })}
                     onClick={(e) => {
                       e.preventDefault();
-                      abrirWhatsApp(linkRenovarPlano({ email: user.email ?? '', planoNome: planName, planoCodigo: subscription.plan_code }));
+                      void abrirWhatsApp(linkRenovarPlano({ email: user.email ?? '', planoNome: planName, planoCodigo: subscription.plan_code }));
                     }}
                     className="btn-primary flex w-full items-center justify-center gap-2"
                   >
@@ -416,7 +416,7 @@ export function ProfilePage() {
                       })}
                       onClick={(e) => {
                         e.preventDefault();
-                        abrirWhatsApp(linkContratarPlano({
+                        void abrirWhatsApp(linkContratarPlano({
                           email: user?.email ?? '',
                           planoNome: planoPadrao.name,
                           planoCodigo: planoPadrao.code,
@@ -445,7 +445,7 @@ export function ProfilePage() {
                 href={linkSuporte(user?.email ?? '')}
                 onClick={(e) => {
                   e.preventDefault();
-                  abrirWhatsApp(linkSuporte(user?.email ?? ''));
+                  void abrirWhatsApp(linkSuporte(user?.email ?? ''));
                 }}
                 className="mt-3 flex items-center justify-center gap-2 text-xs text-ink-400 transition hover:text-white"
               >

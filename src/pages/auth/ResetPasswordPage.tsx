@@ -32,8 +32,45 @@ export function ResetPasswordPage() {
   useEffect(() => {
     let mounted = true;
 
-    // O supabase-js já processa o hash da URL (detectSessionInUrl). O evento
-    // PASSWORD_RECOVERY indica que o usuário veio do link de recuperação.
+    // O supabase-js (detectSessionInUrl) processa o hash da URL e dispara o
+    // evento PASSWORD_RECOVERY. PORÉM, com HashRouter a URL fica
+    //   https://.../#/redefinir-senha#access_token=...&type=recovery
+    // e o `#` interno quebra o parse do supabase-js (o access_token não é
+    // extraído corretamente). Por isso, extraímos o token MANUALMENTE do hash
+    // completo e estabelecemos a sessão via setSession — solução robusta que
+    // funciona com HashRouter.
+    const hash = window.location.hash; // ex.: "#/redefinir-senha#access_token=...&type=recovery"
+    const params = new URLSearchParams(hash.split('#').pop() ?? '');
+    const accessToken = params.get('access_token');
+    const refreshToken = params.get('refresh_token');
+    const type = params.get('type');
+
+    const temRecoveryToken = type === 'recovery' && !!accessToken;
+
+    if (temRecoveryToken) {
+      // Estabelece a sessão temporária de recuperação (o updateUser exige uma
+      // sessão ativa). Depois mostra o formulário para definir a nova senha.
+      (async () => {
+        try {
+          await supabase.auth.setSession({
+            access_token: accessToken,
+            refresh_token: refreshToken ?? '',
+          });
+        } catch {
+          // Se setSession falhar, ainda tentamos o fluxo normal (evento).
+        }
+        if (mounted) {
+          setTemRecovery(true);
+          setChecking(false);
+        }
+      })();
+      return () => {
+        mounted = false;
+      };
+    }
+
+    // Fallback: o supabase-js pode ter processado o hash e disparado o evento
+    // PASSWORD_RECOVERY (quando o token vem na query string, sem o # interno).
     const { data: sub } = supabase.auth.onAuthStateChange((event, session) => {
       if (!mounted) return;
       if (event === 'PASSWORD_RECOVERY' && session) {
@@ -41,25 +78,6 @@ export function ResetPasswordPage() {
         setChecking(false);
       }
     });
-
-    // Fallback: se o evento não disparar (ex.: sessão já processada), verifica
-    // se há uma sessão ativa com o tipo recovery no hash da URL.
-    const hash = window.location.hash;
-    const temTokenRecovery = hash.includes('type=recovery') || hash.includes('access_token=');
-    if (temTokenRecovery) {
-      // Aguarda o supabase-js processar o hash (assíncrono).
-      const t = window.setTimeout(() => {
-        if (mounted) {
-          setTemRecovery(true);
-          setChecking(false);
-        }
-      }, 1200);
-      return () => {
-        mounted = false;
-        sub.subscription.unsubscribe();
-        window.clearTimeout(t);
-      };
-    }
 
     // Sem token de recuperação na URL: não é um fluxo de redefinição válido.
     window.setTimeout(() => {

@@ -350,7 +350,7 @@ function UpgradeBanner() {
       href={linkAssinarGenerico(email)}
       onClick={(e) => {
         e.preventDefault();
-        abrirWhatsApp(linkAssinarGenerico(email));
+        void abrirWhatsApp(linkAssinarGenerico(email));
       }}
       className="flex items-center gap-4 rounded-2xl border border-roxo-700/30 bg-gradient-to-r from-ink-900 via-ink-900 to-roxo-950/60 p-5"
     >

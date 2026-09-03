@@ -106,7 +106,7 @@ export function TvSubscriptionPage() {
             href={linkRenovarPlano({ email, planoNome: subscription.plan?.name, planoCodigo: subscription.plan_code })}
             onClick={(e) => {
               e.preventDefault();
-              abrirWhatsApp(linkRenovarPlano({ email, planoNome: subscription.plan?.name, planoCodigo: subscription.plan_code }));
+              void abrirWhatsApp(linkRenovarPlano({ email, planoNome: subscription.plan?.name, planoCodigo: subscription.plan_code }));
             }}
           >
             Renovar pelo WhatsApp <ArrowRight className="tv-icon" />
@@ -153,7 +153,7 @@ export function TvSubscriptionPage() {
                     })}
                     onClick={(e) => {
                       e.preventDefault();
-                      abrirWhatsApp(linkContratarPlano({
+                      void abrirWhatsApp(linkContratarPlano({
                         email,
                         planoNome: plan.name,
                         planoCodigo: plan.code,

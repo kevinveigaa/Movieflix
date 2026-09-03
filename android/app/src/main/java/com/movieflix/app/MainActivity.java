@@ -348,6 +348,9 @@ public class MainActivity extends BridgeActivity {
 
     // ── WhatsApp: abre no app nativo e NUNCA navega o WebView ───────────────
 
+    /** Número oficial do WhatsApp do MovieFlix (formato internacional, sem +). */
+    public static final String WHATSAPP_NUMBER = "5511943750307";
+
     /** O link é de WhatsApp (wa.me / whatsapp.com)? */
     private boolean ehWhatsApp(Uri uri) {
         if (uri == null) return false;
@@ -357,6 +360,34 @@ public class MainActivity extends BridgeActivity {
         if (host == null) return false;
         String h = host.toLowerCase();
         return h.equals("wa.me") || h.endsWith("whatsapp.com");
+    }
+
+    /**
+     * O link é o WhatsApp OFICIAL do MovieFlix (wa.me / whatsapp.com com o
+     * número configurado)? Usado pela ponte nativa (MovieFlixPlugin) para
+     * validar a URL antes de abrir o intent — só o número oficial é aceito.
+     */
+    public static boolean ehWhatsAppOficial(Uri uri) {
+        if (uri == null) return false;
+        String scheme = uri.getScheme() == null ? "" : uri.getScheme().toLowerCase();
+        if (!scheme.equals("https") && !scheme.equals("http")) return false;
+        String host = uri.getHost();
+        if (host == null) return false;
+        String h = host.toLowerCase();
+        if (!h.equals("wa.me") && !h.endsWith("whatsapp.com")) return false;
+        // wa.me/{numero} — confere o número exato.
+        if (h.equals("wa.me")) {
+            String path = uri.getPath() == null ? "" : uri.getPath().replace("/", "").replace("+", "");
+            return path.equals(WHATSAPP_NUMBER);
+        }
+        // api.whatsapp.com/send?phone=... — confere o parâmetro phone.
+        String phone = uri.getQueryParameter("phone");
+        if (phone != null) {
+            String limpo = phone.replaceAll("\\D", "");
+            return limpo.equals(WHATSAPP_NUMBER);
+        }
+        // web.whatsapp.com (sem número) — permite apenas o domínio oficial.
+        return h.equals("web.whatsapp.com");
     }
 
     /** Abre o WhatsApp nativo (ou o navegador, se não instalado) via intent. */

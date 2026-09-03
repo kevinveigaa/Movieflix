@@ -99,7 +99,7 @@ export function SubscriptionPage() {
             href={linkRenovarPlano({ email, planoNome: currentPlan?.name, planoCodigo: currentPlan?.code })}
             onClick={(e) => {
               e.preventDefault();
-              abrirWhatsApp(linkRenovarPlano({ email, planoNome: currentPlan?.name, planoCodigo: currentPlan?.code }));
+              void abrirWhatsApp(linkRenovarPlano({ email, planoNome: currentPlan?.name, planoCodigo: currentPlan?.code }));
             }}
             className="btn-primary mt-5 inline-flex items-center gap-2"
           >
@@ -188,7 +188,7 @@ export function SubscriptionPage() {
                       })}
                       onClick={(e) => {
                         e.preventDefault();
-                        abrirWhatsApp(linkContratarPlano({
+                        void abrirWhatsApp(linkContratarPlano({
                           email,
                           planoNome: plan.name,
                           planoCodigo: plan.code,
@@ -229,7 +229,7 @@ export function SubscriptionPage() {
           href={linkSuporte(email)}
           onClick={(e) => {
             e.preventDefault();
-            abrirWhatsApp(linkSuporte(email));
+            void abrirWhatsApp(linkSuporte(email));
           }}
           className="inline-flex items-center gap-2 text-sm text-ink-300 transition hover:text-white"
         >

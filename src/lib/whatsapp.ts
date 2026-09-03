@@ -9,6 +9,8 @@
  * pagamento manualmente e ativa a conta informando SOMENTE e-mail + plano.
  */
 
+import { abrirWhatsAppNoApp } from '@/lib/appShell';
+
 /** Número do admin (formato internacional, sem +). */
 export const WHATSAPP_NUMBER = '5511943750307';
 
@@ -198,9 +200,19 @@ export function abrirLinkExternoPermitido(url: string): boolean {
  * política de redirecionamento (isAllowedExternalUrl). Usado pelos botões de
  * assinatura/troca/renovação de plano e suporte. Retorna true se abriu.
  *
- * Preferimos `window.open` (nova aba) para não sair do site; se o navegador
- * bloquear, cai para navegação direta (o antiAds permite o WhatsApp oficial).
+ * Estratégia em camadas (robusta em TODOS os ambientes):
+ *  1. DENTRO DO APP (APK/Capacitor): chama a ponte nativa
+ *     `MovieFlixApp.abrirWhatsApp(url)`, que valida a URL e dispara o intent
+ *     ACTION_VIEW diretamente — contorna o bloqueio de `window.open` do WebView
+ *     (setSupportMultipleWindows(false)) e a interceptação de navegação.
+ *  2. NAVEGADOR: `window.open` (nova aba) para não sair do site; se o navegador
+ *     bloquear, cai para navegação direta (o antiAds permite o WhatsApp oficial).
  */
-export function abrirWhatsApp(url: string): boolean {
+export async function abrirWhatsApp(url: string): Promise<boolean> {
+  if (!isAllowedExternalUrl(url)) return false;
+  // 1) App nativo: ponte Capacitor (mais confiável no WebView).
+  const abriuNoApp = await abrirWhatsAppNoApp(url);
+  if (abriuNoApp) return true;
+  // 2) Navegador: window.open com fallback para navegação direta.
   return abrirLinkExternoPermitido(url);
 }
