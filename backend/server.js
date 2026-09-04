@@ -20,41 +20,73 @@ const STARTED_AT = new Date().toISOString();
 const TMDB_API_KEY = process.env.TMDB_API_KEY || process.env.VITE_TMDB_TOKEN;
 const TMDB_API_BASE = "https://api.themoviedb.org/3";
 
-// Reprodução sempre dentro do site (remove bloqueios de exibição em iframe).
-// NOTA: o player usa o EMBED OFICIAL do StreamBetter (plano Creator, chave
-// pública sb_pk_*), então não há mais proxy de player nem resolver HLS via
-// backend. O trial-gate foi removido junto com a arquitetura do plano API.
+// Supabase (admin) — usado SOMENTE no servidor para listar clientes e
+// alterar senha. A service_role NUNCA vai para o frontend.
+const { createClient } = require("@supabase/supabase-js");
+const SUPABASE_URL = process.env.SUPABASE_URL;
+const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
+const adminSupabase = SUPABASE_URL && SUPABASE_SERVICE_ROLE_KEY
+  ? createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, { auth: { persistSession: false } })
+  : null;
 
-// Proxy da API TMDb: o frontend chama /api/tmdb/* e o servidor repassa a
-// chamada com a chave de acesso, mantendo-a fora do navegador.
-app.use("/api/tmdb", async (req, res) => {
+// ============================================================
+// ADMIN — GESTÃO DE CLIENTES E PLANOS (service_role)
+// ============================================================
+// Endpoints protegidos: exigem que o chamador seja o admin autenticado.
+// O frontend envia o access_token do usuário logado; o servidor valida que
+// o e-mail do token é o admin antes de usar a service_role.
+const ADMIN_EMAIL = "veigakevin71@gmail.com";
+
+function extrairEmailDoToken(authHeader) {
+  if (!authHeader || !authHeader.startsWith("Bearer ")) return null;
+  const token = authHeader.slice(7);
   try {
-    if (!TMDB_API_KEY) {
-      return res.status(500).json({ erro: "Chave da TMDb (TMDB_API_KEY) não configurada no servidor." });
-    }
+    const payload = token.split(".")[1];
+    if (!payload) return null;
+    const json = JSON.parse(Buffer.from(payload, "base64url").toString("utf-8"));
+    return json.email || null;
+  } catch {
+    return null;
+  }
+}
 
-    const path = req.url.replace(/^\/+/, "");
-    if (!path) {
-      return res.status(400).json({ erro: "Caminho da API TMDb ausente." });
-    }
+function ehAdmin(authHeader) {
+  return extrairEmailDoToken(authHeader) === ADMIN_EMAIL;
+}
 
-    const url = new URL(`${TMDB_API_BASE}/${path}`);
-    if (!req.query.language) url.searchParams.set("language", "pt-BR");
-    Object.entries(req.query).forEach(([k, v]) => {
-      url.searchParams.set(k, Array.isArray(v) ? v.join(",") : String(v));
-    });
+// Lista todos os clientes (e-mail + id + data de criação) via service_role.
+app.get("/api/admin/clientes", async (req, res) => {
+  if (!adminSupabase) return res.status(500).json({ erro: "Service role não configurada no servidor." });
+  if (!ehAdmin(req.headers.authorization)) return res.status(403).json({ erro: "Acesso negado." });
+  try {
+    const { data, error } = await adminSupabase.auth.admin.listUsers({ page: 1, perPage: 1000 });
+    if (error) return res.status(500).json({ erro: error.message });
+    const clientes = (data?.users ?? []).map((u) => ({
+      id: u.id,
+      email: u.email,
+      nome: u.user_metadata?.name || u.user_metadata?.full_name || null,
+      criado_em: u.created_at,
+    }));
+    res.json({ clientes });
+  } catch (e) {
+    res.status(500).json({ erro: e.message });
+  }
+});
 
-    const upstream = await fetch(url.toString(), {
-      headers: { Authorization: `Bearer ${TMDB_API_KEY}`, accept: "application/json" },
-    });
-
-    const body = await upstream.text();
-    res.status(upstream.status);
-    res.set("Content-Type", upstream.headers.get("content-type") || "application/json");
-    res.send(body);
-  } catch (error) {
-    console.log("ERRO TMDB PROXY:", error);
-    res.status(502).json({ erro: "Falha ao consultar a TMDb.", detalhe: error.message });
+// Altera a senha de um cliente via service_role (updateUserById).
+app.post("/api/admin/alterar-senha", async (req, res) => {
+  if (!adminSupabase) return res.status(503).json({ error: "Supabase não configurada no servidor." });
+  if (!ehAdmin(req.headers.authorization)) return res.status(403).json({ erro: "Acesso negado." });
+  const { user_id, nova_senha } = req.body || {};
+  if (!user_id || !nova_senha || nova_senha.length < 6) {
+    return res.status(400).json({ erro: "Informe o usuário e uma senha com pelo menos 6 caracteres." });
+  }
+  try {
+    const { data, error } = await adminSupabase.auth.admin.updateUserById(user_id, { password: nova_senha });
+    if (error) return res.status(500).json({ erro: error.message });
+    res.json({ ok: true, email: data?.user?.email ?? null });
+  } catch (e) {
+    res.status(500).json({ erro: e.message });
   }
 });
 

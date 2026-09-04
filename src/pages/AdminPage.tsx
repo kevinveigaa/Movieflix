@@ -12,7 +12,7 @@ import { useSeriesHidden } from "@/hooks/useSeriesHidden";
 
 const ADMIN_EMAIL = "veigakevin71@gmail.com";
 
-type Aba = "lista" | "form-filme" | "form-serie";
+type Aba = "lista" | "clientes" | "form-filme" | "form-serie";
 
 type Form = {
   title: string;
@@ -82,6 +82,14 @@ export function AdminPage() {
   const [consultaEmail, setConsultaEmail] = useState("");
   const [consultaResultado, setConsultaResultado] = useState<{ tipo: "ok" | "erro"; texto: string } | null>(null);
   const [consultaBusy, setConsultaBusy] = useState(false);
+
+  // === CLIENTES (listar e-mails + alterar senha via backend/service_role) ===
+  const [clientes, setClientes] = useState<any[]>([]);
+  const [clientesCarregando, setClientesCarregando] = useState(false);
+  const [clientesMsg, setClientesMsg] = useState<{ tipo: "ok" | "erro"; texto: string } | null>(null);
+  const [senhaPorCliente, setSenhaPorCliente] = useState<Record<string, string>>({});
+  const [alterandoSenha, setAlterandoSenha] = useState<string | null>(null);
+  const [buscaCliente, setBuscaCliente] = useState("");
 
   // === TEMPORADAS E EPISÓDIOS ===
   const [seasons, setSeasons] = useState<Season[]>([]);
@@ -228,6 +236,60 @@ export function AdminPage() {
     }
     setConsultaBusy(false);
   }
+
+  // === CLIENTES: listar e-mails (via backend/service_role) ===
+  const API_URL = (import.meta.env.VITE_API_URL as string) || "https://movieflix-bszf.onrender.com";
+
+  async function carregarClientes() {
+    setClientesCarregando(true);
+    setClientesMsg(null);
+    try {
+      const { data: sessao } = await supabase.auth.getSession();
+      const token = sessao?.session?.access_token;
+      const resp = await fetch(`${API_URL}/api/admin/clientes`, {
+        headers: { Authorization: `Bearer ${token ?? ""}` },
+      });
+      const json = await resp.json();
+      if (!resp.ok) throw new Error(json?.erro || json?.error || "Erro ao listar clientes.");
+      setClientes(json.clientes ?? []);
+    } catch (e: any) {
+      setClientesMsg({ tipo: "erro", texto: e?.message ?? "Erro ao listar clientes." });
+    }
+    setClientesCarregando(false);
+  }
+
+  // === CLIENTES: alterar senha via backend/service_role ===
+  async function alterarSenhaCliente(clienteId: string) {
+    const novaSenha = (senhaPorCliente[clienteId] ?? "").trim();
+    if (novaSenha.length < 6) {
+      setClientesMsg({ tipo: "erro", texto: "A nova senha deve ter pelo menos 6 caracteres." });
+      return;
+    }
+    if (!window.confirm("Alterar a senha deste cliente? Ele precisará usar a nova senha no próximo login.")) return;
+    setAlterandoSenha(clienteId);
+    setClientesMsg(null);
+    try {
+      const { data: sessao } = await supabase.auth.getSession();
+      const token = sessao?.session?.access_token;
+      const resp = await fetch(`${API_URL}/api/admin/alterar-senha`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token ?? ""}` },
+        body: JSON.stringify({ user_id: clienteId, nova_senha: novaSenha }),
+      });
+      const json = await resp.json();
+      if (!resp.ok) throw new Error(json?.erro || json?.error || "Erro ao alterar senha.");
+      setClientesMsg({ tipo: "ok", texto: `Senha alterada com sucesso para ${json.email ?? "o cliente"}.` });
+      setSenhaPorCliente((atual) => ({ ...atual, [clienteId]: "" }));
+    } catch (e: any) {
+      setClientesMsg({ tipo: "erro", texto: e?.message ?? "Erro ao alterar senha." });
+    }
+    setAlterandoSenha(null);
+  }
+
+  useEffect(() => {
+    if (ehAdmin) carregarClientes();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ehAdmin]);
 
   useEffect(() => {
     if (mostrarTemporadas && editandoId) {
@@ -635,6 +697,9 @@ export function AdminPage() {
           <button onClick={() => setAba("lista")} className={aba === "lista" ? "btn-primary" : "btn-outline"}>
             Catálogo ({filmes.length})
           </button>
+          <button onClick={() => setAba("clientes")} className={aba === "clientes" ? "btn-primary" : "btn-outline"}>
+            <UserCheck className="h-4 w-4" /> Clientes
+          </button>
           <button onClick={novoFilme} className={aba === "form-filme" ? "btn-primary" : "btn-outline"}>
             <Plus className="h-4 w-4" /> Filme
           </button>
@@ -742,6 +807,82 @@ export function AdminPage() {
           </p>
         )}
       </div>
+
+      {/* CLIENTES — listar e-mails e alterar senha */}
+      {aba === "clientes" && (
+        <div className="space-y-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-2">
+              <UserCheck className="h-5 w-5 shrink-0 text-roxo-400" />
+              <h2 className="text-sm font-bold text-white">Clientes cadastrados ({clientes.length})</h2>
+            </div>
+            <button onClick={carregarClientes} disabled={clientesCarregando} className="btn-outline">
+              <RefreshCw className={`h-4 w-4 ${clientesCarregando ? "animate-spin" : ""}`} /> Atualizar
+            </button>
+          </div>
+          <p className="text-xs text-gray-400">
+            Lista de todos os e-mails cadastrados. Para ativar/trocar o plano de um cliente, use o bloco
+            "Ativação manual de assinatura" acima (informe o e-mail e o plano 1/2/3). Para alterar a senha,
+            digite a nova senha e clique em "Alterar senha".
+          </p>
+
+          <div className="relative">
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-500" />
+            <input
+              className="input pl-10"
+              placeholder="Buscar cliente por e-mail ou nome"
+              value={buscaCliente}
+              onChange={(e) => setBuscaCliente(e.target.value)}
+            />
+          </div>
+
+          {clientesMsg && (
+            <p className={`text-sm ${clientesMsg.tipo === "ok" ? "text-emerald-300" : "text-red-300"}`}>
+              {clientesMsg.texto}
+            </p>
+          )}
+
+          {clientesCarregando && <p className="text-gray-400">Carregando clientes…</p>}
+          {!clientesCarregando && clientes.length === 0 && (
+            <p className="text-gray-400">Nenhum cliente encontrado. Verifique se o backend está com a service_role configurada.</p>
+          )}
+
+          <div className="grid gap-3">
+            {clientes
+              .filter((c) => {
+                const termo = buscaCliente.trim().toLowerCase();
+                if (!termo) return true;
+                return String(c.email ?? "").toLowerCase().includes(termo) || String(c.nome ?? "").toLowerCase().includes(termo);
+              })
+              .map((cliente) => (
+                <div key={cliente.id} className="card-surface flex flex-wrap items-center gap-3 p-3">
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate font-semibold">{cliente.email}</p>
+                    <p className="truncate text-xs text-gray-400">
+                      {cliente.nome || "Sem nome"} {cliente.criado_em ? `· Criado em ${new Date(cliente.criado_em).toLocaleDateString("pt-BR")}` : ""}
+                    </p>
+                  </div>
+                  <div className="flex shrink-0 items-center gap-2">
+                    <input
+                      type="password"
+                      className="input w-44"
+                      placeholder="Nova senha"
+                      value={senhaPorCliente[cliente.id] ?? ""}
+                      onChange={(e) => setSenhaPorCliente((atual) => ({ ...atual, [cliente.id]: e.target.value }))}
+                    />
+                    <button
+                      onClick={() => alterarSenhaCliente(cliente.id)}
+                      disabled={alterandoSenha === cliente.id}
+                      className="btn-outline px-3 py-2"
+                    >
+                      {alterandoSenha === cliente.id ? "Alterando…" : "Alterar senha"}
+                    </button>
+                  </div>
+                </div>
+              ))}
+          </div>
+        </div>
+      )}
 
       {msg && (
         <div className={`mb-6 flex items-center justify-between gap-3 rounded-xl border px-4 py-3 text-sm ${

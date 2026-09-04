@@ -61,7 +61,7 @@ export function HeroBanner({ items }: { items: HeroItem[] }) {
       aria-label="Filmes em destaque"
       data-tv-hero-item
     >
-      <div className="relative h-[62vw] max-h-[560px] min-h-[300px] w-full">
+      <div className="relative h-[70vw] max-h-[640px] min-h-[340px] w-full">
         {slides.map((s, i) => (
           <img
             key={s.id}

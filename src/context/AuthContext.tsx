@@ -132,6 +132,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // garante que a ResetPasswordPage o leia mesmo que monte depois.
         if (_event === 'PASSWORD_RECOVERY') {
           setIsPasswordRecovery(true);
+          // O app usa HashRouter. O redirectTo do reset é `${origin}/` e o
+          // Supabase anexa `#access_token=...&type=recovery` (hash ÚNICO), que o
+          // supabase-js parseia e dispara este evento. Aqui navegamos para a
+          // rota de redefinição de senha (o hash de recovery já foi consumido).
+          try {
+            if (window.location.hash && !window.location.hash.startsWith('#/redefinir-senha')) {
+              window.location.hash = '#/redefinir-senha';
+            }
+          } catch { /* ignora */ }
         }
         setSession(sess);
         if (sess) {
@@ -183,9 +192,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       },
       async resetPassword(email) {
         const { error } = await supabase.auth.resetPasswordForEmail(email, {
-          // O link do e-mail abre a rota de redefinição, que detecta o token de
-          // recuperação (PASSWORD_RECOVERY) e permite definir a nova senha.
-          redirectTo: `${window.location.origin}/#/redefinir-senha`,
+          // IMPORTANTE (HashRouter): o redirectTo deve ser a RAIZ (`${origin}/`),
+          // NÃO `${origin}/#/redefinir-senha`. O Supabase anexa o token de
+          // recuperação como hash ÚNICO (`#access_token=...&type=recovery`), que
+          // o supabase-js (detectSessionInUrl) parseia e dispara PASSWORD_RECOVERY.
+          // Se usássemos `#/redefinir-senha`, o resultado seria um hash DUPLO
+          // (`#/redefinir-senha#access_token=...`) que o supabase-js não consegue
+          // ler → o evento nunca dispara e a tela mostra "link inválido".
+          // Ao capturar PASSWORD_RECOVERY, o AuthProvider navega para
+          // /redefinir-senha (ver onAuthStateChange).
+          redirectTo: `${window.location.origin}/`,
         });
         if (error) throw error;
       },
