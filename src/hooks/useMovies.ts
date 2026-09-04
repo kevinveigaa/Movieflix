@@ -46,6 +46,9 @@ export interface CatalogMovie {
   episodes?: number | null;
   episodes_available?: string[];
   dublado_ptbr?: boolean;
+  /** Número da temporada/episódio (usado por players de série). */
+  season_number?: number;
+  episode_number?: number;
 }
 
 type CatalogJson = CatalogMovie[];

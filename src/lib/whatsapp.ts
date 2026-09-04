@@ -178,17 +178,21 @@ export function isAllowedExternalUrl(url: string): boolean {
 /**
  * Abre um link externo de forma SEGURA, respeitando a política de
  * redirecionamento (isAllowedExternalUrl). Usado pelos botões de assinatura
- * para abrir o WhatsApp oficial sem depender de <a target="_blank"> (que o
- * antiAds/WebView pode bloquear). Retorna true se abriu, false se bloqueado.
+ * para abrir o WhatsApp oficial.
+ *
+ * MÉTODO PRIMÁRIO: navegação direta via `window.location.href`. É o mais
+ * confiável em Android, navegador mobile, desktop e WebView — não depende de
+ * `window.open` (que pode ser bloqueado por popup-blocker ou pelo
+ * setSupportMultipleWindows(false) do WebView) nem de `target="_blank"`.
+ * O antiAds permite o WhatsApp oficial (isAllowedExternalUrl), então a
+ * navegação não é cancelada. Retorna true se a navegação foi iniciada.
  */
 export function abrirLinkExternoPermitido(url: string): boolean {
   if (!isAllowedExternalUrl(url)) return false;
   try {
-    const win = window.open(url, '_blank', 'noopener,noreferrer');
-    if (!win) {
-      // Fallback: navegação direta (o antiAds permite WhatsApp oficial).
-      window.location.href = url;
-    }
+    // Navegação direta: sai do site para o WhatsApp oficial. O antiAds
+    // permite (isAllowedExternalUrl) e o guard nativo do app também.
+    window.location.href = url;
     return true;
   } catch {
     return false;

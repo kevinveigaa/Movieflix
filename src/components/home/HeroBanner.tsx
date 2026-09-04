@@ -67,7 +67,7 @@ export function HeroBanner({ items }: { items: HeroItem[] }) {
             key={s.id}
             src={s.backdrop_url || s.poster_url || ''}
             alt={s.title ?? "Destaque"}
-            className={`absolute inset-0 h-full w-full object-cover object-top transition-opacity duration-[900ms] ease-out ${
+            className={`hero-banner-img absolute inset-0 h-full w-full object-cover object-top transition-opacity duration-[900ms] ease-out ${
               i === index ? "opacity-100" : "opacity-0"
             }`}
             loading={i === 0 ? "eager" : "lazy"}

@@ -19,6 +19,14 @@ interface AuthState {
   resetPassword: (email: string) => Promise<void>;
   refreshProfile: () => Promise<void>;
   refreshSubscription: () => Promise<Subscription | null>;
+  /**
+   * true quando o usuário chegou via link de recuperação de senha do Supabase
+   * (evento PASSWORD_RECOVERY). Capturado no nível do provider (montado ANTES
+   * das rotas), então sobrevive ao timing de montagem da ResetPasswordPage.
+   */
+  isPasswordRecovery: boolean;
+  /** Limpa o flag de recuperação (após redefinir a senha ou sair da rota). */
+  clearPasswordRecovery: () => void;
 }
 
 const AuthContext = createContext<AuthState | undefined>(undefined);
@@ -60,6 +68,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [subscription, setSubscription] = useState<Subscription | null>(null);
   const [loading, setLoading] = useState(true);
   const [activeViewerProfile, setActiveViewerProfileState] = useState<ViewerProfile | null>(loadSavedProfile);
+  const [isPasswordRecovery, setIsPasswordRecovery] = useState(false);
 
   function setActiveViewerProfile(p: ViewerProfile | null) {
     setActiveViewerProfileState(p);
@@ -116,6 +125,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     const { data: sub } = supabase.auth.onAuthStateChange((_event, sess) => {
       (async () => {
+        // Captura o evento de recuperação de senha ANTES de qualquer rota
+        // montar. O supabase-js (detectSessionInUrl) dispara PASSWORD_RECOVERY
+        // ao processar o hash do link do e-mail e LIMPA o hash da URL em
+        // seguida. Guardar o flag aqui (no provider, montado antes das rotas)
+        // garante que a ResetPasswordPage o leia mesmo que monte depois.
+        if (_event === 'PASSWORD_RECOVERY') {
+          setIsPasswordRecovery(true);
+        }
         setSession(sess);
         if (sess) {
           await Promise.all([loadProfile(sess.user.id), loadSubscription(sess.user.id)]);
@@ -147,6 +164,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       authLoading: loading,
       activeViewerProfile,
       setActiveViewerProfile,
+      isPasswordRecovery,
+      clearPasswordRecovery: () => setIsPasswordRecovery(false),
       async signIn(email, password) {
         const { error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
@@ -181,7 +200,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       },
     }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [session, profile, subscription, loading, activeViewerProfile],
+    [session, profile, subscription, loading, activeViewerProfile, isPasswordRecovery],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

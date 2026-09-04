@@ -14,9 +14,15 @@ senha → login).
    com o token de recuperação (`#access_token=...&type=recovery`).
 4. O `supabase-js` (com `detectSessionInUrl: true`) processa o hash e dispara o
    evento `PASSWORD_RECOVERY` com uma sessão temporária.
-5. A página `ResetPasswordPage` (`/redefinir-senha`) detecta esse evento e
-   mostra o formulário "Definir nova senha".
-6. O usuário define a nova senha → `supabase.auth.updateUser({ password })` →
+5. **Captura do evento (causa raiz corrigida):** o `AuthProvider` (montado
+   ANTES das rotas) escuta `onAuthStateChange` e, ao receber
+   `PASSWORD_RECOVERY`, guarda o flag `isPasswordRecovery` no contexto. Isso é
+   essencial porque o supabase-js **consome/limpa o hash da URL** e dispara o
+   evento antes de a `ResetPasswordPage` montar o seu próprio listener — o
+   re-parse manual de `window.location.hash` falhava (hash já limpo).
+6. A página `ResetPasswordPage` (`/redefinir-senha`) lê `isPasswordRecovery`
+   do contexto e mostra o formulário "Definir nova senha".
+7. O usuário define a nova senha → `supabase.auth.updateUser({ password })` →
    confirmação → redireciona para `/login`.
 
 ## Configuração obrigatória no Supabase
