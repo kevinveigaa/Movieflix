@@ -88,3 +88,35 @@ export async function aplicarClasseApp() {
     // ignora
   }
 }
+
+/**
+ * Abre uma URL no NAVEGADOR EXTERNO do celular (fora do WebView), via a ponte
+ * nativa `MovieFlixApp.abrirNoNavegador(url)`.
+ *
+ * Motivo: dentro do WebView do app, `window.open` é bloqueado por
+ * `setSupportMultipleWindows(false)` e a navegação via `location.href` passa
+ * pela interceptação do shouldOverrideUrlLoading. Para abrir a página de
+ * assinatura do site no navegador externo (onde o WhatsApp funciona
+ * normalmente), chamamos a ponte nativa, que dispara o intent ACTION_VIEW
+ * diretamente — o navegador do celular abre a URL FORA do WebView.
+ *
+ * Retorna true se o app nativo assumiu a abertura; false se não estiver no
+ * app (navegador) ou se a ponte não existir — nesse caso o chamador usa o
+ * fallback do navegador (window.open / location.href).
+ */
+export async function abrirNoNavegador(url: string): Promise<boolean> {
+  try {
+    const w = window as any;
+    const cap = w.Capacitor;
+    if (cap && cap.isNativePlatform && cap.isNativePlatform()) {
+      const plugin = cap.Plugins?.MovieFlixApp;
+      if (plugin?.abrirNoNavegador) {
+        await plugin.abrirNoNavegador({ url });
+        return true;
+      }
+    }
+  } catch {
+    // Ponte falhou — cai para o fallback do navegador.
+  }
+  return false;
+}

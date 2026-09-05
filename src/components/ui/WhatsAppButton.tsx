@@ -1,30 +1,36 @@
 import { useRef, useState, type ReactNode, type MouseEvent } from 'react';
 import { MessageCircle } from 'lucide-react';
-import { abrirWhatsAppNoApp, ehAppSincrono } from '@/lib/appShell';
+import { abrirNoNavegador, ehAppSincrono } from '@/lib/appShell';
 
 /**
- * WhatsAppButton — botão de assinatura/troca/renovação que abre o WhatsApp
- * OFICIAL do MovieFlix de forma FINAL e segura, TANTO no navegador QUANTO no
- * app (APK/Capacitor).
+ * WhatsAppButton — botão de assinatura/troca/renovação.
+ *
+ * FLUXO POR AMBIENTE:
+ *  - NAVEGADOR (site): é um <a href target="_blank" rel="noopener"> REAL — o
+ *    navegador abre o WhatsApp numa NOVA aba com a mensagem pré-preenchida
+ *    (e-mail + plano + valor). O site NUNCA fecha, recarrega, volta para a
+ *    última página nem redireciona internamente.
+ *  - APP (APK/Capacitor): o WebView do app tem `setSupportMultipleWindows(false)`,
+ *    então `target="_blank"` é SILENCIOSAMENTE IGNORADO e o WhatsApp não abre
+ *    dentro do WebView. NOVO FLUXO: ao clicar, o app mostra um AVISO informando
+ *    que é preciso acessar a página de assinatura no site para enviar a
+ *    mensagem automática no WhatsApp, e então REDIRECIONA para a página de
+ *    assinatura do site (https://movieflix-bszf.onrender.com/#/minha-assinatura)
+ *    ABERTA NO NAVEGADOR EXTERNO do celular (via intent nativo, fora do
+ *    WebView). Dentro do site (navegador), a pessoa clica e manda a mensagem
+ *    automática no WhatsApp normalmente.
  *
  * Garantias:
- *  - NAVEGADOR: é um <a href target="_blank" rel="noopener"> REAL — preserva o
- *    gesto de usuário, o navegador abre o WhatsApp numa NOVA aba e o site NUNCA
- *    fecha, recarrega, volta para a última página nem redireciona internamente.
- *  - APP (APK/Capacitor): o WebView do app tem `setSupportMultipleWindows(false)`,
- *    então `target="_blank"` é SILENCIOSAMENTE IGNORADO (não abre janela nem
- *    navega o main frame). Para abrir o WhatsApp de forma CONFIÁVEL no app,
- *    chamamos a ponte nativa `MovieFlixApp.abrirWhatsApp(url)`, que valida a URL
- *    (só o WhatsApp oficial) e dispara o intent ACTION_VIEW diretamente — abre
- *    o WhatsApp FORA do WebView, sem bloquear, sem voltar, sem prender o usuário.
  *  - BLOQUEIA CLIQUE DUPLICADO: após o primeiro clique, o botão entra em
- *    "abrindo..." e ignora cliques subsequentes por um curto intervalo — o
- *    WhatsApp abre UMA única vez (sem múltiplas abas/chamadas).
- *  - NÃO há polling, timer, callback ou redirect automático depois de abrir:
- *    o clique é o redirecionamento FINAL para o WhatsApp.
+ *    "abrindo..." e ignora cliques subsequentes por um curto intervalo.
+ *  - NÃO há polling, timer, callback ou redirect automático depois de abrir.
  *  - O antiAds permite explicitamente wa.me/whatsapp.com/whatsapp:// (via
  *    isAllowedExternalUrl), então a proteção global continua ativa.
  */
+
+/** URL da página de assinatura do site (aberta no navegador externo no app). */
+export const PAGINA_ASSINATURA_URL = 'https://movieflix-bszf.onrender.com/#/minha-assinatura';
+
 export function WhatsAppButton({
   href,
   children,
@@ -59,13 +65,20 @@ export function WhatsAppButton({
     }, 1500);
 
     // DENTRO DO APP (APK/Capacitor): o WebView ignora target="_blank"
-    // (setSupportMultipleWindows(false)). Chamamos a ponte nativa, que abre o
-    // WhatsApp FORA do WebView via intent. Previne o comportamento padrão do
-    // <a> (que não faria nada no app) para não duplicar a abertura.
+    // (setSupportMultipleWindows(false)) e o WhatsApp não abre dentro do
+    // WebView. Novo fluxo: mostra um aviso e redireciona para a página de
+    // assinatura do site, aberta no NAVEGADOR EXTERNO do celular (via ponte
+    // nativa), onde o WhatsApp funciona normalmente.
     if (ehAppSincrono()) {
       e.preventDefault();
       e.stopPropagation();
-      void abrirWhatsAppNoApp(href);
+      // Aviso ao usuário antes de redirecionar.
+      const ok = window.confirm(
+        'Para enviar a mensagem automática no WhatsApp, é preciso acessar a página de assinatura no site. Deseja abrir no navegador?'
+      );
+      if (ok) {
+        void abrirNoNavegador(PAGINA_ASSINATURA_URL);
+      }
       return;
     }
 
@@ -85,7 +98,7 @@ export function WhatsAppButton({
       className={className}
     >
       <MessageCircle className="h-4 w-4" />
-      {abrindo ? 'Abrindo WhatsApp…' : children}
+      {abrindo ? 'Abrindo…' : children}
     </a>
   );
 }

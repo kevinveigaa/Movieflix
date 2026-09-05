@@ -112,6 +112,40 @@ public class MovieFlixPlugin extends Plugin {
     }
 
     /**
+     * Abre uma URL no NAVEGADOR EXTERNO do celular (fora do WebView), via
+     * intent ACTION_VIEW.
+     *
+     * Motivo: dentro do WebView do app, `window.open` é bloqueado por
+     * `setSupportMultipleWindows(false)` e a navegação via `location.href`
+     * passa pela interceptação do shouldOverrideUrlLoading. Para abrir a
+     * página de assinatura do site no navegador externo (onde o WhatsApp
+     * funciona normalmente), o JS chama esta ponte nativa, que dispara o
+     * intent ACTION_VIEW diretamente — o navegador do celular abre a URL
+     * FORA do WebView, sem bloquear, sem voltar, sem prender o usuário.
+     *
+     * Segurança: a URL é validada pelo chamador (WhatsAppButton) antes de
+     * chamar esta ponte — apenas a página de assinatura do próprio site é
+     * aberta aqui.
+     */
+    @PluginMethod
+    public void abrirNoNavegador(PluginCall call) {
+        String url = call.getString("url");
+        if (url == null || url.isEmpty()) {
+            call.reject("URL obrigatória");
+            return;
+        }
+        try {
+            Uri uri = Uri.parse(url);
+            Intent intent = new Intent(Intent.ACTION_VIEW, uri);
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            getActivity().startActivity(intent);
+            call.resolve();
+        } catch (Exception e) {
+            call.reject("Não foi possível abrir o navegador", e);
+        }
+    }
+
+    /**
      * Sai do app (duplo-back confirmado pelo site). Chamado pelo JS via
      * `MovieFlixApp.exitApp()` quando o usuário pulsa "voltar" duas vezes na
      * raiz — fecha o app de verdade (o equivalente a super.onBackPressed()
