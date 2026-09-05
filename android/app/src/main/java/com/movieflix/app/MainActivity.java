@@ -30,16 +30,19 @@ import com.getcapacitor.BridgeActivity;
  * O app é um WebView remoto que SEMPRE carrega a versão atual do site
  * (https://movieflix-bszf.onrender.com). Este activity configura:
  *
- * 1. WebViewClient que BLOQUEIA TOTALMENTE popups/abas novas e navegação
- *    externa de anúncios — o usuário de TV NUNCA fica preso numa página de
- *    anúncio e o player NUNCA redireciona para outra tela. Navegação interna
- *    (o próprio site) continua normal.
- * 2. Guard de redirect NATIVO em onPageCommitVisible/onPageFinished: se o
- *    WebView navegar para um host de anúncio/externo (mesmo via redirect do
- *    iframe do player), RESTAURA imediatamente a última página do player (ou
- *    do site) — silencioso, sem toast/alerta.
+ * 1. WebViewClient que:
+ *    - mantém no WebView a navegação interna do site e dos domínios do
+ *      player/streaming;
+ *    - mantém no WebView qualquer iframe/subframe (para não quebrar o
+ *      player), exceto domínios conhecidos de anúncio;
+ *    - abre o WhatsApp nativamente (ou navegador, como fallback);
+ *    - abre QUALQUER outro link externo legítimo (http/https, tel, mailto,
+ *      sms, intent, etc.) usando o Android (app correspondente ou
+ *      navegador) em vez de bloquear por não estar numa whitelist.
+ * 2. Guard de anúncio: apenas domínios conhecidos de anúncio/pop-up são
+ *    bloqueados; ao bloquear, restaura a última página válida do player/site.
  * 3. Voltar (back) inteligente: se o WebView tem histórico, volta uma página
- *    (Player -> filme -> página anterior); se está na raiz, sai.
+ *    (Player -> filme -> página anterior); se está na raiz, exige duplo-back.
  * 4. DPAD/controle remoto: o WebView fica focado para receber as teclas
  *    (setas/OK/Voltar) que o site usa para navegação por TV (useTvNavigation).
  * 5. Cache do WebView desabilitado no primeiro load (no-cache) para que o
@@ -228,10 +231,16 @@ public class MainActivity extends BridgeActivity {
         tratarDeepLink(intent);
     }
 
-    /** Converte um deep link movieflix:// em rota do site e navega o WebView. */
+    /** Converte um deep link movieflix:// recebido via Intent do sistema. */
     private void tratarDeepLink(Intent intent) {
         if (intent == null) return;
         Uri uri = intent.getData();
+        if (uri == null) return;
+        tratarDeepLinkUri(uri);
+    }
+
+    /** Converte um deep link movieflix:// em rota do site e navega o WebView. */
+    private void tratarDeepLinkUri(Uri uri) {
         if (uri == null) return;
         String scheme = uri.getScheme();
         if (scheme == null || !scheme.equalsIgnoreCase("movieflix")) return;
@@ -456,29 +465,22 @@ public class MainActivity extends BridgeActivity {
         }
     }
 
-    /**
-     * Decide se uma navegação deve ser BLOQUEADA (anúncio/popup/externo).
-     * Regras:
-     * - Bloqueia: http (não-https), esquemas não-http(s), domínios de anúncio
-     *   conhecidos, e qualquer host que NÃO seja o site principal ou um dos
-     *   domínios permitidos do player (StreamBetter e afins).
-     * - Permite: navegação interna do site e os domínios do player/streaming.
-     */
-    private boolean shouldBlock(Uri uri) {
-        if (uri == null) return true;
-        String scheme = uri.getScheme() == null ? "" : uri.getScheme().toLowerCase();
-        if (!scheme.equals("https")) {
-            // Permite apenas https (bloqueia intent://, tel://, file://, etc.)
-            return true;
-        }
-        String host = uri.getHost();
-        if (host == null) return true;
+    // ── Classificação de domínios ────────────────────────────────────────────
 
+    /** O host é o domínio principal do MovieFlix? */
+    private boolean ehDominioInterno(Uri uri) {
+        String host = uri.getHost();
+        if (host == null) return false;
         String h = host.toLowerCase();
-        // Domínios do próprio site e do player/streaming — SEMPRE permitidos.
-        if (h.equals("movieflix-bszf.onrender.com")
-                || h.endsWith(".onrender.com")
-                || h.endsWith("streambetter.shop")
+        return h.equals("movieflix-bszf.onrender.com") || h.endsWith(".onrender.com");
+    }
+
+    /** O host é um dos domínios usados pelo player/streaming embutido? */
+    private boolean ehDominioPlayer(Uri uri) {
+        String host = uri.getHost();
+        if (host == null) return false;
+        String h = host.toLowerCase();
+        return h.endsWith("streambetter.shop")
                 || h.endsWith("playerflixapi.com")
                 || h.endsWith("megaembedapi.site")
                 || h.endsWith("embedplayapi.site")
@@ -494,56 +496,95 @@ public class MainActivity extends BridgeActivity {
                 || h.endsWith("gstatic.com")
                 || h.endsWith("drive.google.com")
                 || h.endsWith("googlevideo.com")
-                || h.endsWith("ggpht.com")
-                || h.endsWith("wa.me")
-                || h.endsWith("whatsapp.com")
-                || h.endsWith("instagram.com")) {
-            return false;
-        }
+                || h.endsWith("ggpht.com");
+    }
 
-        // Domínios de anúncio conhecidos — bloqueia (o player tenta abrir).
-        if (h.contains("ads") || h.contains("adservice") || h.contains("doubleclick")
+    /** O host é um domínio conhecido de anúncio/pop-up? */
+    private boolean ehDominioAnuncio(Uri uri) {
+        String host = uri.getHost();
+        if (host == null) return false;
+        String h = host.toLowerCase();
+        return h.contains("ads") || h.contains("adservice") || h.contains("doubleclick")
                 || h.contains("adsterra") || h.contains("propeller") || h.contains("popads")
                 || h.contains("exoclick") || h.contains("trafficjunky")
                 || h.contains("googlesyndication") || h.contains("adnxs")
                 || h.contains("outbrain") || h.contains("taboola")
-                || h.contains("revcontent") || h.contains("mgid")) {
-            return true;
-        }
+                || h.contains("revcontent") || h.contains("mgid");
+    }
 
-        // Qualquer outro host externo (anúncio/redirecionamento): bloqueia e
-        // volta para a página do player (o site tem o guard de redirect e o
-        // antiAds.ts na janela pai — aqui é a última linha de defesa nativa).
-        return true;
+    /**
+     * Tenta abrir uma URI externa usando o Android (app correspondente ou
+     * navegador). Usado tanto para http(s) externos legítimos quanto para
+     * outros esquemas (tel:, mailto:, sms:, intent:, etc.). Se não houver
+     * aplicativo compatível instalado, a exceção é tratada silenciosamente
+     * sem derrubar o app nem navegar o WebView para fora do site.
+     */
+    private void tentarAbrirExterno(Uri uri) {
+        try {
+            Intent intent = new Intent(Intent.ACTION_VIEW, uri);
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            startActivity(intent);
+        } catch (Exception ignored) {
+            // Sem app compatível para tratar o link — ignora silenciosamente.
+        }
     }
 
     /**
      * Trata navegações do WebView. Tudo é SILENCIOSO: nenhum Toast, Dialog,
-     * alerta ou notificação é mostrado ao usuário.
+     * alerta ou notificação é mostrado ao usuário (exceto o duplo-back).
      *
-     * - Navegação permitida (site + domínios do player/streaming): deixa passar.
-     * - Navegação para anúncio/externo (subframe ou main frame): BLOQUEIA e
-     *   restaura automaticamente a última página do player (ou o site), para
-     *   o usuário de TV nunca ficar preso numa página de anúncio. A restauração
-     *   é feita com loadUrl — o usuário simplesmente continua vendo o player.
-     *
-     * Popups (janelas/abas extras) são bloqueados pelo próprio WebView
-     * (setSupportMultipleWindows desabilitado) e por shouldBlock acima.
+     * Prioridade:
+     * 1. URI inválida → bloqueia com segurança.
+     * 2. WhatsApp no frame principal → abre externamente no WhatsApp.
+     * 3. movieflix:// → trata como Deep Link do aplicativo.
+     * 4. iframe/subframe → continua no WebView, exceto anúncios conhecidos.
+     * 5. MovieFlix/player (frame principal) → continua no WebView.
+     * 6. Domínio de anúncio conhecido → bloqueia e restaura a última página válida.
+     * 7. Qualquer outro link (http/https externo legítimo, tel:, mailto:,
+     *    sms:, intent:, etc.) → abre externamente pelo Android. NÃO é mais
+     *    bloqueado apenas por não estar numa lista de domínios permitidos.
      */
     private boolean tratarNavegacao(WebView view, Uri uri, boolean isMainFrame) {
-        if (uri == null) return true;
-        // WhatsApp: abre no app nativo e deixa o WebView onde está. Isso evita
-        // que o WebView navegue para wa.me → intent:// e seja "puxado" de volta
-        // ao site pelo guard de redirect (o usuário fica no WhatsApp).
+        if (uri == null) return true; // 1. URI inválida.
+
+        String scheme = uri.getScheme() == null ? "" : uri.getScheme().toLowerCase();
+
+        // 2. WhatsApp no frame principal: abre no app nativo e o WebView
+        // fica onde está.
         if (isMainFrame && ehWhatsApp(uri)) {
             abrirWhatsApp(uri);
             return true;
         }
-        if (shouldBlock(uri)) {
+
+        // 3. Deep link do próprio app (movieflix://), caso apareça dentro do WebView.
+        if (scheme.equals("movieflix")) {
+            tratarDeepLinkUri(uri);
+            return true;
+        }
+
+        // 4. iframe/subframe do player: continua no WebView, exceto anúncio.
+        if (!isMainFrame) {
+            if (ehDominioAnuncio(uri)) {
+                return true; // bloqueia apenas o subframe de anúncio.
+            }
+            return false; // permite o WebView continuar carregando o player.
+        }
+
+        // 5. MovieFlix e domínios do player no frame principal: continuam no WebView.
+        if (ehDominioInterno(uri) || ehDominioPlayer(uri)) {
+            return false;
+        }
+
+        // 6. Anúncio conhecido no frame principal: bloqueia e restaura o player/site.
+        if (ehDominioAnuncio(uri)) {
             restaurarUltimaPaginaValida(view);
             return true;
         }
-        return false;
+
+        // 7. Qualquer outro link (http/https externo legítimo ou outro
+        // protocolo como tel:/mailto:/sms:/intent:): abre pelo Android.
+        tentarAbrirExterno(uri);
+        return true;
     }
 
     /** Restaura a última página válida (player ou site) com anti-loop. */
@@ -666,3 +707,4 @@ public class MainActivity extends BridgeActivity {
         return super.dispatchKeyEvent(event);
     }
 }
+
