@@ -92,3 +92,31 @@ endpoint valida que o JWT enviado pertence ao admin antes de usar a service_role
 - [ ] `npm run build` passa (o `ResetPasswordPage` é incluído no bundle).
 - [ ] Fluxo manual: Esqueci minha senha → e-mail → link → nova senha → login.
 - [ ] Painel admin (`/#/admin`) lista clientes, ativa/troca plano e altera senha.
+
+## ⚠️ CORREÇÃO OBRIGATÓRIA — payments.amount NULL (aplicar no Supabase)
+
+**Erro crítico:** `null value in column "amount" of relation "payments" violates
+not-null constraint` ao ativar/trocar plano no painel admin.
+
+**Causa raiz:** a tabela `payments` em produção tem uma coluna `amount`
+(numeric NOT NULL), mas a função `activate_subscription_by_email` inseria
+apenas `amount_cents`, deixando `amount` NULL → violava a constraint.
+
+**Correção:** a migration
+`supabase/migrations/20260904120000_fix_payments_amount.sql`:
+1. Garante a coluna `amount` (se faltar) e faz backfill a partir de
+   `amount_cents` (e vice-versa).
+2. Reescreve `activate_subscription_by_email` para preencher **sempre**
+   `amount` E `amount_cents` com o `price_cents` do plano, e **valida o preço**
+   antes de inserir (se o plano não tiver preço válido, NÃO cria payment e
+   retorna erro controlado — nunca insere NULL).
+3. Mantém os 3 planos intactos (Plano 1=1990, Plano 2=2990, Plano 3=3990).
+
+**Como aplicar:** abra o **Supabase Dashboard → SQL Editor**, cole o conteúdo
+do arquivo `supabase/migrations/20260904120000_fix_payments_amount.sql` e
+execute. (Ou rode `supabase db push` se usar a CLI.) A migration é idempotente
+e não destrutiva — não apaga dados, não faz `DROP`, não altera preços.
+
+> **Nota:** a migration precisa ser aplicada no banco para a ativação de plano
+> parar de falhar. O código do frontend/backend já está deployado; a migration
+> é a etapa final no Supabase.
