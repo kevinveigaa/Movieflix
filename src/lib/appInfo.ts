@@ -20,24 +20,24 @@ export const APP_INFO = {
   /** Nome exibido do aplicativo */
   name: 'MovieFlix',
   /** Versão semântica atual (bate com android/app/build.gradle → versionName) */
-  version: '3.3.0',
+  version: '3.4.0',
   /** Código de versão Android (bate com versionCode) */
-  versionCode: 8,
+  versionCode: 9,
   /** Data de lançamento desta versão (AAAA-MM-DD) */
   releaseDate: '2026-09-05',
   /** Resumo das mudanças desta versão (exibido na página de download) */
   changelog: [
-    'App 100% NATIVO (Android) — sem WebView, telas reais de Home, Catálogo, Planos, Perfil e Detalhes',
-    'Player de vídeo NATIVO (ExoPlayer/Media3) — play, pause, seek, fullscreen, volume, qualidade, retomar de onde parou e próximo episódio',
-    'Catálogo consumido do MESMO backend do site (filmes/séries atualizam automaticamente)',
-    'Login e assinaturas integrados ao Supabase (mesma conta do site, mesmo status de assinatura)',
-    'Botão de WhatsApp abre o WhatsApp nativamente com número e mensagem pré-preenchida em todas as telas',
-    'Links de filmes/trailers abrem no navegador/app externo corretamente',
+    'App WebView profissional que carrega o site MovieFlix exatamente como ele é (mesma UI, mesmos filmes, mesmas telas)',
+    'WhatsApp abre nativamente com número e mensagem pré-preenchida em todos os botões (assinar, trocar, renovar, suporte)',
+    'Player de vídeo, tela cheia, áudio e links externos funcionando dentro do app',
+    'Login e sessão mantidos (cookies/localStorage) — não precisa logar de novo a cada abertura',
+    'Botão voltar inteligente: sai da tela cheia → volta na página → sai do app',
+    'Tela de carregamento com o logo e tela de erro com "Tentar novamente"',
   ],
   /** Plataformas suportadas */
   platforms: ['Android', 'Android TV', 'Google TV', 'TV Box'],
   /** Nome do arquivo do APK oficial (manter sincronizado com public/apk/) */
-  apkFileName: 'MovieFlix-v3.3.0.apk',
+  apkFileName: 'MovieFlix-v3.4.0.apk',
 } as const;
 
 /** Caminho público do APK oficial dentro do app (servido pelo backend/static). */
@@ -53,7 +53,7 @@ export const APK_ABSOLUTE_URL = `https://movieflix-bszf.onrender.com${APK_URL}`;
 /** URL absoluta da página de download (usada como fallback do QR em iOS). */
 export const DOWNLOAD_PAGE_URL = 'https://movieflix-bszf.onrender.com/#/baixar-app';
 
-/** Tamanho do APK em MB (exibido na página de download). Mantido em sincronia com public/apk/MovieFlix-v3.3.0.apk. */
+/** Tamanho do APK em MB (exibido na página de download). Mantido em sincronia com public/apk/MovieFlix-v3.4.0.apk. */
 export const APK_SIZE_MB = '8.6 MB';
 
 /** Chave usada no localStorage para lembrar a última versão vista pelo usuário. */

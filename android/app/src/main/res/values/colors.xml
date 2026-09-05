@@ -7,5 +7,7 @@
     <color name="bg_card">#1A1A1A</color>
     <color name="text_primary">#FFFFFF</color>
     <color name="text_secondary">#B3B3B3</color>
+    <color name="textPrimary">#FFFFFF</color>
+    <color name="textSecondary">#B3B3B3</color>
     <color name="whatsapp_green">#25D366</color>
 </resources>
