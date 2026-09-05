@@ -513,12 +513,15 @@ export function instalarBloqueioAnuncios(): () => void {
     const href = alvo.getAttribute('href') || '';
     if (!href) return;
     if (href.startsWith('/') || href.startsWith('#') || href.startsWith('?')) return;
-    if (ehDominioPermitido(href)) return;
     // Deep link do MovieFlix (movieflix://) — permite abrir o app nativo.
     if (ehDeepLinkMovieFlix(href)) return;
-    // Exceção ÚNICA e segura: WhatsApp OFICIAL do MovieFlix (assinatura/suporte).
-    // Qualquer outro link externo que não seja domínio permitido = anúncio → cancela.
+    // WhatsApp OFICIAL do MovieFlix (assinatura/suporte) — sempre permite.
     if (isAllowedExternalUrl(href)) return;
+    // Domínio permitido (player/verificação) — permite.
+    if (ehDominioPermitido(href)) return;
+    // Link externo LEGÍTIMO (não é anúncio conhecido) — PERMITE sair do site/app.
+    // O usuário clicou explicitamente; não o prendemos. Só bloqueamos anúncios.
+    if (!ehAnuncio(href)) return;
     e.preventDefault();
     e.stopPropagation();
     e.stopImmediatePropagation();

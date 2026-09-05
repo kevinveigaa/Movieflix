@@ -88,6 +88,7 @@ export function AdminPage() {
   const [clientesCarregando, setClientesCarregando] = useState(false);
   const [clientesMsg, setClientesMsg] = useState<{ tipo: "ok" | "erro"; texto: string } | null>(null);
   const [senhaPorCliente, setSenhaPorCliente] = useState<Record<string, string>>({});
+  const [confirmarSenhaPorCliente, setConfirmarSenhaPorCliente] = useState<Record<string, string>>({});
   const [alterandoSenha, setAlterandoSenha] = useState<string | null>(null);
   const [buscaCliente, setBuscaCliente] = useState("");
 
@@ -266,8 +267,13 @@ export function AdminPage() {
   // === CLIENTES: alterar senha via backend/service_role ===
   async function alterarSenhaCliente(clienteId: string) {
     const novaSenha = (senhaPorCliente[clienteId] ?? "").trim();
+    const confirmacao = (confirmarSenhaPorCliente[clienteId] ?? "").trim();
     if (novaSenha.length < 6) {
-      setClientesMsg({ tipo: "erro", texto: "A nova senha deve ter pelo menos 6 caracteres." });
+      setClientesMsg({ tipo: "erro", texto: "Senha inválida. Verifique os requisitos (mínimo 6 caracteres)." });
+      return;
+    }
+    if (novaSenha !== confirmacao) {
+      setClientesMsg({ tipo: "erro", texto: "As senhas não coincidem." });
       return;
     }
     if (!window.confirm("Alterar a senha deste cliente? Ele precisará usar a nova senha no próximo login.")) return;
@@ -285,6 +291,7 @@ export function AdminPage() {
       if (!resp.ok) throw new Error(json?.erro || json?.error || "Erro ao alterar senha.");
       setClientesMsg({ tipo: "ok", texto: `Senha alterada com sucesso para ${json.email ?? "o cliente"}.` });
       setSenhaPorCliente((atual) => ({ ...atual, [clienteId]: "" }));
+      setConfirmarSenhaPorCliente((atual) => ({ ...atual, [clienteId]: "" }));
     } catch (e: any) {
       setClientesMsg({ tipo: "erro", texto: e?.message ?? "Erro ao alterar senha." });
     }
@@ -986,10 +993,17 @@ export function AdminPage() {
                   <div className="flex shrink-0 items-center gap-2">
                     <input
                       type="password"
-                      className="input w-44"
+                      className="input w-40"
                       placeholder="Nova senha"
                       value={senhaPorCliente[cliente.id] ?? ""}
                       onChange={(e) => setSenhaPorCliente((atual) => ({ ...atual, [cliente.id]: e.target.value }))}
+                    />
+                    <input
+                      type="password"
+                      className="input w-40"
+                      placeholder="Confirmar senha"
+                      value={confirmarSenhaPorCliente[cliente.id] ?? ""}
+                      onChange={(e) => setConfirmarSenhaPorCliente((atual) => ({ ...atual, [cliente.id]: e.target.value }))}
                     />
                     <button
                       onClick={() => alterarSenhaCliente(cliente.id)}
