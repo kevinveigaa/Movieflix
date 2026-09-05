@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="moviePrimary">#E50914</color>
+    <color name="moviePrimaryDark">#B00610</color>
+    <color name="movieAccent">#E50914</color>
+    <color name="background_dark">#0D0D0D</color>
+    <color name="bg_card">#1A1A1A</color>
+    <color name="text_primary">#FFFFFF</color>
+    <color name="text_secondary">#B3B3B3</color>
+    <color name="whatsapp_green">#25D366</color>
+</resources>

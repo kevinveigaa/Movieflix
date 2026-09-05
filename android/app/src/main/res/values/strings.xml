@@ -1,7 +1,8 @@
-<?xml version='1.0' encoding='utf-8'?>
+<?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">MovieFlix</string>
     <string name="title_activity_main">MovieFlix</string>
     <string name="package_name">com.movieflix.app</string>
-    <string name="custom_url_scheme">com.movieflix.app</string>
+    <string name="whatsapp_number">5511943750307</string>
+    <string name="site_url">https://movieflix-bszf.onrender.com</string>
 </resources>
