@@ -990,17 +990,17 @@ export function AdminPage() {
                       </div>
                     )}
                   </div>
-                  <div className="flex shrink-0 items-center gap-2">
+                  <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:shrink-0">
                     <input
                       type="password"
-                      className="input w-40"
+                      className="input w-full sm:w-40"
                       placeholder="Nova senha"
                       value={senhaPorCliente[cliente.id] ?? ""}
                       onChange={(e) => setSenhaPorCliente((atual) => ({ ...atual, [cliente.id]: e.target.value }))}
                     />
                     <input
                       type="password"
-                      className="input w-40"
+                      className="input w-full sm:w-40"
                       placeholder="Confirmar senha"
                       value={confirmarSenhaPorCliente[cliente.id] ?? ""}
                       onChange={(e) => setConfirmarSenhaPorCliente((atual) => ({ ...atual, [cliente.id]: e.target.value }))}
