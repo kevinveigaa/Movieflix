@@ -1,10 +1,11 @@
 import { useQuery } from '@tanstack/react-query';
-import { Check, Crown, MessageCircle, AlertTriangle, CheckCircle2, CalendarClock, Clock, RefreshCw } from 'lucide-react';
+import { Check, Crown, AlertTriangle, CheckCircle2, CalendarClock, Clock, RefreshCw } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useAuth, hasActiveSubscription } from '@/context/AuthContext';
 import type { Plan } from '@/types';
 import { entitlementHighlights, resolveSubscriptionPlan, diasRestantes, formatarVencimento, avisoVencimento } from '@/lib/plans';
 import { linkContratarPlano, linkRenovarPlano, linkSuporte, WHATSAPP_LABEL } from '@/lib/whatsapp';
+import { WhatsAppButton } from '@/components/ui/WhatsAppButton';
 
 /**
  * SubscriptionPage — ATIVAÇÃO MANUAL VIA WHATSAPP.
@@ -95,14 +96,12 @@ export function SubscriptionPage() {
               ? `Seu plano venceu em ${formatarVencimento(subscription.expires_at)}. Renove abaixo para voltar a assistir.`
               : 'Sua assinatura não está mais ativa. Renove abaixo para voltar a assistir.'}
           </p>
-          <a
+          <WhatsAppButton
             href={linkRenovarPlano({ email, planoNome: currentPlan?.name, planoCodigo: currentPlan?.code })}
-            target="_blank"
-            rel="noopener"
             className="btn-primary mt-5 inline-flex items-center gap-2"
           >
-            <MessageCircle className="h-4 w-4" /> RENOVAR PELO WHATSAPP
-          </a>
+            RENOVAR PELO WHATSAPP
+          </WhatsAppButton>
         </div>
       )}
 
@@ -177,20 +176,17 @@ export function SubscriptionPage() {
                       <CheckCircle2 className="h-4 w-4" /> Plano atual
                     </p>
                   ) : (
-                    <a
+                    <WhatsAppButton
                       href={linkContratarPlano({
                         email,
                         planoNome: plan.name,
                         planoCodigo: plan.code,
                         valorCents: plan.price_cents,
                       })}
-                      target="_blank"
-                      rel="noopener"
                       className={(featured ? 'btn-primary' : 'btn-outline') + ' mt-6 flex w-full items-center justify-center gap-2'}
                     >
-                      <MessageCircle className="h-4 w-4" />
                       {active ? 'TROCAR PELO WHATSAPP' : 'CONTRATAR PELO WHATSAPP'}
-                    </a>
+                    </WhatsAppButton>
                   )}
                 </div>
               );
@@ -216,15 +212,12 @@ export function SubscriptionPage() {
 
       {/* Suporte */}
       <div className="mx-auto mt-6 max-w-2xl text-center">
-        <a
+        <WhatsAppButton
           href={linkSuporte(email)}
-          target="_blank"
-          rel="noopener"
           className="inline-flex items-center gap-2 text-sm text-ink-300 transition hover:text-white"
         >
-          <MessageCircle className="h-4 w-4 text-emerald-400" />
           Falar com o {WHATSAPP_LABEL}
-        </a>
+        </WhatsAppButton>
       </div>
     </div>
   );

@@ -2,6 +2,7 @@ import { createContext, useContext, useEffect, useMemo, useState, type ReactNode
 import type { Session, User } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabase';
 import type { Profile, Subscription, ViewerProfile } from '@/types';
+import { temAssinaturaAtiva } from '@/lib/plans';
 
 interface AuthState {
   session: Session | null;
@@ -229,8 +230,6 @@ export function useAuth() {
 }
 
 export function hasActiveSubscription(sub: Subscription | null): boolean {
-  if (!sub) return false;
-  if (sub.status !== 'active') return false;
-  if (sub.expires_at && new Date(sub.expires_at) < new Date()) return false;
-  return true;
+  // Delega à função central (data de vencimento como fonte de verdade).
+  return temAssinaturaAtiva(sub);
 }

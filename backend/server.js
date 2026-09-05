@@ -164,6 +164,40 @@ async function validarCliente(req, res, email) {
   return alvo;
 }
 
+/** Registra uma operação no histórico de assinatura (subscription_history). */
+async function registrarHistorico({ subscriptionId, adminId, acao, planoAnterior, planoNovo, vencAnterior, vencNovo, diasAdicionados, diasRemovidos }) {
+  try {
+    await adminSupabase.rpc("_mf_registrar_historico", {
+      p_subscription_id: subscriptionId ?? null,
+      p_admin_id: adminId ?? null,
+      p_acao: acao,
+      p_plano_anterior: planoAnterior ?? null,
+      p_plano_novo: planoNovo ?? null,
+      p_vencimento_anterior: vencAnterior ?? null,
+      p_vencimento_novo: vencNovo ?? null,
+      p_dias_adicionados: diasAdicionados ?? null,
+      p_dias_removidos: diasRemovidos ?? null,
+    });
+  } catch (e) {
+    // Histórico é best-effort: não quebra a operação principal.
+    console.error("[historico] erro ao registrar:", e.message);
+  }
+}
+
+/** Extrai o admin_id do token (para o histórico). */
+function extrairUserIdDoToken(authHeader) {
+  if (!authHeader || !authHeader.startsWith("Bearer ")) return null;
+  const token = authHeader.slice(7);
+  try {
+    const payload = token.split(".")[1];
+    if (!payload) return null;
+    const json = JSON.parse(Buffer.from(payload, "base64url").toString("utf-8"));
+    return json.sub || null;
+  } catch {
+    return null;
+  }
+}
+
 // ADICIONAR DIAS: soma dias ao vencimento (não substitui, não reinicia).
 app.post("/api/admin/adicionar-dias", async (req, res) => {
   const { email, dias } = req.body || {};
@@ -192,8 +226,18 @@ app.post("/api/admin/adicionar-dias", async (req, res) => {
     if (sub) {
       const { error } = await adminSupabase.from("subscriptions").update(payload).eq("id", sub.id);
       if (error) return res.status(500).json({ erro: error.message });
+      await registrarHistorico({
+        subscriptionId: sub.id,
+        adminId: extrairUserIdDoToken(req.headers.authorization),
+        acao: "adicionar_dias",
+        planoAnterior: sub.plan_code,
+        planoNovo: sub.plan_code,
+        vencAnterior: sub.expires_at,
+        vencNovo: novaExp.toISOString(),
+        diasAdicionados: n,
+      });
     } else {
-      const { error } = await adminSupabase.from("subscriptions").insert({
+      const { data: nova, error } = await adminSupabase.from("subscriptions").insert({
         user_id: alvo.id,
         plan_code: "simple",
         status: "active",
@@ -201,8 +245,16 @@ app.post("/api/admin/adicionar-dias", async (req, res) => {
         expires_at: novaExp.toISOString(),
         created_at: agora.toISOString(),
         updated_at: agora.toISOString(),
-      });
+      }).select("id").single();
       if (error) return res.status(500).json({ erro: error.message });
+      await registrarHistorico({
+        subscriptionId: nova?.id,
+        adminId: extrairUserIdDoToken(req.headers.authorization),
+        acao: "adicionar_dias",
+        planoNovo: "simple",
+        vencNovo: novaExp.toISOString(),
+        diasAdicionados: n,
+      });
     }
     res.json({ ok: true, mensagem: `${n} dia(s) adicionado(s).`, expiracao: novaExp.toISOString() });
   } catch (e) {
@@ -236,6 +288,16 @@ app.post("/api/admin/remover-dias", async (req, res) => {
         updated_at: agora.toISOString(),
       }).eq("id", sub.id);
       if (error) return res.status(500).json({ erro: error.message });
+      await registrarHistorico({
+        subscriptionId: sub.id,
+        adminId: extrairUserIdDoToken(req.headers.authorization),
+        acao: "remover_dias",
+        planoAnterior: sub.plan_code,
+        planoNovo: sub.plan_code,
+        vencAnterior: sub.expires_at,
+        vencNovo: null,
+        diasRemovidos: n,
+      });
       return res.json({ ok: true, mensagem: "Dias removidos. A assinatura foi inativada (saldo zerado).", expiracao: null });
     }
     const { error } = await adminSupabase.from("subscriptions").update({
@@ -243,6 +305,16 @@ app.post("/api/admin/remover-dias", async (req, res) => {
       updated_at: agora.toISOString(),
     }).eq("id", sub.id);
     if (error) return res.status(500).json({ erro: error.message });
+    await registrarHistorico({
+      subscriptionId: sub.id,
+      adminId: extrairUserIdDoToken(req.headers.authorization),
+      acao: "remover_dias",
+      planoAnterior: sub.plan_code,
+      planoNovo: sub.plan_code,
+      vencAnterior: sub.expires_at,
+      vencNovo: novaExp.toISOString(),
+      diasRemovidos: n,
+    });
     res.json({ ok: true, mensagem: `${n} dia(s) removido(s).`, expiracao: novaExp.toISOString() });
   } catch (e) {
     res.status(500).json({ erro: e.message });
@@ -269,12 +341,21 @@ app.post("/api/admin/trocar-plano", async (req, res) => {
         updated_at: agora.toISOString(),
       }).eq("id", sub.id);
       if (error) return res.status(500).json({ erro: error.message });
+      await registrarHistorico({
+        subscriptionId: sub.id,
+        adminId: extrairUserIdDoToken(req.headers.authorization),
+        acao: "trocar_plano",
+        planoAnterior: sub.plan_code,
+        planoNovo: planoResolvido.code,
+        vencAnterior: sub.expires_at,
+        vencNovo: sub.expires_at,
+      });
       return res.json({ ok: true, mensagem: `Plano trocado para ${planoResolvido.name}.`, plano: planoResolvido.code });
     }
     // Sem assinatura: cria uma nova com o plano e 30 dias (padrão).
     const novaExp = new Date(agora.getTime());
     novaExp.setDate(novaExp.getDate() + (planoResolvido.duration_days || 30));
-    const { error } = await adminSupabase.from("subscriptions").insert({
+    const { data: nova, error } = await adminSupabase.from("subscriptions").insert({
       user_id: alvo.id,
       plan_code: planoResolvido.code,
       plan_id: planoResolvido.id,
@@ -283,8 +364,15 @@ app.post("/api/admin/trocar-plano", async (req, res) => {
       expires_at: novaExp.toISOString(),
       created_at: agora.toISOString(),
       updated_at: agora.toISOString(),
-    });
+    }).select("id").single();
     if (error) return res.status(500).json({ erro: error.message });
+    await registrarHistorico({
+      subscriptionId: nova?.id,
+      adminId: extrairUserIdDoToken(req.headers.authorization),
+      acao: "trocar_plano",
+      planoNovo: planoResolvido.code,
+      vencNovo: novaExp.toISOString(),
+    });
     res.json({ ok: true, mensagem: `Plano ${planoResolvido.name} ativado.`, plano: planoResolvido.code, expiracao: novaExp.toISOString() });
   } catch (e) {
     res.status(500).json({ erro: e.message });

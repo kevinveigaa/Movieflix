@@ -146,6 +146,19 @@ export function diasRestantes(expiresAt: string | null | undefined): number {
   return Math.ceil((fim - agora) / DIA_MS);
 }
 
+/**
+ * FUNÇÃO CENTRAL de validação de assinatura ativa.
+ * Retorna TRUE somente se: usuário existe, status='active' E expires_at > agora.
+ * A DATA DE VENCIMENTO é a fonte de verdade (nunca os dias restantes salvos).
+ * Se status='active' mas expires_at <= agora, considera EXPIRADA (retorna false).
+ */
+export function temAssinaturaAtiva(sub: Subscription | null | undefined): boolean {
+  if (!sub) return false;
+  if (sub.status !== 'active') return false;
+  if (!sub.expires_at) return false;
+  return new Date(sub.expires_at).getTime() > Date.now();
+}
+
 /** Rótulo de dias restantes ("10 dias restantes", "1 dia restante", "0 dias…"). */
 export function rotuloDiasRestantes(expiresAt: string | null | undefined): string {
   const dias = diasRestantes(expiresAt);

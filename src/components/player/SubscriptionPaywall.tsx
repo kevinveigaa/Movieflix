@@ -1,11 +1,12 @@
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
-import { Check, Crown, Lock, ArrowRight, MessageCircle } from 'lucide-react';
+import { Check, Crown, Lock, ArrowRight } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import type { Plan } from '@/types';
 import { entitlementHighlights } from '@/lib/plans';
 import { useAuth } from '@/context/AuthContext';
 import { linkContratarPlano } from '@/lib/whatsapp';
+import { WhatsAppButton } from '@/components/ui/WhatsAppButton';
 
 /**
  * Paywall de assinatura — bloqueio TOTAL de reprodução.
@@ -90,22 +91,18 @@ export function SubscriptionPaywall() {
                           </li>
                         ))}
                     </ul>
-                    <a
+                    <WhatsAppButton
                       href={linkContratarPlano({
                         email,
                         planoNome: plan.name,
                         planoCodigo: plan.code,
                         valorCents: plan.price_cents,
                       })}
-                      target="_blank"
-                      rel="noopener"
-                      data-tv-focusable
                       className={(featured ? 'btn-primary' : 'btn-outline') + ' mt-5 flex w-full items-center justify-center gap-2'}
                     >
-                      <MessageCircle className="h-4 w-4" />
                       Contratar
                       <ArrowRight className="h-4 w-4" />
-                    </a>
+                    </WhatsAppButton>
                   </div>
                 );
               })}

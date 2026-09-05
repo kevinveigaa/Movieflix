@@ -186,6 +186,28 @@ let observer: MutationObserver | null = null;
 let janelaVarredura: number | null = null;
 let urlAtualApp = '';
 
+// Flag: o usuário acabou de abrir o WhatsApp OFICIAL (clique legítimo em
+// assinar/trocar/renovar/suporte). Enquanto ativo (janela curta), o guard de
+// redirect e o beforeunload NÃO restauram a página — o WhatsApp é o destino
+// FINAL e nenhum redirecionamento automático pode "voltar" para o site.
+let whatsappEmAbertura = false;
+let ultimoCliqueWhatsApp = 0;
+const JANELA_WHATSAPP_MS = 4000;
+
+/** Marca que o WhatsApp oficial foi aberto (chamado pelo clique legítimo). */
+export function marcarWhatsAppAberto(): void {
+  whatsappEmAbertura = true;
+  ultimoCliqueWhatsApp = Date.now();
+  window.setTimeout(() => {
+    whatsappEmAbertura = false;
+  }, JANELA_WHATSAPP_MS);
+}
+
+/** O WhatsApp foi aberto recentemente (não restaurar a página)? */
+function whatsAppAbertoRecentemente(): boolean {
+  return whatsappEmAbertura && (Date.now() - ultimoCliqueWhatsApp) < JANELA_WHATSAPP_MS;
+}
+
 // Guard de redirect GLOBAL (compartilhado entre todas as instâncias):
 // contador de restaurações com janela de 2 minutos.
 let totalRestauracoes = 0;
@@ -505,6 +527,9 @@ export function instalarBloqueioAnuncios(): () => void {
 
   // ── 4) beforeunload: última linha contra navegação externa ──────────────
   function onBeforeUnload(e: BeforeUnloadEvent) {
+    // Se o usuário acabou de abrir o WhatsApp oficial, NÃO cancela nem restaura:
+    // o WhatsApp é o destino final e o site não deve "voltar" para a última página.
+    if (whatsAppAbertoRecentemente()) return;
     // Se a página está saindo para um host externo (anúncio), cancela.
     // Não cancela reload/back interno legítimo (o usuário navegou).
     try {
