@@ -1,6 +1,5 @@
 import { useRef, useState, type ReactNode, type MouseEvent } from 'react';
 import { MessageCircle } from 'lucide-react';
-import { marcarWhatsAppAberto } from '@/lib/antiAds';
 
 /**
  * WhatsAppButton — botão de assinatura/troca/renovação que abre o WhatsApp
@@ -44,10 +43,6 @@ export function WhatsAppButton({
     }
     bloqueado.current = true;
     setAbrindo(true);
-    // Informa o antiAds que o WhatsApp oficial foi aberto legitimamente: o
-    // guard de redirect/beforeunload NÃO deve restaurar a página (o WhatsApp
-    // é o destino FINAL — sem voltar para a última página/Mercado Pago).
-    marcarWhatsAppAberto();
     // Libera o bloqueio após um curto intervalo (permite nova tentativa
     // deliberada do usuário, mas não cliques acidentais em sequência).
     window.setTimeout(() => {
