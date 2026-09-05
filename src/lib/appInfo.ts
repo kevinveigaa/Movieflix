@@ -20,14 +20,15 @@ export const APP_INFO = {
   /** Nome exibido do aplicativo */
   name: 'MovieFlix',
   /** Versão semântica atual (bate com android/app/build.gradle → versionName) */
-  version: '3.0.0',
+  version: '3.2.0',
   /** Código de versão Android (bate com versionCode) */
-  versionCode: 6,
+  versionCode: 7,
   /** Data de lançamento desta versão (AAAA-MM-DD) */
   releaseDate: '2026-09-05',
   /** Resumo das mudanças desta versão (exibido na página de download) */
   changelog: [
-    'App 100% NATIVO (Android) — sem WebView, telas reais de Home, Catálogo, Planos e Perfil',
+    'App 100% NATIVO (Android) — sem WebView, telas reais de Home, Catálogo, Planos, Perfil e Detalhes',
+    'Player de vídeo dedicado: abre o filme/série corretamente no player externo',
     'Botão de WhatsApp abre o WhatsApp nativamente com número e mensagem pré-preenchida em todas as telas',
     'Links de filmes/trailers abrem no navegador/app externo corretamente',
     'Catálogo de filmes e séries embutido no app',
@@ -35,7 +36,7 @@ export const APP_INFO = {
   /** Plataformas suportadas */
   platforms: ['Android', 'Android TV', 'Google TV', 'TV Box'],
   /** Nome do arquivo do APK oficial (manter sincronizado com public/apk/) */
-  apkFileName: 'MovieFlix-v3.0.0.apk',
+  apkFileName: 'MovieFlix-v3.2.0.apk',
 } as const;
 
 /** Caminho público do APK oficial dentro do app (servido pelo backend/static). */
@@ -51,8 +52,8 @@ export const APK_ABSOLUTE_URL = `https://movieflix-bszf.onrender.com${APK_URL}`;
 /** URL absoluta da página de download (usada como fallback do QR em iOS). */
 export const DOWNLOAD_PAGE_URL = 'https://movieflix-bszf.onrender.com/#/baixar-app';
 
-/** Tamanho do APK em MB (exibido na página de download). Mantido em sincronia com public/apk/MovieFlix-v3.0.0.apk. */
-export const APK_SIZE_MB = '6.1 MB';
+/** Tamanho do APK em MB (exibido na página de download). Mantido em sincronia com public/apk/MovieFlix-v3.2.0.apk. */
+export const APK_SIZE_MB = '6.2 MB';
 
 /** Chave usada no localStorage para lembrar a última versão vista pelo usuário. */
 const VERSION_KEY = 'mf_last_seen_version';

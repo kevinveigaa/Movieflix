@@ -4,6 +4,8 @@ import android.os.Bundle;
 import android.widget.Button;
 import android.widget.ImageView;
 import android.widget.TextView;
+import android.widget.Toast;
+import android.content.Intent;
 
 import androidx.appcompat.app.AppCompatActivity;
 
@@ -41,10 +43,15 @@ public class DetailActivity extends AppCompatActivity {
         meta.setText(metaText.trim());
         desc.setText(t.desc != null ? t.desc : "");
 
-        // Assistir: abre o player externo (link do vídeo) no navegador/app.
+        // Assistir: abre o player nativo dedicado (reproduz o vídeo corretamente).
         btnAssistir.setOnClickListener(v -> {
             if (t.videoUrl != null && !t.videoUrl.isEmpty()) {
-                WhatsAppHelper.abrirLinkExterno(this, t.videoUrl);
+                Intent i = new Intent(this, PlayerActivity.class);
+                i.putExtra("video_url", t.videoUrl);
+                i.putExtra("title", t.title);
+                startActivity(i);
+            } else {
+                Toast.makeText(this, "Vídeo indisponível", Toast.LENGTH_SHORT).show();
             }
         });
 
