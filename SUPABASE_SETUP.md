@@ -129,3 +129,20 @@ e não destrutiva — não apaga dados, não faz `DROP`, não altera preços.
 > **Nota:** a migration precisa ser aplicada no banco para a ativação de plano
 > parar de falhar. O código do frontend/backend já está deployado; a migration
 > é a etapa final no Supabase.
+
+---
+
+## Deploy do site estático (movieflix-bszf.onrender.com)
+
+O site estático `movieflix-bszf.onrender.com` e o backend `movieflix-api-udsv.onrender.com`
+são **serviços separados** no Render. O backend serve o build correto (commit `56c15b6`),
+mas o site estático pode ficar com um build antigo se o auto-deploy não disparar.
+
+**Para garantir que o site estático sirva a versão mais recente:**
+1. No Render, abra o serviço **movieflix-bszf** (Static Site).
+2. Clique em **Manual Deploy → Deploy latest commit** (ou **Clear build cache & deploy**).
+3. Aguarde o build terminar e confirme que o `index.html` aponta para o bundle novo
+   (ex.: `index-BT5aMnDW.js` em vez de `index-6u2DJXIR.js`).
+
+O backend `movieflix-api-udsv` já serve o build correto (`index-BT5aMnDW.js`,
+commit `56c15b6`). O site estático precisa do mesmo redeploy.
