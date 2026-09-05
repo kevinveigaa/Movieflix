@@ -1,5 +1,8 @@
 package com.movieflix.app;
 
+import android.content.Intent;
+import android.net.Uri;
+
 import com.getcapacitor.JSObject;
 import com.getcapacitor.Plugin;
 import com.getcapacitor.PluginCall;
