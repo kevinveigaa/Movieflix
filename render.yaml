@@ -13,6 +13,13 @@ services:
         sync: false
       - key: VITE_STREAMBETTER_KEY
         sync: false
+      # SUPABASE (BACKEND): a service_role NUNCA vai para o frontend/APK.
+      # Preencha os valores no painel do Render (Service → Environment) para o
+      # painel admin e a ativação de assinatura funcionarem.
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
       # Chave PÚBLICA do StreamBetter (sb_pk_*) — plano Creator. Usada no
       # EMBED OFICIAL que roda no navegador (VITE_STREAMBETTER_PUBLIC_KEY).
       # Não é segredo. O domínio do site (movieflix-bszf.onrender.com) precisa

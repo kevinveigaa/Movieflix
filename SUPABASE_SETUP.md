@@ -81,10 +81,18 @@ Supabase **somente no servidor** (`backend/server.js`), via os endpoints:
 - `GET /api/admin/clientes` — lista todos os e-mails (exige token do admin).
 - `POST /api/admin/alterar-senha` — altera a senha de um cliente
   (`supabase.auth.admin.updateUserById`).
+- `POST /api/admin/adicionar-dias` — soma dias ao vencimento (não substitui).
+- `POST /api/admin/remover-dias` — subtrai dias; nunca negativo; zera → inativa.
+- `POST /api/admin/trocar-plano` — troca o plano mantendo os dias restantes.
+- `POST /api/admin/desativar` — desativa a assinatura no banco (corta o acesso).
+- `GET /api/admin/assinatura?email=...` — retorna status/plano/datas/dias restantes.
 
 **Variáveis de ambiente do backend (Render):** `SUPABASE_URL` e
 `SUPABASE_SERVICE_ROLE_KEY` (a service_role **nunca** vai para o frontend). O
 endpoint valida que o JWT enviado pertence ao admin antes de usar a service_role.
+**IMPORTANTE:** essas duas variáveis precisam estar preenchidas no serviço do
+backend no Render (Service → Environment). Sem elas, o backend retorna
+"Service role não configurada no servidor" e o painel admin não funciona.
 
 ## Verificação
 
@@ -92,6 +100,7 @@ endpoint valida que o JWT enviado pertence ao admin antes de usar a service_role
 - [ ] `npm run build` passa (o `ResetPasswordPage` é incluído no bundle).
 - [ ] Fluxo manual: Esqueci minha senha → e-mail → link → nova senha → login.
 - [ ] Painel admin (`/#/admin`) lista clientes, ativa/troca plano e altera senha.
+- [ ] Painel admin: adicionar/remover dias, trocar plano e desativar funcionam.
 
 ## ⚠️ CORREÇÃO OBRIGATÓRIA — payments.amount NULL (aplicar no Supabase)
 
