@@ -238,7 +238,12 @@ export function AdminPage() {
   }
 
   // === CLIENTES: listar e-mails (via backend/service_role) ===
-  const API_URL = (import.meta.env.VITE_API_URL as string) || "https://movieflix-bszf.onrender.com";
+  // IMPORTANTE: o backend Express (com a service_role) roda em
+  // movieflix-api-udsv.onrender.com, NÃO no domínio do site estático
+  // (movieflix-bszf.onrender.com). Apontar para o domínio errado faz o
+  // /api/admin/* retornar o HTML do SPA (fallback) em vez de JSON, causando
+  // o erro "Erro ao listar clientes" no painel.
+  const API_URL = (import.meta.env.VITE_API_URL as string) || "https://movieflix-api-udsv.onrender.com";
 
   async function carregarClientes() {
     setClientesCarregando(true);

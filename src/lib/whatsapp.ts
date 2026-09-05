@@ -180,33 +180,48 @@ export function isAllowedExternalUrl(url: string): boolean {
  * redirecionamento (isAllowedExternalUrl). Usado pelos botões de assinatura
  * para abrir o WhatsApp oficial.
  *
- * MÉTODO PRIMÁRIO: `window.open` (nova aba/janela). Isso NUNCA fecha o site
- * atual — o WhatsApp abre por cima e, ao voltar, o usuário continua no
- * MovieFlix. É o comportamento correto para Android, navegador mobile e
- * desktop. O antiAds permite o WhatsApp oficial (isAllowedExternalUrl), então
- * o popup não é cancelado.
+ * MÉTODO MAIS CONFIÁVEL: cria um elemento <a> real com href + target="_blank"
+ * e dispara um clique programático. Isso é tratado pelo navegador como uma
+ * navegação de link legítima (não um popup), então NÃO é bloqueado por
+ * popup-blockers, e abre em nova aba SEM fechar o site. O antiAds permite o
+ * WhatsApp oficial (isAllowedExternalUrl), então o clique não é cancelado.
  *
- * FALLBACK: se `window.open` retornar null (popup bloqueado) ou lançar, usa
- * `window.location.href` (navegação direta). Isso cobre WebViews que
- * bloqueiam popups. Retorna true se a abertura foi iniciada.
+ * FALLBACK: se o clique programático não abrir (WebView que bloqueia
+ * target=_blank), usa `window.open` e, por último, `window.location.href`
+ * (navegação direta). Retorna true se a abertura foi iniciada.
+ *
+ * NUNCA lança exceção — sempre retorna boolean (evita erro de runtime que
+ * quebraria o clique do botão).
  */
 export function abrirLinkExternoPermitido(url: string): boolean {
   if (!isAllowedExternalUrl(url)) return false;
   try {
-    // 1) Nova aba: não fecha o site. O antiAds permite o WhatsApp oficial.
+    // 1) Link real com target=_blank + clique programático (mais confiável).
+    const a = document.createElement('a');
+    a.href = url;
+    a.target = '_blank';
+    a.rel = 'noopener noreferrer';
+    a.style.display = 'none';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    return true;
+  } catch {
+    /* tenta o próximo método */
+  }
+  try {
+    // 2) window.open (nova aba) — não fecha o site.
     const win = window.open(url, '_blank', 'noopener,noreferrer');
     if (win) return true;
-    // 2) Fallback: navegação direta (popup bloqueado).
+  } catch {
+    /* tenta o próximo */
+  }
+  try {
+    // 3) Navegação direta (popup bloqueado / WebView).
     window.location.href = url;
     return true;
   } catch {
-    // 3) Último recurso: navegação direta.
-    try {
-      window.location.href = url;
-      return true;
-    } catch {
-      return false;
-    }
+    return false;
   }
 }
 
@@ -220,14 +235,28 @@ export function abrirLinkExternoPermitido(url: string): boolean {
  *     `MovieFlixApp.abrirWhatsApp(url)`, que valida a URL e dispara o intent
  *     ACTION_VIEW diretamente — contorna o bloqueio de `window.open` do WebView
  *     (setSupportMultipleWindows(false)) e a interceptação de navegação.
- *  2. NAVEGADOR: `window.open` (nova aba) para não sair do site; se o navegador
- *     bloquear, cai para navegação direta (o antiAds permite o WhatsApp oficial).
+ *  2. NAVEGADOR: link real com target=_blank (não fecha o site); se o navegador
+ *     bloquear, cai para window.open e depois navegação direta.
+ *
+ * NUNCA lança exceção — sempre retorna boolean (evita erro de runtime que
+ * quebraria o botão e mostraria erro na tela).
  */
 export async function abrirWhatsApp(url: string): Promise<boolean> {
-  if (!isAllowedExternalUrl(url)) return false;
-  // 1) App nativo: ponte Capacitor (mais confiável no WebView).
-  const abriuNoApp = await abrirWhatsAppNoApp(url);
-  if (abriuNoApp) return true;
-  // 2) Navegador: window.open com fallback para navegação direta.
-  return abrirLinkExternoPermitido(url);
+  try {
+    if (!isAllowedExternalUrl(url)) return false;
+    // 1) App nativo: ponte Capacitor (mais confiável no WebView).
+    const abriuNoApp = await abrirWhatsAppNoApp(url);
+    if (abriuNoApp) return true;
+    // 2) Navegador: link real com target=_blank + fallbacks.
+    return abrirLinkExternoPermitido(url);
+  } catch {
+    // Nunca deixa o erro chegar ao botão (evita erro de tela).
+    try {
+      window.location.href = url;
+      return true;
+    } catch {
+      return false;
+    }
+  }
 }
+

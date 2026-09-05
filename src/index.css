@@ -344,12 +344,20 @@ div[aria-modal="true"][class*="advert"] {
    esconder informação importante em telas muito largas ou muito estreitas.
 */
 .hero-banner-img {
-  object-fit: cover;
-  object-position: top center;
-  -webkit-object-fit: cover;
-  -webkit-object-position: top center;
+  /* `!important` garante que o enquadramento do topo NUNCA seja sobrescrito
+     pelos utilitários Tailwind (object-cover/object-top) do componente. */
+  object-fit: cover !important;
+  object-position: top center !important;
+  -webkit-object-fit: cover !important;
+  -webkit-object-position: top center !important;
+  -o-object-fit: cover !important;
+  -o-object-position: top center !important;
   /* Evita que o navegador aplique qualquer transformação que desloque a
      imagem e corte o topo em WebViews/TV. */
   transform: translateZ(0);
   backface-visibility: hidden;
+  /* Garante que a imagem nunca seja esticada nem distorcida. */
+  width: 100%;
+  height: 100%;
+  display: block;
 }
