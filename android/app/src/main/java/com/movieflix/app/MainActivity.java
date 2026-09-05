@@ -178,20 +178,29 @@ public class MainActivity extends BridgeActivity {
                 @Override
                 public boolean onCreateWindow(WebView view, boolean isDialog, boolean isUserGesture, android.os.Message resultMsg) {
                     final WebView webViewFantasma = new WebView(MainActivity.this);
+                    webViewFantasma.getSettings().setJavaScriptEnabled(true);
                     webViewFantasma.setWebViewClient(new WebViewClient() {
                         @Override
                         public boolean shouldOverrideUrlLoading(WebView v, WebResourceRequest request) {
-                            tratarNavegacao(webView, request.getUrl(), true);
-                            webViewFantasma.destroy();
-                            return true;
+                            return tratarNavegacaoFantasma(request.getUrl(), webViewFantasma);
                         }
 
                         @Override
                         @SuppressWarnings("deprecation")
                         public boolean shouldOverrideUrlLoading(WebView v, String url) {
-                            tratarNavegacao(webView, Uri.parse(url), true);
-                            webViewFantasma.destroy();
-                            return true;
+                            return tratarNavegacaoFantasma(Uri.parse(url), webViewFantasma);
+                        }
+
+                        @Override
+                        public void onPageStarted(WebView v, String url, android.graphics.Bitmap favicon) {
+                            super.onPageStarted(v, url, favicon);
+                            // Alguns sites chamam window.open('about:blank') e só
+                            // depois setam win.location = url real. Se essa
+                            // navegação chegar por onPageStarted (em vez de
+                            // shouldOverrideUrlLoading) tratamos aqui também.
+                            if (url != null && !"about:blank".equalsIgnoreCase(url)) {
+                                tratarNavegacaoFantasma(Uri.parse(url), webViewFantasma);
+                            }
                         }
                     });
 
@@ -625,6 +634,22 @@ public class MainActivity extends BridgeActivity {
         // 7. Qualquer outro link (http/https externo legítimo ou outro
         // protocolo como tel:/mailto:/sms:/intent:): abre pelo Android.
         tentarAbrirExterno(uri);
+        return true;
+    }
+
+    /**
+     * Trata a navegação capturada na WebView fantasma criada por onCreateWindow
+     * (window.open/target="_blank"). O "about:blank" inicial é ignorado — a
+     * WebView fantasma continua viva até o site setar a URL real de destino
+     * (ex.: win.location = 'https://wa.me/...'), só então tratamos a URL com
+     * tratarNavegacao e destruímos a WebView fantasma.
+     */
+    private boolean tratarNavegacaoFantasma(Uri uri, WebView webViewFantasma) {
+        if (uri != null && "about:blank".equalsIgnoreCase(uri.toString())) {
+            return false; // deixa carregar, mantém a webview fantasma viva.
+        }
+        tratarNavegacao(webView, uri, true);
+        webViewFantasma.destroy();
         return true;
     }
 
