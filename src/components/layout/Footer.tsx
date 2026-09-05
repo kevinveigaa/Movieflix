@@ -2,7 +2,7 @@ import { Link } from 'react-router-dom';
 import { Instagram, MessageCircle } from 'lucide-react';
 import { useSeriesHidden } from '@/hooks/useSeriesHidden';
 import { BrandLogo } from '@/components/BrandLogo';
-import { WHATSAPP_URL } from '@/lib/whatsapp';
+import { linkSuporte, abrirWhatsApp } from '@/lib/whatsapp';
 
 const INSTAGRAM_URL = 'https://instagram.com/movieflixplaybr';
 
@@ -59,7 +59,17 @@ export function Footer() {
                 : "Filmes, séries, documentários e conteúdo infantil em um só lugar. Assista onde e quando quiser."}
             </p>
             <div className="mt-4 flex gap-3">
-              <a href={WHATSAPP_URL} target="_blank" rel="noopener noreferrer" aria-label="WhatsApp" className="rounded-full border border-white/10 bg-white/5 p-2 text-ink-300 transition hover:bg-emerald-500/20 hover:text-emerald-300">
+              <a
+                href={linkSuporte('')}
+                onClick={(e) => {
+                  e.preventDefault();
+                  void abrirWhatsApp(linkSuporte(''));
+                }}
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label="WhatsApp"
+                className="rounded-full border border-white/10 bg-white/5 p-2 text-ink-300 transition hover:bg-emerald-500/20 hover:text-emerald-300"
+              >
                 <MessageCircle className="h-4 w-4" />
               </a>
               <a href={INSTAGRAM_URL} target="_blank" rel="noopener noreferrer" aria-label="Instagram" className="rounded-full border border-white/10 bg-white/5 p-2 text-ink-300 transition hover:bg-white/10 hover:text-white">

@@ -10,12 +10,20 @@
  */
 
 import { abrirWhatsAppNoApp, ehAppSincrono } from '@/lib/appShell';
+import { marcarWhatsAppAberto } from '@/lib/antiAds';
 
 /** Número do admin (formato internacional, sem +). */
 export const WHATSAPP_NUMBER = '5511943750307';
 
-/** Link oficial do WhatsApp do admin. */
-export const WHATSAPP_URL = `https://wa.me/${WHATSAPP_NUMBER}`;
+/**
+ * Link oficial do WhatsApp do admin.
+ * Usamos `api.whatsapp.com/send?phone=...` (em vez de wa.me) porque é o formato
+ * mais confiável para abrir o WhatsApp com número E mensagem pré-preenchida em
+ * TODOS os ambientes (navegador, WebView do app, WhatsApp Web e WhatsApp
+ * instalado). O `wa.me` também funciona, mas o `api.whatsapp.com/send` tem
+ * melhor compatibilidade com o parâmetro `text` em WebViews Android.
+ */
+export const WHATSAPP_URL = `https://api.whatsapp.com/send?phone=${WHATSAPP_NUMBER}`;
 
 /** Nome de exibição do suporte (para mensagens). */
 export const WHATSAPP_LABEL = 'Suporte MovieFlix';
@@ -26,9 +34,14 @@ export function formatarBRL(cents: number | null | undefined): string {
   return `R$ ${valor.toFixed(2).replace('.', ',')}`;
 }
 
-/** Monta a URL do WhatsApp com a mensagem pré-preenchida (encodeURIComponent). */
+/**
+ * Monta a URL do WhatsApp com a mensagem pré-preenchida (encodeURIComponent).
+ * Usa `api.whatsapp.com/send?phone={numero}&text={mensagem}` — o formato mais
+ * confiável para abrir o WhatsApp com número E mensagem preenchidos em todos
+ * os ambientes (navegador, WebView do app, WhatsApp Web e WhatsApp instalado).
+ */
 export function whatsappLink(mensagem: string): string {
-  return `${WHATSAPP_URL}?text=${encodeURIComponent(mensagem)}`;
+  return `https://api.whatsapp.com/send?phone=${WHATSAPP_NUMBER}&text=${encodeURIComponent(mensagem)}`;
 }
 
 /**
@@ -262,23 +275,54 @@ export function abrirLinkExternoPermitido(url: string): boolean {
 export function abrirWhatsApp(url: string): boolean {
   try {
     if (!isAllowedExternalUrl(url)) return false;
+    // Marca que o WhatsApp oficial foi aberto (janela curta) para que o
+    // antiAds NÃO restaure/cancele a navegação — o WhatsApp é o destino final.
+    marcarWhatsAppAberto();
     // 1) App nativo (APK/Capacitor): ponte nativa (síncrona, sem await).
     if (ehAppSincrono()) {
       void abrirWhatsAppNoApp(url);
       return true;
     }
-    // 2) Navegador: link real com target=_blank + clique programático.
-    //    (sem `noopener` para não retornar null; o site não fecha porque abre
-    //    em nova aba). Se o navegador bloquear o popup, cai para window.open.
-    const a = document.createElement('a');
-    a.href = url;
-    a.target = '_blank';
-    a.rel = 'noopener';
-    a.style.display = 'none';
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    return true;
+    // 2) Navegador: tenta o DEEP LINK NATIVO `whatsapp://send?phone=...&text=...`
+    //    (abre direto a conversa se o WhatsApp estiver instalado). Se o
+    //    navegador não reconhecer o scheme, cai para o link https real.
+    const u = new URL(url, window.location.href);
+    const phone = u.searchParams.get('phone') || WHATSAPP_NUMBER;
+    const text = u.searchParams.get('text') || '';
+    const deepLink = `whatsapp://send?phone=${phone}${text ? `&text=${encodeURIComponent(text)}` : ''}`;
+    try {
+      // Navegação direta para o scheme nativo. Se o WhatsApp estiver instalado,
+      // ele assume e o site sai de foco (visibilitychange → hidden).
+      window.location.href = deepLink;
+      // Fallback: se após um curto intervalo o site AINDA estiver visível, o
+      // scheme não foi reconhecido → abre o link https (WhatsApp Web).
+      window.setTimeout(() => {
+        try {
+          if (document.visibilityState === 'visible') {
+            const a = document.createElement('a');
+            a.href = url;
+            a.target = '_blank';
+            a.rel = 'noopener';
+            a.style.display = 'none';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+          }
+        } catch { /* ignora */ }
+      }, 800);
+      return true;
+    } catch {
+      // Deep link falhou → link real com target=_blank.
+      const a = document.createElement('a');
+      a.href = url;
+      a.target = '_blank';
+      a.rel = 'noopener';
+      a.style.display = 'none';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      return true;
+    }
   } catch {
     // Nunca deixa o erro chegar ao botão (evita erro de tela).
     try {

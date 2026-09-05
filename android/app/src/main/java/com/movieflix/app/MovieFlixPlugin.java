@@ -76,6 +76,8 @@ public class MovieFlixPlugin extends Plugin {
                 return;
             }
             // Extrai phone + text para montar o deep link nativo.
+            // O `text` vem URL-encoded do JS (encodeURIComponent) — decodifica
+            // para re-encodar corretamente no deep link nativo.
             String phone = uri.getQueryParameter("phone");
             String text = uri.getQueryParameter("text");
             String numero = MainActivity.WHATSAPP_NUMBER;
@@ -83,11 +85,14 @@ public class MovieFlixPlugin extends Plugin {
                 String limpo = phone.replaceAll("\\D", "");
                 if (!limpo.isEmpty()) numero = limpo;
             }
-            // 1) Deep link nativo whatsapp:// (app instalado).
+            // 1) Deep link nativo whatsapp:// (app instalado) — com número E
+            //    mensagem pré-preenchida. O texto é decodificado e re-encodado
+            //    para garantir que acentos/espaços/emojis cheguem corretos.
             try {
                 StringBuilder sb = new StringBuilder("whatsapp://send?phone=").append(numero);
                 if (text != null && !text.isEmpty()) {
-                    sb.append("&text=").append(Uri.encode(text));
+                    String textoDecodificado = java.net.URLDecoder.decode(text, "UTF-8");
+                    sb.append("&text=").append(Uri.encode(textoDecodificado));
                 }
                 Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(sb.toString()));
                 intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
@@ -95,9 +100,12 @@ public class MovieFlixPlugin extends Plugin {
                 call.resolve();
                 return;
             } catch (Exception e) {
-                // Sem app que trate whatsapp:// → fallback para wa.me (WhatsApp Web).
+                // Sem app que trate whatsapp:// → fallback para api.whatsapp.com
+                // (abre o WhatsApp Web no navegador se o app nativo não estiver
+                // instalado). Usa a URL original (com phone + text).
             }
-            // 2) Fallback: https://wa.me/numero?text=... (abre no navegador).
+            // 2) Fallback: https://api.whatsapp.com/send?phone=...&text=...
+            //    (abre no navegador/WhatsApp Web).
             try {
                 Intent intent = new Intent(Intent.ACTION_VIEW, uri);
                 intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
