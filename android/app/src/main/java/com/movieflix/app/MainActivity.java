@@ -15,7 +15,13 @@ public class MainActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
-        CatalogRepository.carregar(this);
+        // Restaura sessão do Supabase (mesma conta do site).
+        SupabaseClient.restaurarSessao(this);
+
+        // Carrega o catálogo do backend em background (com cache local).
+        if (!BackendClient.isCarregado()) {
+            BackendClient.carregarCatalogo(this, null);
+        }
 
         BottomNavigationView nav = findViewById(R.id.bottom_nav);
         nav.setOnItemSelectedListener(item -> {

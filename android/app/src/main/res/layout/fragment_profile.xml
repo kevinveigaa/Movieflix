@@ -36,12 +36,34 @@
             android:textStyle="bold" />
 
         <TextView
+            android:id="@+id/account_status"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="8dp"
-            android:text="• Plano: Premium\n• Status: Ativo\n• Suporte: WhatsApp"
+            android:text="Faça login para ver sua conta"
             android:textColor="@color/text_secondary"
             android:textSize="15sp" />
+
+        <Button
+            android:id="@+id/btn_login"
+            android:layout_width="match_parent"
+            android:layout_height="50dp"
+            android:layout_marginTop="20dp"
+            android:backgroundTint="@color/moviePrimary"
+            android:text="Entrar / Criar conta"
+            android:textColor="@color/text_primary"
+            android:textStyle="bold" />
+
+        <Button
+            android:id="@+id/btn_logout"
+            android:layout_width="match_parent"
+            android:layout_height="50dp"
+            android:layout_marginTop="12dp"
+            android:backgroundTint="@color/bg_card"
+            android:text="Sair da conta"
+            android:textColor="@color/text_secondary"
+            android:textStyle="bold"
+            android:visibility="gone" />
 
         <Button
             android:id="@+id/btn_renovar"

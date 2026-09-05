@@ -1,15 +1,16 @@
 package com.movieflix.app;
 
+import android.content.Intent;
 import android.os.Bundle;
 import android.widget.Button;
 import android.widget.ImageView;
 import android.widget.TextView;
 import android.widget.Toast;
-import android.content.Intent;
 
 import androidx.appcompat.app.AppCompatActivity;
 
 import com.bumptech.glide.Glide;
+import com.google.gson.Gson;
 
 /** Tela de detalhes de um título: pôster, descrição, assistir e contato. */
 public class DetailActivity extends AppCompatActivity {
@@ -20,8 +21,9 @@ public class DetailActivity extends AppCompatActivity {
         setContentView(R.layout.activity_detail);
 
         String id = getIntent().getStringExtra("title_id");
-        Title t = CatalogRepository.buscarPorId(id);
+        Title t = BackendClient.buscarPorId(id);
         if (t == null) {
+            Toast.makeText(this, "Título não encontrado", Toast.LENGTH_SHORT).show();
             finish();
             return;
         }
@@ -38,17 +40,24 @@ public class DetailActivity extends AppCompatActivity {
         }
         title.setText(t.title);
         String metaText = (t.year != null ? t.year : "")
-                + (t.cat != null && !t.cat.isEmpty() ? "  •  " + t.cat : "")
-                + (t.quality != null && !t.quality.isEmpty() ? "  •  " + t.quality : "");
+                + (t.category != null && !t.category.isEmpty() ? "  •  " + t.category : "")
+                + (t.quality != null && !t.quality.isEmpty() ? "  •  " + t.quality : "")
+                + (t.language != null && !t.language.isEmpty() ? "  •  " + t.language : "");
         meta.setText(metaText.trim());
-        desc.setText(t.desc != null ? t.desc : "");
+        desc.setText(t.description != null ? t.description : "");
 
-        // Assistir: abre o player nativo dedicado (reproduz o vídeo corretamente).
+        // Assistir: abre o player NATIVO (ExoPlayer) com a fonte do vídeo.
         btnAssistir.setOnClickListener(v -> {
-            if (t.videoUrl != null && !t.videoUrl.isEmpty()) {
+            String streamUrl = t.getStreamUrl();
+            if (streamUrl != null && !streamUrl.isEmpty()) {
                 Intent i = new Intent(this, PlayerActivity.class);
-                i.putExtra("video_url", t.videoUrl);
+                i.putExtra("video_url", streamUrl);
                 i.putExtra("title", t.title);
+                i.putExtra("title_id", t.id);
+                i.putExtra("is_series", t.isSeries());
+                if (t.eps != null && !t.eps.isEmpty()) {
+                    i.putExtra("episodes", new Gson().toJson(t.eps));
+                }
                 startActivity(i);
             } else {
                 Toast.makeText(this, "Vídeo indisponível", Toast.LENGTH_SHORT).show();

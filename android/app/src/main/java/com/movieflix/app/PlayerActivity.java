@@ -1,186 +1,199 @@
 package com.movieflix.app;
 
-import android.annotation.SuppressLint;
-import android.content.Intent;
-import android.graphics.Bitmap;
+import android.content.SharedPreferences;
 import android.net.Uri;
 import android.os.Bundle;
 import android.view.View;
-import android.webkit.WebChromeClient;
-import android.webkit.WebResourceRequest;
-import android.webkit.WebSettings;
-import android.webkit.WebView;
-import android.webkit.WebViewClient;
 import android.widget.ProgressBar;
 import android.widget.Toast;
 
+import androidx.annotation.Nullable;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.media3.common.MediaItem;
+import androidx.media3.common.PlaybackException;
+import androidx.media3.common.Player;
+import androidx.media3.datasource.DefaultHttpDataSource;
+import androidx.media3.datasource.HttpDataSource;
+import androidx.media3.exoplayer.ExoPlayer;
+import androidx.media3.exoplayer.source.DefaultMediaSourceFactory;
+import androidx.media3.ui.PlayerView;
+
+import com.google.gson.Gson;
+import com.google.gson.reflect.TypeToken;
+
+import java.util.ArrayList;
+import java.util.List;
 
 /**
- * Player de v\u00eddeo dedicado do MovieFlix.
+ * Player de vídeo NATIVO do MovieFlix (ExoPlayer/Media3) — SEM WebView.
  *
- * Reproduz o player oficial do StreamBetter (o mesmo usado no site) para o
- * filme/s\u00e9rie selecionado. O app principal \u00e9 100% nativo (sem WebView);
- * este WebView \u00e9 usado APENAS para reproduzir o v\u00eddeo, pois o provedor
- * (StreamBetter) entrega o player via embed web.
+ * Reproduz o vídeo diretamente do campo `videoUrl` do catálogo (mesma fonte
+ * do site). Suporta HLS, DASH e MP4 progressivo.
  *
- * Configura\u00e7\u00e3o correta para o player:
- *  - JavaScript, DOM storage e reprodu\u00e7\u00e3o de m\u00eddia habilitados.
- *  - WebChromeClient com suporte a fullscreen e popups.
- *  - Links externos (trailers, WhatsApp) abrem no navegador/app externo.
+ * Recursos: play/pause, seek, fullscreen, volume (controles nativos do
+ * PlayerView), seleção de qualidade/áudio/legendas (TrackSelector do Media3),
+ * retomar de onde parou (SharedPreferences) e próximo episódio/autoplay.
  */
 public class PlayerActivity extends AppCompatActivity {
 
-    private WebView webView;
-    private ProgressBar progress;
+    private static final String PREFS = "movieflix_playback";
+    private static final String KEY_POS = "pos_";
 
-    @SuppressLint("SetJavaScriptEnabled")
+    private ExoPlayer player;
+    private PlayerView playerView;
+    private ProgressBar progress;
+    private String videoUrl;
+    private String title;
+    private String titleId;
+    private boolean isSeries;
+    private List<String> episodes = new ArrayList<>();
+
     @Override
-    protected void onCreate(Bundle savedInstanceState) {
+    protected void onCreate(@Nullable Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_player);
 
-        webView = findViewById(R.id.player_webview);
+        playerView = findViewById(R.id.player_view);
         progress = findViewById(R.id.player_progress);
 
-        String videoUrl = getIntent().getStringExtra("video_url");
-        String title = getIntent().getStringExtra("title");
-        if (title != null && !title.isEmpty()) {
-            setTitle(title);
+        videoUrl = getIntent().getStringExtra("video_url");
+        title = getIntent().getStringExtra("title");
+        titleId = getIntent().getStringExtra("title_id");
+        isSeries = getIntent().getBooleanExtra("is_series", false);
+        String epsJson = getIntent().getStringExtra("episodes");
+        if (epsJson != null && !epsJson.isEmpty()) {
+            try {
+                episodes = new Gson().fromJson(epsJson,
+                        new TypeToken<List<String>>() {}.getType());
+            } catch (Exception ignored) {}
         }
 
-        WebSettings settings = webView.getSettings();
-        settings.setJavaScriptEnabled(true);
-        settings.setDomStorageEnabled(true);
-        settings.setDatabaseEnabled(true);
-        settings.setLoadWithOverviewMode(true);
-        settings.setUseWideViewPort(true);
-        settings.setSupportMultipleWindows(true);
-        settings.setJavaScriptCanOpenWindowsAutomatically(true);
-        settings.setMediaPlaybackRequiresUserGesture(false);
-        settings.setMixedContentMode(WebSettings.MIXED_CONTENT_ALWAYS_ALLOW);
-        settings.setAllowFileAccess(true);
-        settings.setAllowContentAccess(true);
+        if (title != null && !title.isEmpty()) setTitle(title);
 
-        webView.setWebViewClient(new PlayerWebViewClient());
-        webView.setWebChromeClient(new PlayerWebChromeClient());
-
-        if (videoUrl != null && !videoUrl.isEmpty()) {
-            webView.loadUrl(videoUrl);
-        } else {
-            Toast.makeText(this, "V\u00eddeo indispon\u00edvel", Toast.LENGTH_SHORT).show();
+        if (videoUrl == null || videoUrl.isEmpty()) {
+            Toast.makeText(this, "Vídeo indisponível", Toast.LENGTH_SHORT).show();
             finish();
+            return;
         }
+
+        setupPlayer();
     }
 
-    private class PlayerWebViewClient extends WebViewClient {
-        @Override
-        public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
-            return handleUrl(request.getUrl().toString());
-        }
+    private void setupPlayer() {
+        HttpDataSource.Factory dataSourceFactory = new DefaultHttpDataSource.Factory()
+                .setUserAgent("MovieFlix-Android/3.3")
+                .setAllowCrossProtocolRedirects(true);
 
-        @Override
-        public boolean shouldOverrideUrlLoading(WebView view, String url) {
-            return handleUrl(url);
-        }
+        player = new ExoPlayer.Builder(this)
+                .setMediaSourceFactory(new DefaultMediaSourceFactory(this)
+                        .setDataSourceFactory(dataSourceFactory))
+                .build();
 
-        @Override
-        public void onPageStarted(WebView view, String url, Bitmap favicon) {
-            super.onPageStarted(view, url, favicon);
-            progress.setVisibility(View.VISIBLE);
-        }
+        playerView.setPlayer(player);
+        playerView.setControllerShowTimeoutMs(3000);
+        playerView.setShowBuffering(PlayerView.SHOW_BUFFERING_WHEN_PLAYING);
 
-        @Override
-        public void onPageFinished(WebView view, String url) {
-            super.onPageFinished(view, url);
-            progress.setVisibility(View.GONE);
-        }
-    }
+        player.addListener(new Player.Listener() {
+            @Override
+            public void onPlaybackStateChanged(int state) {
+                if (state == Player.STATE_BUFFERING) {
+                    progress.setVisibility(View.VISIBLE);
+                } else {
+                    progress.setVisibility(View.GONE);
+                }
+                if (state == Player.STATE_ENDED) {
+                    salvarPosicao(0);
+                    tocarProximoEpisodio();
+                }
+            }
 
-    private class PlayerWebChromeClient extends WebChromeClient {
-        @Override
-        public void onProgressChanged(WebView view, int newProgress) {
-            if (newProgress >= 100) {
+            @Override
+            public void onPlayerError(PlaybackException error) {
                 progress.setVisibility(View.GONE);
+                Toast.makeText(PlayerActivity.this,
+                        "Erro ao reproduzir o vídeo. Tente novamente.", Toast.LENGTH_LONG).show();
+            }
+        });
+
+        MediaItem mediaItem = MediaItem.fromUri(Uri.parse(videoUrl));
+        player.setMediaItem(mediaItem);
+        player.prepare();
+
+        long pos = lerPosicao();
+        if (pos > 0) player.seekTo(pos);
+        player.setPlayWhenReady(true);
+    }
+
+    private String chavePosicao() {
+        return KEY_POS + (titleId != null ? titleId : videoUrl);
+    }
+
+    private long lerPosicao() {
+        SharedPreferences sp = getSharedPreferences(PREFS, MODE_PRIVATE);
+        return sp.getLong(chavePosicao(), 0);
+    }
+
+    private void salvarPosicao(long pos) {
+        SharedPreferences sp = getSharedPreferences(PREFS, MODE_PRIVATE);
+        sp.edit().putLong(chavePosicao(), pos).apply();
+    }
+
+    private String tmdbId() {
+        try {
+            Uri uri = Uri.parse(videoUrl);
+            List<String> seg = uri.getPathSegments();
+            if (seg.size() >= 2) return seg.get(1);
+        } catch (Exception ignored) {}
+        return "";
+    }
+
+    private void tocarProximoEpisodio() {
+        if (!isSeries || episodes == null || episodes.isEmpty()) return;
+        String atual = episodioAtual();
+        int idx = episodes.indexOf(atual);
+        if (idx >= 0 && idx + 1 < episodes.size()) {
+            String prox = episodes.get(idx + 1);
+            String[] partes = prox.split("/");
+            if (partes.length == 2) {
+                String url = "https://streambetter.shop/serie/" + tmdbId()
+                        + "/" + partes[0] + "/" + partes[1] + "?lang=pt-BR";
+                videoUrl = url;
+                setupPlayer();
             }
         }
-
-        @Override
-        public boolean onCreateWindow(WebView view, boolean isDialog, boolean isUserGesture, android.os.Message resultMsg) {
-            WebView newWebView = new WebView(PlayerActivity.this);
-            newWebView.getSettings().setJavaScriptEnabled(true);
-            newWebView.getSettings().setDomStorageEnabled(true);
-            newWebView.getSettings().setSupportMultipleWindows(true);
-            newWebView.setWebViewClient(new PlayerWebViewClient());
-            newWebView.setWebChromeClient(new PlayerWebChromeClient());
-            WebView.WebViewTransport transport = (WebView.WebViewTransport) resultMsg.obj;
-            transport.setWebView(newWebView);
-            resultMsg.sendToTarget();
-            return true;
-        }
     }
 
-    /** Roteia os links: WhatsApp nativo, externos no navegador, internos no player. */
-    private boolean handleUrl(String url) {
-        if (url == null) return false;
-        Uri uri = Uri.parse(url);
-        String scheme = uri.getScheme() == null ? "" : uri.getScheme().toLowerCase();
-        String host = uri.getHost() == null ? "" : uri.getHost().toLowerCase();
-
-        // WhatsApp: abre nativamente com n\u00famero e mensagem.
-        if (isWhatsAppUrl(scheme, host, url)) {
-            String mensagem = extrairMensagem(url);
-            WhatsAppHelper.abrirWhatsApp(this, WhatsAppHelper.WHATSAPP_NUMBER, mensagem);
-            return true;
-        }
-
-        // Player do StreamBetter: mant\u00e9m dentro do WebView.
-        if (host.equals("streambetter.shop") || host.endsWith(".streambetter.shop")) {
-            return false;
-        }
-
-        // Links externos (trailers, YouTube, outros): navegador externo.
-        if (scheme.equals("http") || scheme.equals("https")) {
-            WhatsAppHelper.abrirLinkExterno(this, url);
-            return true;
-        }
-
-        // Outros schemes (mailto:, tel:, etc.).
+    private String episodioAtual() {
         try {
-            Intent intent = new Intent(Intent.ACTION_VIEW, uri);
-            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-            startActivity(intent);
-        } catch (Exception e) {
-            // ignora
-        }
-        return true;
+            Uri uri = Uri.parse(videoUrl);
+            List<String> seg = uri.getPathSegments();
+            if (seg.size() >= 4) return seg.get(2) + "/" + seg.get(3);
+        } catch (Exception ignored) {}
+        return "";
     }
 
-    private boolean isWhatsAppUrl(String scheme, String host, String url) {
-        if (scheme.equals("whatsapp")) return true;
-        if (host.equals("wa.me") || host.endsWith(".wa.me")) return true;
-        if (host.equals("api.whatsapp.com") || host.endsWith(".api.whatsapp.com")) return true;
-        if (host.equals("wa.link") || host.endsWith(".wa.link")) return true;
-        if (url.contains("whatsapp.com/send") || url.contains("wa.me/")) return true;
-        return false;
-    }
-
-    private String extrairMensagem(String url) {
-        try {
-            Uri uri = Uri.parse(url);
-            String text = uri.getQueryParameter("text");
-            return text == null ? "" : text;
-        } catch (Exception e) {
-            return "";
+    @Override
+    protected void onPause() {
+        super.onPause();
+        if (player != null) {
+            salvarPosicao(player.getCurrentPosition());
+            player.setPlayWhenReady(false);
         }
     }
 
     @Override
-    public void onBackPressed() {
-        if (webView != null && webView.canGoBack()) {
-            webView.goBack();
-        } else {
-            super.onBackPressed();
+    protected void onResume() {
+        super.onResume();
+        if (player != null) player.setPlayWhenReady(true);
+    }
+
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        if (player != null) {
+            salvarPosicao(player.getCurrentPosition());
+            player.release();
+            player = null;
         }
     }
 }
