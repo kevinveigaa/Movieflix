@@ -10,7 +10,7 @@ import { Crown, Sparkles, ChevronLeft, ChevronRight, Search as SearchIcon, X } f
 import { categoriasDoFilme, ehInfantil, ordenarCategorias } from "@/lib/categorias";
 import { ehFilme } from "@/lib/media";
 import { criarSemente, embaralharPriorizandoRecentes } from "@/lib/ordenacaoAleatoria";
-import { linkAssinarGenerico, abrirWhatsApp } from "@/lib/whatsapp";
+import { linkAssinarGenerico } from "@/lib/whatsapp";
 
 export function HomePage() {
   const { subscription, activeViewerProfile } = useAuth();
@@ -348,10 +348,8 @@ function UpgradeBanner() {
   return (
     <a
       href={linkAssinarGenerico(email)}
-      onClick={(e) => {
-        e.preventDefault();
-        void abrirWhatsApp(linkAssinarGenerico(email));
-      }}
+      target="_blank"
+      rel="noopener"
       className="flex items-center gap-4 rounded-2xl border border-roxo-700/30 bg-gradient-to-r from-ink-900 via-ink-900 to-roxo-950/60 p-5"
     >
       <div className="rounded-xl bg-gradient-to-br from-brand-600 to-roxo-600 p-3">

@@ -9,7 +9,7 @@
  * pagamento manualmente e ativa a conta informando SOMENTE e-mail + plano.
  */
 
-import { abrirWhatsAppNoApp } from '@/lib/appShell';
+import { abrirWhatsAppNoApp, ehAppSincrono } from '@/lib/appShell';
 
 /** Número do admin (formato internacional, sem +). */
 export const WHATSAPP_NUMBER = '5511943750307';
@@ -259,18 +259,30 @@ export function abrirLinkExternoPermitido(url: string): boolean {
  * NUNCA lança exceção — sempre retorna boolean (evita erro de runtime que
  * quebraria o botão e mostraria erro na tela).
  */
-export async function abrirWhatsApp(url: string): Promise<boolean> {
+export function abrirWhatsApp(url: string): boolean {
   try {
     if (!isAllowedExternalUrl(url)) return false;
-    // 1) App nativo: ponte Capacitor (mais confiável no WebView).
-    const abriuNoApp = await abrirWhatsAppNoApp(url);
-    if (abriuNoApp) return true;
-    // 2) Navegador: link real com target=_blank + fallbacks.
-    return abrirLinkExternoPermitido(url);
+    // 1) App nativo (APK/Capacitor): ponte nativa (síncrona, sem await).
+    if (ehAppSincrono()) {
+      void abrirWhatsAppNoApp(url);
+      return true;
+    }
+    // 2) Navegador: link real com target=_blank + clique programático.
+    //    (sem `noopener` para não retornar null; o site não fecha porque abre
+    //    em nova aba). Se o navegador bloquear o popup, cai para window.open.
+    const a = document.createElement('a');
+    a.href = url;
+    a.target = '_blank';
+    a.rel = 'noopener';
+    a.style.display = 'none';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    return true;
   } catch {
     // Nunca deixa o erro chegar ao botão (evita erro de tela).
     try {
-      window.location.href = url;
+      window.open(url, '_blank');
       return true;
     } catch {
       return false;

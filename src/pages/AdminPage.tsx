@@ -291,6 +291,110 @@ export function AdminPage() {
     setAlterandoSenha(null);
   }
 
+  // === CLIENTES: gestão de assinatura (adicionar/remover dias, trocar plano, desativar) ===
+  const [diasPorCliente, setDiasPorCliente] = useState<Record<string, string>>({});
+  const [planoTrocaPorCliente, setPlanoTrocaPorCliente] = useState<Record<string, string>>({});
+  const [assinaturaPorCliente, setAssinaturaPorCliente] = useState<Record<string, any>>({});
+  const [operandoCliente, setOperandoCliente] = useState<string | null>(null);
+
+  async function chamarAdmin(endpoint: string, body: any): Promise<any> {
+    const { data: sessao } = await supabase.auth.getSession();
+    const token = sessao?.session?.access_token;
+    const resp = await fetch(`${API_URL}${endpoint}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token ?? ""}` },
+      body: JSON.stringify(body),
+    });
+    const json = await resp.json();
+    if (!resp.ok) throw new Error(json?.erro || json?.error || "Erro na operação.");
+    return json;
+  }
+
+  async function carregarAssinaturaCliente(email: string) {
+    try {
+      const { data: sessao } = await supabase.auth.getSession();
+      const token = sessao?.session?.access_token;
+      const resp = await fetch(`${API_URL}/api/admin/assinatura?email=${encodeURIComponent(email)}`, {
+        headers: { Authorization: `Bearer ${token ?? ""}` },
+      });
+      const json = await resp.json();
+      if (resp.ok) setAssinaturaPorCliente((atual) => ({ ...atual, [email]: json.assinatura }));
+    } catch { /* ignora */ }
+  }
+
+  async function adicionarDiasCliente(email: string) {
+    const dias = Number(diasPorCliente[email] ?? "");
+    if (!Number.isInteger(dias) || dias <= 0) {
+      setClientesMsg({ tipo: "erro", texto: "Informe um número de dias válido (inteiro positivo)." });
+      return;
+    }
+    setOperandoCliente(email);
+    setClientesMsg(null);
+    try {
+      const json = await chamarAdmin("/api/admin/adicionar-dias", { email, dias });
+      setClientesMsg({ tipo: "ok", texto: json.mensagem });
+      setDiasPorCliente((atual) => ({ ...atual, [email]: "" }));
+      await carregarAssinaturaCliente(email);
+    } catch (e: any) {
+      setClientesMsg({ tipo: "erro", texto: e?.message ?? "Erro ao adicionar dias." });
+    }
+    setOperandoCliente(null);
+  }
+
+  async function removerDiasCliente(email: string) {
+    const dias = Number(diasPorCliente[email] ?? 0);
+    if (!Number.isInteger(dias) || dias <= 0) {
+      setClientesMsg({ tipo: "erro", texto: "Informe um número de dias válido (inteiro positivo)." });
+      return;
+    }
+    if (!window.confirm(`Remover ${dias} dia(s) de ${email}?`)) return;
+    setOperandoCliente(email);
+    setClientesMsg(null);
+    try {
+      const json = await chamarAdmin("/api/admin/remover-dias", { email, dias });
+      setClientesMsg({ tipo: "ok", texto: json.mensagem });
+      setDiasPorCliente((atual) => ({ ...atual, [email]: "" }));
+      await carregarAssinaturaCliente(email);
+    } catch (e: any) {
+      setClientesMsg({ tipo: "erro", texto: e?.message ?? "Erro ao remover dias." });
+    }
+    setOperandoCliente(null);
+  }
+
+  async function trocarPlanoCliente(email: string) {
+    const plano = planoTrocaPorCliente[email] ?? "";
+    if (!plano) {
+      setClientesMsg({ tipo: "erro", texto: "Selecione o novo plano." });
+      return;
+    }
+    if (!window.confirm(`Trocar o plano de ${email} para ${plano}? Os dias restantes serão mantidos.`)) return;
+    setOperandoCliente(email);
+    setClientesMsg(null);
+    try {
+      const json = await chamarAdmin("/api/admin/trocar-plano", { email, plano });
+      setClientesMsg({ tipo: "ok", texto: json.mensagem });
+      setPlanoTrocaPorCliente((atual) => ({ ...atual, [email]: "" }));
+      await carregarAssinaturaCliente(email);
+    } catch (e: any) {
+      setClientesMsg({ tipo: "erro", texto: e?.message ?? "Erro ao trocar plano." });
+    }
+    setOperandoCliente(null);
+  }
+
+  async function desativarCliente(email: string) {
+    if (!window.confirm(`Desativar a assinatura de ${email}? O acesso será cortado imediatamente.`)) return;
+    setOperandoCliente(email);
+    setClientesMsg(null);
+    try {
+      const json = await chamarAdmin("/api/admin/desativar", { email });
+      setClientesMsg({ tipo: "ok", texto: json.mensagem });
+      await carregarAssinaturaCliente(email);
+    } catch (e: any) {
+      setClientesMsg({ tipo: "erro", texto: e?.message ?? "Erro ao desativar." });
+    }
+    setOperandoCliente(null);
+  }
+
   useEffect(() => {
     if (ehAdmin) carregarClientes();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -859,13 +963,25 @@ export function AdminPage() {
                 if (!termo) return true;
                 return String(c.email ?? "").toLowerCase().includes(termo) || String(c.nome ?? "").toLowerCase().includes(termo);
               })
-              .map((cliente) => (
+              .map((cliente) => {
+                const assinatura = assinaturaPorCliente[cliente.email];
+                return (
                 <div key={cliente.id} className="card-surface flex flex-wrap items-center gap-3 p-3">
                   <div className="min-w-0 flex-1">
                     <p className="truncate font-semibold">{cliente.email}</p>
                     <p className="truncate text-xs text-gray-400">
                       {cliente.nome || "Sem nome"} {cliente.criado_em ? `· Criado em ${new Date(cliente.criado_em).toLocaleDateString("pt-BR")}` : ""}
                     </p>
+                    {assinatura && (
+                      <div className="mt-1 flex flex-wrap gap-1.5 text-[11px]">
+                        <span className={`chip ${assinatura.ativa ? "border-emerald-500/40 text-emerald-300" : "border-red-500/40 text-red-300"}`}>
+                          {assinatura.ativa ? "Ativa" : assinatura.status === "cancelled" ? "Inativa" : "Expirada"}
+                        </span>
+                        <span className="chip">Plano: {assinatura.plano ?? "—"}</span>
+                        {assinatura.expiracao && <span className="chip">Expira: {new Date(assinatura.expiracao).toLocaleDateString("pt-BR")}</span>}
+                        {assinatura.dias_restantes > 0 && <span className="chip">{assinatura.dias_restantes} dia(s) restante(s)</span>}
+                      </div>
+                    )}
                   </div>
                   <div className="flex shrink-0 items-center gap-2">
                     <input
@@ -883,8 +999,63 @@ export function AdminPage() {
                       {alterandoSenha === cliente.id ? "Alterando…" : "Alterar senha"}
                     </button>
                   </div>
+                  <div className="flex w-full flex-wrap items-center gap-2 border-t border-white/10 pt-2">
+                    <button
+                      onClick={() => carregarAssinaturaCliente(cliente.email)}
+                      className="btn-outline px-3 py-1.5 text-xs"
+                    >
+                      Ver assinatura
+                    </button>
+                    <input
+                      type="number"
+                      min="1"
+                      className="input w-20 px-2 py-1.5 text-xs"
+                      placeholder="Dias"
+                      value={diasPorCliente[cliente.email] ?? ""}
+                      onChange={(e) => setDiasPorCliente((atual) => ({ ...atual, [cliente.email]: e.target.value }))}
+                    />
+                    <button
+                      onClick={() => adicionarDiasCliente(cliente.email)}
+                      disabled={operandoCliente === cliente.email}
+                      className="btn-outline px-3 py-1.5 text-xs text-emerald-300"
+                    >
+                      + Adicionar dias
+                    </button>
+                    <button
+                      onClick={() => removerDiasCliente(cliente.email)}
+                      disabled={operandoCliente === cliente.email}
+                      className="btn-outline px-3 py-1.5 text-xs text-amber-300"
+                    >
+                      − Remover dias
+                    </button>
+                    <select
+                      className="input w-32 px-2 py-1.5 text-xs"
+                      value={planoTrocaPorCliente[cliente.email] ?? ""}
+                      onChange={(e) => setPlanoTrocaPorCliente((atual) => ({ ...atual, [cliente.email]: e.target.value }))}
+                    >
+                      <option value="">Trocar p/…</option>
+                      <option value="1">Plano 1</option>
+                      <option value="2">Plano 2</option>
+                      <option value="3">Plano 3</option>
+                    </select>
+                    <button
+                      onClick={() => trocarPlanoCliente(cliente.email)}
+                      disabled={operandoCliente === cliente.email}
+                      className="btn-outline px-3 py-1.5 text-xs text-roxo-300"
+                    >
+                      Trocar plano
+                    </button>
+                    <button
+                      onClick={() => desativarCliente(cliente.email)}
+                      disabled={operandoCliente === cliente.email}
+                      className="btn-outline px-3 py-1.5 text-xs text-red-300"
+                    >
+                      Desativar
+                    </button>
+                  </div>
                 </div>
-              ))}
+                );
+              })}
           </div>
         </div>
       )}

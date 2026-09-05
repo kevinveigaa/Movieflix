@@ -48,6 +48,14 @@ public class MovieFlixPlugin extends Plugin {
      * o JS chama esta ponte nativa, que valida a URL (só o WhatsApp oficial) e
      * dispara o intent diretamente — sem depender de window.open/location.href.
      *
+     * Estratégia (não deixa o usuário preso no app):
+     *  1. Tenta o DEEP LINK NATIVO `whatsapp://send?phone=5511943750307&text=...`
+     *     (abre direto a conversa se o WhatsApp estiver instalado).
+     *  2. Se não houver app que trate `whatsapp://` (ActivityNotFoundException),
+     *     cai para `https://wa.me/5511943750307?text=...` (abre o WhatsApp Web
+     *     no navegador se o app não estiver instalado).
+     * Nunca navega o WebView para fora do site.
+     *
      * Segurança: só aceita URLs do WhatsApp OFICIAL do MovieFlix (wa.me /
      * whatsapp.com com o número configurado). Qualquer outra URL é rejeitada.
      */
@@ -64,10 +72,37 @@ public class MovieFlixPlugin extends Plugin {
                 call.reject("URL não permitida");
                 return;
             }
-            Intent intent = new Intent(Intent.ACTION_VIEW, uri);
-            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-            getActivity().startActivity(intent);
-            call.resolve();
+            // Extrai phone + text para montar o deep link nativo.
+            String phone = uri.getQueryParameter("phone");
+            String text = uri.getQueryParameter("text");
+            String numero = MainActivity.WHATSAPP_NUMBER;
+            if (phone != null) {
+                String limpo = phone.replaceAll("\\D", "");
+                if (!limpo.isEmpty()) numero = limpo;
+            }
+            // 1) Deep link nativo whatsapp:// (app instalado).
+            try {
+                StringBuilder sb = new StringBuilder("whatsapp://send?phone=").append(numero);
+                if (text != null && !text.isEmpty()) {
+                    sb.append("&text=").append(Uri.encode(text));
+                }
+                Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(sb.toString()));
+                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                getActivity().startActivity(intent);
+                call.resolve();
+                return;
+            } catch (Exception e) {
+                // Sem app que trate whatsapp:// → fallback para wa.me (WhatsApp Web).
+            }
+            // 2) Fallback: https://wa.me/numero?text=... (abre no navegador).
+            try {
+                Intent intent = new Intent(Intent.ACTION_VIEW, uri);
+                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                getActivity().startActivity(intent);
+                call.resolve();
+            } catch (Exception e) {
+                call.reject("Não foi possível abrir o WhatsApp", e);
+            }
         } catch (Exception e) {
             call.reject("Não foi possível abrir o WhatsApp", e);
         }

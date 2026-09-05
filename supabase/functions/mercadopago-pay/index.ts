@@ -60,6 +60,16 @@ Deno.serve(async (req: Request) => {
       });
     }
 
+    // VALIDAÇÃO DO PREÇO (causa raiz do amount NULL): se o plano não tiver um
+    // preço válido (> 0), NÃO cria o pagamento — retorna erro controlado.
+    const preco = Number(plan.price_cents);
+    if (!Number.isFinite(preco) || preco <= 0) {
+      return new Response(
+        JSON.stringify({ error: 'O plano não possui um preço válido configurado.' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+      );
+    }
+
     const accessToken = Deno.env.get('MERCADO_PAGO_ACCESS_TOKEN');
     if (!accessToken) {
       return new Response(JSON.stringify({ error: 'Mercado Pago não configurado' }), {
@@ -106,7 +116,8 @@ Deno.serve(async (req: Request) => {
         user_id: user.id,
         plan_code: plan.code,
         plan_id: plan.id,
-        amount_cents: plan.price_cents,
+        amount: preco,
+        amount_cents: preco,
         status: 'pending',
         provider: 'mercadopago',
         provider_payment_id: String(mpData.id),
