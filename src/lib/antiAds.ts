@@ -78,6 +78,10 @@ const DOMINIOS_PERMITIDOS = [
 
 /** A URL pode ser aberta (domínio do player, verificação ou navegação interna)? */
 export function ehDominioPermitido(url: string): boolean {
+  // Deep link nativo do WhatsApp (whatsapp://send?phone=...) — permite.
+  if (url.startsWith('whatsapp://')) {
+    return isAllowedExternalUrl(url);
+  }
   try {
     const u = new URL(url, window.location.href);
     if (u.origin === window.location.origin) return true;

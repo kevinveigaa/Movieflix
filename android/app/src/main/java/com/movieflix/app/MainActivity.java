@@ -351,10 +351,12 @@ public class MainActivity extends BridgeActivity {
     /** Número oficial do WhatsApp do MovieFlix (formato internacional, sem +). */
     public static final String WHATSAPP_NUMBER = "5511943750307";
 
-    /** O link é de WhatsApp (wa.me / whatsapp.com)? */
+    /** O link é de WhatsApp (wa.me / whatsapp.com / whatsapp://)? */
     private boolean ehWhatsApp(Uri uri) {
         if (uri == null) return false;
         String scheme = uri.getScheme() == null ? "" : uri.getScheme().toLowerCase();
+        // Deep link nativo whatsapp://send?phone=... (app instalado).
+        if (scheme.equals("whatsapp")) return true;
         if (!scheme.equals("https") && !scheme.equals("http")) return false;
         String host = uri.getHost();
         if (host == null) return false;
@@ -370,6 +372,15 @@ public class MainActivity extends BridgeActivity {
     public static boolean ehWhatsAppOficial(Uri uri) {
         if (uri == null) return false;
         String scheme = uri.getScheme() == null ? "" : uri.getScheme().toLowerCase();
+        // Deep link nativo whatsapp://send?phone=... — confere o número.
+        if (scheme.equals("whatsapp")) {
+            String phone = uri.getQueryParameter("phone");
+            if (phone != null) {
+                String limpo = phone.replaceAll("\\D", "");
+                return limpo.equals(WHATSAPP_NUMBER);
+            }
+            return false;
+        }
         if (!scheme.equals("https") && !scheme.equals("http")) return false;
         String host = uri.getHost();
         if (host == null) return false;
@@ -392,6 +403,38 @@ public class MainActivity extends BridgeActivity {
 
     /** Abre o WhatsApp nativo (ou o navegador, se não instalado) via intent. */
     private void abrirWhatsApp(Uri uri) {
+        // 1) Tenta o deep link nativo whatsapp://send?phone=... (app instalado).
+        //    Se o WhatsApp estiver instalado, abre direto a conversa.
+        try {
+            String phone = null;
+            String text = null;
+            String scheme = uri.getScheme() == null ? "" : uri.getScheme().toLowerCase();
+            if (scheme.equals("whatsapp")) {
+                phone = uri.getQueryParameter("phone");
+                text = uri.getQueryParameter("text");
+            } else {
+                phone = uri.getQueryParameter("phone");
+                text = uri.getQueryParameter("text");
+            }
+            if (phone != null) {
+                String limpo = phone.replaceAll("\\D", "");
+                if (limpo.equals(WHATSAPP_NUMBER)) {
+                    StringBuilder sb = new StringBuilder("whatsapp://send?phone=").append(WHATSAPP_NUMBER);
+                    if (text != null && !text.isEmpty()) {
+                        sb.append("&text=").append(Uri.encode(text));
+                    }
+                    Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(sb.toString()));
+                    intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                    startActivity(intent);
+                    return; // abriu o app nativo
+                }
+            }
+        } catch (Exception ignored) {
+            // Sem app que trate whatsapp:// → cai no fallback abaixo.
+        }
+
+        // 2) Fallback: abre o link https (wa.me / api.whatsapp.com) no navegador
+        //    (WhatsApp Web) se o app não estiver instalado.
         try {
             Intent intent = new Intent(Intent.ACTION_VIEW, uri);
             intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);

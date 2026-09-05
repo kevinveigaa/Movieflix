@@ -63,14 +63,16 @@ export function HeroBanner({ items }: { items: HeroItem[] }) {
     >
       <div className="relative h-[70vw] max-h-[640px] min-h-[340px] w-full">
         {slides.map((s, i) => (
-          <img
+          <div
             key={s.id}
-            src={s.backdrop_url || s.poster_url || ''}
-            alt={s.title ?? "Destaque"}
-            className={`hero-banner-img absolute inset-0 h-full w-full object-cover object-top transition-opacity duration-[900ms] ease-out ${
+            role="img"
+            aria-label={s.title ?? "Destaque"}
+            className={`hero-banner-img absolute inset-0 transition-opacity duration-[900ms] ease-out ${
               i === index ? "opacity-100" : "opacity-0"
             }`}
-            loading={i === 0 ? "eager" : "lazy"}
+            style={{
+              backgroundImage: `url("${s.backdrop_url || s.poster_url || ''}")`,
+            }}
           />
         ))}
 

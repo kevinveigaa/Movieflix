@@ -131,9 +131,19 @@ export function linkAssinarGenerico(email: string): string {
 // domínio ou número é permitido. A URL/número vêm da configuração acima
 // (WHATSAPP_NUMBER / WHATSAPP_URL) — nunca inventar outro.
 
-/** O link é o WhatsApp OFICIAL do MovieFlix (wa.me com o número configurado)? */
+/** O link é o WhatsApp OFICIAL do MovieFlix (wa.me/numero ou whatsapp://send)? */
 export function ehWhatsAppOficial(url: string): boolean {
   try {
+    // Suporta o deep link nativo whatsapp://send?phone=... (usado no app).
+    if (url.startsWith('whatsapp://')) {
+      const u = new URL(url);
+      const phone = u.searchParams.get('phone');
+      if (phone) {
+        const limpo = phone.replace(/\D/g, '');
+        return limpo === WHATSAPP_NUMBER || limpo === `+${WHATSAPP_NUMBER}`;
+      }
+      return false;
+    }
     const u = new URL(url, window.location.href);
     const host = u.hostname.toLowerCase();
     if (host !== 'wa.me' && host !== 'api.whatsapp.com' && host !== 'web.whatsapp.com' && !host.endsWith('whatsapp.com')) {
@@ -165,6 +175,10 @@ export function ehWhatsAppOficial(url: string): boolean {
  */
 export function isAllowedExternalUrl(url: string): boolean {
   if (!url) return false;
+  // Deep link nativo do WhatsApp (whatsapp://send?phone=...) — permite.
+  if (url.startsWith('whatsapp://')) {
+    return ehWhatsAppOficial(url);
+  }
   try {
     const u = new URL(url, window.location.href);
     // Navegação interna do app (SPA) sempre permitida.
@@ -180,23 +194,34 @@ export function isAllowedExternalUrl(url: string): boolean {
  * redirecionamento (isAllowedExternalUrl). Usado pelos botões de assinatura
  * para abrir o WhatsApp oficial.
  *
- * MÉTODO MAIS CONFIÁVEL: cria um elemento <a> real com href + target="_blank"
- * e dispara um clique programático. Isso é tratado pelo navegador como uma
- * navegação de link legítima (não um popup), então NÃO é bloqueado por
- * popup-blockers, e abre em nova aba SEM fechar o site. O antiAds permite o
- * WhatsApp oficial (isAllowedExternalUrl), então o clique não é cancelado.
- *
- * FALLBACK: se o clique programático não abrir (WebView que bloqueia
- * target=_blank), usa `window.open` e, por último, `window.location.href`
- * (navegação direta). Retorna true se a abertura foi iniciada.
+ * MÉTODO MAIS CONFIÁVEL: `window.open` em nova aba — NÃO fecha o site e é o
+ * método que o antiAds.ts permite explicitamente para o WhatsApp oficial
+ * (isAllowedExternalUrl). Em WebViews que bloqueiam window.open, cai para o
+ * link real com target=_blank e, por último, navegação direta.
  *
  * NUNCA lança exceção — sempre retorna boolean (evita erro de runtime que
  * quebraria o clique do botão).
  */
 export function abrirLinkExternoPermitido(url: string): boolean {
   if (!isAllowedExternalUrl(url)) return false;
+  // Deep link nativo do WhatsApp (whatsapp://) — abre direto (app instalado).
+  if (url.startsWith('whatsapp://')) {
+    try {
+      window.location.href = url;
+      return true;
+    } catch {
+      return false;
+    }
+  }
   try {
-    // 1) Link real com target=_blank + clique programático (mais confiável).
+    // 1) window.open (nova aba) — não fecha o site; o antiAds permite o WhatsApp.
+    const win = window.open(url, '_blank', 'noopener,noreferrer');
+    if (win) return true;
+  } catch {
+    /* tenta o próximo método */
+  }
+  try {
+    // 2) Link real com target=_blank + clique programático.
     const a = document.createElement('a');
     a.href = url;
     a.target = '_blank';
@@ -206,13 +231,6 @@ export function abrirLinkExternoPermitido(url: string): boolean {
     a.click();
     document.body.removeChild(a);
     return true;
-  } catch {
-    /* tenta o próximo método */
-  }
-  try {
-    // 2) window.open (nova aba) — não fecha o site.
-    const win = window.open(url, '_blank', 'noopener,noreferrer');
-    if (win) return true;
   } catch {
     /* tenta o próximo */
   }
