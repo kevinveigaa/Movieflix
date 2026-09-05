@@ -116,9 +116,15 @@ public class MainActivity extends BridgeActivity {
             // Impede downloads de anúncio (arquivos APK/desconhecidos).
             settings.setAllowFileAccessFromFileURLs(false);
             settings.setAllowUniversalAccessFromFileURLs(false);
-            // Janelas múltiplas (popups) NUNCA são criadas — tudo no mesmo WebView.
-            settings.setSupportMultipleWindows(false);
-            settings.setJavaScriptCanOpenWindowsAutomatically(false);
+            // Janelas múltiplas (abas/popups) nunca chegam a ser exibidas na
+            // tela — mas precisamos que o WebView NOS AVISE quando o site tenta
+            // abrir uma (via window.open/target="_blank"), para tratarmos a URL
+            // de destino com as mesmas regras de tratarNavegacao (ex.: o botão
+            // de assinatura que abre o WhatsApp). Se isso ficar desabilitado,
+            // o window.open falha em silêncio e o JS do site nunca recebe
+            // resposta (é o que trava o botão em "Abrindo...").
+            settings.setSupportMultipleWindows(true);
+            settings.setJavaScriptCanOpenWindowsAutomatically(true);
             // Mídia (áudio/vídeo) dentro do player embutido.
             settings.setMixedContentMode(WebSettings.MIXED_CONTENT_COMPATIBILITY_MODE);
 
@@ -158,6 +164,41 @@ public class MainActivity extends BridgeActivity {
                 @Override
                 public void onHideCustomView() {
                     removerCustomView(false);
+                }
+
+                // ── window.open / target="_blank" ───────────────────────────
+                // O site pode disparar o botão de assinatura/WhatsApp com
+                // window.open(...) em vez de navegar a própria página. Sem
+                // este método, esse chamado falha em silêncio (o WebView não
+                // tem abas) e o JS do site fica esperando uma resposta que
+                // nunca chega — é isso que deixa o botão preso em "Abrindo...".
+                // Aqui criamos uma WebView "fantasma" (nunca anexada à tela)
+                // só para capturar a URL de destino e tratá-la com as mesmas
+                // regras de tratarNavegacao (ex.: abrir o WhatsApp nativo).
+                @Override
+                public boolean onCreateWindow(WebView view, boolean isDialog, boolean isUserGesture, android.os.Message resultMsg) {
+                    final WebView webViewFantasma = new WebView(MainActivity.this);
+                    webViewFantasma.setWebViewClient(new WebViewClient() {
+                        @Override
+                        public boolean shouldOverrideUrlLoading(WebView v, WebResourceRequest request) {
+                            tratarNavegacao(webView, request.getUrl(), true);
+                            webViewFantasma.destroy();
+                            return true;
+                        }
+
+                        @Override
+                        @SuppressWarnings("deprecation")
+                        public boolean shouldOverrideUrlLoading(WebView v, String url) {
+                            tratarNavegacao(webView, Uri.parse(url), true);
+                            webViewFantasma.destroy();
+                            return true;
+                        }
+                    });
+
+                    WebView.WebViewTransport transport = (WebView.WebViewTransport) resultMsg.obj;
+                    transport.setWebView(webViewFantasma);
+                    resultMsg.sendToTarget();
+                    return true;
                 }
             });
 
