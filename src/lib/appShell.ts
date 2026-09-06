@@ -11,16 +11,32 @@
  * - `appIsAppPromise` → Promise<boolean> (não bloqueia se o plugin não existir).
  *
  * Implementação: tenta o plugin Capacitor (`window.Capacitor` +
- * `MovieFlixApp.isApp()`). Se não existir (navegador comum), resolve false.
+ * `MovieFlixApp.isApp()`) e, em seguida, a ponte JS pura exposta pelo APK
+ * WebView (`window.MovieFlixApp.isApp()` via addJavascriptInterface). Se
+ * nenhuma existir (navegador comum), resolve false.
  */
 
 let cache: boolean | null = null;
 
-/** Detecta se o site está rodando dentro do app nativo (Capacitor). */
+/** Detecta se o site está rodando dentro do app nativo (APK WebView/Capacitor). */
 export async function rodandoNoApp(): Promise<boolean> {
   if (cache !== null) return cache;
   try {
     const w = window as any;
+
+    // 1) Ponte JS pura do APK WebView (addJavascriptInterface -> window.MovieFlixApp)
+    const bridge = w.MovieFlixApp;
+    if (bridge && typeof bridge.isApp === 'function') {
+      try {
+        const res = bridge.isApp();
+        cache = Boolean(res && (res === true || res.isApp === true));
+      } catch {
+        cache = true;
+      }
+      return cache;
+    }
+
+    // 2) Plugin Capacitor (window.Capacitor + MovieFlixApp.isApp())
     const cap = w.Capacitor;
     if (cap && cap.isNativePlatform && cap.isNativePlatform()) {
       const plugin = cap.Plugins?.MovieFlixApp;
@@ -62,6 +78,15 @@ export function ehAppSincrono(): boolean {
 export async function abrirWhatsAppNoApp(url: string): Promise<boolean> {
   try {
     const w = window as any;
+
+    // 1) Ponte JS pura do APK WebView (window.MovieFlixApp.abrirWhatsApp)
+    const bridge = w.MovieFlixApp;
+    if (bridge && typeof bridge.abrirWhatsApp === 'function') {
+      bridge.abrirWhatsApp(url);
+      return true;
+    }
+
+    // 2) Plugin Capacitor (window.Capacitor + MovieFlixApp.abrirWhatsApp)
     const cap = w.Capacitor;
     if (cap && cap.isNativePlatform && cap.isNativePlatform()) {
       const plugin = cap.Plugins?.MovieFlixApp;
@@ -107,6 +132,15 @@ export async function aplicarClasseApp() {
 export async function abrirNoNavegador(url: string): Promise<boolean> {
   try {
     const w = window as any;
+
+    // 1) Ponte JS pura do APK WebView (window.MovieFlixApp.abrirNoNavegador)
+    const bridge = w.MovieFlixApp;
+    if (bridge && typeof bridge.abrirNoNavegador === 'function') {
+      bridge.abrirNoNavegador(url);
+      return true;
+    }
+
+    // 2) Plugin Capacitor (window.Capacitor + MovieFlixApp.abrirNoNavegador)
     const cap = w.Capacitor;
     if (cap && cap.isNativePlatform && cap.isNativePlatform()) {
       const plugin = cap.Plugins?.MovieFlixApp;
