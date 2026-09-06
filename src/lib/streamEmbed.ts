@@ -23,9 +23,23 @@
 
 const STREAMBETTER_BASE = 'https://streambetter.shop';
 
-/** Chave pública do plano Creator (sb_pk_*). Vem do build (VITE_*). */
+/**
+ * Chave pública do plano Creator (sb_pk_*) do StreamBetter.
+ * É uma chave PÚBLICA (feita para o embed no navegador) — não é segredo.
+ * Vem de VITE_STREAMBETTER_PUBLIC_KEY (variável de ambiente do build); se a
+ * variável não estiver presente no ambiente de build (ex.: Render), usamos
+ * este fallback para garantir que o player sempre use a chave correta e fique
+ * SEM anúncios (plano Creator pago).
+ */
+const STREAMBETTER_PUBLIC_KEY_FALLBACK =
+  'sb_pk_19fe7c75a49585cd84ced96806703a2176768fa4f77a7ea4';
+
+/** Chave pública do plano Creator (sb_pk_*). Vem do build (VITE_*) com fallback. */
 export function chavePublicaStreamBetter(): string {
-  return (import.meta.env.VITE_STREAMBETTER_PUBLIC_KEY as string) || '';
+  return (
+    (import.meta.env.VITE_STREAMBETTER_PUBLIC_KEY as string) ||
+    STREAMBETTER_PUBLIC_KEY_FALLBACK
+  );
 }
 
 /** A chave pública está configurada? (para avisar o admin se faltar) */
