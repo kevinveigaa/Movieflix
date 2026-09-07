@@ -52,7 +52,7 @@ export function CatalogPage({ kind }: { kind: CatalogKind }) {
   // Semente criada uma vez por montagem da página (ordem estável entre
   // re-renders, recalculada ao recarregar/voltar para o catálogo).
   const [semente] = useState(() => criarSemente());
-  // Carregamento progressivo: catálogo é GRANDE (~4.000 filmes / ~1.250 séries).
+  // Carregamento progressivo: catálogo é GRANDE (~18.000 filmes / ~8.000 séries).
   // Renderizamos em blocos de 60 e o usuário clica "Carregar mais" (evita travar
   // o navegador/TV renderizando milhares de cards de uma vez).
   const [limite, setLimite] = useState(60);
