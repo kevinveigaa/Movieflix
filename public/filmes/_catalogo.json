@@ -1,5 +1,5 @@
 {
-  "gerado_em": "2026-09-07T00:22:18.475Z",
+  "gerado_em": "2026-09-07T00:48:26.874Z",
   "fonte": "https://streambetter.shop/api/titles",
   "regras": [
     "Somente filmes e séries (sem animes)",
@@ -8,7 +8,7 @@
     "Somente títulos com fonte cadastrada; séries com ≥1 episódio",
     "Sem anúncios próprios; embed gratuito pode exibir anúncio do StreamBetter (Creator = ad-free)"
   ],
-  "total_filmes": 4566,
-  "total_series": 1293,
-  "expansao": "+71 filmes, +12 séries em 2026-09-07T00:22:18.475Z"
+  "total_filmes": 18080,
+  "total_series": 8093,
+  "expansao": "+9568 filmes, +2709 séries em 2026-09-07T00:48:26.874Z"
 }
