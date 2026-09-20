@@ -5,7 +5,7 @@
  * para que futuras atualizações só precisem alterar este arquivo
  * (e colocar o novo arquivo em public/apk/).
  *
- * ══ SISTEMA DE VERSÃO (pedido do dono) ══════════════════════════════════
+ * ══ SISTEMA DE VERSÃO (pedido do dono) ═════════════════════════════════
  * - A versão atual é 2.1.0 (versão principal do site + app unificados).
  * - Regra de incremento:
  *     · Correção pequena (bugfix)  → 2.0.1
@@ -55,7 +55,7 @@ export const APK_ABSOLUTE_URL = `https://movieflix-bszf.onrender.com${APK_URL}`;
 export const DOWNLOAD_PAGE_URL = 'https://movieflix-bszf.onrender.com/#/baixar-app';
 
 /** Tamanho do APK em MB (exibido na página de download). Mantido em sincronia com public/apk/MovieFlix-v3.4.1.apk. */
-export const APK_SIZE_MB = '8.6 MB';
+export const APK_SIZE_MB = '10.4 MB';
 
 /** Chave usada no localStorage para lembrar a última versão vista pelo usuário. */
 const VERSION_KEY = 'mf_last_seen_version';
