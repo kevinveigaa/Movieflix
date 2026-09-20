@@ -308,45 +308,121 @@ public class MainActivity extends AppCompatActivity {
     }
 
     /**
-     * Intercepta TODOS os links:
-     *  - WhatsApp (whatsapp://, wa.me, api.whatsapp.com, web.whatsapp.com) → Intent nativo
-     *  - Externos (outros domínios, trailers, YouTube) → navegador externo
-     *  - Internos (movieflix-bszf.onrender.com) → mantém no WebView
+     * Intercepta TODOS os links e navegações do WebView (camada nativa).
+     *
+     * Regras (silenciosas — nenhum Toast/Alert/Snackbar):
+     *  - WhatsApp (whatsapp://, wa.me, api.whatsapp.com, chat.whatsapp.com,
+     *    web.whatsapp.com) → abre nativamente (nunca bloqueado).
+     *  - URLs internas do MovieFlix → continuam no WebView.
+     *  - Domínios do player/verificação (StreamBetter, Cloudflare, fontes) →
+     *    continuam no WebView (nunca abrem navegador externo).
+     *  - intent:// e demais schemes customizados → BLOQUEADOS (não abrem outro app).
+     *  - Domínios externos legítimos (Instagram, YouTube, Drive) → navegador
+     *    externo (ação explícita do usuário, igual ao comportamento atual).
+     *  - Qualquer outro HTTP/HTTPS (anúncio/redirecionamento do StreamBetter) →
+     *    BLOQUEADO silenciosamente: não abre Chrome, não troca a Activity e o
+     *    MovieFlix/player permanece em primeiro plano.
      */
+
+    /** Domínios do player e da verificação — NUNCA abrem navegador externo. */
+    private static final String[] DOMINIOS_PLAYER = {
+            "streambetter.shop",
+            "yapgrid.com",
+            "playerflixapi.com",
+            "megaembedapi.site",
+            "embedplayapi.site",
+            "watchplayer.shop",
+            "embedplayer2.xyz",
+            "embed.warezcdn.link",
+            "superflixapi.life",
+            "challenges.cloudflare.com",
+            "cloudflare.com",
+            "turnstile",
+    };
+
+    /** Domínios externos legítimos (links do rodapé/trailers) — navegador externo. */
+    private static final String[] DOMINIOS_EXTERNOS_LEGITIMOS = {
+            "youtube.com",
+            "youtu.be",
+            "youtube-nocookie.com",
+            "drive.google.com",
+            "instagram.com",
+    };
+
+    /** É um link do WhatsApp (deep link nativo ou domínios oficiais)? */
+    private boolean ehUrlWhatsApp(String lower) {
+        return lower.startsWith("whatsapp://")
+                || lower.startsWith("wa.me")
+                || lower.contains("api.whatsapp.com")
+                || lower.contains("chat.whatsapp.com")
+                || lower.contains("web.whatsapp.com");
+    }
+
+    /** É uma URL interna do MovieFlix (deve continuar no WebView)? */
+    private boolean ehUrlInterna(String lower) {
+        return lower.startsWith(SITE_URL)
+                || lower.startsWith("https://movieflix-bszf.onrender.com")
+                || lower.startsWith("http://movieflix-bszf.onrender.com")
+                || lower.startsWith("/")
+                || lower.startsWith("#");
+    }
+
+    /** O host da URL pertence à lista informada? */
+    private boolean hostEstaNaLista(String url, String[] dominios) {
+        String host;
+        try {
+            host = Uri.parse(url).getHost();
+        } catch (Exception e) {
+            return false;
+        }
+        if (host == null) return false;
+        String h = host.toLowerCase();
+        for (String d : dominios) {
+            if (h.equals(d) || h.endsWith("." + d)) return true;
+        }
+        return false;
+    }
+
     private boolean handleUrl(String url) {
         if (url == null) return false;
         String lower = url.toLowerCase();
 
-        // WhatsApp — abre nativamente com número e mensagem
-        if (lower.startsWith("whatsapp://")
-                || lower.startsWith("wa.me")
-                || lower.contains("api.whatsapp.com")
-                || lower.contains("web.whatsapp.com")
-                || lower.contains("wa.me/")) {
+        // 1) WhatsApp — abre nativamente (nunca bloqueado).
+        if (ehUrlWhatsApp(lower)) {
             abrirWhatsAppNativo(url);
             return true;
         }
 
-        // Links internos do site → mantém no WebView
-        if (lower.startsWith(SITE_URL) || lower.startsWith("https://movieflix-bszf.onrender.com")
-                || lower.startsWith("http://movieflix-bszf.onrender.com")
-                || lower.startsWith("/") || lower.startsWith("#")) {
-            return false; // deixa o WebView carregar
+        // 2) Interno do MovieFlix → mantém no WebView.
+        if (ehUrlInterna(lower)) {
+            return false;
         }
 
-        // Links externos (YouTube, trailers, outros domínios) → navegador externo
-        if (lower.startsWith("http://") || lower.startsWith("https://")) {
+        // 3) intent:// e schemes que tentam abrir OUTRO aplicativo → bloqueia.
+        if (lower.startsWith("intent:")) {
+            return true;
+        }
+
+        // 4) Domínios do player/verificação → mantém no WebView (não abre navegador).
+        if (hostEstaNaLista(url, DOMINIOS_PLAYER)) {
+            return false;
+        }
+
+        // 5) Domínios externos legítimos (Instagram/YouTube/Drive) → navegador externo.
+        if (hostEstaNaLista(url, DOMINIOS_EXTERNOS_LEGITIMOS)) {
             startExternal(url);
             return true;
         }
 
-        // Outros schemes (tel:, mailto:, intent:) → tenta abrir externamente
-        try {
-            Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(url));
-            startActivity(intent);
-        } catch (ActivityNotFoundException e) {
-            // ignora
+        // 6) Qualquer outro HTTP/HTTPS (anúncio/redirecionamento) → BLOQUEIA
+        //    silenciosamente: não abre Chrome, não troca a Activity, o player
+        //    permanece em primeiro plano.
+        if (lower.startsWith("http://") || lower.startsWith("https://")) {
+            return true;
         }
+
+        // 7) Demais schemes customizados (tel:, mailto:, sms:, movieflix: etc.)
+        //    → bloqueia silenciosamente (não abre outro aplicativo).
         return true;
     }
 
