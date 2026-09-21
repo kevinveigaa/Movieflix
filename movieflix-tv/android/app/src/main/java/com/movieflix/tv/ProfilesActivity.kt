@@ -152,6 +152,98 @@ class ProfilesActivity : SidebarHostActivity() {
             setOnClickListener { acao() }
         }
 
+    /**
+     * Diálogo de texto com o TECLADO EM TELA do app (MfKeyboard).
+     *
+     * ── CORREÇÃO v2.0.1 ─────────────────────────────────────────────────────
+     * Antes estes diálogos usavam `EditText` cru, contando com o teclado
+     * virtual do Android — que em TV Box / Android TV frequentemente não abre
+     * pelo controle remoto. Agora o nome do perfil é digitado com o mesmo
+     * teclado navegável por D-pad do resto do app.
+     */
+    private fun dialogoComTeclado(
+        titulo: String,
+        valorInicial: String,
+        rotuloOk: String,
+        aoConfirmar: (String) -> Unit,
+    ) {
+        val raiz = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(
+                MfDesign.dp(this@ProfilesActivity, 18f),
+                MfDesign.dp(this@ProfilesActivity, 10f),
+                MfDesign.dp(this@ProfilesActivity, 18f),
+                MfDesign.dp(this@ProfilesActivity, 12f),
+            )
+        }
+
+        val campo = EditText(this).apply {
+            inputType = InputType.TYPE_CLASS_TEXT
+            hint = "Nome do perfil"
+            setText(valorInicial)
+            setSelection(valorInicial.length)
+            setTextColor(Color.WHITE)
+            setHintTextColor(MfDesign.GRAY)
+            importantForAutofill = View.IMPORTANT_FOR_AUTOFILL_NO
+            showSoftInputOnFocus = false
+            background = resources.getDrawable(R.drawable.bg_input, null)
+            setPadding(
+                MfDesign.dp(this@ProfilesActivity, 20f), 0,
+                MfDesign.dp(this@ProfilesActivity, 20f), 0,
+            )
+        }
+        raiz.addView(
+            campo,
+            LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                MfDesign.dp(this@ProfilesActivity, 56f),
+            ),
+        )
+
+        val teclado = MfKeyboard(this).apply {
+            rotuloConfirmar = rotuloOk
+            definirAlvo(campo)
+            acima = campo
+        }
+        raiz.addView(
+            teclado,
+            LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+            ).apply { topMargin = MfDesign.dp(this@ProfilesActivity, 10f) },
+        )
+
+        val dialog = AlertDialog.Builder(this)
+            .setTitle(titulo)
+            .setView(raiz)
+            .setPositiveButton(rotuloOk, null)
+            .setNegativeButton("CANCELAR", null)
+            .create()
+
+        // A tecla de confirmação do teclado e o botão do diálogo fazem o mesmo.
+        teclado.aoConfirmar = {
+            aoConfirmar(campo.text.toString())
+            dialog.dismiss()
+        }
+        dialog.setOnShowListener {
+            dialog.getButton(android.content.DialogInterface.BUTTON_POSITIVE)
+                .setOnClickListener {
+                    aoConfirmar(campo.text.toString())
+                    dialog.dismiss()
+                }
+        }
+
+        // OK no campo foca a primeira tecla do teclado em tela.
+        campo.setOnClickListener { teclado.focarPrimeira() }
+
+        dialog.show()
+        // Em TV o diálogo precisa de largura confortável para o teclado.
+        dialog.window?.setLayout(
+            MfDesign.dp(this@ProfilesActivity, 820f),
+            ViewGroup.LayoutParams.WRAP_CONTENT,
+        )
+    }
+
     private fun carregar() {
         if (!AuthRepository.estaLogado(this)) {
             Toast.makeText(this, "Entre com a sua conta primeiro.", Toast.LENGTH_LONG).show()
@@ -220,32 +312,25 @@ class ProfilesActivity : SidebarHostActivity() {
             ).show()
             return
         }
-        val input = EditText(this).apply {
-            inputType = InputType.TYPE_CLASS_TEXT
-            hint = "Nome do perfil"
-            setTextColor(Color.WHITE)
-            setHintTextColor(MfDesign.GRAY)
-        }
-        AlertDialog.Builder(this)
-            .setTitle("Novo perfil")
-            .setView(input)
-            .setPositiveButton("CRIAR") { _, _ ->
-                val nome = input.text.toString().ifBlank { "Perfil ${perfis.size + 1}" }
-                scope.launch {
-                    val novo = withContext(Dispatchers.IO) {
-                        ProfilesRepository.criar(this@ProfilesActivity, nome, "", false)
-                    }
-                    if (novo != null) {
-                        perfis = perfis + novo
-                        adapter.submit(perfis)
-                        atualizarInfo()
-                    } else {
-                        Toast.makeText(this@ProfilesActivity, "Não foi possível criar o perfil.", Toast.LENGTH_LONG).show()
-                    }
+        dialogoComTeclado(
+            titulo = "Novo perfil",
+            valorInicial = "",
+            rotuloOk = "CRIAR",
+        ) { digitado ->
+            val nome = digitado.ifBlank { "Perfil ${perfis.size + 1}" }
+            scope.launch {
+                val novo = withContext(Dispatchers.IO) {
+                    ProfilesRepository.criar(this@ProfilesActivity, nome, "", false)
+                }
+                if (novo != null) {
+                    perfis = perfis + novo
+                    adapter.submit(perfis)
+                    atualizarInfo()
+                } else {
+                    Toast.makeText(this@ProfilesActivity, "Não foi possível criar o perfil.", Toast.LENGTH_LONG).show()
                 }
             }
-            .setNegativeButton("CANCELAR", null)
-            .show()
+        }
     }
 
     private fun editar(p: ProfilesRepository.Perfil) {
@@ -258,33 +343,26 @@ class ProfilesActivity : SidebarHostActivity() {
     }
 
     private fun renomear(p: ProfilesRepository.Perfil) {
-        val input = EditText(this).apply {
-            inputType = InputType.TYPE_CLASS_TEXT
-            setText(p.name)
-            setTextColor(Color.WHITE)
-            setHintTextColor(MfDesign.GRAY)
-        }
-        AlertDialog.Builder(this)
-            .setTitle("Renomear perfil")
-            .setView(input)
-            .setPositiveButton("SALVAR") { _, _ ->
-                val nome = input.text.toString().ifBlank { p.name }
-                scope.launch {
-                    val ok = withContext(Dispatchers.IO) {
-                        ProfilesRepository.atualizar(this@ProfilesActivity, p.id, nome, p.avatarUrl, p.isKid)
+        dialogoComTeclado(
+            titulo = "Renomear perfil",
+            valorInicial = p.name,
+            rotuloOk = "SALVAR",
+        ) { digitado ->
+            val nome = digitado.ifBlank { p.name }
+            scope.launch {
+                val ok = withContext(Dispatchers.IO) {
+                    ProfilesRepository.atualizar(this@ProfilesActivity, p.id, nome, p.avatarUrl, p.isKid)
+                }
+                if (ok) {
+                    perfis = perfis.map { if (it.id == p.id) it.copy(name = nome) else it }
+                    adapter.submit(perfis)
+                    if (ProfilesRepository.perfilAtivoId(this@ProfilesActivity) == p.id) {
+                        ProfilesRepository.setPerfilAtivo(this@ProfilesActivity, p.copy(name = nome))
                     }
-                    if (ok) {
-                        perfis = perfis.map { if (it.id == p.id) it.copy(name = nome) else it }
-                        adapter.submit(perfis)
-                        if (ProfilesRepository.perfilAtivoId(this@ProfilesActivity) == p.id) {
-                            ProfilesRepository.setPerfilAtivo(this@ProfilesActivity, p.copy(name = nome))
-                        }
-                        atualizarInfo()
-                    }
+                    atualizarInfo()
                 }
             }
-            .setNegativeButton("CANCELAR", null)
-            .show()
+        }
     }
 
     private fun excluir(p: ProfilesRepository.Perfil) {

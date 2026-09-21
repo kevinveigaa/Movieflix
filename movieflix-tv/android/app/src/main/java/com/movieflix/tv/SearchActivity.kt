@@ -6,9 +6,8 @@ import android.graphics.Typeface
 import android.util.TypedValue
 import android.os.Bundle
 import android.view.Gravity
+import android.view.KeyEvent
 import android.view.View
-import android.view.inputmethod.EditorInfo
-import android.view.inputmethod.InputMethodManager
 import android.widget.EditText
 import android.widget.FrameLayout
 import android.widget.LinearLayout
@@ -18,16 +17,20 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.cancel
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 /**
  * Busca — mesma lógica do mobile (busca local no catálogo embutido pelo título)
- * com interface de TV: campo grande, teclado em tela ao focar e grade de cards.
+ * com interface de TV: campo grande, teclado em tela e grade de cards.
  *
- * O usuário do controle pode digitar pelo teclado virtual do Android TV ou usar
- * as sugestões de categoria, tudo com OK/setas — sem depender de toque.
+ * ── CORREÇÃO v2.0.1 ───────────────────────────────────────────────────────────
+ * Antes a digitação dependia do teclado virtual do Android (`showSoftInput`) —
+ * que em Android TV / Google TV / TV Box frequentemente não abre pelo controle
+ * remoto. Agora a busca usa o mesmo teclado em tela do login (MfKeyboard),
+ * navegável apenas com UP/DOWN/LEFT/RIGHT + OK. Sem IME, sem touchscreen.
+ *
+ * Ordem de foco: campo → teclado (OK abre) → BUSCAR → grade de resultados.
  */
 class SearchActivity : SidebarHostActivity() {
 
@@ -39,6 +42,7 @@ class SearchActivity : SidebarHostActivity() {
     private lateinit var input: EditText
     private lateinit var grade: RecyclerView
     private lateinit var lblInfo: TextView
+    private lateinit var teclado: MfKeyboard
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -47,7 +51,7 @@ class SearchActivity : SidebarHostActivity() {
             orientation = LinearLayout.VERTICAL
             setPadding(
                 MfDesign.dp(this@SearchActivity, 34f),
-                MfDesign.dp(this@SearchActivity, 26f),
+                MfDesign.dp(this@SearchActivity, 20f),
                 MfDesign.dp(this@SearchActivity, 34f),
                 0,
             )
@@ -66,22 +70,23 @@ class SearchActivity : SidebarHostActivity() {
             LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.WRAP_CONTENT,
                 LinearLayout.LayoutParams.WRAP_CONTENT,
-            ).apply { topMargin = MfDesign.dp(this@SearchActivity, 6f) },
+            ).apply { topMargin = MfDesign.dp(this@SearchActivity, 4f) },
         )
 
-        // Linha do campo de busca + botão
+        // ── Linha do campo de busca + botão ──
         val linhaBusca = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
-            setPadding(0, MfDesign.dp(this@SearchActivity, 18f), 0, 0)
+            setPadding(0, MfDesign.dp(this@SearchActivity, 14f), 0, 0)
         }
 
         input = EditText(this).apply {
             hint = "Título do filme ou série"
             inputType = android.text.InputType.TYPE_CLASS_TEXT
-            imeOptions = EditorInfo.IME_ACTION_SEARCH
             isSingleLine = true
             importantForAutofill = View.IMPORTANT_FOR_AUTOFILL_NO
+            // O teclado é o do app: o IME do sistema nunca é chamado.
+            showSoftInputOnFocus = false
             background = resources.getDrawable(R.drawable.bg_input, null)
             setTextColor(Color.WHITE)
             setHintTextColor(MfDesign.GRAY)
@@ -122,38 +127,36 @@ class SearchActivity : SidebarHostActivity() {
         )
         raiz.addView(linhaBusca)
 
-        // Abrir teclado em tela ao focar o campo (padrão Android TV)
-        input.setOnFocusChangeListener { v, temFoco ->
-            if (temFoco) {
-                scope.launch {
-                    delay(120)
-                    val imm = getSystemService(INPUT_METHOD_SERVICE) as? InputMethodManager
-                    imm?.showSoftInput(v, InputMethodManager.SHOW_IMPLICIT)
-                }
-            }
-        }
-        input.setOnEditorActionListener { _, actionId, _ ->
-            if (actionId == EditorInfo.IME_ACTION_SEARCH || actionId == EditorInfo.IME_ACTION_DONE) {
-                buscar()
-                true
-            } else {
-                false
-            }
-        }
-
-        lblInfo = MfDesign.texto(this, "").apply { textSize = 15f }
+        lblInfo = MfDesign.texto(this, "").apply { textSize = 14f }
         raiz.addView(
             lblInfo,
             LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
                 LinearLayout.LayoutParams.WRAP_CONTENT,
-            ).apply { topMargin = MfDesign.dp(this@SearchActivity, 14f) },
+            ).apply { topMargin = MfDesign.dp(this@SearchActivity, 8f) },
         )
 
-        // Grade de resultados (mesmo card do resto do app)
+        // ── Grade de resultados (mesmo card do resto do app) ──
         grade = MfRowsView.criarGrade(this, 6) { m ->
             startActivity(Intent(this, DetailsActivity::class.java).putExtra("movie_id", m.id))
         }
+
+        // ── Teclado em tela (substitui o teclado do sistema) ──
+        teclado = MfKeyboard(this).apply {
+            rotuloConfirmar = "BUSCAR"
+            definirAlvo(input)
+            aoConfirmar = { buscar() }
+            acima = input
+            abaixo = grade
+        }
+        raiz.addView(
+            teclado,
+            LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+            ).apply { topMargin = MfDesign.dp(this@SearchActivity, 10f) },
+        )
+
         raiz.addView(
             grade,
             LinearLayout.LayoutParams(
@@ -162,6 +165,25 @@ class SearchActivity : SidebarHostActivity() {
                 1f,
             ),
         )
+
+        // OK no campo abre o teclado em tela (que já está visível).
+        input.setOnClickListener {
+            teclado.definirAlvo(input)
+            input.setSelection(input.text.length)
+            teclado.focarPrimeira()
+        }
+        input.setOnKeyListener { _, code, event ->
+            val ok = code == KeyEvent.KEYCODE_DPAD_CENTER ||
+                code == KeyEvent.KEYCODE_ENTER ||
+                code == KeyEvent.KEYCODE_NUMPAD_ENTER
+            if (ok && event.action == KeyEvent.ACTION_UP) {
+                teclado.definirAlvo(input)
+                teclado.focarPrimeira()
+                true
+            } else {
+                false
+            }
+        }
 
         input.requestFocus()
     }

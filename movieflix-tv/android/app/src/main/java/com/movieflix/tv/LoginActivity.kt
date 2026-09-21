@@ -3,10 +3,8 @@ package com.movieflix.tv
 import android.content.Intent
 import android.os.Bundle
 import android.view.KeyEvent
-import android.view.View
-import android.view.inputmethod.EditorInfo
-import android.view.inputmethod.InputMethodManager
 import android.widget.EditText
+import android.widget.ScrollView
 import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.isVisible
@@ -14,7 +12,6 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.cancel
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -23,9 +20,24 @@ import kotlinx.coroutines.withContext
  * - "ENTRAR"      → signInWithPassword (POST /auth/v1/token?grant_type=password)
  * - "CRIAR CONTA" → signUp (POST /auth/v1/signup) — entra automaticamente
  *
- * Identidade visual nova (fundo preto premium, botões-pílula em gradiente).
- * Controle remoto: ordem de foco fixa (e-mail → senha → ENTRAR → CRIAR CONTA),
- * teclado em tela ao focar e OK no campo de senha dispara o login.
+ * ── CORREÇÃO v2.0.1 (bug "trava na tela de login") ────────────────────────────
+ * Duas causas foram encontradas e corrigidas:
+ *
+ *  1) LAYOUT ESTOURANDO O 16:9. A tela empilhava tudo verticalmente; em TV Box
+ *     com altura útil de ~540dp o campo de SENHA e o botão ENTRAR saíam pela
+ *     borda inferior. Sem rolagem, o usuário via apenas o e-mail (exatamente o
+ *     print do problema) e não tinha como alcançar o resto pelo D-pad.
+ *     → Agora: colunas formulário + teclado, dentro de ScrollView.
+ *
+ *  2) DEPENDÊNCIA DO TECLADO DO SISTEMA. `showSoftInput` + inputType deixavam a
+ *     digitação nas mãos do IME do aparelho. Em Android TV / Google TV / TV Box
+ *     o IME costuma não abrir pelo controle remoto, então não havia como
+ *     escrever a senha.
+ *     → Agora: teclado em tela próprio (MfKeyboard), sempre visível e navegável
+ *     só com UP/DOWN/LEFT/RIGHT + OK. Zero dependência do IME e do touchscreen.
+ *
+ * A ordem de foco é fixa e determinística:
+ *   e-mail → senha → (OK abre o teclado) → teclado → ENTRAR / CRIAR CONTA.
  */
 class LoginActivity : AppCompatActivity() {
 
@@ -42,24 +54,58 @@ class LoginActivity : AppCompatActivity() {
         val erro = findViewById<TextView>(R.id.lblErro)
         val btnEntrar = findViewById<TextView>(R.id.btnEntrar)
         val btnCriar = findViewById<TextView>(R.id.btnCriarConta)
+        val teclado = findViewById<MfKeyboard>(R.id.teclado)
+        val scroll = findViewById<ScrollView>(R.id.scrollLogin)
 
         // Foco D-pad visível nos botões (mesmo realce do app todo)
         MfDesign.focoBotao(btnEntrar)
         MfDesign.focoBotao(btnCriar)
 
-        // Android TV: abre o teclado em tela ao focar o campo
-        email.setOnFocusChangeListener { v, temFoco -> if (temFoco) abrirTeclado(v) }
-        senha.setOnFocusChangeListener { v, temFoco -> if (temFoco) abrirTeclado(v) }
+        // O teclado do app substitui o IME do sistema. `showSoftInputOnFocus`
+        // não existe como atributo de XML (só em código), por isso é desligado
+        // aqui: em vários TV Box o IME do sistema abria por cima do formulário
+        // e "engolia" as setas do controle. Agora o teclado em tela é a única
+        // via de digitação — determinística em qualquer aparelho.
+        email.showSoftInputOnFocus = false
+        senha.showSoftInputOnFocus = false
 
-        // OK/Enter dentro do campo de senha → entrar direto (padrão Android TV)
-        senha.setOnEditorActionListener { _, actionId, _ ->
-            if (actionId == EditorInfo.IME_ACTION_DONE || actionId == EditorInfo.IME_ACTION_GO) {
-                tentarLogin(email, senha, erro, btnEntrar, btnCriar)
-                true
-            } else {
-                false
+        // ── Cada campo aponta o teclado para si e abre o teclado com OK ──
+        // Nenhum passo depende do IME do sistema.
+        fun ligarCampo(campo: EditText) {
+            campo.setOnFocusChangeListener { _, temFoco ->
+                if (temFoco) {
+                    teclado.definirAlvo(campo)
+                    campo.setSelection(campo.text.length)
+                    scroll.smoothScrollTo(0, 0)
+                }
+            }
+            campo.setOnClickListener {
+                teclado.definirAlvo(campo)
+                teclado.focarPrimeira()
+            }
+            // KEYCODE_DPAD_CENTER é o "OK" do controle remoto.
+            campo.setOnKeyListener { _, code, event ->
+                val ok = code == KeyEvent.KEYCODE_DPAD_CENTER ||
+                    code == KeyEvent.KEYCODE_ENTER ||
+                    code == KeyEvent.KEYCODE_NUMPAD_ENTER
+                if (ok && event.action == KeyEvent.ACTION_UP) {
+                    teclado.definirAlvo(campo)
+                    teclado.focarPrimeira()
+                    true
+                } else {
+                    false
+                }
             }
         }
+        ligarCampo(email)
+        ligarCampo(senha)
+
+        // ── Teclado em tela ──
+        teclado.rotuloConfirmar = "ENTRAR"
+        teclado.aoConfirmar = { tentarLogin(email, senha, erro, btnEntrar, btnCriar) }
+        // UP na 1ª linha volta ao campo de senha; DOWN na última vai ao ENTRAR.
+        teclado.acima = senha
+        teclado.abaixo = btnEntrar
 
         btnEntrar.setOnClickListener { tentarLogin(email, senha, erro, btnEntrar, btnCriar) }
 
@@ -131,14 +177,6 @@ class LoginActivity : AppCompatActivity() {
         b.isEnabled = !travar
         a.alpha = if (travar) 0.5f else 1f
         b.alpha = if (travar) 0.5f else 1f
-    }
-
-    private fun abrirTeclado(v: View) {
-        scope.launch {
-            delay(120)
-            val imm = getSystemService(INPUT_METHOD_SERVICE) as? InputMethodManager
-            imm?.showSoftInput(v, InputMethodManager.SHOW_IMPLICIT)
-        }
     }
 
     /** Paridade com o site/mobile: depois do login escolhe-se o perfil. */
