@@ -76,6 +76,15 @@ class CardPresenter : Presenter() {
         private val titulo = TextView(context)
         private val meta = TextView(context)
 
+        /**
+         * Inicial mostrada quando o título NÃO tem capa.
+         *
+         * Sem isso o card ficava um bloco liso (o "quadrado rosa" dos prints),
+         * que o usuário lê como erro de carregamento. Com a inicial sobre a
+         * superfície escura, a ausência de arte fica intencional.
+         */
+        private val inicial = TextView(context)
+
         private val largura = MfMetrics.cardWidth(context)
         private val altura = MfMetrics.cardHeight(context)
         private val alturaTexto = MfMetrics.cardTextHeight(context)
@@ -128,6 +137,17 @@ class CardPresenter : Presenter() {
             }
             posterWrap.addView(btnFavorito, favLp)
             btnFavorito.visibility = View.GONE
+
+            // Inicial do título (só aparece quando não há capa)
+            inicial.setTextColor(MfDesign.comAlfa(MfDesign.WHITE, 0x59))
+            inicial.typeface = MfDesign.fonteDisplay(context)
+            inicial.setTextSize(TypedValue.COMPLEX_UNIT_PX, (altura * 0.52f))
+            inicial.gravity = Gravity.CENTER
+            inicial.visibility = View.GONE
+            posterWrap.addView(
+                inicial,
+                LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT),
+            )
 
             // Anel de foco em gradiente (por cima de tudo no poster)
             anelFoco.setBackgroundResource(R.drawable.bg_card_focus_ring)
@@ -250,24 +270,28 @@ class CardPresenter : Presenter() {
 
             val url = movie.poster_url.ifBlank { movie.backdrop_url }
             if (url.isNotBlank()) {
+                inicial.visibility = View.GONE
                 Glide.with(context)
                     .load(url)
                     .apply(
                         RequestOptions()
                             .transform(RoundedCorners(raio))
-                            .placeholder(ColorDrawable(MfDesign.SURFACE_LIGHT))
+                            .placeholder(ColorDrawable(MfDesign.SURFACE_STRONG))
                             .error(ColorDrawable(MfDesign.SURFACE_STRONG))
                             .centerCrop(),
                     )
                     .into(poster)
             } else {
-                poster.setImageDrawable(ColorDrawable(MfDesign.SURFACE_STRONG))
+                // Sem capa: mostra a inicial do título em vez de um bloco liso.
+                poster.setImageDrawable(null)
+                MfUi.preencherPlaceholder(context, movie.title, inicial)
             }
         }
 
         fun unbind() {
             Glide.with(context).clear(poster)
             poster.setImageDrawable(null)
+            inicial.visibility = View.GONE
         }
     }
 }

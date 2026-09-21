@@ -87,10 +87,15 @@ class MfRowView(context: Context) : LinearLayout(context) {
         recycler.clipToPadding = false
         recycler.isFocusable = false
         recycler.itemAnimator = null
-        // Padding lateral igual dos dois lados: a fileira fica centralizada na
-        // área de conteúdo e o espaço restante NÃO se acumula na direita.
-        val folga = MfMetrics.paddingCentral(context)
+        // Alinhamento à ESQUERDA com a margem do conteúdo: o título da linha e o
+        // primeiro card ficam na MESMA coluna do cabeçalho da tela.
+        //
+        // Antes a fileira era centralizada (`paddingCentral`), o que criava um
+        // vão grande à esquerda e fazia os rótulos de categoria parecerem
+        // flutuar longe dos cards (achado das imagens de referência).
+        val folga = MfMetrics.contentPad(context)
         recycler.setPadding(folga, MfMetrics.cardGutter(context), folga, MfMetrics.cardGutter(context))
+        titulo.setPadding(folga, titulo.paddingTop, folga, titulo.paddingBottom)
 
         addView(titulo)
         addView(

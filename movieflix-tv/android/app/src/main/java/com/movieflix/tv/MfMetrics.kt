@@ -87,4 +87,36 @@ object MfMetrics {
     /** Tamanho de texto escalado pela altura da tela (legibilidade a distância). */
     fun sp(ctx: Context, fracao: Float): Float =
         (altura(ctx) / ctx.resources.displayMetrics.density * fracao).coerceAtLeast(10f)
+
+    // ── Tipografia responsiva em PIXELS ────────────────────────────────────
+    // Em TV, `sp` sozinho não acompanha a tela: uma fonte de 18sp fica
+    // proporcionalmente maior num painel 720p do que num 4K (a densidade muda,
+    // mas a distância de visão não). Estas funções derivam o tamanho da ALTURA
+    // real em pixels, então a hierarquia visual é a MESMA em 720p, 1080p e 4K.
+    //
+    // Referência: 1080p (fator 1,0).
+
+    /** Título grande de tela (antes 32sp fixos). */
+    fun tituloTela(ctx: Context): Float = (altura(ctx) * 0.042f).coerceIn(26f, 78f)
+
+    /** Wordmark da marca no cabeçalho. */
+    fun textoWordmark(ctx: Context): Float = (altura(ctx) * 0.028f).coerceIn(17f, 52f)
+
+    /** Rótulo de botão-pílula (Assistir, Favoritos, Voltar…). */
+    fun textoBotao(ctx: Context): Float = (altura(ctx) * 0.0205f).coerceIn(13f, 38f)
+
+    /** Texto secundário (subtítulo de tela, meta, mensagens). */
+    fun textoSecundario(ctx: Context): Float = (altura(ctx) * 0.0175f).coerceIn(11f, 33f)
+
+    /** Rótulo de chip (metadados, temporada, episódio). */
+    fun textoChip(ctx: Context): Float = (altura(ctx) * 0.0165f).coerceIn(10f, 31f)
+
+    /** Título de seção/carrossel. */
+    fun tituloSecaoPx(ctx: Context): Float = (altura(ctx) * 0.0215f).coerceIn(13f, 40f)
+
+    /** Título de um título na tela de Detalhes (antes 52sp fixos). */
+    fun tituloDetalhe(ctx: Context): Float = (altura(ctx) * 0.055f).coerceIn(30f, 104f)
+
+    /** Sinopse na tela de Detalhes. */
+    fun textoDetalhe(ctx: Context): Float = (altura(ctx) * 0.0175f).coerceIn(11f, 33f)
 }

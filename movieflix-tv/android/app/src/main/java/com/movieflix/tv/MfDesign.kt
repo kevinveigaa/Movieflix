@@ -5,6 +5,7 @@ import android.graphics.Color
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
 import android.text.TextUtils
+import android.util.TypedValue
 import android.view.Gravity
 import android.view.View
 import android.widget.LinearLayout
@@ -102,17 +103,20 @@ object MfDesign {
     fun tituloSecao(ctx: Context, texto: String): TextView = TextView(ctx).apply {
         text = texto
         setTextColor(WHITE)
-        textSize = 19f
+        // Tamanho em PIXELS derivado da altura da tela: a mesma hierarquia
+        // visual em 720p, 1080p e 4K (ver MfMetrics).
+        setTextSize(TypedValue.COMPLEX_UNIT_PX, MfMetrics.tituloSecaoPx(ctx))
         setTypeface(Typeface.DEFAULT_BOLD)
-        setPadding(0, dp(ctx, 6f), 0, dp(ctx, 10f))
+        letterSpacing = 0.01f
+        setPadding(0, dp(ctx, 4f), 0, dp(ctx, 8f))
     }
 
     /** Título grande de tela (Filmes, Séries, Busca…). */
     fun tituloTela(ctx: Context, texto: String): TextView = TextView(ctx).apply {
         text = texto
         setTextColor(WHITE)
-        textSize = 32f
-        setTypeface(Typeface.DEFAULT_BOLD)
+        setTextSize(TypedValue.COMPLEX_UNIT_PX, MfMetrics.tituloTela(ctx))
+        setTypeface(fonteDisplay(ctx))
     }
 
     /** Rótulo secundário (subtítulo, mensagem de estado vazio). */
@@ -145,6 +149,7 @@ object MfDesign {
         ctx: Context,
         titulo: String,
         mensagem: String,
+        textoBotao: String = "TENTAR NOVAMENTE",
         aoTentarNovamente: (() -> Unit)? = null,
     ): View = android.widget.LinearLayout(ctx).apply {
         orientation = android.widget.LinearLayout.VERTICAL
@@ -152,7 +157,7 @@ object MfDesign {
         addView(tituloTela(ctx, titulo))
         addView(
             texto(ctx, mensagem).apply {
-                textSize = 15f
+                setTextSize(TypedValue.COMPLEX_UNIT_PX, MfMetrics.textoSecundario(ctx))
                 maxLines = 4
                 setTextColor(GRAY_LIGHT)
             },
@@ -162,21 +167,10 @@ object MfDesign {
             ).apply { topMargin = dp(ctx, 8f) },
         )
         if (aoTentarNovamente != null) {
-            val btn = TextView(ctx).apply {
-                text = "TENTAR NOVAMENTE"
-                gravity = Gravity.CENTER
-                setTextColor(WHITE)
-                textSize = 15f
-                setTypeface(Typeface.DEFAULT_BOLD)
-                isFocusable = true
-                isFocusableInTouchMode = true
-                isClickable = true
-                background = resources.getDrawable(R.drawable.bg_pill_primary, null)
-                focoBotao(this)
-                setOnClickListener { aoTentarNovamente() }
-            }
             addView(
-                btn,
+                MfUi.botao(ctx, textoBotao, R.drawable.bg_pill_primary, 48f) {
+                    aoTentarNovamente()
+                },
                 android.widget.LinearLayout.LayoutParams(
                     android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
                     dp(ctx, 48f),

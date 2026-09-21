@@ -46,23 +46,13 @@ class CatalogActivity : SidebarHostActivity() {
         )
 
         val cabecalho = if (modo == "series") "Séries" else "Filmes"
-        val texto = MfDesign.tituloTela(this, cabecalho)
-        val subtitulo = MfDesign.texto(this, "Todo o catálogo MovieFlix — mesmos títulos do app e do site.")
-        val topo = android.widget.LinearLayout(this).apply {
-            orientation = android.widget.LinearLayout.VERTICAL
-            setPadding(
-                MfDesign.dp(this@CatalogActivity, 22f),
-                MfDesign.dp(this@CatalogActivity, 26f),
-                MfDesign.dp(this@CatalogActivity, 22f),
-                0,
-            )
-            addView(texto)
-            addView(subtitulo, android.widget.LinearLayout.LayoutParams(
-                android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
-                android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
-            ).apply { topMargin = MfDesign.dp(this@CatalogActivity, 6f) })
-        }
-        rows.definirHero(topo)
+        rows.definirHero(
+            MfUi.cabecalho(
+                this,
+                cabecalho,
+                "Todo o catálogo MovieFlix — os mesmos títulos e as mesmas categorias do site e do celular.",
+            ),
+        )
 
         carregar()
     }
@@ -87,16 +77,16 @@ class CatalogActivity : SidebarHostActivity() {
             rows.definirHero(cabecalho())
             rows.adicionarLinha(
                 if (modo == "series") "Todas as séries" else "Todos os filmes",
-                ordenadas.take(60),
+                ordenadas.take(120),
                 abrir,
             )
 
             var linhas = 1
             for (cat in categorias) {
-                if (linhas > 25) break
+                if (linhas > 40) break
                 val itens = lista.filter { it.categorias.contains(cat) }
                     .sortedByDescending { it.vote_average }
-                    .take(60)
+                    .take(120)
                 if (itens.isEmpty()) continue
                 rows.adicionarLinha(cat, itens, abrir)
                 linhas++
@@ -105,17 +95,16 @@ class CatalogActivity : SidebarHostActivity() {
         }
     }
 
-    private fun cabecalho(): android.view.View =
-        android.widget.LinearLayout(this).apply {
-            orientation = android.widget.LinearLayout.VERTICAL
-            setPadding(
-                MfDesign.dp(context, 22f),
-                MfDesign.dp(context, 26f),
-                MfDesign.dp(context, 22f),
-                MfDesign.dp(context, 6f),
-            )
-            addView(MfDesign.tituloTela(context, if (modo == "series") "Séries" else "Filmes"))
-        }
+    /**
+     * Cabeçalho da tela: wordmark + título em Bebas Neue + subtítulo.
+     * Vem de MfUi para que Filmes, Séries, Favoritos e Histórico tenham
+     * EXATAMENTE a mesma identidade visual.
+     */
+    private fun cabecalho(): android.view.View = MfUi.cabecalho(
+        this,
+        if (modo == "series") "Séries" else "Filmes",
+        "Todo o catálogo MovieFlix — os mesmos títulos e as mesmas categorias do site e do celular.",
+    )
 
     override fun onDestroy() {
         super.onDestroy()

@@ -55,8 +55,11 @@ class DetailsActivity : SidebarHostActivity() {
     private lateinit var btnLista: TextView
     private lateinit var lblTemporada: TextView
     private lateinit var lblEpisodio: TextView
-    private lateinit var chipsTemporada: LinearLayout
-    private lateinit var chipsEpisodio: LinearLayout
+    // FlowLayout: os chips quebram linha automaticamente. Numa temporada de 24
+    // episódios, a linha única do layout antigo saía da tela em 16:9 e os chips
+    // ficavam inalcançáveis pelo controle remoto.
+    private lateinit var chipsTemporada: MfUi.FlowLayout
+    private lateinit var chipsEpisodio: MfUi.FlowLayout
     private lateinit var blocoEpisodios: LinearLayout
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -118,10 +121,10 @@ class DetailsActivity : SidebarHostActivity() {
             isFillViewport = true
             clipToPadding = false
             setPadding(
-                MfDesign.dp(this@DetailsActivity, 36f),
-                MfDesign.dp(this@DetailsActivity, 30f),
-                MfDesign.dp(this@DetailsActivity, 36f),
-                MfDesign.dp(this@DetailsActivity, 34f),
+                (MfMetrics.largura(this@DetailsActivity) * 0.019f).toInt(),
+                (MfMetrics.altura(this@DetailsActivity) * 0.030f).toInt(),
+                (MfMetrics.largura(this@DetailsActivity) * 0.019f).toInt(),
+                (MfMetrics.altura(this@DetailsActivity) * 0.032f).toInt(),
             )
         }
 
@@ -153,18 +156,23 @@ class DetailsActivity : SidebarHostActivity() {
                 marginStart = MfDesign.dp(this@DetailsActivity, 12f)
             },
         )
+        // Poster responsivo: ~24% da área de conteúdo, proporção 2:3 (a mesma
+        // do catálogo). Antes era 250x375dp FIXOS — num painel 720p isso
+        // ocupava metade da tela e empurrava os botões ASSISTIR/FAVORITOS para
+        // fora do campo visível. Era o defeito relatado nos prints.
+        val posterW = (MfMetrics.contentWidth(this) * 0.24f).toInt()
         linhaPrincipal.addView(
             posterWrap,
             LinearLayout.LayoutParams(
-                MfDesign.dp(this@DetailsActivity, 250f),
-                MfDesign.dp(this@DetailsActivity, 375f),
+                posterW,
+                (posterW * 1.5f).toInt(),
             ),
         )
 
         // ── Coluna de informações ─────────────────────────────────────────
         val info = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(MfDesign.dp(this@DetailsActivity, 36f), 0, 0, 0)
+            setPadding((MfMetrics.largura(this@DetailsActivity) * 0.019f).toInt(), 0, 0, 0)
         }
 
         info.addView(
@@ -172,7 +180,7 @@ class DetailsActivity : SidebarHostActivity() {
                 text = movie.title
                 typeface = MfDesign.fonteDisplay(this@DetailsActivity)
                 setTextColor(Color.WHITE)
-                setTextSize(TypedValue.COMPLEX_UNIT_SP, 52f)
+                setTextSize(TypedValue.COMPLEX_UNIT_PX, MfMetrics.tituloDetalhe(this@DetailsActivity))
                 letterSpacing = 0.01f
                 maxLines = 2
                 ellipsize = android.text.TextUtils.TruncateAt.END
@@ -181,8 +189,7 @@ class DetailsActivity : SidebarHostActivity() {
         )
 
         // Chips de metadados (tipo • ano • gênero • nota • qualidade • idioma)
-        val chips = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
+        val chips = MfUi.FlowLayout(this).apply {
             setPadding(0, MfDesign.dp(this@DetailsActivity, 12f), 0, 0)
         }
         val tipoTxt = if (movie.ehSerie) "Série" else "Filme"
@@ -202,8 +209,8 @@ class DetailsActivity : SidebarHostActivity() {
                 chip,
                 LinearLayout.LayoutParams(
                     LinearLayout.LayoutParams.WRAP_CONTENT,
-                    MfDesign.dp(this@DetailsActivity, 30f),
-                ).apply { marginEnd = MfDesign.dp(this@DetailsActivity, 8f) },
+                    (MfMetrics.altura(this@DetailsActivity) * 0.032f).coerceIn(24f, 60f).toInt(),
+                ),
             )
         }
         info.addView(chips)
@@ -212,8 +219,8 @@ class DetailsActivity : SidebarHostActivity() {
             TextView(this).apply {
                 text = movie.description.ifBlank { "Sem descrição disponível." }
                 setTextColor(MfDesign.GRAY_LIGHT)
-                setTextSize(TypedValue.COMPLEX_UNIT_SP, 15f)
-                maxLines = 7
+                setTextSize(TypedValue.COMPLEX_UNIT_PX, MfMetrics.textoDetalhe(this@DetailsActivity))
+                maxLines = 9
                 ellipsize = android.text.TextUtils.TruncateAt.END
                 setLineSpacing(MfDesign.dp(this@DetailsActivity, 4f).toFloat(), 1f)
             },
@@ -228,15 +235,26 @@ class DetailsActivity : SidebarHostActivity() {
             orientation = LinearLayout.HORIZONTAL
             setPadding(0, MfDesign.dp(this@DetailsActivity, 22f), 0, 0)
         }
-        val btnAssistir = botao("\u25B6  Assistir", R.drawable.bg_pill_primary) { abrirPlayer() }
-        btnLista = botao("\u2661  Favoritos", R.drawable.bg_pill_secondary) { alternarLista() }
+        // Os dois botões DIVIDEM a largura por weight 1f. É a correção direta do
+        // defeito "botões cortados dependendo da resolução": em vez de larguras
+        // fixas (que estouravam em 720p), cada botão recebe metade do espaço
+        // disponível e o rótulo nunca é cortado em 720p, 1080p ou 4K.
+        val alturaBtn = (MfMetrics.altura(this) * 0.052f).coerceIn(36f, 96f)
+        val btnAssistir = MfUi.botaoCor(
+            this@DetailsActivity, "\u25B6  Assistir", R.drawable.bg_pill_primary, Color.WHITE,
+            alturaBtn, 0, 1f,
+        ) { abrirPlayer() }
+        btnLista = MfUi.botaoCor(
+            this@DetailsActivity, "\u2661  Favoritos", R.drawable.bg_pill_secondary, Color.WHITE,
+            alturaBtn, 0, 1f,
+        ) { alternarLista() }
         linhaBotoes.addView(btnAssistir)
         linhaBotoes.addView(
             btnLista,
-            LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.WRAP_CONTENT,
-                MfDesign.dp(this@DetailsActivity, 52f),
-            ).apply { marginStart = MfDesign.dp(this@DetailsActivity, 14f) },
+            LinearLayout.LayoutParams(0, MfDesign.dp(this@DetailsActivity, alturaBtn)).apply {
+                weight = 1f
+                marginStart = MfDesign.dp(this@DetailsActivity, 14f)
+            },
         )
         info.addView(linhaBotoes)
 
@@ -248,11 +266,10 @@ class DetailsActivity : SidebarHostActivity() {
         }
         lblTemporada = TextView(this).apply {
             setTextColor(MfDesign.WHITE)
-            textSize = 16f
+            setTextSize(TypedValue.COMPLEX_UNIT_PX, MfMetrics.tituloSecaoPx(this@DetailsActivity))
             typeface = Typeface.DEFAULT_BOLD
         }
-        chipsTemporada = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
+        chipsTemporada = MfUi.FlowLayout(this).apply {
             setPadding(0, MfDesign.dp(this@DetailsActivity, 8f), 0, 0)
         }
         blocoEpisodios.addView(lblTemporada)
@@ -260,11 +277,10 @@ class DetailsActivity : SidebarHostActivity() {
 
         lblEpisodio = TextView(this).apply {
             setTextColor(MfDesign.WHITE)
-            textSize = 16f
+            setTextSize(TypedValue.COMPLEX_UNIT_PX, MfMetrics.tituloSecaoPx(this@DetailsActivity))
             typeface = Typeface.DEFAULT_BOLD
         }
-        chipsEpisodio = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
+        chipsEpisodio = MfUi.FlowLayout(this).apply {
             setPadding(0, MfDesign.dp(this@DetailsActivity, 8f), 0, 0)
         }
         blocoEpisodios.addView(
@@ -367,7 +383,7 @@ class DetailsActivity : SidebarHostActivity() {
         TextView(this).apply {
             text = texto
             setTextColor(Color.WHITE)
-            textSize = 14f
+            setTextSize(TypedValue.COMPLEX_UNIT_PX, MfMetrics.textoChip(this@DetailsActivity))
             typeface = Typeface.DEFAULT_BOLD
             gravity = Gravity.CENTER
             isFocusable = true
@@ -378,16 +394,19 @@ class DetailsActivity : SidebarHostActivity() {
                 MfDesign.dp(this@DetailsActivity, 18f), MfDesign.dp(this@DetailsActivity, 8f),
             )
             background = fundoChip(selecionado, false)
+            // O espaçamento entre chips agora é do FlowLayout (espacoH): antes
+            // havia um marginEnd fixo que, somado à linha única, empurrava os
+            // chips para fora da tela.
             layoutParams = LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.WRAP_CONTENT,
                 LinearLayout.LayoutParams.WRAP_CONTENT,
-            ).apply { marginEnd = MfDesign.dp(this@DetailsActivity, 8f) }
+            )
             setOnFocusChangeListener { v, temFoco -> v.background = fundoChip(selecionado, temFoco) }
         }
 
     private fun fundoChip(selecionado: Boolean, focado: Boolean): GradientDrawable =
         GradientDrawable().apply {
-            cornerRadius = MfDesign.dp(this@DetailsActivity, 20f).toFloat()
+            cornerRadius = (MfMetrics.altura(this@DetailsActivity) * 0.019f).coerceIn(12f, 40f)
             when {
                 focado -> {
                     setColor(MfDesign.SURFACE_STRONG)
@@ -404,28 +423,8 @@ class DetailsActivity : SidebarHostActivity() {
             }
         }
 
-    private fun botao(texto: String, fundo: Int, acao: () -> Unit): TextView =
-        TextView(this).apply {
-            text = texto
-            setTextColor(Color.WHITE)
-            setTextSize(TypedValue.COMPLEX_UNIT_SP, 15f)
-            typeface = Typeface.DEFAULT_BOLD
-            gravity = Gravity.CENTER
-            isFocusable = true
-            isFocusableInTouchMode = true
-            isClickable = true
-            setPadding(
-                MfDesign.dp(this@DetailsActivity, 30f), 0,
-                MfDesign.dp(this@DetailsActivity, 30f), 0,
-            )
-            layoutParams = LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.WRAP_CONTENT,
-                MfDesign.dp(this@DetailsActivity, 52f),
-            ).apply { minimumWidth = MfDesign.dp(this@DetailsActivity, 190f) }
-            background = resources.getDrawable(fundo, null)
-            MfDesign.focoBotao(this)
-            setOnClickListener { acao() }
-        }
+    // (O helper `botao()` foi removido: os botões de ação agora vêm de
+    //  MfUi.botaoCor, que divide a largura por weight e nunca corta o rótulo.)
 
     // ── Estado da Minha Lista (mesma tabela do site) ───────────────────────
     private fun carregarEstadoLista() {
@@ -439,7 +438,14 @@ class DetailsActivity : SidebarHostActivity() {
     }
 
     private fun atualizarBotaoLista() {
+        // Feedback IMEDIATO do estado (pedido do dono): o rótulo, a cor e o
+        // fundo mudam no mesmo instante do clique no controle — sem esperar
+        // recarregar a tela.
         btnLista.text = if (naLista) "♥  Remover dos Favoritos" else "♡  Favoritos"
+        btnLista.setTextColor(if (naLista) MfDesign.GOLD else Color.WHITE)
+        btnLista.setBackgroundResource(
+            if (naLista) R.drawable.bg_pill_fav else R.drawable.bg_pill_secondary,
+        )
     }
 
     private fun alternarLista() {

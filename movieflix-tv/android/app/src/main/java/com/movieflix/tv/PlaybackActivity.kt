@@ -7,6 +7,7 @@ import android.os.Bundle
 import android.view.KeyEvent
 import android.view.View
 import android.view.WindowManager
+import android.webkit.CookieManager
 import android.webkit.WebChromeClient
 import android.webkit.WebSettings
 import android.webkit.WebView
@@ -81,6 +82,9 @@ class PlaybackActivity : AppCompatActivity() {
 
     /** true quando o fallback WebView está ativo (controles via JS). */
     private var modoWebView = false
+
+    /** Recargas feitas para sair da verificação do provedor (limite: 2). */
+    private var tentativasDesafio = 0
 
     /** true quando o vídeo está em modo janela (não ocupa a tela toda). */
     private var modoJanela = false
@@ -268,21 +272,99 @@ class PlaybackActivity : AppCompatActivity() {
         wv.settings.apply {
             javaScriptEnabled = true
             domStorageEnabled = true
+            databaseEnabled = true
             mediaPlaybackRequiresUserGesture = false
             allowFileAccess = false
             allowContentAccess = false
             mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
-            userAgentString = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36"
+            // UA de Android TV real (o mesmo formato que o Chromium da TV usa).
+            // Com um UA de desktop, o provedor podia servir variantes que se
+            // comportam diferente do que o site/mobile recebe.
+            userAgentString =
+                "Mozilla/5.0 (Linux; Android 11; SHIELD Android TV) AppleWebKit/537.36 " +
+                    "(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
         }
+
+        // ── COOKIES: a correção central do erro "confirme que você é humano" ──
+        //
+        // O provedor usa Cloudflare: a primeira visita recebe uma página de
+        // verificação, o navegador resolve e grava o cookie liberado
+        // (`cf_clearance`). Esse cookie é de TERCEIRO domínio em relação ao
+        // embed — e o WebView do Android, por padrão, BLOQUEIA cookies de
+        // terceiros. Sem cookie, a verificação nunca "cola" e a tela de
+        // confirmação voltava a cada tentativa, exatamente o defeito dos prints.
+        //
+        // Aqui NÃO se burla proteção nenhuma: apenas permitimos que o WebView
+        // se comporte como o navegador do site/mobile — mesma página, mesmo
+        // JavaScript, mesmos cookies, mesma sessão.
+        CookieManager.getInstance().apply {
+            setAcceptCookie(true)
+            setAcceptThirdPartyCookies(wv, true)
+        }
+
         wv.setBackgroundColor(Color.BLACK)
         wv.webChromeClient = WebChromeClient()
-        wv.webViewClient = WebViewClient()
+        wv.webViewClient = object : WebViewClient() {
+            override fun onPageFinished(view: WebView?, url: String?) {
+                super.onPageFinished(view, url)
+                // Enquanto a verificação externa está na tela, mantemos o
+                // carregamento limpo — sem mensagem técnica para o cliente.
+                layoutLoading?.visibility = View.GONE
+                avaliarDesafio(wv)
+            }
+
+            override fun onReceivedError(
+                view: WebView?,
+                request: android.webkit.WebResourceRequest?,
+                error: android.webkit.WebResourceError?,
+            ) {
+                super.onReceivedError(view, request, error)
+                // Só a navegação PRINCIPAL virou falha; sub-recursos (imagem,
+                // script) falhando não devem derrubar o player.
+                if (request?.isForMainFrame != true) return
+                layoutLoading?.visibility = View.GONE
+                layoutErro?.visibility = View.VISIBLE
+            }
+        }
         wv.visibility = View.VISIBLE
         wv.requestFocus()
         // O embed oficial do StreamBetter (mesmo do site/mobile), com a chave
         // pública do plano Creator já anexada por MediaCatalog.embedUrl().
         wv.loadUrl(embedUrl)
         atualizarProximoEpisodio()
+    }
+
+    /**
+     * Detecta o desafio do provedor (Cloudflare) dentro do WebView e faz UM
+     * recarregamento limpo.
+     *
+     * Por que existe: o embed pode responder a primeira visita com a página
+     * "confirme que você é humano". Como os cookies de terceiros agora são
+     * aceitos, o cookie de liberação costuma ser gravado nessa visita — então
+     * UMA recarga já entra direto no player. Sem isso, o usuário ficava preso
+     * na tela de verificação sem saber o que fazer (defeito dos prints).
+     *
+     * Isto não burla proteção alguma: apenas recarrega a mesma página, como o
+     * usuário faria. O limite de 2 tentativas evita qualquer laço infinito.
+     */
+    private fun avaliarDesafio(wv: WebView) {
+        wv.evaluateJavascript(
+            "(function(){" +
+                "var v=document.querySelector('video')||document.querySelector('iframe');" +
+                "var b=document.body?document.body.innerText:'';" +
+                "var des=b.indexOf('humano')>=0||b.indexOf('Just a moment')>=0" +
+                "||b.indexOf('Verificando')>=0||b.indexOf('verifying')>=0;" +
+                "return (v?'player':'desafio');" +
+                "})();",
+        ) { resultado ->
+            val texto = resultado ?: return@evaluateJavascript
+            if (texto.contains("desafio") && tentativasDesafio < 2) {
+                tentativasDesafio++
+                // Uma recarga curta: o cookie de liberação já foi gravado.
+                layoutLoading?.visibility = View.VISIBLE
+                wv.postDelayed({ wv.reload() }, 1500)
+            }
+        }
     }
 
     /** Injeta comandos de controle remoto no player do embed (fallback WebView). */

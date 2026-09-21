@@ -38,9 +38,45 @@ class MyListActivity : SidebarHostActivity() {
             ),
         )
 
+
+        carregar()
+    }
+
+    /**
+     * Recarrega os favoritos ao VOLTAR para esta tela.
+     *
+     * Correção de um bug real de sincronização: a lista só era montada no
+     * onCreate. Como Detalhes abre por cima, ao adicionar/remover um título e
+     * apertar BACK o usuário voltava para a lista ANTIGA — dando a impressão de
+     * que o botão Favoritos não tinha funcionado. Agora qualquer retorno à tela
+     * relê a mesma tabela `favorites` do site.
+     */
+    override fun onResume() {
+        super.onResume()
+        if (::rows.isInitialized) carregar()
+    }
+
+    private fun carregar() {
+        rows.limpar()
+
         val token = AuthRepository.loadToken(this)
         if (token.isNullOrBlank()) {
-            rows.definirHero(mensagem("Favoritos", "Entre com a sua conta MovieFlix (a mesma do site) para ver seus Favoritos.\n\nUse o app do celular ou o site para criar a conta e assinar."))
+            rows.definirHero(
+                MfUi.cabecalho(this, "Favoritos", null).apply {
+                    addView(
+                        MfDesign.texto(this@MyListActivity, "Entre com a sua conta MovieFlix (a mesma do site e do celular) para ver seus Favoritos.")
+                            .apply {
+                                setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, MfMetrics.textoSecundario(this@MyListActivity))
+                                maxLines = 6
+                                setTextColor(MfDesign.GRAY_LIGHT)
+                            },
+                        android.widget.LinearLayout.LayoutParams(
+                            android.widget.LinearLayout.LayoutParams.MATCH_PARENT,
+                            android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
+                        ).apply { topMargin = MfDesign.dp(this@MyListActivity, 12f) },
+                    )
+                },
+            )
             return
         }
 
@@ -62,13 +98,13 @@ class MyListActivity : SidebarHostActivity() {
                 return@launch
             }
 
-            rows.definirHero(mensagem("Favoritos", "${lista.size} título(s) nos seus favoritos."))
+            rows.definirHero(mensagem("Favoritos", "${lista.size} título(s) nos seus favoritos. Use o botão Favoritos na tela de detalhes para adicionar ou remover."))
             val abrir = { m: Movie ->
                 startActivity(
                     Intent(this@MyListActivity, DetailsActivity::class.java).putExtra("movie_id", m.id),
                 )
             }
-            lista.chunked(24).forEachIndexed { i, itens ->
+            lista.chunked(60).forEachIndexed { i, itens ->
                 rows.adicionarLinha(
                     if (i == 0) "Meus favoritos" else "Mais dos meus favoritos",
                     itens,
@@ -79,29 +115,22 @@ class MyListActivity : SidebarHostActivity() {
         }
     }
 
-    /** Bloco de título + mensagem, usado nos estados sem login / lista vazia. */
-    private fun mensagem(titulo: String, texto: String): android.view.View =
-        android.widget.LinearLayout(this).apply {
-            orientation = android.widget.LinearLayout.VERTICAL
-            setPadding(
-                MfDesign.dp(context, 22f),
-                MfDesign.dp(context, 26f),
-                MfDesign.dp(context, 22f),
-                MfDesign.dp(context, 10f),
-            )
-            addView(MfDesign.tituloTela(context, titulo))
-            addView(
-                MfDesign.texto(context, texto).apply {
-                    textSize = 16f
-                    maxLines = 6
-                    setTextColor(MfDesign.GRAY_LIGHT)
-                },
-                android.widget.LinearLayout.LayoutParams(
-                    android.widget.LinearLayout.LayoutParams.MATCH_PARENT,
-                    android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
-                ).apply { topMargin = MfDesign.dp(context, 10f) },
-            )
-        }
+    /** Bloco de cabeçalho + mensagem, usado nos estados sem login / lista vazia. */
+    private fun mensagem(titulo: String, texto: String): android.view.View {
+        val raiz = MfUi.cabecalho(this, titulo, null)
+        raiz.addView(
+            MfDesign.texto(this, texto).apply {
+                setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, MfMetrics.textoSecundario(this@MyListActivity))
+                maxLines = 6
+                setTextColor(MfDesign.GRAY_LIGHT)
+            },
+            android.widget.LinearLayout.LayoutParams(
+                android.widget.LinearLayout.LayoutParams.MATCH_PARENT,
+                android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
+            ).apply { topMargin = MfDesign.dp(this@MyListActivity, 12f) },
+        )
+        return raiz
+    }
 
     override fun onDestroy() {
         super.onDestroy()
