@@ -1,52 +1,64 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<!-- Paywall da TV: mesma mensagem do site, com atalho para os planos reais. -->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="@color/mf_black"
-    android:gravity="center"
-    android:orientation="vertical"
-    android:padding="48dp">
+    android:background="@color/mf_black">
 
-    <TextView
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:background="@drawable/mf_gradient"
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
         android:gravity="center"
-        android:paddingStart="24dp"
-        android:paddingTop="10dp"
-        android:paddingEnd="24dp"
-        android:paddingBottom="10dp"
-        android:text="Assinatura necessária"
-        android:textColor="@color/mf_white"
-        android:textSize="30sp"
-        android:textStyle="bold" />
+        android:orientation="vertical"
+        android:padding="48dp">
 
-    <TextView
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="20dp"
-        android:gravity="center"
-        android:text="Assine um dos 3 planos para assistir filmes e séries completos.\nSua assinatura vale no site E no app (mesma conta)."
-        android:textColor="@color/mf_white"
-        android:textSize="18sp" />
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:background="@drawable/bg_badge"
+            android:gravity="center"
+            android:paddingStart="26dp"
+            android:paddingTop="10dp"
+            android:paddingEnd="26dp"
+            android:paddingBottom="10dp"
+            android:text="Assinatura necessária"
+            android:textColor="@color/mf_white"
+            android:textSize="28sp"
+            android:textStyle="bold" />
 
-    <TextView
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="14dp"
-        android:text="Básico (HD) • Padrão (Full HD) • Premium (4K)"
-        android:textColor="@color/mf_gray"
-        android:textSize="16sp" />
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="20dp"
+            android:gravity="center"
+            android:text="Assine um dos planos para assistir filmes e séries completos.\nA sua assinatura vale no site, no celular E nesta TV (mesma conta)."
+            android:textColor="@color/mf_gray_light"
+            android:textSize="18sp" />
 
-    <Button
-        android:id="@+id/btnVoltarPaywall"
-        android:layout_width="wrap_content"
-        android:layout_height="56dp"
-        android:layout_marginTop="28dp"
-        android:backgroundTint="@color/mf_purple"
-        android:paddingStart="32dp"
-        android:paddingEnd="32dp"
-        android:text="VOLTAR"
-        android:textSize="17sp"
-        android:textStyle="bold" />
-</LinearLayout>
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="14dp"
+            android:text="HD • Full HD • 4K — mesmos preços e limites do site"
+            android:textColor="@color/mf_purple_light"
+            android:textSize="16sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/btnVoltarPaywall"
+            android:layout_width="wrap_content"
+            android:layout_height="56dp"
+            android:layout_marginTop="28dp"
+            android:background="@drawable/bg_pill_primary"
+            android:clickable="true"
+            android:focusable="true"
+            android:focusableInTouchMode="true"
+            android:gravity="center"
+            android:paddingStart="34dp"
+            android:paddingEnd="34dp"
+            android:text="VER PLANOS"
+            android:textColor="@color/mf_white"
+            android:textSize="17sp"
+            android:textStyle="bold" />
+    </LinearLayout>
+</FrameLayout>

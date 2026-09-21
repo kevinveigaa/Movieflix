@@ -1,6 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- Selo "DESTAQUE" — gradiente magenta→violeta. -->
 <shape xmlns:android="http://schemas.android.com/apk/res/android"
     android:shape="rectangle">
-    <solid android:color="#E6059814" />
+    <gradient
+        android:angle="0"
+        android:startColor="@color/mf_red"
+        android:endColor="@color/mf_purple" />
     <corners android:radius="8dp" />
 </shape>

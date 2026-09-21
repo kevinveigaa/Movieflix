@@ -13,17 +13,24 @@ import java.util.concurrent.TimeUnit
 data class AuthResult(
     val ok: Boolean,
     val accessToken: String? = null,
+    val refreshToken: String? = null,
+    val expiresIn: Long = 0L,
     val userId: String? = null,
     val email: String? = null,
     val error: String? = null,
 )
 
 /**
- * Autenticação via Supabase Auth REST (mesma conta do site — integração total).
- * - login:  POST {SUPABASE_URL}/auth/v1/token?grant_type=password
- * - signup: POST {SUPABASE_URL}/auth/v1/signup
- * O access token (JWT) é usado depois no backend para validar assinatura
- * (mesmo fluxo do site: /api/streambetter-resolve com Authorization Bearer).
+ * Autenticação via Supabase Auth REST (GoTrue) — MESMA conta do site e do app
+ * mobile. Nenhuma conta paralela é criada: e-mail/senha são os mesmos.
+ *
+ * - login:    POST {SUPABASE_URL}/auth/v1/token?grant_type=password
+ * - signup:   POST {SUPABASE_URL}/auth/v1/signup
+ * - refresh:  POST {SUPABASE_URL}/auth/v1/token?grant_type=refresh_token
+ *
+ * A sessão (access_token + refresh_token + expiração) é persistida em
+ * SharedPreferences e renovada automaticamente — equivalente ao
+ * `persistSession` + `autoRefreshToken` do supabase-js usado no site.
  */
 object AuthRepository {
 
@@ -35,6 +42,13 @@ object AuthRepository {
         .build()
 
     private val JSON = "application/json; charset=utf-8".toMediaType()
+
+    private const val PREFS = "mf_session"
+    private const val K_TOKEN = "access_token"
+    private const val K_REFRESH = "refresh_token"
+    private const val K_EXPIRES_AT = "expires_at"
+    private const val K_EMAIL = "email"
+    private const val K_USER_ID = "user_id"
 
     fun login(email: String, password: String): AuthResult =
         request(
@@ -54,6 +68,13 @@ object AuthRepository {
                 .toString(),
         )
 
+    /** Renova o access token usando o refresh_token salvo. */
+    fun refresh(refreshToken: String): AuthResult =
+        request(
+            path = "/auth/v1/token?grant_type=refresh_token",
+            body = JSONObject().put("refresh_token", refreshToken).toString(),
+        )
+
     private fun request(path: String, body: String): AuthResult {
         val req = Request.Builder()
             .url(AppConfig.SUPABASE_URL + path)
@@ -66,13 +87,17 @@ object AuthRepository {
             client.newCall(req).execute().use { resp ->
                 val text = resp.body?.string() ?: ""
                 if (resp.isSuccessful) {
-                    // Sucesso: {"access_token":..., "refresh_token":..., "user":{...}}
+                    // Sucesso: {"access_token":..., "refresh_token":..., "expires_in":3600, "user":{...}}
                     val obj = JSONObject(text)
                     val token = obj.optString("access_token", "")
+                    val refresh = obj.optString("refresh_token", "")
+                    val expiresIn = obj.optLong("expires_in", 3600L)
                     val user = obj.optJSONObject("user")
                     AuthResult(
                         ok = true,
                         accessToken = token,
+                        refreshToken = refresh,
+                        expiresIn = expiresIn,
                         userId = user?.optString("id"),
                         email = user?.optString("email"),
                     )
@@ -117,29 +142,96 @@ object AuthRepository {
         }
     }
 
-    /** Token persistido localmente (sessão do usuário). */
-    fun saveSession(context: Context, token: String, email: String, userId: String? = null) {
-        context.getSharedPreferences("mf_session", Context.MODE_PRIVATE).edit()
-            .putString("access_token", token)
-            .putString("email", email)
-            .putString("user_id", userId ?: "")
+    // ─────────────────────────── Sessão persistida ───────────────────────────
+
+    /** Salva a sessão completa (access + refresh + expiração). */
+    fun saveSession(
+        context: Context,
+        token: String,
+        email: String,
+        userId: String? = null,
+        refreshToken: String? = null,
+        expiresInSeconds: Long = 3600L,
+    ) {
+        val expiresAt = System.currentTimeMillis() + (expiresInSeconds * 1000L)
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
+            .putString(K_TOKEN, token)
+            .putString(K_EMAIL, email)
+            .putString(K_USER_ID, userId ?: "")
+            .putString(K_REFRESH, refreshToken ?: "")
+            .putLong(K_EXPIRES_AT, expiresAt)
             .apply()
     }
 
+    /** Salva a sessão a partir de um AuthResult (login/signup/refresh). */
+    fun saveSession(context: Context, r: AuthResult): Boolean {
+        val t = r.accessToken
+        if (t.isNullOrBlank()) return false
+        saveSession(
+            context = context,
+            token = t,
+            email = r.email ?: loadEmail(context) ?: "",
+            userId = r.userId ?: loadUserId(context),
+            refreshToken = r.refreshToken ?: loadRefreshToken(context),
+            expiresInSeconds = if (r.expiresIn > 0) r.expiresIn else 3600L,
+        )
+        return true
+    }
+
     fun loadToken(context: Context): String? =
-        context.getSharedPreferences("mf_session", Context.MODE_PRIVATE)
-            .getString("access_token", null)
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+            .getString(K_TOKEN, null)
+
+    fun loadRefreshToken(context: Context): String? =
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+            .getString(K_REFRESH, null)
 
     fun loadEmail(context: Context): String? =
-        context.getSharedPreferences("mf_session", Context.MODE_PRIVATE)
-            .getString("email", null)
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+            .getString(K_EMAIL, null)
 
-    /** UUID do usuário no Supabase (necessário para Minha Lista). */
     fun loadUserId(context: Context): String =
-        context.getSharedPreferences("mf_session", Context.MODE_PRIVATE)
-            .getString("user_id", "") ?: ""
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+            .getString(K_USER_ID, "") ?: ""
+
+    fun loadExpiresAt(context: Context): Long =
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+            .getLong(K_EXPIRES_AT, 0L)
+
+    fun estaLogado(context: Context): Boolean = !loadToken(context).isNullOrBlank()
+
+    /**
+     * Token VÁLIDO para usar em requisições: renova proativamente quando está
+     * perto de expirar (margem de 90s), como o supabase-js faz.
+     * Devolve null apenas quando não há sessão (ou o refresh falhou de vez).
+     */
+    fun validToken(context: Context): String? {
+        val token = loadToken(context) ?: return null
+        val expiresAt = loadExpiresAt(context)
+        if (expiresAt == 0L) {
+            // Sessão antiga sem expiração gravada: tenta renovar; se não houver
+            // refresh_token, segue com o token atual.
+            if (loadRefreshToken(context) != null) return forcarRefresh(context) ?: token
+            return token
+        }
+        if (System.currentTimeMillis() > expiresAt - 90_000L) {
+            return forcarRefresh(context) ?: token
+        }
+        return token
+    }
+
+    /** Força a renovação do access token. Devolve o novo token (ou null). */
+    fun forcarRefresh(context: Context): String? {
+        val refreshToken = loadRefreshToken(context) ?: return null
+        val r = refresh(refreshToken)
+        if (r.ok && !r.accessToken.isNullOrBlank()) {
+            saveSession(context, r)
+            return r.accessToken
+        }
+        return null
+    }
 
     fun clearSession(context: Context) {
-        context.getSharedPreferences("mf_session", Context.MODE_PRIVATE).edit().clear().apply()
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().clear().apply()
     }
 }

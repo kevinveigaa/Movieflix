@@ -1,14 +1,23 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- A interface de TV é sempre escura: o tema noturno é idêntico ao diurno. -->
 <resources>
     <style name="Theme.MovieFlixTV" parent="Theme.AppCompat.NoActionBar">
         <item name="colorPrimary">@color/mf_purple</item>
         <item name="colorPrimaryDark">@color/mf_black</item>
-        <item name="colorAccent">@color/mf_red</item>
+        <item name="colorAccent">@color/mf_purple</item>
         <item name="android:windowBackground">@color/mf_black</item>
         <item name="android:fontFamily">sans-serif</item>
+        <item name="alertDialogTheme">@style/Theme.MovieFlixTV.Dialog</item>
     </style>
 
     <style name="Theme.MovieFlixTV.Splash" parent="Theme.MovieFlixTV">
         <item name="android:windowBackground">@color/splash_background</item>
+    </style>
+
+    <style name="Theme.MovieFlixTV.Dialog" parent="Theme.AppCompat.Dialog.Alert">
+        <item name="android:background">@color/mf_surface_light</item>
+        <item name="colorAccent">@color/mf_purple</item>
+        <item name="android:textColorPrimary">@color/mf_white</item>
+        <item name="android:textColorSecondary">@color/mf_gray</item>
     </style>
 </resources>

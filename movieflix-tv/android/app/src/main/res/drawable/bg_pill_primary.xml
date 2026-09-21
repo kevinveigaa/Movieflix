@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Botão principal: pílula com gradiente violeta→índigo.
+     Em foco: gradiente mais claro + anel branco (feedback forte a distância). -->
+<selector xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:state_focused="true">
+        <shape android:shape="rectangle">
+            <gradient
+                android:angle="0"
+                android:startColor="@color/mf_indigo"
+                android:centerColor="@color/mf_purple"
+                android:endColor="@color/mf_purple_light" />
+            <corners android:radius="@dimen/pill_radius" />
+            <stroke android:width="3dp" android:color="@color/mf_white" />
+        </shape>
+    </item>
+    <item>
+        <shape android:shape="rectangle">
+            <gradient
+                android:angle="0"
+                android:startColor="@color/mf_indigo"
+                android:endColor="@color/mf_purple" />
+            <corners android:radius="@dimen/pill_radius" />
+        </shape>
+    </item>
+</selector>

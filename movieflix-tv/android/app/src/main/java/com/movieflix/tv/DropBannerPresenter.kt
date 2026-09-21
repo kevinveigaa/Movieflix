@@ -1,8 +1,10 @@
 package com.movieflix.tv
 
+import android.content.Context
 import android.graphics.Color
 import android.graphics.Typeface
-import android.graphics.drawable.GradientDrawable
+import android.graphics.drawable.ColorDrawable
+import android.util.TypedValue
 import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
@@ -12,18 +14,23 @@ import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.leanback.widget.Presenter
 import com.bumptech.glide.Glide
-import com.bumptech.glide.load.resource.bitmap.RoundedCorners
 import com.bumptech.glide.request.RequestOptions
 
 /**
- * Banner hero de destaque — réplica do HeroBanner do site MovieFlix.
- * - Backdrop grande com gradiente escuro (de baixo e da esquerda) para legibilidade.
- * - Badge "DESTAQUE" com gradiente roxo→vermelho.
- * - Chips de qualidade / idioma / gênero.
- * - Título em Bebas Neue (fonte display do site).
- * - Sinopse (máx. 3 linhas).
- * - Botão "ASSISTIR" com gradiente roxo→vermelho.
- * - Foco D-pad: borda vermelha + leve escala.
+ * HERO de destaque do MovieFlix TV.
+ *
+ * Réplica do bloco principal da referência visual aprovada:
+ *  - backdrop de tela larga com escurecimento lateral e inferior;
+ *  - selo "DESTAQUE" em gradiente magenta→violeta;
+ *  - chips de qualidade / idioma / gênero;
+ *  - título grande na fonte display (Bebas Neue, a mesma do site);
+ *  - linha de meta com estrela dourada, nota, ano e gêneros;
+ *  - sinopse (até 3 linhas);
+ *  - dois botões-pílula: "Assistir" (gradiente) e "Mais informações" (contorno);
+ *  - indicadores de página (4 pontos, o ativo em gradiente).
+ *
+ * As SETAS do controle trocam o título em destaque (o banner rola junto com a
+ * linha do tempo). Os dados vêm do MESMO catálogo do mobile/site.
  */
 class DropBannerPresenter : Presenter() {
 
@@ -32,191 +39,258 @@ class DropBannerPresenter : Presenter() {
 
     override fun onCreateViewHolder(parent: ViewGroup): ViewHolder {
         val banner = BannerView(parent.context)
-        banner.layoutParams = ViewGroup.LayoutParams(WIDTH, HEIGHT)
-        banner.isFocusable = true
-        banner.isFocusableInTouchMode = true
+        banner.layoutParams = ViewGroup.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT,
+            MfDesign.dp(parent.context, HEIGHT.toFloat()),
+        )
         return ViewHolder(banner)
     }
 
     override fun onBindViewHolder(viewHolder: ViewHolder, item: Any) {
-        val movie = item as Movie
-        (viewHolder.view as BannerView).bind(movie)
+        (viewHolder.view as BannerView).bind(item as Movie)
     }
 
     override fun onUnbindViewHolder(viewHolder: ViewHolder) {
         (viewHolder.view as BannerView).unbind()
     }
 
-    class BannerView(context: android.content.Context) : FrameLayout(context) {
+    /** Banner completo com backdrop, textos, botões e paginação. */
+    class BannerView(context: Context) : FrameLayout(context) {
 
         private val backdrop = ImageView(context)
-        private val badgeDestaque = TextView(context)
-        private val chipsRow = LinearLayout(context)
         private val titulo = TextView(context)
+        private val meta = TextView(context)
         private val sinopse = TextView(context)
+        private val chips = LinearLayout(context)
         private val btnAssistir = TextView(context)
+        private val btnInfo = TextView(context)
+        private val dots = LinearLayout(context)
+
+        /** Ações expostas para a Activity ligar navegação/player. */
+        var onAssistir: (() -> Unit)? = null
+        var onDetalhes: (() -> Unit)? = null
 
         init {
-            // Backdrop preenche todo o banner
+            // ── Backdrop ──────────────────────────────────────────────────
             backdrop.scaleType = ImageView.ScaleType.CENTER_CROP
-            backdrop.layoutParams = FrameLayout.LayoutParams(
-                FrameLayout.LayoutParams.MATCH_PARENT,
-                FrameLayout.LayoutParams.MATCH_PARENT,
+            backdrop.background = ColorDrawable(MfDesign.SURFACE)
+            addView(
+                backdrop,
+                LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT),
             )
-            addView(backdrop)
 
-            // Gradiente escuro (de baixo para cima + da esquerda) para legibilidade
-            val grad = GradientDrawable(
-                GradientDrawable.Orientation.BOTTOM_TOP,
-                intArrayOf(0xFF050505.toInt(), 0xB3050505.toInt(), 0x00000000),
-            )
-            val gradView = View(context)
-            gradView.background = grad
-            gradView.layoutParams = FrameLayout.LayoutParams(
-                FrameLayout.LayoutParams.MATCH_PARENT,
-                FrameLayout.LayoutParams.MATCH_PARENT,
-            )
-            addView(gradView)
-
-            // Gradiente lateral esquerdo
-            val gradL = GradientDrawable(
-                GradientDrawable.Orientation.LEFT_RIGHT,
-                intArrayOf(0xE6050505.toInt(), 0x66050505.toInt(), 0x00000000),
-            )
-            val gradLView = View(context)
-            gradLView.background = gradL
-            gradLView.layoutParams = FrameLayout.LayoutParams(
-                FrameLayout.LayoutParams.MATCH_PARENT,
-                FrameLayout.LayoutParams.MATCH_PARENT,
-            )
-            addView(gradLView)
-
-            // Conteúdo (coluna à esquerda) com padding generoso
-            val coluna = LinearLayout(context)
-            coluna.orientation = LinearLayout.VERTICAL
-            coluna.gravity = Gravity.CENTER_VERTICAL
-            coluna.setPadding(64, 0, 64, 0)
-            val colLp = FrameLayout.LayoutParams(
-                FrameLayout.LayoutParams.MATCH_PARENT,
-                FrameLayout.LayoutParams.MATCH_PARENT,
-            )
-            addView(coluna, colLp)
-
-            // Badge "DESTAQUE" — gradiente roxo→vermelho
-            badgeDestaque.text = "DESTAQUE"
-            badgeDestaque.setTextColor(Color.WHITE)
-            badgeDestaque.textSize = 13f
-            badgeDestaque.setTypeface(Typeface.DEFAULT_BOLD)
-            badgeDestaque.setPadding(16, 7, 16, 7)
-            badgeDestaque.background = GradientDrawable().apply {
-                cornerRadius = 10f
-                colors = intArrayOf(0xFFDF0A15.toInt(), 0xFF7C3AED.toInt())
-                orientation = GradientDrawable.Orientation.LEFT_RIGHT
+            // Escurecimentos (lateral + inferior) para leitura confortável
+            listOf(R.drawable.hero_scrim_left, R.drawable.hero_scrim_bottom).forEach { d ->
+                val scrim = View(context)
+                scrim.setBackgroundResource(d)
+                addView(scrim, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT))
             }
-            coluna.addView(badgeDestaque)
 
-            // Chips (qualidade • idioma • gêneros)
-            chipsRow.orientation = LinearLayout.HORIZONTAL
-            chipsRow.gravity = Gravity.CENTER_VERTICAL
-            val chipsLp = LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.WRAP_CONTENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT,
-            ).apply { topMargin = 16 }
-            coluna.addView(chipsRow, chipsLp)
+            // ── Coluna de conteúdo ────────────────────────────────────────
+            val coluna = LinearLayout(context).apply {
+                orientation = LinearLayout.VERTICAL
+                gravity = Gravity.CENTER_VERTICAL
+                setPadding(
+                    MfDesign.dp(context, 44f), 0,
+                    MfDesign.dp(context, 44f), 0,
+                )
+            }
+            addView(
+                coluna,
+                LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT),
+            )
 
-            // Título em Bebas Neue (fonte display do site)
+            // Selo DESTAQUE
+            val seloDestaque = TextView(context).apply {
+                background = MfDesign.gradienteDestaque(8f)
+                text = "DESTAQUE"
+                setTextColor(Color.WHITE)
+                setTextSize(TypedValue.COMPLEX_UNIT_SP, 11f)
+                typeface = Typeface.DEFAULT_BOLD
+                letterSpacing = 0.14f
+                setPadding(
+                    MfDesign.dp(context, 14f), MfDesign.dp(context, 6f),
+                    MfDesign.dp(context, 14f), MfDesign.dp(context, 6f),
+                )
+            }
+            coluna.addView(seloDestaque)
+
+            // Chips
+            chips.orientation = LinearLayout.HORIZONTAL
+            chips.gravity = Gravity.CENTER_VERTICAL
+            coluna.addView(
+                chips,
+                LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.WRAP_CONTENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT,
+                ).apply { topMargin = MfDesign.dp(context, 14f) },
+            )
+
+            // Título display
+            titulo.typeface = MfDesign.fonteDisplay(context)
             titulo.setTextColor(Color.WHITE)
-            titulo.textSize = 46f
-            titulo.setTypeface(resources.getFont(R.font.bebas_neue))
-            titulo.maxLines = 1
+            titulo.setTextSize(TypedValue.COMPLEX_UNIT_SP, 46f)
+            titulo.letterSpacing = 0.01f
+            titulo.maxLines = 2
             titulo.ellipsize = android.text.TextUtils.TruncateAt.END
-            titulo.setShadowLayer(6f, 0f, 2f, Color.BLACK)
-            val tituloLp = LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT,
-            ).apply { topMargin = 14 }
-            coluna.addView(titulo, tituloLp)
+            titulo.setShadowLayer(8f, 0f, 3f, Color.BLACK)
+            coluna.addView(
+                titulo,
+                LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT,
+                ).apply { topMargin = MfDesign.dp(context, 12f) },
+            )
+
+            // Linha de meta (★ nota | ano | gêneros)
+            meta.setTextColor(MfDesign.GRAY_LIGHT)
+            meta.setTextSize(TypedValue.COMPLEX_UNIT_SP, 13f)
+            meta.typeface = Typeface.DEFAULT_BOLD
+            meta.maxLines = 1
+            meta.setShadowLayer(5f, 0f, 1f, Color.BLACK)
+            coluna.addView(
+                meta,
+                LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.WRAP_CONTENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT,
+                ).apply { topMargin = MfDesign.dp(context, 10f) },
+            )
 
             // Sinopse
-            sinopse.setTextColor(0xFFD4D4D8.toInt())
-            sinopse.textSize = 16f
+            sinopse.setTextColor(MfDesign.GRAY_LIGHT)
+            sinopse.setTextSize(TypedValue.COMPLEX_UNIT_SP, 14f)
             sinopse.maxLines = 3
             sinopse.ellipsize = android.text.TextUtils.TruncateAt.END
-            sinopse.setShadowLayer(4f, 0f, 1f, Color.BLACK)
-            val sinLp = LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT,
-            ).apply { topMargin = 18 }
-            coluna.addView(sinopse, sinLp)
+            sinopse.setLineSpacing(MfDesign.dp(context, 3f).toFloat(), 1f)
+            sinopse.setShadowLayer(5f, 0f, 1f, Color.BLACK)
+            coluna.addView(
+                sinopse,
+                LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT,
+                ).apply {
+                    topMargin = MfDesign.dp(context, 12f)
+                    marginEnd = MfDesign.dp(context, 220f)
+                },
+            )
 
-            // Botão "▶ ASSISTIR" — gradiente roxo→vermelho
-            btnAssistir.text = "▶  ASSISTIR"
-            btnAssistir.setTextColor(Color.WHITE)
-            btnAssistir.textSize = 18f
-            btnAssistir.setTypeface(Typeface.DEFAULT_BOLD)
-            btnAssistir.gravity = Gravity.CENTER
-            btnAssistir.setPadding(40, 18, 40, 18)
-            btnAssistir.background = GradientDrawable().apply {
-                cornerRadius = 30f
-                colors = intArrayOf(0xFFDF0A15.toInt(), 0xFF7C3AED.toInt())
-                orientation = GradientDrawable.Orientation.LEFT_RIGHT
+            // Botões
+            val linhaBotoes = LinearLayout(context).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER_VERTICAL
             }
-            val btnLp = LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.WRAP_CONTENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT,
-            ).apply { topMargin = 24 }
-            coluna.addView(btnAssistir, btnLp)
+            coluna.addView(
+                linhaBotoes,
+                LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.WRAP_CONTENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT,
+                ).apply { topMargin = MfDesign.dp(context, 18f) },
+            )
 
-            // Foco: borda vermelha + leve escala
-            setOnFocusChangeListener { _, hasFocus ->
-                animate().scaleX(if (hasFocus) 1.01f else 1f)
-                    .scaleY(if (hasFocus) 1.01f else 1f)
-                    .setDuration(120)
-                    .start()
-                if (hasFocus) {
-                    elevation = 8f
-                    background = GradientDrawable().apply {
-                        cornerRadius = 18f
-                        setStroke(4, 0xFFDF0A15.toInt())
-                    }
-                } else {
-                    elevation = 0f
-                    background = null
-                }
+            montarBotao(
+                btnAssistir,
+                "\u25B6  Assistir",
+                R.drawable.bg_pill_primary,
+                acao = { onAssistir?.invoke() },
+            )
+            linhaBotoes.addView(btnAssistir)
+
+            montarBotao(
+                btnInfo,
+                "Mais informações",
+                R.drawable.bg_pill_secondary,
+                acao = { onDetalhes?.invoke() },
+            )
+            (btnInfo.layoutParams as? LinearLayout.LayoutParams)?.let {
+                it.marginStart = MfDesign.dp(context, 14f)
+            } ?: run {
+                btnInfo.layoutParams = LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.WRAP_CONTENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT,
+                ).apply { marginStart = MfDesign.dp(context, 14f) }
             }
+            linhaBotoes.addView(btnInfo)
+
+            // Indicadores de página (canto inferior direito)
+            dots.orientation = LinearLayout.HORIZONTAL
+            dots.gravity = Gravity.CENTER_VERTICAL
+            addView(
+                dots,
+                LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT).apply {
+                    gravity = Gravity.BOTTOM or Gravity.END
+                    marginEnd = MfDesign.dp(context, 44f)
+                    bottomMargin = MfDesign.dp(context, 26f)
+                },
+            )
         }
 
-        private fun addChip(text: String) {
-            val chip = TextView(context)
-            chip.text = text
-            chip.setTextColor(0xFFE4E4E7.toInt())
-            chip.textSize = 13f
-            chip.setTypeface(Typeface.DEFAULT_BOLD)
-            chip.setPadding(16, 7, 16, 7)
-            chip.background = GradientDrawable().apply {
-                cornerRadius = 20f
-                setColor(0x1AFFFFFF.toInt())
-                setStroke(1, 0x33FFFFFF.toInt())
+        private fun montarBotao(
+            tv: TextView,
+            texto: String,
+            fundo: Int,
+            acao: () -> Unit,
+        ) {
+            tv.text = texto
+            tv.background = resources.getDrawable(fundo, null)
+            tv.setTextColor(Color.WHITE)
+            tv.setTextSize(TypedValue.COMPLEX_UNIT_SP, 15f)
+            tv.typeface = Typeface.DEFAULT_BOLD
+            tv.gravity = Gravity.CENTER
+            tv.isFocusable = true
+            tv.isFocusableInTouchMode = true
+            tv.isClickable = true
+            tv.setPadding(
+                MfDesign.dp(context, 30f), 0,
+                MfDesign.dp(context, 30f), 0,
+            )
+            tv.layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+                MfDesign.dp(context, 48f),
+            ).apply { minimumWidth = MfDesign.dp(context, 190f) }
+            MfDesign.focoBotao(tv)
+            tv.setOnClickListener { acao() }
+        }
+
+        /** Quantos indicadores de página desenhar (4 destaques). */
+        fun definirPaginas(total: Int, atual: Int) {
+            dots.removeAllViews()
+            val n = total.coerceIn(1, 8)
+            for (i in 0 until n) {
+                val ativo = i == atual
+                val ponto = View(context)
+                val lp = LinearLayout.LayoutParams(
+                    if (ativo) MfDesign.dp(context, 26f) else MfDesign.dp(context, 9f),
+                    MfDesign.dp(context, 9f),
+                ).apply { marginStart = MfDesign.dp(context, 7f) }
+                ponto.background = if (ativo) {
+                    MfDesign.gradientePrimario(6f)
+                } else {
+                    android.graphics.drawable.GradientDrawable().apply {
+                        cornerRadius = MfDesign.dp(context, 6f).toFloat()
+                        setColor(0x59FFFFFF)
+                    }
+                }
+                dots.addView(ponto, lp)
             }
-            val lp = LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.WRAP_CONTENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT,
-            ).apply { rightMargin = 10 }
-            chipsRow.addView(chip, lp)
         }
 
         fun bind(movie: Movie) {
             titulo.text = movie.title
             sinopse.text = movie.description.ifBlank { "Sem descrição disponível." }
 
-            chipsRow.removeAllViews()
-            val qual = movie.qualidade()
-            if (qual.isNotBlank()) addChip(qual)
-            val idioma = movie.language.ifBlank { "pt-BR" }
-            addChip(idioma)
-            for (cat in movie.categorias.take(3)) {
-                if (cat != "Outros") addChip(cat)
-            }
+            // Chips: qualidade • idioma • gêneros (mesma leitura do mobile)
+            chips.removeAllViews()
+            addChip(movie.qualidade())
+            addChip(if (movie.dublado_ptbr == true) "Dublado PT-BR" else movie.language.ifBlank { "pt-BR" })
+            if (movie.ehSerie) addChip("Série") else addChip("Filme")
+
+            // Meta: ★ nota | ano | gêneros
+            val partes = mutableListOf<String>()
+            if (movie.vote_average > 0) partes.add("\u2605 ${movie.nota}")
+            if (movie.ano.isNotBlank()) partes.add(movie.ano)
+            val generos = movie.categorias.filter { it != "Outros" }.take(3)
+            if (generos.isNotEmpty()) partes.add(generos.joinToString(", "))
+            meta.text = partes.joinToString("   |   ")
 
             val url = movie.backdrop_url.ifBlank { movie.poster_url }
             if (url.isNotBlank()) {
@@ -224,20 +298,34 @@ class DropBannerPresenter : Presenter() {
                     .load(url)
                     .apply(
                         RequestOptions()
-                            .transform(RoundedCorners(18))
-                            .placeholder(android.graphics.drawable.ColorDrawable(0xFF171717.toInt()))
-                            .error(android.graphics.drawable.ColorDrawable(0xFF262626.toInt()))
+                            .placeholder(ColorDrawable(MfDesign.SURFACE))
+                            .error(ColorDrawable(MfDesign.SURFACE))
                             .centerCrop(),
                     )
                     .into(backdrop)
             } else {
-                backdrop.setImageDrawable(android.graphics.drawable.ColorDrawable(0xFF262626.toInt()))
+                backdrop.setImageDrawable(ColorDrawable(MfDesign.SURFACE))
             }
+        }
+
+        private fun addChip(texto: String) {
+            if (texto.isBlank()) return
+            val chip = MfDesign.chip(context, texto)
+            chips.addView(
+                chip,
+                LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.WRAP_CONTENT,
+                    MfDesign.dp(context, 30f),
+                ).apply { marginEnd = MfDesign.dp(context, 9f) },
+            )
         }
 
         fun unbind() {
             Glide.with(context).clear(backdrop)
             backdrop.setImageDrawable(null)
         }
+
+        /** Foco inicial do D-pad dentro do banner: o botão "Assistir". */
+        fun focarAcaoPrincipal() = btnAssistir.requestFocus()
     }
 }

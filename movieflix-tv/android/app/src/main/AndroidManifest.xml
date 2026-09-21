@@ -44,6 +44,12 @@
             android:exported="false"
             android:screenOrientation="landscape" />
 
+        <!-- Perfis de exibição (viewer_profiles) — "Quem está assistindo?" -->
+        <activity
+            android:name=".ProfilesActivity"
+            android:exported="false"
+            android:screenOrientation="landscape" />
+
         <activity
             android:name=".MainActivity"
             android:exported="false"
@@ -59,6 +65,12 @@
             android:exported="false"
             android:screenOrientation="landscape" />
 
+        <!-- Continuar assistindo + histórico (watch_history) -->
+        <activity
+            android:name=".HistoryActivity"
+            android:exported="false"
+            android:screenOrientation="landscape" />
+
         <activity
             android:name=".DetailsActivity"
             android:exported="false"
@@ -66,6 +78,23 @@
 
         <activity
             android:name=".SearchActivity"
+            android:exported="false"
+            android:screenOrientation="landscape" />
+
+        <!-- Assinatura / planos (subscriptions + plans) -->
+        <activity
+            android:name=".AccountActivity"
+            android:exported="false"
+            android:screenOrientation="landscape" />
+
+        <!-- Configurações da TV (+ logout) -->
+        <activity
+            android:name=".SettingsActivity"
+            android:exported="false"
+            android:screenOrientation="landscape" />
+
+        <activity
+            android:name=".PaywallActivity"
             android:exported="false"
             android:screenOrientation="landscape" />
 

@@ -1,26 +1,118 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+
+    <!-- ══════════════════ Tema base ══════════════════ -->
     <style name="Theme.MovieFlixTV" parent="Theme.AppCompat.NoActionBar">
         <item name="colorPrimary">@color/mf_purple</item>
         <item name="colorPrimaryDark">@color/mf_black</item>
-        <item name="colorAccent">@color/mf_red</item>
+        <item name="colorAccent">@color/mf_purple</item>
         <item name="android:windowBackground">@color/mf_black</item>
         <item name="android:fontFamily">sans-serif</item>
-        <item name="android:colorAccent">@color/mf_red</item>
+        <item name="android:colorAccent">@color/mf_purple</item>
         <item name="android:colorPrimary">@color/mf_purple</item>
         <item name="android:colorPrimaryDark">@color/mf_black</item>
         <item name="android:windowContentOverlay">@null</item>
+        <!-- Diálogos (perfis) no mesmo tom escuro da interface -->
+        <item name="alertDialogTheme">@style/Theme.MovieFlixTV.Dialog</item>
     </style>
 
     <style name="Theme.MovieFlixTV.Splash" parent="Theme.MovieFlixTV">
         <item name="android:windowBackground">@color/splash_background</item>
     </style>
 
-    <!-- Título display (Bebas Neue) — usado no wordmark MOVIEFLIX e títulos hero -->
+    <!-- Diálogo escuro de TV (criar/renomear perfil) -->
+    <style name="Theme.MovieFlixTV.Dialog" parent="Theme.AppCompat.Dialog.Alert">
+        <item name="android:background">@color/mf_surface_light</item>
+        <item name="colorAccent">@color/mf_purple</item>
+        <item name="android:textColorPrimary">@color/mf_white</item>
+        <item name="android:textColorSecondary">@color/mf_gray</item>
+    </style>
+
+    <!-- ══════════════════ Tipografia ══════════════════ -->
+    <!-- Wordmark e títulos de display (Bebas Neue — fonte do site) -->
     <style name="TextAppearance.MovieFlix.Display" parent="TextAppearance.AppCompat">
         <item name="android:fontFamily">@font/bebas_neue</item>
         <item name="android:textStyle">normal</item>
         <item name="android:textColor">@color/mf_white</item>
         <item name="android:letterSpacing">0.04</item>
+    </style>
+
+    <style name="Text.MovieFlix.HeroTitle" parent="TextAppearance.MovieFlix.Display">
+        <item name="android:textSize">@dimen/hero_title</item>
+        <item name="android:letterSpacing">0.01</item>
+    </style>
+
+    <style name="Text.MovieFlix.ScreenTitle" parent="TextAppearance.AppCompat">
+        <item name="android:textSize">@dimen/screen_title</item>
+        <item name="android:textColor">@color/mf_white</item>
+        <item name="android:textStyle">bold</item>
+    </style>
+
+    <style name="Text.MovieFlix.RowTitle" parent="TextAppearance.AppCompat">
+        <item name="android:textSize">@dimen/row_title</item>
+        <item name="android:textColor">@color/mf_white</item>
+        <item name="android:textStyle">bold</item>
+    </style>
+
+    <style name="Text.MovieFlix.Body" parent="TextAppearance.AppCompat">
+        <item name="android:textSize">15sp</item>
+        <item name="android:textColor">@color/mf_gray_light</item>
+    </style>
+
+    <style name="Text.MovieFlix.Meta" parent="TextAppearance.AppCompat">
+        <item name="android:textSize">14sp</item>
+        <item name="android:textColor">@color/mf_gray</item>
+    </style>
+
+    <!-- ══════════════════ Botões (TextView com fundo próprio) ══════════════════
+         Em TV o alvo de foco é grande e o visual é "pílula". Usamos TextView
+         focável (não sofre tint do AppCompat) — o comportamento vem do
+         listener de foco aplicado em MfDesign.aplicarFocoBotao().            -->
+    <style name="Widget.MovieFlix.PillButton" parent="android:Widget.TextView">
+        <item name="android:layout_height">@dimen/btn_height</item>
+        <item name="android:minWidth">@dimen/hero_btn_min</item>
+        <item name="android:gravity">center</item>
+        <item name="android:paddingStart">30dp</item>
+        <item name="android:paddingEnd">30dp</item>
+        <item name="android:textColor">@color/mf_white</item>
+        <item name="android:textSize">15sp</item>
+        <item name="android:textStyle">bold</item>
+        <item name="android:letterSpacing">0.02</item>
+        <item name="android:focusable">true</item>
+        <item name="android:focusableInTouchMode">true</item>
+        <item name="android:clickable">true</item>
+        <item name="android:background">@drawable/bg_pill_primary</item>
+    </style>
+
+    <style name="Widget.MovieFlix.PillButton.Secondary">
+        <item name="android:background">@drawable/bg_pill_secondary</item>
+    </style>
+
+    <style name="Widget.MovieFlix.PillButton.Ghost">
+        <item name="android:background">@drawable/bg_pill_ghost</item>
+    </style>
+
+    <!-- Chip informativo (qualidade, idioma, gênero) -->
+    <style name="Widget.MovieFlix.Chip" parent="android:Widget.TextView">
+        <item name="android:layout_height">@dimen/chip_height</item>
+        <item name="android:gravity">center</item>
+        <item name="android:paddingStart">14dp</item>
+        <item name="android:paddingEnd">14dp</item>
+        <item name="android:textColor">@color/mf_gray_light</item>
+        <item name="android:textSize">12sp</item>
+        <item name="android:textStyle">bold</item>
+        <item name="android:background">@drawable/bg_chip</item>
+    </style>
+
+    <!-- Campos de entrada (login / busca) -->
+    <style name="Widget.MovieFlix.Input" parent="android:Widget.EditText">
+        <item name="android:layout_height">56dp</item>
+        <item name="android:background">@drawable/bg_input</item>
+        <item name="android:paddingStart">20dp</item>
+        <item name="android:paddingEnd">20dp</item>
+        <item name="android:textColor">@color/mf_white</item>
+        <item name="android:textColorHint">@color/mf_gray</item>
+        <item name="android:textSize">16sp</item>
+        <item name="android:importantForAutofill">no</item>
     </style>
 </resources>

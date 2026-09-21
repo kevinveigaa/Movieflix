@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/mf_black"
+    android:orientation="vertical"
+    android:padding="48dp">
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Configurações"
+        android:textColor="@color/mf_white"
+        android:textSize="34sp"
+        android:textStyle="bold" />
+
+    <ScrollView
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_marginTop="18dp"
+        android:layout_weight="1"
+        android:clipToPadding="false"
+        android:paddingBottom="12dp">
+
+        <LinearLayout
+            android:id="@+id/containerConfig"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical" />
+    </ScrollView>
+
+    <Button
+        android:id="@+id/btnVoltarConfig"
+        android:layout_width="wrap_content"
+        android:layout_height="56dp"
+        android:backgroundTint="@color/mf_purple"
+        android:paddingStart="30dp"
+        android:paddingEnd="30dp"
+        android:text="VOLTAR"
+        android:textColor="@color/mf_white"
+        android:textSize="16sp"
+        android:textStyle="bold" />
+</LinearLayout>

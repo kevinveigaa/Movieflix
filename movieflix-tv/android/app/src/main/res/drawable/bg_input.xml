@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Campo de entrada (login / busca). Em foco: contorno violeta de 3dp. -->
+<selector xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:state_focused="true">
+        <shape android:shape="rectangle">
+            <solid android:color="@color/mf_surface_light" />
+            <corners android:radius="12dp" />
+            <stroke android:width="3dp" android:color="@color/mf_purple" />
+        </shape>
+    </item>
+    <item>
+        <shape android:shape="rectangle">
+            <solid android:color="@color/mf_surface_light" />
+            <corners android:radius="12dp" />
+            <stroke android:width="1dp" android:color="@color/mf_border" />
+        </shape>
+    </item>
+</selector>

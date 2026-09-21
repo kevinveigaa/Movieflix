@@ -15,7 +15,7 @@ class SplashActivity : AppCompatActivity() {
         Handler(Looper.getMainLooper()).postDelayed({
             val token = AuthRepository.loadToken(this)
             val destino = if (!token.isNullOrBlank()) {
-                Intent(this, MainActivity::class.java)
+                Intent(this, ProfilesActivity::class.java)
             } else {
                 Intent(this, LoginActivity::class.java)
             }

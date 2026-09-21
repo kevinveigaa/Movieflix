@@ -2,16 +2,7 @@ package com.movieflix.tv
 
 import android.content.Intent
 import android.os.Bundle
-import android.view.ViewGroup
-import android.widget.TextView
-import androidx.appcompat.app.AppCompatActivity
-import androidx.leanback.app.BrowseSupportFragment
-import androidx.leanback.widget.ArrayObjectAdapter
-import androidx.leanback.widget.HeaderItem
-import androidx.leanback.widget.ListRow
-import androidx.leanback.widget.ListRowPresenter
-import androidx.leanback.widget.OnItemViewClickedListener
-import androidx.leanback.widget.Presenter
+import android.widget.FrameLayout
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -20,118 +11,100 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 /**
- * Minha Lista — conteúdo salvo pelo usuário (mesma tabela favorites do site).
+ * Minha Lista — conteúdo salvo pelo usuário (mesma tabela `favorites` do site).
  *
- * - Sem login → orienta a entrar com a conta (a mesma do site).
- * - Com login → carrega os favoritos do Supabase e mostra como linhas.
- * - D-pad nativo; OK abre os detalhes.
+ * Regras idênticas ao mobile:
+ *  - sem login → orienta a entrar com a mesma conta;
+ *  - com login → carrega os favoritos e cruza com o catálogo;
+ *  - lista vazia → explica como salvar.
  */
-class MyListActivity : AppCompatActivity() {
+class MyListActivity : SidebarHostActivity() {
+
+    override val itemAtivo: String = "minhalista"
+
+    private val job = Job()
+    private val scope = CoroutineScope(Dispatchers.Main + job)
+    private lateinit var rows: MfRowsView
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        rows = MfRowsView(this)
+        content.addView(
+            rows,
+            FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT,
+                FrameLayout.LayoutParams.MATCH_PARENT,
+            ),
+        )
+
         val token = AuthRepository.loadToken(this)
-        supportFragmentManager.beginTransaction()
-            .replace(android.R.id.content, MyListFragment.newInstance(token))
-            .commit()
-    }
-
-    class MyListFragment : BrowseSupportFragment() {
-
-        private var token: String? = null
-        private val scope = CoroutineScope(Dispatchers.Main + Job())
-
-        companion object {
-            fun newInstance(token: String?): MyListFragment {
-                val f = MyListFragment()
-                f.token = token
-                return f
-            }
+        if (token.isNullOrBlank()) {
+            rows.definirHero(mensagem("Minha Lista", "Entre com a sua conta MovieFlix (a mesma do site) para ver sua lista.\n\nUse o app do celular ou o site para criar a conta e assinar."))
+            return
         }
 
-        override fun onActivityCreated(savedInstanceState: Bundle?) {
-            super.onActivityCreated(savedInstanceState)
-            title = "Minha Lista"
-            setHeadersState(HEADERS_DISABLED)
-            brandColor = android.graphics.Color.rgb(10, 10, 15)
+        scope.launch {
+            val favoritos = withContext(Dispatchers.IO) { FavoritesRepository.listar(this@MyListActivity) }
+            val catalogo = withContext(Dispatchers.IO) { CatalogRepository.all(this@MyListActivity) }
+            val lista = favoritos.mapNotNull { (tmdb, _) ->
+                catalogo.firstOrNull { (it.tmdbIdNumerico ?: 0L) == tmdb }
+            }
 
-            val ctx = activity ?: return
-            val adapter = ArrayObjectAdapter(ListRowPresenter())
-            this.adapter = adapter
-
-            val tok = token
-            if (tok.isNullOrBlank()) {
-                adapter.add(
-                    ListRow(
-                        HeaderItem(0, "Minha Lista"),
-                        ArrayObjectAdapter(TextoPresenter()).apply {
-                            add(0, "Entre com a sua conta MovieFlix (a mesma do site) para ver sua lista.\n\nUse o app do celular ou o site para criar a conta e assinar.")
-                        },
+            rows.limpar()
+            if (lista.isEmpty()) {
+                rows.definirHero(
+                    mensagem(
+                        "Minha Lista",
+                        "Sua lista está vazia.\n\nAbra um filme ou série e use o botão \"Minha Lista\" nos detalhes para salvar aqui.",
                     ),
                 )
-                return
+                return@launch
             }
 
-            scope.launch {
-                val favoritos = withContext(Dispatchers.IO) {
-                    FavoritesRepository.listar(ctx, tok)
-                }
-                val lista = favoritos.mapNotNull { (tmdb, _) ->
-                    CatalogRepository.all(ctx).firstOrNull { (it.tmdbIdNumerico ?: 0L) == tmdb }
-                }
-                adapter.clear()
-                if (lista.isEmpty()) {
-                    adapter.add(
-                        ListRow(
-                            HeaderItem(0, "Minha Lista"),
-                            ArrayObjectAdapter(TextoPresenter()).apply {
-                                add(0, "Sua lista está vazia.\n\nAbra um filme ou série e pressione o botão \"Minha Lista\" nos detalhes para salvar aqui.")
-                            },
-                        ),
-                    )
-                } else {
-                    lista.chunked(30).forEachIndexed { i, itens ->
-                        adapter.add(
-                            ListRow(
-                                HeaderItem(i.toLong() + 1, if (i == 0) "Meus títulos" else "Mais da minha lista"),
-                                ArrayObjectAdapter(CardPresenter()).apply { addAll(0, itens) },
-                            ),
-                        )
-                    }
-                }
+            rows.definirHero(mensagem("Minha Lista", "${lista.size} título(s) salvos por você."))
+            val abrir = { m: Movie ->
+                startActivity(
+                    Intent(this@MyListActivity, DetailsActivity::class.java).putExtra("movie_id", m.id),
+                )
             }
-
-            onItemViewClickedListener = OnItemViewClickedListener { _, item, _, _ ->
-                if (item is Movie) {
-                    startActivity(
-                        Intent(activity, DetailsActivity::class.java)
-                            .putExtra("movie_id", item.id),
-                    )
-                }
+            lista.chunked(24).forEachIndexed { i, itens ->
+                rows.adicionarLinha(
+                    if (i == 0) "Meus títulos" else "Mais da minha lista",
+                    itens,
+                    abrir,
+                )
             }
-        }
-
-        override fun onDestroyView() {
-            super.onDestroyView()
-            scope.cancel()
+            rows.focarPrimeiraLinha()
         }
     }
 
-    /** Apresenta um TextView simples (mensagem) dentro de um ListRow. */
-    class TextoPresenter : Presenter() {
-        override fun onCreateViewHolder(parent: ViewGroup): ViewHolder {
-            val tv = TextView(parent.context).apply {
-                textSize = 20f
-                setTextColor(0xFF9CA3AF.toInt())
-                setPadding(60, 60, 60, 60)
-            }
-            return ViewHolder(tv)
+    /** Bloco de título + mensagem, usado nos estados sem login / lista vazia. */
+    private fun mensagem(titulo: String, texto: String): android.view.View =
+        android.widget.LinearLayout(this).apply {
+            orientation = android.widget.LinearLayout.VERTICAL
+            setPadding(
+                MfDesign.dp(context, 22f),
+                MfDesign.dp(context, 26f),
+                MfDesign.dp(context, 22f),
+                MfDesign.dp(context, 10f),
+            )
+            addView(MfDesign.tituloTela(context, titulo))
+            addView(
+                MfDesign.texto(context, texto).apply {
+                    textSize = 16f
+                    maxLines = 6
+                    setTextColor(MfDesign.GRAY_LIGHT)
+                },
+                android.widget.LinearLayout.LayoutParams(
+                    android.widget.LinearLayout.LayoutParams.MATCH_PARENT,
+                    android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
+                ).apply { topMargin = MfDesign.dp(context, 10f) },
+            )
         }
 
-        override fun onBindViewHolder(viewHolder: ViewHolder, item: Any) {
-            (viewHolder.view as TextView).text = item.toString()
-        }
-
-        override fun onUnbindViewHolder(viewHolder: ViewHolder) = Unit
+    override fun onDestroy() {
+        super.onDestroy()
+        job.cancel()
     }
 }

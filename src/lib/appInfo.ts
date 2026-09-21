@@ -57,6 +57,32 @@ export const DOWNLOAD_PAGE_URL = 'https://movieflix-bszf.onrender.com/#/baixar-a
 /** Tamanho do APK em MB (exibido na página de download). Mantido em sincronia com public/apk/MovieFlix-v3.4.1.apk. */
 export const APK_SIZE_MB = '10.4 MB';
 
+/**
+ * ── MovieFlix TV (Android TV / Google TV / TV Box) ──
+ *
+ * App Android NATIVO separado (package com.movieflix.tv), com interface
+ * reconstruída para controle remoto (D-pad). Usa a MESMA conta Supabase, o
+ * MESMO catálogo e as MESMAS regras de assinatura do app/site MovieFlix —
+ * nenhum dado ou plano paralelo. O app mobile não foi alterado.
+ */
+export const TV_APP_INFO = {
+  name: 'MovieFlix TV',
+  version: '2.0.0',
+  versionCode: 13,
+  /** Arquivo do APK TV em public/apk/ (mesma pasta servida em /apk/) */
+  apkFileName: 'MovieFlixTV-v2.0.0.apk',
+  /** Tamanho exibido (sincronizado com public/apk/MovieFlixTV-v2.0.0.apk) */
+  sizeMB: '11.6 MB',
+  package: 'com.movieflix.tv',
+  platforms: ['Android TV', 'Google TV', 'TV Box'],
+} as const;
+
+/** Caminho público do APK TV dentro do app (servido pelo backend em /apk/). */
+export const TV_APK_URL = `/apk/${TV_APP_INFO.apkFileName}`;
+
+/** URL ABSOLUTA do APK TV (para links diretos / QR code). */
+export const TV_APK_ABSOLUTE_URL = `https://movieflix-bszf.onrender.com${TV_APK_URL}`;
+
 /** Chave usada no localStorage para lembrar a última versão vista pelo usuário. */
 const VERSION_KEY = 'mf_last_seen_version';
 

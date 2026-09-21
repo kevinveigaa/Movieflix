@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="200dp"
+    android:layout_height="wrap_content"
+    android:layout_marginEnd="18dp"
+    android:layout_marginBottom="18dp"
+    android:focusable="true"
+    android:focusableInTouchMode="true"
+    android:gravity="center_horizontal"
+    android:orientation="vertical"
+    android:padding="12dp">
+
+    <FrameLayout
+        android:layout_width="120dp"
+        android:layout_height="120dp">
+
+        <ImageView
+            android:id="@+id/imgAvatarPerfil"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:contentDescription="Perfil"
+            android:visibility="gone" />
+
+        <TextView
+            android:id="@+id/lblInicialPerfil"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:background="@drawable/mf_gradient"
+            android:gravity="center"
+            android:text="A"
+            android:textColor="@color/mf_white"
+            android:textSize="44sp"
+            android:textStyle="bold" />
+    </FrameLayout>
+
+    <TextView
+        android:id="@+id/lblNomePerfil"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="10dp"
+        android:maxLines="1"
+        android:ellipsize="end"
+        android:text="Perfil"
+        android:textColor="@color/mf_white"
+        android:textSize="18sp"
+        android:textStyle="bold" />
+
+    <Button
+        android:id="@+id/btnGerenciarPerfil"
+        android:layout_width="wrap_content"
+        android:layout_height="40dp"
+        android:layout_marginTop="6dp"
+        android:backgroundTint="@color/mf_surface_strong"
+        android:paddingStart="16dp"
+        android:paddingEnd="16dp"
+        android:text="Gerenciar"
+        android:textColor="@color/mf_white"
+        android:textSize="13sp" />
+</LinearLayout>

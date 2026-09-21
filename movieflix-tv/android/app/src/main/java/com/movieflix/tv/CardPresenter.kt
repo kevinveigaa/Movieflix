@@ -1,8 +1,10 @@
 package com.movieflix.tv
 
+import android.content.Context
 import android.graphics.Color
 import android.graphics.Typeface
-import android.graphics.drawable.GradientDrawable
+import android.graphics.drawable.ColorDrawable
+import android.util.TypedValue
 import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
@@ -15,179 +17,199 @@ import com.bumptech.glide.load.resource.bitmap.RoundedCorners
 import com.bumptech.glide.request.RequestOptions
 
 /**
- * Card de catálogo nativo — réplica do PosterCard do site MovieFlix.
- *  - Poster 2:3 grande com cantos arredondados e GUTTER entre cards.
- *  - Badge "Dublado pt-BR" (verde esmeralda, canto sup. esquerdo).
- *  - Badge de ANO (preto translúcido, canto sup. direito).
- *  - Badge "SÉRIE" (preto translúcido, canto inf. esquerdo) para séries.
- *  - Ícone play (gradiente roxo→vermelho) no hover/foco.
- *  - Título + nota abaixo do poster.
- *  - Foco D-pad: borda gradiente roxo→vermelho + leve escala + sombra.
+ * Card de catálogo do MovieFlix TV — reconstruído para a identidade visual
+ * nova e para consumo a distância (controle remoto).
+ *
+ * Visual (referência aprovada):
+ *  - poster 2:3 grande com cantos arredondados (12dp);
+ *  - selo TEAL "Dublado PT-BR" no canto superior esquerdo;
+ *  - selo escuro com o ANO no canto superior direito;
+ *  - selo escuro "SÉRIE" no canto inferior esquerdo (quando for série);
+ *  - ao FOCAR: anel em gradiente violeta→índigo, leve aumento de escala,
+ *    sombra e revelação de um botão play circular + botão favorito.
+ *
+ * Regras de dados: idênticas ao mobile/site (mesmo catálogo, mesmos campos,
+ * mesmos selos). Nada é inventado aqui.
  */
 class CardPresenter : Presenter() {
 
     companion object {
-        const val CARD_WIDTH = 240
-        const val CARD_HEIGHT = 360
-        const val RADIUS = 14f
-        const val GUTTER = 18
-        const val TEXT_AREA = 64
+        const val CARD_WIDTH = 200
+        const val CARD_HEIGHT = 300
+        const val RADIUS = 12
+        const val TEXT_AREA = 62
     }
 
     override fun onCreateViewHolder(parent: ViewGroup): ViewHolder {
         val card = MovieCardView(parent.context)
-        card.layoutParams = ViewGroup.LayoutParams(CARD_WIDTH, CARD_HEIGHT + TEXT_AREA)
+        card.layoutParams = ViewGroup.LayoutParams(
+            MfDesign.dp(parent.context, CARD_WIDTH.toFloat()),
+            MfDesign.dp(parent.context, (CARD_HEIGHT + TEXT_AREA).toFloat()),
+        )
         card.isFocusable = true
         card.isFocusableInTouchMode = true
         return ViewHolder(card)
     }
 
     override fun onBindViewHolder(viewHolder: ViewHolder, item: Any) {
-        val movie = item as Movie
-        (viewHolder.view as MovieCardView).bind(movie)
+        (viewHolder.view as MovieCardView).bind(item as Movie)
     }
 
     override fun onUnbindViewHolder(viewHolder: ViewHolder) {
         (viewHolder.view as MovieCardView).unbind()
     }
 
-    class MovieCardView(context: android.content.Context) : FrameLayout(context) {
+    /** Card individual: poster + selos + overlay de foco + título/meta. */
+    class MovieCardView(context: Context) : FrameLayout(context) {
 
+        private val posterWrap = FrameLayout(context)
         private val poster = ImageView(context)
-        private val badgeDublado = TextView(context)
-        private val badgeAno = TextView(context)
-        private val badgeSerie = TextView(context)
-        private val playIcon = TextView(context)
+        private val anelFoco = View(context)
+        private val overlay = View(context)
+        private val btnPlay = ImageView(context)
+        private val btnFavorito = ImageView(context)
+        private val seloDublado: TextView
+        private val seloAno: TextView
+        private val seloSerie: TextView
         private val titulo = TextView(context)
         private val meta = TextView(context)
 
+        private val largura = MfDesign.dp(context, CARD_WIDTH.toFloat())
+        private val altura = MfDesign.dp(context, CARD_HEIGHT.toFloat())
+
         init {
-            // Poster
+            // ── Poster ────────────────────────────────────────────────────
+            posterWrap.layoutParams = LayoutParams(largura, altura).apply {
+                topMargin = 0
+            }
             poster.scaleType = ImageView.ScaleType.CENTER_CROP
-            poster.layoutParams = FrameLayout.LayoutParams(CARD_WIDTH, CARD_HEIGHT)
-            addView(poster)
+            poster.background = resources.getDrawable(R.drawable.bg_poster_placeholder, null)
+            posterWrap.addView(
+                poster,
+                LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT),
+            )
 
-            // Badge "Dublado pt-BR" — verde esmeralda (emerald-600), topo esquerdo
-            badgeDublado.text = "Dublado pt-BR"
-            badgeDublado.setTextColor(Color.WHITE)
-            badgeDublado.textSize = 11f
-            badgeDublado.setTypeface(Typeface.DEFAULT_BOLD)
-            badgeDublado.setPadding(12, 5, 12, 5)
-            badgeDublado.background = GradientDrawable().apply {
-                cornerRadius = 8f
-                setColor(0xE6059669.toInt()) // emerald-600
-            }
-            val badgeDubladoLp = FrameLayout.LayoutParams(
-                FrameLayout.LayoutParams.WRAP_CONTENT,
-                FrameLayout.LayoutParams.WRAP_CONTENT,
-            ).apply {
-                gravity = Gravity.TOP or Gravity.START
-                topMargin = 10
-                leftMargin = 10
-            }
-            addView(badgeDublado, badgeDubladoLp)
+            // Overlay escuro no rodapé do poster (só aparece em foco)
+            overlay.setBackgroundResource(R.drawable.bg_card_overlay)
+            overlay.visibility = View.GONE
+            posterWrap.addView(
+                overlay,
+                LayoutParams(LayoutParams.MATCH_PARENT, MfDesign.dp(context, 110f)).apply {
+                    gravity = Gravity.BOTTOM
+                },
+            )
 
-            // Badge ano — preto translúcido, topo direito
-            badgeAno.setTextColor(Color.WHITE)
-            badgeAno.textSize = 11f
-            badgeAno.setTypeface(Typeface.DEFAULT_BOLD)
-            badgeAno.setPadding(10, 4, 10, 4)
-            badgeAno.background = GradientDrawable().apply {
-                cornerRadius = 8f
-                setColor(0xB3000000.toInt())
-            }
-            val badgeAnoLp = FrameLayout.LayoutParams(
-                FrameLayout.LayoutParams.WRAP_CONTENT,
-                FrameLayout.LayoutParams.WRAP_CONTENT,
-            ).apply {
-                gravity = Gravity.TOP or Gravity.END
-                topMargin = 10
-                rightMargin = 10
-            }
-            addView(badgeAno, badgeAnoLp)
-
-            // Badge "SÉRIE" — preto translúcido, inferior esquerdo
-            badgeSerie.text = "SÉRIE"
-            badgeSerie.setTextColor(0xFFE4E4E7.toInt())
-            badgeSerie.textSize = 10f
-            badgeSerie.setTypeface(Typeface.DEFAULT_BOLD)
-            badgeSerie.setPadding(10, 4, 10, 4)
-            badgeSerie.background = GradientDrawable().apply {
-                cornerRadius = 8f
-                setColor(0xB3000000.toInt())
-            }
-            val badgeSerieLp = FrameLayout.LayoutParams(
-                FrameLayout.LayoutParams.WRAP_CONTENT,
-                FrameLayout.LayoutParams.WRAP_CONTENT,
-            ).apply {
-                gravity = Gravity.BOTTOM or Gravity.START
-                bottomMargin = 10
-                leftMargin = 10
-            }
-            addView(badgeSerie, badgeSerieLp)
-
-            // Ícone play (gradiente roxo→vermelho) — visível no foco
-            playIcon.text = "▶"
-            playIcon.setTextColor(Color.WHITE)
-            playIcon.textSize = 16f
-            playIcon.gravity = Gravity.CENTER
-            playIcon.background = GradientDrawable().apply {
-                shape = GradientDrawable.OVAL
-                colors = intArrayOf(0xFFDF0A15.toInt(), 0xFF7C3AED.toInt())
-                gradientType = GradientDrawable.LINEAR_GRADIENT
-                orientation = GradientDrawable.Orientation.TL_BR
-            }
-            val playLp = FrameLayout.LayoutParams(56, 56).apply {
+            // Botão play circular (centro) — revelado no foco
+            btnPlay.setImageResource(R.drawable.ic_mf_play)
+            btnPlay.setBackgroundResource(R.drawable.bg_play_circle)
+            btnPlay.setPadding(
+                MfDesign.dp(context, 13f), MfDesign.dp(context, 13f),
+                MfDesign.dp(context, 10f), MfDesign.dp(context, 10f),
+            )
+            val playLp = LayoutParams(MfDesign.dp(context, 52f), MfDesign.dp(context, 52f)).apply {
                 gravity = Gravity.CENTER
             }
-            addView(playIcon, playLp)
-            playIcon.visibility = View.GONE
+            posterWrap.addView(btnPlay, playLp)
+            btnPlay.visibility = View.GONE
 
-            // Título
+            // Botão favorito (canto inferior direito) — revelado no foco
+            btnFavorito.setImageResource(R.drawable.ic_mf_favorite)
+            btnFavorito.setBackgroundResource(R.drawable.bg_icon_circle)
+            btnFavorito.setPadding(
+                MfDesign.dp(context, 9f), MfDesign.dp(context, 9f),
+                MfDesign.dp(context, 9f), MfDesign.dp(context, 9f),
+            )
+            val favLp = LayoutParams(MfDesign.dp(context, 38f), MfDesign.dp(context, 38f)).apply {
+                gravity = Gravity.BOTTOM or Gravity.END
+                marginEnd = MfDesign.dp(context, 10f)
+                bottomMargin = MfDesign.dp(context, 10f)
+            }
+            posterWrap.addView(btnFavorito, favLp)
+            btnFavorito.visibility = View.GONE
+
+            // Anel de foco em gradiente (por cima de tudo no poster)
+            anelFoco.setBackgroundResource(R.drawable.bg_card_focus_ring)
+            anelFoco.visibility = View.INVISIBLE
+            posterWrap.addView(
+                anelFoco,
+                LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT),
+            )
+
+            // ── Selos sobre o poster ──────────────────────────────────────
+            seloDublado = MfDesign.selo(
+                context, "Dublado PT-BR", MfDesign.TEAL, MfDesign.WHITE, 6f,
+            ).apply {
+                textSize = 10f
+                maxLines = 1
+            }
+            posterWrap.addView(
+                seloDublado,
+                LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT).apply {
+                    gravity = Gravity.TOP or Gravity.START
+                    topMargin = MfDesign.dp(context, 9f)
+                    marginStart = MfDesign.dp(context, 9f)
+                },
+            )
+
+            seloAno = MfDesign.selo(context, "", 0xD905050A.toInt(), MfDesign.WHITE, 6f).apply {
+                textSize = 10f
+            }
+            posterWrap.addView(
+                seloAno,
+                LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT).apply {
+                    gravity = Gravity.TOP or Gravity.END
+                    topMargin = MfDesign.dp(context, 9f)
+                    marginEnd = MfDesign.dp(context, 9f)
+                },
+            )
+
+            seloSerie = MfDesign.selo(
+                context, "SÉRIE", 0xD905050A.toInt(), MfDesign.GRAY_LIGHT, 6f,
+            ).apply { textSize = 9f }
+            posterWrap.addView(
+                seloSerie,
+                LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT).apply {
+                    gravity = Gravity.BOTTOM or Gravity.START
+                    bottomMargin = MfDesign.dp(context, 9f)
+                    marginStart = MfDesign.dp(context, 9f)
+                },
+            )
+
+            addView(posterWrap)
+
+            // ── Título e meta (abaixo do poster) ──────────────────────────
             titulo.setTextColor(Color.WHITE)
-            titulo.textSize = 15f
-            titulo.setTypeface(Typeface.DEFAULT_BOLD)
+            titulo.setTextSize(TypedValue.COMPLEX_UNIT_SP, 14f)
+            titulo.typeface = Typeface.DEFAULT_BOLD
             titulo.maxLines = 1
             titulo.ellipsize = android.text.TextUtils.TruncateAt.END
-            val tituloLp = FrameLayout.LayoutParams(
-                FrameLayout.LayoutParams.MATCH_PARENT,
-                FrameLayout.LayoutParams.WRAP_CONTENT,
-            ).apply {
-                topMargin = CARD_HEIGHT + 8
+            titulo.layoutParams = LayoutParams(largura, LayoutParams.WRAP_CONTENT).apply {
+                topMargin = altura + MfDesign.dp(context, 8f)
             }
-            addView(titulo, tituloLp)
+            addView(titulo)
 
-            // Meta (ano • nota)
-            meta.setTextColor(0xFFA1A1AA.toInt())
-            meta.textSize = 12f
-            val metaLp = FrameLayout.LayoutParams(
-                FrameLayout.LayoutParams.MATCH_PARENT,
-                FrameLayout.LayoutParams.WRAP_CONTENT,
-            ).apply {
-                topMargin = CARD_HEIGHT + 30
+            meta.setTextColor(MfDesign.GRAY)
+            meta.setTextSize(TypedValue.COMPLEX_UNIT_SP, 12f)
+            meta.maxLines = 1
+            meta.ellipsize = android.text.TextUtils.TruncateAt.END
+            meta.layoutParams = LayoutParams(largura, LayoutParams.WRAP_CONTENT).apply {
+                topMargin = altura + MfDesign.dp(context, 28f)
             }
-            addView(meta, metaLp)
+            addView(meta)
 
-            // Foco: borda gradiente roxo→vermelho + escala + sombra + ícone play
-            setOnFocusChangeListener { _, hasFocus ->
-                animate().scaleX(if (hasFocus) 1.08f else 1f)
-                    .scaleY(if (hasFocus) 1.08f else 1f)
+            // ── Comportamento de foco (D-pad) ─────────────────────────────
+            setOnFocusChangeListener { _, temFoco ->
+                animate()
+                    .scaleX(if (temFoco) 1.06f else 1f)
+                    .scaleY(if (temFoco) 1.06f else 1f)
                     .setDuration(150)
                     .start()
-                if (hasFocus) {
-                    elevation = 16f
-                    poster.background = GradientDrawable().apply {
-                        cornerRadius = RADIUS
-                        colors = intArrayOf(0xFFDF0A15.toInt(), 0xFF7C3AED.toInt())
-                        orientation = GradientDrawable.Orientation.TL_BR
-                        setStroke(5, 0xFFDF0A15.toInt())
-                    }
-                    playIcon.visibility = View.VISIBLE
-                } else {
-                    elevation = 0f
-                    poster.background = null
-                    playIcon.visibility = View.GONE
-                }
+                elevation = if (temFoco) 18f else 0f
+                anelFoco.visibility = if (temFoco) View.VISIBLE else View.INVISIBLE
+                overlay.visibility = if (temFoco) View.VISIBLE else View.GONE
+                btnPlay.visibility = if (temFoco) View.VISIBLE else View.GONE
+                btnFavorito.visibility = if (temFoco) View.VISIBLE else View.GONE
+                titulo.setTextColor(if (temFoco) Color.WHITE else MfDesign.GRAY_LIGHT)
             }
         }
 
@@ -196,25 +218,25 @@ class CardPresenter : Presenter() {
             val ano = movie.ano
             meta.text = if (ano.isNotBlank()) "$ano  •  ★ ${movie.nota}" else "★ ${movie.nota}"
 
-            badgeDublado.visibility = if (movie.dublado_ptbr == true) View.VISIBLE else View.GONE
-            badgeAno.visibility = if (ano.isNotBlank()) View.VISIBLE else View.GONE
-            badgeAno.text = ano
-            badgeSerie.visibility = if (movie.ehSerie) View.VISIBLE else View.GONE
+            seloDublado.visibility = if (movie.dublado_ptbr == true) View.VISIBLE else View.GONE
+            seloAno.visibility = if (ano.isNotBlank()) View.VISIBLE else View.GONE
+            seloAno.text = ano
+            seloSerie.visibility = if (movie.ehSerie) View.VISIBLE else View.GONE
 
-            val posterUrl = movie.poster_url.ifBlank { movie.backdrop_url }
-            if (posterUrl.isNotBlank()) {
+            val url = movie.poster_url.ifBlank { movie.backdrop_url }
+            if (url.isNotBlank()) {
                 Glide.with(context)
-                    .load(posterUrl)
+                    .load(url)
                     .apply(
                         RequestOptions()
-                            .transform(RoundedCorners(RADIUS.toInt()))
-                            .placeholder(android.graphics.drawable.ColorDrawable(0xFF171717.toInt()))
-                            .error(android.graphics.drawable.ColorDrawable(0xFF262626.toInt()))
+                            .transform(RoundedCorners(MfDesign.dp(context, RADIUS.toFloat())))
+                            .placeholder(ColorDrawable(MfDesign.SURFACE_LIGHT))
+                            .error(ColorDrawable(MfDesign.SURFACE_STRONG))
                             .centerCrop(),
                     )
                     .into(poster)
             } else {
-                poster.setImageDrawable(android.graphics.drawable.ColorDrawable(0xFF262626.toInt()))
+                poster.setImageDrawable(ColorDrawable(MfDesign.SURFACE_STRONG))
             }
         }
 

@@ -1,103 +1,109 @@
 package com.movieflix.tv
 
 import android.content.Context
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
-import java.net.HttpURLConnection
-import java.net.URL
-import java.net.URLEncoder
 
 /**
- * Minha Lista — mesma tabela `favorites` do site (Supabase).
+ * Minha Lista / Favoritos — MESMA tabela `favorites` do site (Supabase).
  *
- * A tabela `favorites` guarda { user_id, tmdb_id, media_type, created_at }.
- * As regras RLS do banco permitem que cada usuário leia/escreva apenas a
- * própria lista (igual ao site). O app usa o token da sessão (JWT) como
- * Authorization Bearer — exatamente o que o site faz.
+ * A tabela guarda { user_id, tmdb_id, media_type, created_at } e, quando as
+ * migrations estão aplicadas, também viewer_profile_id e movie_id. O app
+ * detecta as colunas (como `favoritesColumns.ts` faz) e grava conforme o
+ * schema disponível — nunca quebra antes/depois da migration.
+ *
+ * O token da sessão (JWT) é enviado como Authorization Bearer, exatamente o
+ * que o site faz; a RLS garante que cada usuário só lê/escreve a própria lista.
  */
 object FavoritesRepository {
 
-    private fun conn(url: URL, method: String, token: String): HttpURLConnection {
-        val c = url.openConnection() as HttpURLConnection
-        c.requestMethod = method
-        c.connectTimeout = 15000
-        c.readTimeout = 20000
-        c.setRequestProperty("apikey", AppConfig.SUPABASE_ANON_KEY)
-        c.setRequestProperty("Authorization", "Bearer $token")
-        c.setRequestProperty("Content-Type", "application/json")
+    data class Colunas(
+        val viewerProfileId: Boolean,
+        val movieId: Boolean,
+    )
+
+    @Volatile
+    private var colunasCache: Colunas? = null
+
+    private fun colunas(context: Context): Colunas {
+        colunasCache?.let { return it }
+        val vp = SupabaseRest.selectDetectando(context, "favorites", "select=viewer_profile_id&limit=0").second
+        val mi = SupabaseRest.selectDetectando(context, "favorites", "select=movie_id&limit=0").second
+        val c = Colunas(vp, mi)
+        colunasCache = c
         return c
     }
 
-    /** Lista de favoritos do usuário: lista de { tmdb_id, media_type }. */
-    suspend fun listar(context: Context, token: String): List<Pair<Long, String>> =
-        withContext(Dispatchers.IO) {
-            val uid = AuthRepository.loadUserId(context)
-            if (uid.isBlank()) return@withContext emptyList()
-            val url = URL(
-                AppConfig.SUPABASE_URL + "/rest/v1/favorites?select=tmdb_id,media_type" +
-                    "&user_id=eq." + URLEncoder.encode("\"" + uid + "\"", "UTF-8") +
-                    "&order=created_at.desc",
-            )
-            try {
-                val c = conn(url, "GET", token)
-                if (c.responseCode != 200) return@withContext emptyList()
-                val body = c.inputStream.bufferedReader().use { it.readText() }
-                c.disconnect()
-                val arr = JSONArray(body)
-                (0 until arr.length()).mapNotNull { i ->
-                    val o = arr.getJSONObject(i)
-                    val t = o.optLong("tmdb_id", 0L)
-                    if (t <= 0) null else t to o.optString("media_type", "movie")
-                }
-            } catch (e: Exception) {
-                emptyList()
-            }
-        }
+    /** Lista de favoritos do perfil ativo: pares (tmdb_id, media_type). */
+    fun listar(context: Context): List<Pair<Long, String>> = listarObjetos(context).map { it.tmdbId to it.mediaType }
 
-    /** Adiciona à lista. Retorna true se ok (ou se já estava). */
-    suspend fun adicionar(context: Context, token: String, tmdbId: Long, mediaType: String): Boolean =
-        withContext(Dispatchers.IO) {
-            val uid = AuthRepository.loadUserId(context)
-            if (uid.isBlank()) return@withContext false
-            val url = URL(AppConfig.SUPABASE_URL + "/rest/v1/favorites?on_conflict=user_id,tmdb_id,media_type")
-            try {
-                val c = conn(url, "POST", token)
-                c.setRequestProperty("Prefer", "resolution=merge-duplicates,return=minimal")
-                val body = JSONObject()
-                    .put("user_id", uid)
-                    .put("tmdb_id", tmdbId)
-                    .put("media_type", mediaType)
-                    .toString()
-                c.doOutput = true
-                c.outputStream.write(body.toByteArray())
-                val ok = c.responseCode in 200..299
-                c.disconnect()
-                ok
-            } catch (e: Exception) {
-                false
-            }
-        }
+    data class Favorito(val tmdbId: Long, val mediaType: String, val movieId: String?)
 
-    /** Remove da lista. Retorna true se ok. */
-    suspend fun remover(context: Context, token: String, tmdbId: Long): Boolean =
-        withContext(Dispatchers.IO) {
-            val uid = AuthRepository.loadUserId(context)
-            if (uid.isBlank()) return@withContext false
-            val url = URL(
-                AppConfig.SUPABASE_URL + "/rest/v1/favorites?user_id=eq." +
-                    URLEncoder.encode("\"" + uid + "\"", "UTF-8") +
-                    "&tmdb_id=eq.$tmdbId",
+    /** Lista completa dos favoritos do perfil ativo. */
+    fun listarObjetos(context: Context): List<Favorito> {
+        val uid = AuthRepository.loadUserId(context)
+        if (uid.isBlank()) return emptyList()
+        val c = colunas(context)
+        val filtros = ArrayList<String>()
+        filtros.add("select=tmdb_id,media_type" + if (c.movieId) ",movie_id" else "")
+        filtros.add(SupabaseRest.eq("user_id", uid))
+        if (c.viewerProfileId) {
+            val perfil = ProfilesRepository.perfilAtivoId(context)
+            filtros.add(
+                if (perfil != null) SupabaseRest.eq("viewer_profile_id", perfil)
+                else SupabaseRest.isNull("viewer_profile_id"),
             )
-            try {
-                val c = conn(url, "DELETE", token)
-                c.setRequestProperty("Prefer", "return=minimal")
-                val ok = c.responseCode in 200..299
-                c.disconnect()
-                ok
-            } catch (e: Exception) {
-                false
+        }
+        filtros.add(SupabaseRest.order("created_at", ascending = false))
+        val arr = SupabaseRest.select(context, "favorites", filtros.joinToString("&"))
+        val out = ArrayList<Favorito>(arr.length())
+        for (i in 0 until arr.length()) {
+            val o = arr.optJSONObject(i) ?: continue
+            val t = o.optLong("tmdb_id", 0L)
+            if (t > 0) {
+                out.add(
+                    Favorito(
+                        tmdbId = t,
+                        mediaType = o.optString("media_type", "movie"),
+                        movieId = if (o.isNull("movie_id")) null else o.optString("movie_id"),
+                    ),
+                )
             }
         }
+        return out
+    }
+
+    fun ehFavorito(context: Context, tmdbId: Long): Boolean =
+        listarObjetos(context).any { it.tmdbId == tmdbId }
+
+    /** Adiciona à lista (idempotente via on_conflict). */
+    fun adicionar(context: Context, tmdbId: Long, mediaType: String, movieId: String? = null): Boolean {
+        val uid = AuthRepository.loadUserId(context)
+        if (uid.isBlank()) return false
+        val c = colunas(context)
+        val row = JSONObject()
+            .put("user_id", uid)
+            .put("tmdb_id", tmdbId)
+            .put("media_type", mediaType)
+            .put("title", "")
+            .put("poster_path", "")
+            .put("backdrop_path", "")
+            .put("vote_average", 0)
+        if (c.movieId && !movieId.isNullOrBlank()) row.put("movie_id", movieId)
+        if (c.viewerProfileId) {
+            row.put("viewer_profile_id", ProfilesRepository.perfilAtivoId(context) ?: JSONObject.NULL)
+        }
+        return SupabaseRest.upsert(context, "favorites", row, "user_id,tmdb_id,media_type")
+    }
+
+    /** Remove da lista. */
+    fun remover(context: Context, tmdbId: Long): Boolean {
+        val uid = AuthRepository.loadUserId(context)
+        if (uid.isBlank()) return false
+        val filtros = listOf(
+            SupabaseRest.eq("user_id", uid),
+            SupabaseRest.eqNum("tmdb_id", tmdbId),
+        ).joinToString("&")
+        return SupabaseRest.delete(context, "favorites", filtros)
+    }
 }

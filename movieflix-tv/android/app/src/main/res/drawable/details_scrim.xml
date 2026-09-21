@@ -1,9 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- Fundo dos Detalhes: escurecimento sobre o backdrop para leitura confortável. -->
 <shape xmlns:android="http://schemas.android.com/apk/res/android"
     android:shape="rectangle">
     <gradient
-        android:angle="270"
-        android:startColor="#E6000000"
-        android:centerColor="#99000000"
-        android:endColor="#33000000" />
+        android:angle="0"
+        android:startColor="#F205050A"
+        android:centerColor="#B305050A"
+        android:endColor="#8005050A" />
 </shape>

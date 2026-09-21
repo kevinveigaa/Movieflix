@@ -1,7 +1,7 @@
 import { Link } from 'react-router-dom';
 import { QRCodeSVG } from 'qrcode.react';
 import { Smartphone, Download, ShieldCheck, Monitor, RotateCcw, Apple, CheckCircle2 } from 'lucide-react';
-import { APP_INFO, APK_ABSOLUTE_URL, DOWNLOAD_PAGE_URL, APK_SIZE_MB } from '@/lib/appInfo';
+import { APP_INFO, APK_ABSOLUTE_URL, DOWNLOAD_PAGE_URL, APK_SIZE_MB, TV_APP_INFO, TV_APK_ABSOLUTE_URL } from '@/lib/appInfo';
 
 /**
  * DownloadAppPage — página de download do app oficial MovieFlix.
@@ -57,6 +57,50 @@ export function DownloadAppPage() {
               </div>
             </div>
           </div>
+        </div>
+
+        {/* ───────────────────────── MOVIEFLIX TV (Android TV) ───────────────────────── */}
+        <div className="mt-6 rounded-2xl border border-white/10 bg-ink-900/60 p-6 text-left">
+          <div className="flex flex-col items-center gap-6 sm:flex-row sm:justify-between">
+            <div className="flex items-start gap-4">
+              <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-purple-600/15 ring-1 ring-purple-500/40">
+                <Monitor className="h-7 w-7 text-purple-300" />
+              </span>
+              <div>
+                <h2 className="text-xl font-bold text-white">📺 MovieFlix TV</h2>
+                <p className="mt-1 max-w-md text-sm text-ink-400">
+                  App nativo para Android TV, Google TV e TV Box — feito para o
+                  controle remoto (D-pad), tela grande e visual cinematográfico.
+                  <br />
+                  <span className="text-ink-500">
+                    v{TV_APP_INFO.version} • {TV_APP_INFO.sizeMB} • .apk • mesma conta do
+                    MovieFlix
+                  </span>
+                </p>
+              </div>
+            </div>
+            <div className="flex flex-col items-center gap-3">
+              <a
+                href={TV_APK_ABSOLUTE_URL}
+                download={TV_APP_INFO.apkFileName}
+                data-tv-focusable
+                className="inline-flex items-center gap-3 rounded-2xl bg-purple-600 px-8 py-4 text-lg font-semibold text-white shadow-lg shadow-purple-600/30 transition hover:bg-purple-500"
+              >
+                <Download className="h-6 w-6" />
+                BAIXAR MOVIEFLIX TV
+              </a>
+              <div className="flex items-center gap-2 rounded-xl border border-white/10 bg-white p-2">
+                <QRCodeSVG value={TV_APK_ABSOLUTE_URL} size={64} level="M" bgColor="#ffffff" fgColor="#0a0a0f" title="MovieFlix TV APK" />
+                <span className="pr-2 text-[11px] font-semibold text-ink-900">QR para baixar na TV</span>
+              </div>
+            </div>
+          </div>
+          <p className="mt-4 border-t border-white/10 pt-4 text-xs leading-relaxed text-ink-400">
+            <strong className="text-white">Mesma conta, mesmos filmes.</strong> O MovieFlix TV usa exatamente
+            a mesma conta, o mesmo catálogo e as mesmas regras de assinatura do app do
+            celular e do site — o que você assiste em um, continua no outro
+            (incluindo <strong className="text-white">continuar assistindo</strong> e o limite de telas do seu plano).
+          </p>
         </div>
 
         {/* Nota honesta: como o QR funciona por plataforma */}
