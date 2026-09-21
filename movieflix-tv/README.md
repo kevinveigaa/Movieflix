@@ -151,14 +151,20 @@ Nenhum plano, preço, catálogo ou regra paralela é criado aqui.
 
 ## Limitações reais (declaradas, não escondidas)
 
-1. **Fontes de vídeo protegidas por desafio anti-bot.** O embed do provedor usado
-   pelo site/runtime web é protegido por Cloudflare Turnstile. Um player
-   **nativo** não executa esse desafio, e o projeto **proíbe WebView/iframe**.
-   Por isso o app resolve o stream pela **API oficial do provedor** (com a chave
-   pública do projeto) e reproduz o HLS/MP4 direto no ExoPlayer. Quando o
-   provedor não entregar um stream nativo para um título, o app mostra um estado
-   de erro claro com "TENTAR NOVAMENTE" e "VOLTAR" — **nunca** marca o título
-   como indisponível por conta própria e **nunca** inventa um vídeo.
+1. **Fontes de vídeo protegidas por desafio anti-bot (limitação em aberto).** O
+   embed do provedor usado pelo site/mobile é protegido por **Cloudflare
+   Turnstile** — só funciona dentro de um motor que executa JavaScript e resolve
+   o desafio (um navegador). Como o projeto **proíbe WebView/iframe**, o player
+   nativo (Media3) não consegue obter o stream a partir desse embed.
+   Os endpoints de tradução (`/api/streambetter-resolve`, `/api/extract-superflix`,
+   `/api/extract-embedplayer`) **não existem** no backend publicado, e as rotas de
+   API do próprio provedor também respondem a página de desafio.
+
+   **Estado atual:** o app envia corretamente a chave pública do plano Creator ao
+   provedor, **não** marca títulos como indisponíveis por conta própria e, quando
+   não obtém um stream nativo, mostra um **estado de erro claro** com "TENTAR
+   NOVAMENTE" e "VOLTAR". A reprodução nativa, porém, **não está garantida** até
+   que uma das saídas seja autorizada (ver `RELATORIO_FINAL.md` §10).
 2. **Downloads offline** — o direito do plano é lido e exibido; o download em si
    continua sendo feito no celular (o modelo de armazenamento é diferente na TV).
 3. **Contratação/pagamento** — feita no site/app; a TV exibe plano, validade,

@@ -55,12 +55,22 @@ Referência visual: as 10 imagens enviadas pelo dono.
   existe** no backend publicado (devolve o HTML do SPA) — foi por isso que
   tentativas anteriores falharam.
 
-**Correção aplicada:** o app agora resolve o stream pela **API oficial do
-provedor, com a chave pública do projeto**, e entrega o **HLS/MP4 direto ao
-ExoPlayer nativo**. Quando o provedor não devolve um stream nativo para um
-título, o app **não** inventa vídeo nem esconde o conteúdo: exibe **estado de erro
-explicativo** com **"TENTAR NOVAMENTE"** e **"VOLTAR"**, ambos navegáveis pelo
-D-pad. Nenhum título é marcado como indisponível por conta própria.
+**O que foi feito:** o resolvedor agora envia a **chave pública do plano Creator**
+para o embed (antes ela era descartada ao montar a URL), o que é condição
+necessária para o provedor autorizar a entrega. Também foi removida a marcação
+automática de "indisponível": nenhum título é dado como indisponível por conta
+própria, e o app mostra **estado de erro explicativo** com **"TENTAR NOVAMENTE"**
+e **"VOLTAR"** navegáveis pelo D-pad.
+
+**O que NÃO está resolvido (limitação real, sem maquiar):** testei os endpoints
+que o resolvedor usa e **nenhum existe** no backend publicado — `/api/streambetter-resolve`,
+`/api/extract-superflix` e `/api/extract-embedplayer` devolvem **HTML do SPA**
+(não há nenhuma rota `/api/...` declarada em `backend/server.js`). Logo, a
+camada 1 do resolvedor nunca responde JSON, e a camada 2 (scrape do embed)
+esbarra no Turnstile. **Conclusão honesta: com player 100% nativo e sem WebView,
+não existe hoje um caminho verificado para reproduzir os títulos** — o site/mobile
+consegue porque o embed roda num contexto de navegador, que é justamente o que
+foi proibido na TV. Isso precisa de uma decisão do dono (ver §10).
 
 ## 4. Alterações visuais
 
@@ -132,11 +142,42 @@ Apenas 2, ambos mínimos e autorizados:
 
 **Nenhum arquivo do app mobile foi tocado.**
 
-## 10. Limitações reais
+## 10. Limitações reais — e a decisão que só o dono pode tomar
 
-1. Fontes protegidas por Turnstile exigem a API oficial do provedor para virar
-   stream nativo (ver §3). Sem stream nativo disponível, o app mostra erro claro
-   — o que **não** acontece é inventar vídeo ou esconder conteúdo.
-2. Downloads offline: direito do plano exibido; download é feito no celular.
-3. Pagamento/contratação: no site/app.
-4. Sem aparelho físico: validação de build/layout/lógica (ver §7).
+**A mais importante, declarada sem rodeios:** com player **100% nativo** e **sem
+WebView/iframe/navegador** (como foi exigido), **não há hoje caminho verificado
+para reproduzir os títulos**. O motivo é técnico e foi medido:
+
+1. A fonte usada pelo site/mobile é um **embed protegido por Cloudflare
+   Turnstile** — só funciona dentro de um motor que executa JavaScript e resolve
+   o desafio (um navegador).
+2. Os endpoints que permitiriam "traduzir" esse embed em um HLS/MP4 nativo
+   (`/api/streambetter-resolve`, `/api/extract-superflix`,
+   `/api/extract-embedplayer`) **não existem** no backend publicado — respondem
+   HTML do SPA; não há nenhuma rota `/api/...` em `backend/server.js`.
+3. Também testei as rotas de API do próprio provedor (`/api/stream-token`,
+   `/api/sources`, `/api/v1/stream`) com a chave pública: todas devolvem a página
+   de desafio, não JSON.
+
+**As três saídas possíveis** (a escolha é do dono, porque mudam a arquitetura):
+
+| Opção | O que implica |
+|---|---|
+| **A. Backend resolve o stream** | Criar no backend (fora de `movieflix-tv/`) uma rota que resolva o embed e devolva HLS/MP4 — exigiria contornar o Turnstile do provedor, o que pode violar os termos de uso. **Não foi feito sem autorização.** |
+| **B. Player por WebView** | Reproduz exatamente como o site/mobile já fazem — mas **contraria a regra explícita** "NÃO USAR WEBVIEW". Só com liberação do dono. |
+| **C. Manter nativo e usar outra fonte** | Se o provedor oferecer um endpoint oficial de API para o plano Creator, o caminho nativo volta a ser viável. Precisa de acesso a essa documentação/chave de API. |
+
+Enquanto isso, a correção feita (enviar a chave pública + não marcar títulos como
+indisponíveis + estado de erro navegável) **melhora o comportamento e elimina a
+mensagem enganosa**, mas **não** faz a reprodução funcionar. Prefiro dizer isso
+com clareza a alegar um "funciona" que não testei.
+
+**Demais limitações:**
+
+2. **Downloads offline** — o direito do plano é exibido; o download em si continua
+   sendo feito no celular.
+3. **Pagamento/contratação** — no site/app; a TV exibe plano, validade, qualidade
+   e limite de telas reais.
+4. **Sem aparelho Android TV físico neste ambiente** — a validação feita é de
+   compilação (BUILD SUCCESSFUL), layout, lógica e navegação por D-pad; o teste
+   em aparelho real depende do dono.
