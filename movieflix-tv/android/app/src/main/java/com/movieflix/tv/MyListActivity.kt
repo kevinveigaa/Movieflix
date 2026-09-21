@@ -20,7 +20,7 @@ import kotlinx.coroutines.withContext
  */
 class MyListActivity : SidebarHostActivity() {
 
-    override val itemAtivo: String = "minhalista"
+    override val itemAtivo: String = "favoritos"
 
     private val job = Job()
     private val scope = CoroutineScope(Dispatchers.Main + job)

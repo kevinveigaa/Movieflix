@@ -34,10 +34,12 @@ import com.bumptech.glide.request.RequestOptions
 class CardPresenter : Presenter() {
 
     companion object {
-        const val CARD_WIDTH = 200
-        const val CARD_HEIGHT = 300
+        // Cards MENORES (pedido do dono): ~6 colunas visíveis em 1080p e mais
+        // fileiras por tela, sem perder a leitura a distância.
+        const val CARD_WIDTH = 168
+        const val CARD_HEIGHT = 252
         const val RADIUS = 12
-        const val TEXT_AREA = 62
+        const val TEXT_AREA = 52
     }
 
     override fun onCreateViewHolder(parent: ViewGroup): ViewHolder {

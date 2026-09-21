@@ -266,7 +266,10 @@ class ProfilesActivity : SidebarHostActivity() {
             if (perfis.isEmpty()) {
                 val base = AuthRepository.loadEmail(this@ProfilesActivity)?.substringBefore("@") ?: "Perfil 1"
                 val novo = withContext(Dispatchers.IO) {
-                    ProfilesRepository.criar(this@ProfilesActivity, base, "", false)
+                    // Avatar do MESMO conjunto do site/mobile (a TV mostra em PNG).
+                    ProfilesRepository.criar(
+                        this@ProfilesActivity, base, ProfilesRepository.AVATARES.first(), false,
+                    )
                 }
                 if (novo != null) perfis = listOf(novo)
             }
@@ -319,8 +322,9 @@ class ProfilesActivity : SidebarHostActivity() {
         ) { digitado ->
             val nome = digitado.ifBlank { "Perfil ${perfis.size + 1}" }
             scope.launch {
+                val avatar = ProfilesRepository.AVATARES[perfis.size % ProfilesRepository.AVATARES.size]
                 val novo = withContext(Dispatchers.IO) {
-                    ProfilesRepository.criar(this@ProfilesActivity, nome, "", false)
+                    ProfilesRepository.criar(this@ProfilesActivity, nome, avatar, false)
                 }
                 if (novo != null) {
                     perfis = perfis + novo
@@ -336,10 +340,109 @@ class ProfilesActivity : SidebarHostActivity() {
     private fun editar(p: ProfilesRepository.Perfil) {
         AlertDialog.Builder(this)
             .setTitle(p.name)
-            .setItems(arrayOf("Renomear", "Excluir perfil")) { _, which ->
-                if (which == 0) renomear(p) else excluir(p)
+            .setItems(arrayOf("Trocar avatar", "Renomear", "Excluir perfil")) { _, which ->
+                when (which) {
+                    0 -> escolherAvatar(p)
+                    1 -> renomear(p)
+                    else -> excluir(p)
+                }
             }
             .show()
+    }
+
+    /**
+     * Troca de avatar usando o MESMO conjunto de avatares do site/mobile
+     * (`src/lib/avatars.ts`) — sem inventar imagens novas.
+     */
+    private fun escolherAvatar(p: ProfilesRepository.Perfil) {
+        val grade = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(
+                MfDesign.dp(this@ProfilesActivity, 16f), MfDesign.dp(this@ProfilesActivity, 8f),
+                MfDesign.dp(this@ProfilesActivity, 16f), MfDesign.dp(this@ProfilesActivity, 8f),
+            )
+        }
+        var linha: LinearLayout? = null
+        ProfilesRepository.AVATARES.forEachIndexed { i, url ->
+            if (i % 4 == 0) {
+                linha = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+                grade.addView(linha)
+            }
+            val img = ImageView(this).apply {
+                isFocusable = true
+                isFocusableInTouchMode = true
+                isClickable = true
+                background = resources.getDrawable(R.drawable.bg_pill_secondary, null)
+                setPadding(
+                    MfDesign.dp(this@ProfilesActivity, 6f), MfDesign.dp(this@ProfilesActivity, 6f),
+                    MfDesign.dp(this@ProfilesActivity, 6f), MfDesign.dp(this@ProfilesActivity, 6f),
+                )
+            }
+            Glide.with(this)
+                .load(ProfilesRepository.avatarRenderizavel(url))
+                .placeholder(ColorDrawable(MfDesign.SURFACE_LIGHT))
+                .into(img)
+            imagemFoco(img)
+            linha?.addView(
+                img,
+                LinearLayout.LayoutParams(
+                    MfDesign.dp(this, 96f),
+                    MfDesign.dp(this, 96f),
+                ).apply {
+                    val m = MfDesign.dp(this@ProfilesActivity, 6f)
+                    setMargins(m, m, m, m)
+                },
+            )
+        }
+
+        val dialog = AlertDialog.Builder(this)
+            .setTitle("Escolha um avatar para ${p.name}")
+            .setView(grade)
+            .setNegativeButton("CANCELAR", null)
+            .create()
+
+        fun aplicar(url: String) {
+            scope.launch {
+                val ok = withContext(Dispatchers.IO) {
+                    ProfilesRepository.atualizar(this@ProfilesActivity, p.id, p.name, url, p.isKid)
+                }
+                if (ok) {
+                    perfis = perfis.map { if (it.id == p.id) it.copy(avatarUrl = url) else it }
+                    adapter.submit(perfis)
+                    if (ProfilesRepository.perfilAtivoId(this@ProfilesActivity) == p.id) {
+                        ProfilesRepository.setPerfilAtivo(
+                            this@ProfilesActivity, p.copy(avatarUrl = url),
+                        )
+                    }
+                }
+                dialog.dismiss()
+            }
+        }
+
+        dialog.show()
+        dialog.window?.setLayout(
+            MfDesign.dp(this, 720f),
+            android.view.ViewGroup.LayoutParams.WRAP_CONTENT,
+        )
+        // Liga o clique depois de exibir (as imagens já estão na árvore)
+        var idx = 0
+        for (i in 0 until grade.childCount) {
+            val l = grade.getChildAt(i) as? LinearLayout ?: continue
+            for (j in 0 until l.childCount) {
+                val v = l.getChildAt(j)
+                val url = ProfilesRepository.AVATARES.getOrNull(idx++) ?: continue
+                v.setOnClickListener { aplicar(url) }
+            }
+        }
+    }
+
+    /** Realce de foco para imagens clicáveis (avatar). */
+    private fun imagemFoco(v: View) {
+        v.setOnFocusChangeListener { _, temFoco ->
+            v.animate().scaleX(if (temFoco) 1.08f else 1f)
+                .scaleY(if (temFoco) 1.08f else 1f).setDuration(120).start()
+            v.alpha = if (temFoco) 1f else 0.8f
+        }
     }
 
     private fun renomear(p: ProfilesRepository.Perfil) {
@@ -536,7 +639,7 @@ class ProfileAdapter(
                 avatar.visibility = View.VISIBLE
                 inicial.visibility = View.GONE
                 Glide.with(ctx)
-                    .load(p.avatarUrl)
+                    .load(ProfilesRepository.avatarRenderizavel(p.avatarUrl))
                     .placeholder(ColorDrawable(MfDesign.SURFACE_LIGHT))
                     .into(avatar)
             } else {

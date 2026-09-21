@@ -65,7 +65,19 @@ class DetailsActivity : SidebarHostActivity() {
         val movieId = intent.getStringExtra("movie_id")
         val m = movieId?.let { CatalogRepository.porId(this, it) }
         if (m == null) {
-            finish()
+            // Nunca fecha em silêncio: explica e oferece voltar (navegável).
+            val erro = MfDesign.erro(
+                this,
+                "Título não encontrado",
+                "Este título não está no catálogo. Volte e escolha outro.",
+            ) { finish() }
+            content.addView(
+                erro,
+                FrameLayout.LayoutParams(
+                    FrameLayout.LayoutParams.MATCH_PARENT,
+                    FrameLayout.LayoutParams.MATCH_PARENT,
+                ),
+            )
             return
         }
         movie = m
@@ -217,7 +229,7 @@ class DetailsActivity : SidebarHostActivity() {
             setPadding(0, MfDesign.dp(this@DetailsActivity, 22f), 0, 0)
         }
         val btnAssistir = botao("\u25B6  Assistir", R.drawable.bg_pill_primary) { abrirPlayer() }
-        btnLista = botao("+  Minha Lista", R.drawable.bg_pill_secondary) { alternarLista() }
+        btnLista = botao("\u2661  Favoritos", R.drawable.bg_pill_secondary) { alternarLista() }
         linhaBotoes.addView(btnAssistir)
         linhaBotoes.addView(
             btnLista,
@@ -427,7 +439,7 @@ class DetailsActivity : SidebarHostActivity() {
     }
 
     private fun atualizarBotaoLista() {
-        btnLista.text = if (naLista) "✓  Na minha lista" else "+  Minha Lista"
+        btnLista.text = if (naLista) "♥  Remover dos Favoritos" else "♡  Favoritos"
     }
 
     private fun alternarLista() {
@@ -436,7 +448,7 @@ class DetailsActivity : SidebarHostActivity() {
         if (tok.isNullOrBlank()) {
             android.widget.Toast.makeText(
                 this,
-                "Entre com a sua conta (site ou app) para usar a Minha Lista.",
+                "Entre com a sua conta (site ou app) para usar os Favoritos.",
                 android.widget.Toast.LENGTH_LONG,
             ).show()
             return

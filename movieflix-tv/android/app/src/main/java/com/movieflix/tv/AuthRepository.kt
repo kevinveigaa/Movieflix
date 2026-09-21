@@ -68,6 +68,45 @@ object AuthRepository {
                 .toString(),
         )
 
+    /**
+     * RECUPERAÇÃO DE SENHA — mesmo fluxo do site/app (`resetPasswordForEmail`).
+     * O Supabase envia o e-mail de redefinição; a nova senha passa a valer
+     * também na TV, porque é a MESMA conta. Nada de fluxo paralelo.
+     */
+    fun recuperarSenha(email: String): Boolean {
+        val req = Request.Builder()
+            .url(AppConfig.SUPABASE_URL + "/auth/v1/recover")
+            .header("apikey", AppConfig.SUPABASE_ANON_KEY)
+            .header("Authorization", "Bearer ${AppConfig.SUPABASE_ANON_KEY}")
+            .header("Content-Type", "application/json")
+            .post(JSONObject().put("email", email.trim()).toString().toRequestBody(JSON))
+            .build()
+        return try {
+            client.newCall(req).execute().use { it.isSuccessful }
+        } catch (e: Exception) {
+            false
+        }
+    }
+
+    /**
+     * TROCA DE SENHA logado — mesmo endpoint do supabase-js (`updateUser`).
+     * Exige o access token da sessão atual.
+     */
+    fun atualizarSenha(novaSenha: String, accessToken: String): Boolean {
+        val req = Request.Builder()
+            .url(AppConfig.SUPABASE_URL + "/auth/v1/user")
+            .header("apikey", AppConfig.SUPABASE_ANON_KEY)
+            .header("Authorization", "Bearer $accessToken")
+            .header("Content-Type", "application/json")
+            .put(JSONObject().put("password", novaSenha).toString().toRequestBody(JSON))
+            .build()
+        return try {
+            client.newCall(req).execute().use { it.isSuccessful }
+        } catch (e: Exception) {
+            false
+        }
+    }
+
     /** Renova o access token usando o refresh_token salvo. */
     fun refresh(refreshToken: String): AuthResult =
         request(

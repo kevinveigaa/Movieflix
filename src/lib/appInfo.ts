@@ -67,12 +67,12 @@ export const APK_SIZE_MB = '10.4 MB';
  */
 export const TV_APP_INFO = {
   name: 'MovieFlix TV',
-  version: '2.0.1',
-  versionCode: 14,
+  version: '2.1.0',
+  versionCode: 15,
   /** Arquivo do APK TV em public/apk/ (mesma pasta servida em /apk/) */
-  apkFileName: 'MovieFlixTV-v2.0.1.apk',
-  /** Tamanho exibido (sincronizado com public/apk/MovieFlixTV-v2.0.1.apk) */
-  sizeMB: '11.6 MB',
+  apkFileName: 'MovieFlixTV-v2.1.0.apk',
+  /** Tamanho exibido (sincronizado com public/apk/MovieFlixTV-v2.1.0.apk) */
+  sizeMB: '16.9 MB',
   package: 'com.movieflix.tv',
   platforms: ['Android TV', 'Google TV', 'TV Box'],
 } as const;

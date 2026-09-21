@@ -134,6 +134,57 @@ object MfDesign {
         setBackgroundColor(0x1FFFFFFF)
     }
 
+    /**
+     * Estado de ERRO / VAZIO nunca deixa a tela preta sem explicação.
+     *
+     * Monta título + mensagem + (opcional) botão "TENTAR NOVAMENTE", tudo
+     * focável pelo D-pad — usado por catálogo, busca, favoritos, histórico e
+     * pelas telas de dados. A tela de erro do PLAYER fica no próprio player.
+     */
+    fun erro(
+        ctx: Context,
+        titulo: String,
+        mensagem: String,
+        aoTentarNovamente: (() -> Unit)? = null,
+    ): View = android.widget.LinearLayout(ctx).apply {
+        orientation = android.widget.LinearLayout.VERTICAL
+        setPadding(dp(ctx, 22f), dp(ctx, 30f), dp(ctx, 22f), dp(ctx, 10f))
+        addView(tituloTela(ctx, titulo))
+        addView(
+            texto(ctx, mensagem).apply {
+                textSize = 15f
+                maxLines = 4
+                setTextColor(GRAY_LIGHT)
+            },
+            android.widget.LinearLayout.LayoutParams(
+                android.widget.LinearLayout.LayoutParams.MATCH_PARENT,
+                android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
+            ).apply { topMargin = dp(ctx, 8f) },
+        )
+        if (aoTentarNovamente != null) {
+            val btn = TextView(ctx).apply {
+                text = "TENTAR NOVAMENTE"
+                gravity = Gravity.CENTER
+                setTextColor(WHITE)
+                textSize = 15f
+                setTypeface(Typeface.DEFAULT_BOLD)
+                isFocusable = true
+                isFocusableInTouchMode = true
+                isClickable = true
+                background = resources.getDrawable(R.drawable.bg_pill_primary, null)
+                focoBotao(this)
+                setOnClickListener { aoTentarNovamente() }
+            }
+            addView(
+                btn,
+                android.widget.LinearLayout.LayoutParams(
+                    android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
+                    dp(ctx, 48f),
+                ).apply { topMargin = dp(ctx, 18f) },
+            )
+        }
+    }
+
     // ── Comportamento de foco (D-pad) ──────────────────────────────────────
     /**
      * Foco de card/linha: leve aumento de escala + sombra. O destaque visual

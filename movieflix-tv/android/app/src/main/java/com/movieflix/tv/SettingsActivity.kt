@@ -71,6 +71,9 @@ class SettingsActivity : SidebarHostActivity() {
         adicionarLinha("Assinatura e planos", "Ver planos, vencimento e limites") {
             startActivity(Intent(this, AccountActivity::class.java))
         }
+        adicionarLinha("Trocar senha", "Altera a senha da sua conta MovieFlix") {
+            dialogoTrocarSenha()
+        }
 
         adicionarSecao("Reprodução")
         adicionarLinha("Qualidade preferida", AppPrefs.qualidadeLabel(AppPrefs.qualidadePreferida(this))) {
@@ -198,6 +201,101 @@ class SettingsActivity : SidebarHostActivity() {
                 montar()
             }
             .show()
+    }
+
+    /**
+     * TROCA DE SENHA logado — MESMO endpoint do supabase-js (`updateUser`).
+     * A senha nova passa a valer no site, no celular e na TV (mesma conta).
+     */
+    private fun dialogoTrocarSenha() {
+        val coluna = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(
+                MfDesign.dp(this@SettingsActivity, 18f), MfDesign.dp(this@SettingsActivity, 10f),
+                MfDesign.dp(this@SettingsActivity, 18f), MfDesign.dp(this@SettingsActivity, 12f),
+            )
+        }
+        val campo = android.widget.EditText(this).apply {
+            inputType = android.text.InputType.TYPE_CLASS_TEXT or
+                android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD
+            hint = "Nova senha (mínimo 6 caracteres)"
+            setTextColor(android.graphics.Color.WHITE)
+            setHintTextColor(MfDesign.GRAY)
+            showSoftInputOnFocus = false
+            importantForAutofill = View.IMPORTANT_FOR_AUTOFILL_NO
+            background = resources.getDrawable(R.drawable.bg_input, null)
+            setPadding(
+                MfDesign.dp(this@SettingsActivity, 20f), 0,
+                MfDesign.dp(this@SettingsActivity, 20f), 0,
+            )
+        }
+        coluna.addView(
+            campo,
+            LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                MfDesign.dp(this, 56f),
+            ),
+        )
+        val aviso = TextView(this).apply {
+            text = "Use no mínimo 6 caracteres."
+            setTextColor(MfDesign.GRAY)
+            textSize = 13f
+            setPadding(0, MfDesign.dp(this@SettingsActivity, 10f), 0, 0)
+        }
+        coluna.addView(aviso)
+        val teclado = MfKeyboard(this).apply {
+            rotuloConfirmar = "SALVAR"
+            definirAlvo(campo)
+            acima = campo
+        }
+        coluna.addView(
+            teclado,
+            LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+            ).apply { topMargin = MfDesign.dp(this@SettingsActivity, 12f) },
+        )
+
+        val dialog = androidx.appcompat.app.AlertDialog.Builder(this)
+            .setTitle("Trocar senha")
+            .setView(coluna)
+            .setPositiveButton("FECHAR", null)
+            .create()
+
+        fun salvar() {
+            val senha = campo.text.toString()
+            if (senha.length < 6) {
+                aviso.text = "A senha precisa de pelo menos 6 caracteres."
+                aviso.setTextColor(MfDesign.ERROR)
+                return
+            }
+            val token = AuthRepository.loadToken(this)
+            if (token.isNullOrBlank()) {
+                aviso.text = "Sessão expirada. Entre novamente."
+                aviso.setTextColor(MfDesign.ERROR)
+                return
+            }
+            aviso.text = "Salvando…"
+            aviso.setTextColor(MfDesign.GRAY)
+            scope.launch {
+                val ok = withContext(Dispatchers.IO) { AuthRepository.atualizarSenha(senha, token) }
+                aviso.text = if (ok) "Senha alterada! Vale no site, no celular e aqui."
+                else "Não foi possível alterar. Tente novamente."
+                aviso.setTextColor(if (ok) MfDesign.TEAL else MfDesign.ERROR)
+            }
+        }
+
+        teclado.aoConfirmar = { salvar() }
+        campo.setOnClickListener { teclado.definirAlvo(campo); teclado.focarPrimeira() }
+        dialog.setOnShowListener {
+            dialog.getButton(android.content.DialogInterface.BUTTON_POSITIVE)
+                .setOnClickListener { dialog.dismiss() }
+        }
+        dialog.show()
+        dialog.window?.setLayout(
+            MfDesign.dp(this, 820f),
+            android.view.ViewGroup.LayoutParams.WRAP_CONTENT,
+        )
     }
 
     private fun confirmarLogout() {

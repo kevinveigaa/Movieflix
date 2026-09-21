@@ -36,9 +36,13 @@ object CatalogRepository {
     @Volatile
     private var cache: List<Movie>? = null
 
-    private const val FILMES_URL = "https://movieflix-bszf.onrender.com/filmes/filmes.json"
-    private const val SERIES_URL = "https://movieflix-bszf.onrender.com/filmes/series.json"
-    private const val CACHE_FILE = "catalogo_v1.json"
+    @Volatile
+    private var generosCache: List<String>? = null
+
+    private const val FILMES_URL = "https://movieflix-bszf.onrender.com/filmes/filmes.light.json"
+    private const val SERIES_URL = "https://movieflix-bszf.onrender.com/filmes/series.light.json"
+    private const val GENEROS_URL = "https://movieflix-bszf.onrender.com/api/tmdb/generos?tipo=filme"
+    private const val CACHE_FILE = "catalogo_v2.json"
 
     fun all(context: Context): List<Movie> {
         cache?.let { return it }
@@ -73,7 +77,28 @@ object CatalogRepository {
         return all(context)
             .filter { it.title.lowercase().contains(t) || it.categorias.any { c -> c.lowercase().contains(t) } }
             .sortedByDescending { it.vote_average }
-            .take(80)
+            .take(300)
+    }
+
+    /**
+     * Gêneros de FILME da API pública do MovieFlix (mesma usada pelo site).
+     * Devolve os NOMES em inglês ("Action", "Comedy"…); quem consome traduz
+     * com [Movie.CATEGORIAS]. Nunca inventa gênero: se a API falhar, devolve
+     * lista vazia e a Home simplesmente não monta essas linhas.
+     */
+    fun generosFilme(context: Context): List<String> {
+        generosCache?.let { return it }
+        val texto = baixarJson(GENEROS_URL) ?: return emptyList()
+        val lista = try {
+            val arr = org.json.JSONArray(texto)
+            (0 until arr.length()).mapNotNull { i ->
+                arr.optJSONObject(i)?.optString("name")?.takeIf { it.isNotBlank() }
+            }
+        } catch (e: Exception) {
+            emptyList()
+        }
+        generosCache = lista
+        return lista
     }
 
     fun porId(context: Context, id: String): Movie? =

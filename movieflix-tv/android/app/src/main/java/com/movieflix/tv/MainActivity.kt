@@ -4,7 +4,6 @@ import android.content.Intent
 import android.os.Bundle
 import android.util.Log
 import android.view.KeyEvent
-import android.view.View
 import android.widget.FrameLayout
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -14,17 +13,19 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 /**
- * HOME do MovieFlix TV — reconstruída para a identidade visual nova e para
- * controle remoto, mantendo EXATAMENTE as mesmas regras de dados do mobile:
+ * HOME do MovieFlix TV — reconstruída para controle remoto, com MUITO mais
+ * conteúdo do que antes e mantendo EXATAMENTE as mesmas regras de dados do
+ * mobile/site:
  *
- *  - catálogo lido de CatalogRepository (mesmos filmes.json / series.json);
- *  - DESTAQUE = filme de melhor nota;
- *  - "Filmes em alta" = filmes por nota (top 30);
- *  - "Lançamentos" = filmes por ano (top 30);
- *  - "Séries em alta" = séries por nota (top 30);
- *  - carrosséis por categoria (as mesmas categorias do catálogo).
+ *  - catálogo lido de CatalogRepository (mesmos filmes.light.json /
+ *    series.light.json do site — agora o catálogo COMPLETO, não o subconjunto
+ *    antigo);
+ *  - HERO = destaques de maior nota (navegação ← / → entre 4 títulos);
+ *  - linhas por NOTA ("em alta"), ANO ("Lançamentos"), POPULARIDADE
+ *    ("Populares") e por GÊNERO — a MESMA estrutura de seções do site;
+ *  - atualização silenciosa do catálogo (1x/dia) em background.
  *
- * Atualização silenciosa do catálogo (1x/dia) continua rodando em background.
+ * Nada aqui inventa dado: tudo sai do catálogo e da API pública do MovieFlix.
  */
 class MainActivity : SidebarHostActivity() {
 
@@ -65,31 +66,72 @@ class MainActivity : SidebarHostActivity() {
             rows.limpar()
             montarHero(filmes)
 
-            val abrirDetalhes = { m: Movie ->
-                startActivity(Intent(this@MainActivity, DetailsActivity::class.java).putExtra("movie_id", m.id))
+            if (filmes.isEmpty() && series.isEmpty()) {
+                rows.definirHero(
+                    MfDesign.erro(
+                        this@MainActivity,
+                        "Não foi possível carregar o catálogo.",
+                        "Verifique a conexão da TV e tente novamente.",
+                    ) { carregarCatalogo() },
+                )
+                return@launch
             }
 
+            val abrirDetalhes = { m: Movie ->
+                startActivity(
+                    Intent(this@MainActivity, DetailsActivity::class.java).putExtra("movie_id", m.id),
+                )
+            }
+
+            // ── Linhas principais (mesmos critérios de ordenação do site) ──
             rows.adicionarLinha(
                 "Filmes em alta",
-                filmes.sortedByDescending { it.vote_average }.take(30),
-                abrirDetalhes,
-            )
-            rows.adicionarLinha(
-                "Lançamentos",
-                filmes.sortedByDescending { (it.year ?: "").toIntOrNull() ?: 0 }.take(30),
+                filmes.sortedByDescending { it.vote_average }.take(40),
                 abrirDetalhes,
             )
             rows.adicionarLinha(
                 "Séries em alta",
-                series.sortedByDescending { it.vote_average }.take(30),
+                series.sortedByDescending { it.vote_average }.take(40),
+                abrirDetalhes,
+            )
+            rows.adicionarLinha(
+                "Lançamentos",
+                filmes.sortedByDescending { it.anoNumerico }.take(40),
+                abrirDetalhes,
+            )
+            rows.adicionarLinha(
+                "Populares",
+                filmes.sortedByDescending { it.popularity }.take(40),
+                abrirDetalhes,
+            )
+            rows.adicionarLinha(
+                "Séries mais recentes",
+                series.sortedByDescending { it.anoNumerico }.take(40),
                 abrirDetalhes,
             )
 
-            for (cat in categorias.take(8)) {
+            // ── Linhas por GÊNERO ──
+            // Os nomes vêm da API pública de gêneros do MovieFlix (a mesma que o
+            // site usa); os TÍTULOS vêm do mesmo catálogo. Nada é inventado.
+            val generos = withContext(Dispatchers.IO) { CatalogRepository.generosFilme(this@MainActivity) }
+            for (g in generos) {
+                val pt = Movie.CATEGORIAS[g] ?: continue
+                val itens = filmes.filter { m -> m.categorias.any { it.equals(pt, true) } }
+                    .sortedByDescending { it.popularity }
+                    .take(40)
+                if (itens.size >= 5) rows.adicionarLinha(pt, itens, abrirDetalhes)
+            }
+
+            // ── Carrosséis por categoria do próprio catálogo ──
+            for (cat in categorias.take(14)) {
                 val itens = filmes.filter { it.categorias.contains(cat) }
-                    .sortedByDescending { m -> m.vote_average }
-                    .take(24)
-                rows.adicionarLinha(cat, itens, abrirDetalhes)
+                    .sortedByDescending { it.vote_average }
+                    .take(40)
+                if (itens.size >= 5) {
+                    // Evita repetir a linha de gênero já criada acima.
+                    if (generos.any { Movie.CATEGORIAS[it] == cat }) continue
+                    rows.adicionarLinha(cat, itens, abrirDetalhes)
+                }
             }
 
             rows.focarPrimeiraLinha()
@@ -131,7 +173,6 @@ class MainActivity : SidebarHostActivity() {
 
         mostrar(0)
 
-        // Setas trocam o destaque quando o foco está dentro do banner
         banner.setOnKeyListener { _, keyCode, event ->
             if (event.action != KeyEvent.ACTION_DOWN) return@setOnKeyListener false
             when (keyCode) {

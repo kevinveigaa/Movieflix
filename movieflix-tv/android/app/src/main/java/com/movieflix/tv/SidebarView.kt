@@ -25,7 +25,7 @@ class SidebarView @JvmOverloads constructor(
             Item("inicio", "Início", R.drawable.ic_mf_home),
             Item("filmes", "Filmes", R.drawable.ic_mf_movies),
             Item("series", "Séries", R.drawable.ic_mf_series),
-            Item("minhalista", "Minha Lista", R.drawable.ic_mf_list),
+            Item("favoritos", "Favoritos", R.drawable.ic_mf_favorite),
             Item("continuar", "Continuar assistindo", R.drawable.ic_mf_history),
             Item("busca", "Pesquisar", R.drawable.ic_mf_search),
             Item("perfis", "Perfis", R.drawable.ic_mf_profile),

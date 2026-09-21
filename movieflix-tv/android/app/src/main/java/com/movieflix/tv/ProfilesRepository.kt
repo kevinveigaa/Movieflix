@@ -15,6 +15,36 @@ import org.json.JSONObject
 object ProfilesRepository {
 
     private const val PREFS = "mf_active_profile"
+
+    /**
+     * AVATARES dos perfis — MESMO serviço, mesmos seeds e mesmas cores do
+     * site/mobile (`src/lib/avatars.ts`).
+     *
+     * Diferença técnica obrigatória: o site usa SVG (o navegador desenha), mas
+     * o Glide/Android NÃO decodifica SVG sem um módulo extra — era por isso que
+     * os avatares não apareciam na TV. Aqui a mesma API do DiceBear é pedida em
+     * PNG, que o Android renderiza nativamente. Mesmo desenho, mesmo seed.
+     */
+    val AVATARES: List<String> = listOf(
+        "https://api.dicebear.com/7.x/thumbs/png?seed=1&backgroundColor=ff2d2d",
+        "https://api.dicebear.com/7.x/thumbs/png?seed=2&backgroundColor=171717",
+        "https://api.dicebear.com/7.x/thumbs/png?seed=3&backgroundColor=0ea5e9",
+        "https://api.dicebear.com/7.x/thumbs/png?seed=4&backgroundColor=16a34a",
+        "https://api.dicebear.com/7.x/thumbs/png?seed=5&backgroundColor=f59e0b",
+        "https://api.dicebear.com/7.x/thumbs/png?seed=6&backgroundColor=a855f7",
+        "https://api.dicebear.com/7.x/thumbs/png?seed=7&backgroundColor=ec4899",
+        "https://api.dicebear.com/7.x/thumbs/png?seed=8&backgroundColor=14b8a6",
+    )
+
+    /**
+     * Deixa a URL do avatar renderizável no Android.
+     * Avatares gravados pelo site/mobile vêm como `.svg`; aqui a mesma URL é
+     * pedida em `.png` para o Glide conseguir desenhar. URLs http(s) comuns
+     * (fotos enviadas pelo usuário) seguem intactas.
+     */
+    fun avatarRenderizavel(url: String): String = url
+        .replace("/thumbs/svg", "/thumbs/png")
+        .replace(".svg", ".png")
     private const val K_ID = "id"
     private const val K_NAME = "name"
     private const val K_AVATAR = "avatar_url"

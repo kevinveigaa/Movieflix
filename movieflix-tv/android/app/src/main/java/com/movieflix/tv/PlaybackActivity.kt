@@ -70,6 +70,12 @@ class PlaybackActivity : AppCompatActivity() {
     private var maxTelas: Int = 1
     private var overlayVisivel = false
     private var ultimoSalvoSegundos = 0L
+
+    // AUTO-OCULTAR dos controles: aparecem quando precisos e somem sozinhos.
+    private val handlerOverlay = android.os.Handler(android.os.Looper.getMainLooper())
+    private val esconderOverlaySozinho = Runnable {
+        if (overlayVisivel && player?.isPlaying == true) toggleOverlay(false)
+    }
     private var movie: Movie? = null
     private var temporada = 1
     private var episodio = 1
@@ -395,13 +401,17 @@ class PlaybackActivity : AppCompatActivity() {
     }
 
     // ── Controles D-pad ────────────────────────────────────────────────────
+    /** Mostra/esconde os controles e reagenda o auto-ocultar (4,5 s). */
     private fun toggleOverlay(mostrar: Boolean? = null) {
         val ov = overlay ?: return
         overlayVisivel = mostrar ?: !overlayVisivel
         ov.visibility = if (overlayVisivel) View.VISIBLE else View.GONE
+        handlerOverlay.removeCallbacks(esconderOverlaySozinho)
         if (overlayVisivel) {
             atualizarBarra()
             btnPlayPause?.requestFocus()
+            // Os controles somem sozinhos durante a reprodução.
+            handlerOverlay.postDelayed(esconderOverlaySozinho, 4_500L)
         } else {
             playerView?.requestFocus()
         }
@@ -450,8 +460,12 @@ class PlaybackActivity : AppCompatActivity() {
 
         return when (keyCode) {
             // OK: mostra o overlay; se já estiver aberto, deixa o botão focado agir
+            // OK = PLAY/PAUSE (regra do controle remoto). Ao pausar/retomar, os
+            // controles aparecem e depois somem sozinhos. Com os controles já
+            // abertos, OK aciona o botão focado (retroceder/avançar/sair…).
             KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER -> {
                 if (!overlayVisivel) {
+                    alternarPlayPause()
                     toggleOverlay(true)
                     true
                 } else {
@@ -539,6 +553,7 @@ class PlaybackActivity : AppCompatActivity() {
         }
         player?.release()
         player = null
+        handlerOverlay.removeCallbacks(esconderOverlaySozinho)
         job.cancel()
     }
 }

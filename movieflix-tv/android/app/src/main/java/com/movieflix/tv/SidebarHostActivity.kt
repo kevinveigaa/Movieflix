@@ -50,7 +50,7 @@ abstract class SidebarHostActivity : AppCompatActivity() {
                 .putExtra(CatalogActivity.EXTRA_MODO, "filmes")
             "series" -> Intent(this, CatalogActivity::class.java)
                 .putExtra(CatalogActivity.EXTRA_MODO, "series")
-            "minhalista" -> Intent(this, MyListActivity::class.java)
+            "favoritos" -> Intent(this, MyListActivity::class.java)
             "continuar" -> Intent(this, HistoryActivity::class.java)
             "busca" -> Intent(this, SearchActivity::class.java)
             "perfis" -> Intent(this, ProfilesActivity::class.java)
