@@ -59,7 +59,6 @@ class LoginActivity : AppCompatActivity() {
         val sucesso = findViewById<TextView>(R.id.lblSucesso)
         val teclado = findViewById<MfKeyboard>(R.id.teclado)
         val scroll = findViewById<ScrollView>(R.id.scrollLogin)
-        val btnEsqueci = findViewById<TextView>(R.id.btnEsqueciSenha)
 
         // Foco D-pad visível nos botões (mesmo realce do app todo)
         MfDesign.focoBotao(btnEntrar)
@@ -171,105 +170,7 @@ class LoginActivity : AppCompatActivity() {
             }
         }
 
-        // ── Recuperação de senha (Supabase, mesma conta do site/app) ──
-        MfDesign.focoBotao(btnEsqueci)
-        btnEsqueci.setOnClickListener { dialogoRecuperarSenha(email.text.toString()) }
-
         email.requestFocus()
-    }
-
-    /**
-     * ESQUECI A SENHA — dispara o MESMO e-mail de redefinição do site/app
-     * (`POST /auth/v1/recover`). A nova senha passa a valer também na TV.
-     */
-    private fun dialogoRecuperarSenha(emailAtual: String) {
-        val coluna = android.widget.LinearLayout(this).apply {
-            orientation = android.widget.LinearLayout.VERTICAL
-            setPadding(
-                MfDesign.dp(this@LoginActivity, 18f), MfDesign.dp(this@LoginActivity, 10f),
-                MfDesign.dp(this@LoginActivity, 18f), MfDesign.dp(this@LoginActivity, 12f),
-            )
-        }
-        val campo = EditText(this).apply {
-            inputType = android.text.InputType.TYPE_CLASS_TEXT or
-                android.text.InputType.TYPE_TEXT_VARIATION_EMAIL_ADDRESS
-            hint = "E-mail da sua conta"
-            setText(emailAtual.trim())
-            setSelection(text.length)
-            setTextColor(android.graphics.Color.WHITE)
-            setHintTextColor(MfDesign.GRAY)
-            showSoftInputOnFocus = false
-            importantForAutofill = View.IMPORTANT_FOR_AUTOFILL_NO
-            background = resources.getDrawable(R.drawable.bg_input, null)
-            setPadding(
-                MfDesign.dp(this@LoginActivity, 20f), 0,
-                MfDesign.dp(this@LoginActivity, 20f), 0,
-            )
-        }
-        coluna.addView(
-            campo,
-            android.widget.LinearLayout.LayoutParams(
-                android.widget.LinearLayout.LayoutParams.MATCH_PARENT,
-                MfDesign.dp(this, 56f),
-            ),
-        )
-        val aviso = TextView(this).apply {
-            text = "Enviaremos um link de redefinição para o seu e-mail."
-            setTextColor(MfDesign.GRAY)
-            textSize = 13f
-            setPadding(0, MfDesign.dp(this@LoginActivity, 10f), 0, 0)
-        }
-        coluna.addView(aviso)
-        val teclado = MfKeyboard(this).apply {
-            rotuloConfirmar = "ENVIAR"
-            definirAlvo(campo)
-            acima = campo
-        }
-        coluna.addView(
-            teclado,
-            android.widget.LinearLayout.LayoutParams(
-                android.widget.LinearLayout.LayoutParams.MATCH_PARENT,
-                android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
-            ).apply { topMargin = MfDesign.dp(this@LoginActivity, 12f) },
-        )
-
-        val dialog = androidx.appcompat.app.AlertDialog.Builder(this)
-            .setTitle("Recuperar senha")
-            .setView(coluna)
-            .setPositiveButton("FECHAR", null)
-            .create()
-
-        fun enviar() {
-            val e = campo.text.toString().trim()
-            if (e.isBlank() || !e.contains("@")) {
-                aviso.text = "Informe um e-mail válido."
-                aviso.setTextColor(MfDesign.ERROR)
-                return
-            }
-            aviso.text = "Enviando…"
-            aviso.setTextColor(MfDesign.GRAY)
-            scope.launch {
-                val ok = withContext(Dispatchers.IO) { AuthRepository.recuperarSenha(e) }
-                aviso.text = if (ok) {
-                    "Pronto! Confira a caixa de entrada de $e (e o spam)."
-                } else {
-                    "Não foi possível enviar agora. Verifique a conexão e tente de novo."
-                }
-                aviso.setTextColor(if (ok) MfDesign.TEAL else MfDesign.ERROR)
-            }
-        }
-
-        teclado.aoConfirmar = { enviar() }
-        campo.setOnClickListener { teclado.definirAlvo(campo); teclado.focarPrimeira() }
-        dialog.setOnShowListener {
-            dialog.getButton(android.content.DialogInterface.BUTTON_POSITIVE)
-                .setOnClickListener { dialog.dismiss() }
-        }
-        dialog.show()
-        dialog.window?.setLayout(
-            MfDesign.dp(this, 820f),
-            android.view.ViewGroup.LayoutParams.WRAP_CONTENT,
-        )
     }
 
     private fun tentarLogin(
