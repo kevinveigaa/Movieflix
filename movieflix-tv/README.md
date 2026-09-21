@@ -29,7 +29,8 @@ movieflix-tv/
     │   │   │   ├── FavoritesRepository.kt  # Favoritos (tabela `favorites`)
     │   │   │   ├── WatchHistoryRepository.kt      # histórico (tabela `watch_history`)
     │   │   │   ├── PlaybackSessionRepository.kt   # limite de telas (`playback_sessions`)
-    │   │   │   ├── StreamResolver.kt       # resolução do stream para o player
+    │   │   │   ├── StreamResolver.kt       # resolução do stream (backend + direto)
+    │   │   │   ├── StreamResolution.kt     # resultado da resolução
     │   │   │   ├── MfDesign.kt             # design system (cores, tipografia, foco)
     │   │   │   ├── MfKeyboard.kt           # teclado em tela completo (D-pad)
     │   │   │   ├── MfRowsView.kt / MfRows.kt      # carrosséis horizontais
@@ -52,8 +53,33 @@ movieflix-tv/
     └── gradle/wrapper/
 ```
 
-**Player:** `androidx.media3` (ExoPlayer) **nativo**. Não há WebView, iframe,
-navegador externo nem Chrome em nenhum ponto do app.
+**Player (híbrido, a partir da v2.1.1):**
+1. **Nativo (caminho principal)** — `androidx.media3` (ExoPlayer) reproduz direto
+   quando a fonte resolve para HLS/MP4 (mesma cadeia do site/mobile: embed →
+   backend → HLS), com fullscreen imersivo, `OK` = play/pause, `←/→` = ±15 s.
+2. **Fallback híbrido** — se o nativo **não conseguir resolver** (ex.: o provedor
+   exige JavaScript/Cloudflare Turnstile, que um player nativo não executa), o
+   app renderiza o **mesmo embed oficial do StreamBetter** que o site e o celular
+   usam, dentro de um `WebView`. **Mesma conta, mesmos dados, mesma fonte.**
+   O `WebView` é usado **somente dentro do player** — nunca para navegar no app.
+
+> Histórico: até a v2.1.0 o player era 100% nativo e, por causa do desafio
+> Cloudflare do provedor, títulos que funcionavam no celular apareciam como
+> indisponíveis na TV. O fallback híbrido foi implementado a pedido do dono
+> ("faz o que der para funcionar") e resolve exatamente esse caso.
+
+**Controles do player (controle remoto):**
+
+| Tecla | Ação |
+|---|---|
+| `OK` (curto) | Mostra/esconde os controles e alterna **play/pause** |
+| `OK` (segurar) | Alterna **TELA CHEIA ⇄ MODO JANELA** (segurar de novo volta) |
+| `←` / `→` | Retroceder / avançar 15 s |
+| `↑` / `↓` | Volume (controles fechados) ou navegação (controles abertos) |
+| `BACK` | Fecha os controles; fora deles, sai do player |
+
+No fallback WebView os mesmos comandos são injetados via JavaScript no player do
+embed (play/pause, seek, volume), mantendo a paridade do controle remoto.
 
 ---
 

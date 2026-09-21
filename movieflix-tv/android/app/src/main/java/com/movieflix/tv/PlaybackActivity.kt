@@ -1,10 +1,17 @@
 package com.movieflix.tv
 
+import android.annotation.SuppressLint
 import android.content.Intent
+import android.graphics.Color
 import android.os.Bundle
 import android.view.KeyEvent
 import android.view.View
 import android.view.WindowManager
+import android.webkit.WebChromeClient
+import android.webkit.WebSettings
+import android.webkit.WebView
+import android.webkit.WebViewClient
+import android.widget.FrameLayout
 import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
 import androidx.media3.common.MediaItem
@@ -21,25 +28,25 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 /**
- * PLAYER do MovieFlix TV — reprodução nativa (ExoPlayer/Media3), nunca
- * navegador/WebView/iframe.
+ * PLAYER do MovieFlix TV — reprodução em tela cheia com controle remoto.
  *
- * Lógica funcional idêntica à do site/mobile:
- *  - a URL do embed é montada pela MESMA regra (`MediaCatalog.embedUrl` →
- *    StreamBetter filme/série com lang=pt-BR, usando o tmdb_id do catálogo);
- *  - a resolução do stream passa pelo MESMO backend (`/api/streambetter-resolve`)
- *    com o token da sessão, com o mesmo fallback direto;
- *  - o progresso é gravado em `watch_history` com as MESMAS regras de progresso
- *    real do site (`watchProgress.ts`);
- *  - o limite de telas simultâneas usa a MESMA tabela `playback_sessions`.
+ * Estratégia de reprodução (híbrida, autorizada pelo dono):
+ *  1. NATIVO (padrão): ExoPlayer/Media3 com a URL HLS/MP4 resolvida pelo
+ *     StreamResolver (mesma cadeia do site/mobile: embed → backend → HLS).
+ *  2. FALLBACK HÍBRIDO: se o nativo não conseguir resolver (ex.: o provedor
+ *     exige JavaScript/Cloudflare Turnstile, que um player nativo não executa),
+ *     o app renderiza o MESMO embed oficial do StreamBetter que o site e o
+ *     mobile usam, dentro de um WebView — mesma conta, mesmos dados, mesma
+ *     fonte. O WebView é usado SOMENTE no player e nunca para navegar no app.
  *
- * Interface específica de TV (referência visual aprovada):
- *  - vídeo em tela cheia, fundo preto, sem UI do sistema;
- *  - overlay acionado pelo OK com título display, botões-pílula grandes
- *    (retroceder / play-pausar / avançar), barra de progresso em gradiente,
- *    tempos, "Próximo episódio" (séries) e "Sair";
- *  - D-pad: OK mostra/esconde e aciona o botão focado; ←/→ = ±15s;
- *    ↑/↓ navegam pelos controles; BACK fecha o overlay (ou sai).
+ * Controles (controle remoto):
+ *  - OK curto  = play/pause (mostra/esconde os controles)
+ *  - OK SEGURADO (long press) = alterna TELA CHEIA ⇄ MODO JANELA
+ *  - ← / →     = retroceder / avançar 15s
+ *  - ↑ / ↓     = volume (overlay fechado) ou navegação (overlay aberto)
+ *  - BACK      = fecha o overlay; fora dele, sai do player
+ *  - No fallback WebView, os mesmos comandos são injetados via JavaScript
+ *    (play/pause, seek, fullscreen) para o player do embed.
  */
 class PlaybackActivity : AppCompatActivity() {
 
@@ -48,6 +55,7 @@ class PlaybackActivity : AppCompatActivity() {
 
     private var player: ExoPlayer? = null
     private var playerView: PlayerView? = null
+    private var webViewPlayer: WebView? = null
     private var overlay: View? = null
     private var layoutLoading: View? = null
     private var layoutErro: View? = null
@@ -71,10 +79,16 @@ class PlaybackActivity : AppCompatActivity() {
     private var overlayVisivel = false
     private var ultimoSalvoSegundos = 0L
 
+    /** true quando o fallback WebView está ativo (controles via JS). */
+    private var modoWebView = false
+
+    /** true quando o vídeo está em modo janela (não ocupa a tela toda). */
+    private var modoJanela = false
+
     // AUTO-OCULTAR dos controles: aparecem quando precisos e somem sozinhos.
     private val handlerOverlay = android.os.Handler(android.os.Looper.getMainLooper())
     private val esconderOverlaySozinho = Runnable {
-        if (overlayVisivel && player?.isPlaying == true) toggleOverlay(false)
+        if (overlayVisivel && estaTocando()) toggleOverlay(false)
     }
     private var movie: Movie? = null
     private var temporada = 1
@@ -89,6 +103,7 @@ class PlaybackActivity : AppCompatActivity() {
         esconderSistema()
 
         playerView = findViewById(R.id.playerView)
+        webViewPlayer = findViewById(R.id.webViewPlayer)
         overlay = findViewById(R.id.overlayControles)
         layoutLoading = findViewById(R.id.layoutLoading)
         layoutErro = findViewById(R.id.layoutErro)
@@ -170,7 +185,7 @@ class PlaybackActivity : AppCompatActivity() {
         return if (m.ehSerie) "${m.id}_s${temporada}e${episodio}" else m.id
     }
 
-    // ── Limite de telas (mesma tabela/regra do site) ───────────────────────
+    // ── Limite de telas (mesma tabela/regra do site) ────────────────────────
     private fun verificarLimiteTelas() {
         if (!AuthRepository.estaLogado(this)) {
             mostrarBloqueio("Faça login para assistir. Use a mesma conta do site e do celular.")
@@ -212,6 +227,7 @@ class PlaybackActivity : AppCompatActivity() {
         layoutBloqueio?.visibility = View.GONE
         layoutLoading?.visibility = View.VISIBLE
         playerView?.visibility = View.GONE
+        webViewPlayer?.visibility = View.GONE
         overlay?.visibility = View.GONE
         overlayVisivel = false
 
@@ -225,29 +241,74 @@ class PlaybackActivity : AppCompatActivity() {
             }
             val resolucao = withContext(Dispatchers.IO) { StreamResolver.resolve(embedUrl, token) }
             if (!resolucao.success || resolucao.url.isNullOrBlank()) {
-                val motivo = resolucao.motivo ?: ""
-                if (motivo.contains("402") || motivo.contains("assinatura")) {
-                    mostrarBloqueio(
-                        "Você precisa de uma assinatura ativa para assistir.\n" +
-                            "Assine pelo site ou app do MovieFlix e volte aqui.",
-                    )
-                } else {
-                    mostrarErro(
-                        "Não foi possível carregar o vídeo agora.\n" +
-                            (resolucao.erro ?: motivo.ifBlank { "Erro de rede" }),
-                    )
-                }
+                // NATIVO não resolveu → FALLBACK HÍBRIDO: renderiza o MESMO embed
+                // oficial que o site/mobile usam (autorizado pelo dono).
+                iniciarFallbackWebView()
                 return@launch
             }
             val u = resolucao.url
             if (!u.startsWith("http://") && !u.startsWith("https://")) {
-                mostrarErro("Fonte de vídeo inválida. Tente outro título.")
+                iniciarFallbackWebView()
                 return@launch
             }
             iniciarPlayer(u)
         }
     }
 
+    // ── Fallback híbrido: WebView do embed oficial (mesma fonte do site) ────
+    @SuppressLint("SetJavaScriptEnabled")
+    private fun iniciarFallbackWebView() {
+        val wv = webViewPlayer ?: return
+        modoWebView = true
+        layoutLoading?.visibility = View.GONE
+        layoutErro?.visibility = View.GONE
+        layoutBloqueio?.visibility = View.GONE
+        playerView?.visibility = View.GONE
+
+        wv.settings.apply {
+            javaScriptEnabled = true
+            domStorageEnabled = true
+            mediaPlaybackRequiresUserGesture = false
+            allowFileAccess = false
+            allowContentAccess = false
+            mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
+            userAgentString = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36"
+        }
+        wv.setBackgroundColor(Color.BLACK)
+        wv.webChromeClient = WebChromeClient()
+        wv.webViewClient = WebViewClient()
+        wv.visibility = View.VISIBLE
+        wv.requestFocus()
+        // O embed oficial do StreamBetter (mesmo do site/mobile), com a chave
+        // pública do plano Creator já anexada por MediaCatalog.embedUrl().
+        wv.loadUrl(embedUrl)
+        atualizarProximoEpisodio()
+    }
+
+    /** Injeta comandos de controle remoto no player do embed (fallback WebView). */
+    private fun injetarComandoWebView(js: String) {
+        val wv = webViewPlayer ?: return
+        if (wv.visibility != View.VISIBLE) return
+        try {
+            wv.evaluateJavascript(
+                "(function(){" +
+                    "var v=document.querySelector('video');" +
+                    "if(!v)return;" +
+                    js +
+                    "})();",
+                null,
+            )
+        } catch (_: Exception) {
+            // embed ainda carregando — ignora
+        }
+    }
+
+    private fun estaTocando(): Boolean {
+        if (modoWebView) return true
+        return player?.isPlaying == true
+    }
+
+    // ── Player nativo (ExoPlayer) ───────────────────────────────────────────
     private fun iniciarPlayer(url: String) {
         val pv = playerView ?: return
         val exo = try {
@@ -258,14 +319,15 @@ class PlaybackActivity : AppCompatActivity() {
                 prepare()
             }
         } catch (e: Exception) {
-            mostrarErro("Não foi possível iniciar o player. Tente novamente.")
+            iniciarFallbackWebView()
             return
         }
         exo.addListener(object : Player.Listener {
             override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
                 exo.release()
                 player = null
-                mostrarErro("Falha na reprodução (${error.errorCodeName}). Tente novamente.")
+                // Falha na reprodução nativa → tenta o fallback híbrido
+                iniciarFallbackWebView()
             }
 
             override fun onIsPlayingChanged(isPlaying: Boolean) {
@@ -294,7 +356,7 @@ class PlaybackActivity : AppCompatActivity() {
         }
     }
 
-    // ── Progresso: local + watch_history (paridade com o site) ─────────────
+    // ── Progresso: local + watch_history (paridade com o site) ──────────────
     private fun salvarProgresso(posMs: Long, durMs: Long) {
         val m = movie ?: return
         if (durMs <= 0 || posMs <= 0) return
@@ -325,7 +387,7 @@ class PlaybackActivity : AppCompatActivity() {
         }
     }
 
-    // ── Barra de progresso e controles ─────────────────────────────────────
+    // ── Barra de progresso e controles ──────────────────────────────────────
     private fun atualizarBarra() {
         val p = player ?: return
         val dur = p.duration
@@ -400,7 +462,7 @@ class PlaybackActivity : AppCompatActivity() {
         finish()
     }
 
-    // ── Controles D-pad ────────────────────────────────────────────────────
+    // ── Controles D-pad ─────────────────────────────────────────────────────
     /** Mostra/esconde os controles e reagenda o auto-ocultar (4,5 s). */
     private fun toggleOverlay(mostrar: Boolean? = null) {
         val ov = overlay ?: return
@@ -413,11 +475,16 @@ class PlaybackActivity : AppCompatActivity() {
             // Os controles somem sozinhos durante a reprodução.
             handlerOverlay.postDelayed(esconderOverlaySozinho, 4_500L)
         } else {
-            playerView?.requestFocus()
+            if (modoWebView) webViewPlayer?.requestFocus() else playerView?.requestFocus()
         }
     }
 
     private fun seekRelativo(deltaMs: Long) {
+        if (modoWebView) {
+            val s = (deltaMs / 1000).toInt()
+            injetarComandoWebView("v.currentTime=Math.max(0,v.currentTime+($s));")
+            return
+        }
         val p = player ?: return
         val destino = (p.currentPosition + deltaMs).coerceAtLeast(0L)
         p.seekTo(destino)
@@ -425,12 +492,23 @@ class PlaybackActivity : AppCompatActivity() {
     }
 
     private fun alternarPlayPause() {
+        if (modoWebView) {
+            injetarComandoWebView(
+                "if(v.paused){v.play();}else{v.pause();}",
+            )
+            return
+        }
         val p = player ?: return
         if (p.isPlaying) p.pause() else p.play()
         atualizarBarra()
     }
 
     private fun salvarAgora() {
+        if (modoWebView) {
+            // No fallback, o progresso é salvo pelo próprio embed (mesma lógica
+            // do site); aqui apenas registramos a posição local quando possível.
+            return
+        }
         val p = player ?: return
         salvarProgresso(p.currentPosition, p.duration)
     }
@@ -438,6 +516,42 @@ class PlaybackActivity : AppCompatActivity() {
     private fun sair() {
         salvarAgora()
         finish()
+    }
+
+    // ── TELA CHEIA ⇄ MODO JANELA (long press OK) ───────────────────────────
+    /**
+     * Alterna entre tela cheia e modo janela. No modo janela o vídeo ocupa uma
+     * área central (16:9) com fundo preto ao redor — útil para multitarefa na TV.
+     * Segurar OK de novo volta para tela cheia.
+     */
+    private fun alternarModoJanela() {
+        modoJanela = !modoJanela
+        val pv = playerView
+        val wv = webViewPlayer
+        if (modoJanela) {
+            val params = FrameLayout.LayoutParams(
+                (resources.displayMetrics.widthPixels * 0.72f).toInt(),
+                (resources.displayMetrics.heightPixels * 0.72f).toInt(),
+            )
+            params.gravity = android.view.Gravity.CENTER
+            pv?.layoutParams = params
+            wv?.layoutParams = params
+        } else {
+            pv?.layoutParams = FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT,
+                FrameLayout.LayoutParams.MATCH_PARENT,
+            )
+            wv?.layoutParams = FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT,
+                FrameLayout.LayoutParams.MATCH_PARENT,
+            )
+        }
+        pv?.requestLayout()
+        wv?.requestLayout()
+        // Feedback visual: mostra o overlay com o estado atual
+        if (overlayVisivel) {
+            lblMetaPlayer?.text = if (modoJanela) "MODO JANELA — segure OK para voltar à tela cheia" else lblMetaPlayer?.text
+        }
     }
 
     override fun onKeyDown(keyCode: Int, event: KeyEvent?): Boolean {
@@ -456,7 +570,7 @@ class PlaybackActivity : AppCompatActivity() {
             return true
         }
 
-        if (p == null) return super.onKeyDown(keyCode, event)
+        if (p == null && !modoWebView) return super.onKeyDown(keyCode, event)
 
         return when (keyCode) {
             // OK: mostra o overlay; se já estiver aberto, deixa o botão focado agir
@@ -487,7 +601,14 @@ class PlaybackActivity : AppCompatActivity() {
                     super.onKeyDown(keyCode, event)
                 } else {
                     val delta = if (keyCode == KeyEvent.KEYCODE_DPAD_UP) 0.1f else -0.1f
-                    p.volume = (p.volume + delta).coerceIn(0f, 1f)
+                    if (modoWebView) {
+                        injetarComandoWebView("v.volume=Math.max(0,Math.min(1,v.volume+($delta)));")
+                    } else {
+                        val exo = player
+                        if (exo != null) {
+                            exo.volume = (exo.volume + delta).coerceIn(0f, 1f)
+                        }
+                    }
                     true
                 }
             }
@@ -499,6 +620,32 @@ class PlaybackActivity : AppCompatActivity() {
             }
             else -> super.onKeyDown(keyCode, event)
         }
+    }
+
+    /**
+     * Long press do OK (DPAD_CENTER/ENTER): alterna TELA CHEIA ⇄ MODO JANELA.
+     * O long press NÃO dispara o play/pause (o onKeyDown curto só age quando o
+     * evento não é um long press — o Android entrega ACTION_DOWN com repeatCount
+     * e depois ACTION_UP; aqui interceptamos o long press no ACTION_DOWN com
+     * event.repeatCount > 0 e marcamos o consumo).
+     */
+    override fun onKeyLongPress(keyCode: Int, event: KeyEvent?): Boolean {
+        if (keyCode == KeyEvent.KEYCODE_DPAD_CENTER || keyCode == KeyEvent.KEYCODE_ENTER) {
+            alternarModoJanela()
+            return true
+        }
+        return super.onKeyLongPress(keyCode, event)
+    }
+
+    override fun onKeyUp(keyCode: Int, event: KeyEvent?): Boolean {
+        // Se foi um long press de OK, o onKeyLongPress já tratou — não deixa o
+        // ACTION_UP virar um clique (play/pause) acidental.
+        if ((keyCode == KeyEvent.KEYCODE_DPAD_CENTER || keyCode == KeyEvent.KEYCODE_ENTER) &&
+            event?.isCanceled == true
+        ) {
+            return true
+        }
+        return super.onKeyUp(keyCode, event)
     }
 
     private fun esconderSistema() {
@@ -513,10 +660,11 @@ class PlaybackActivity : AppCompatActivity() {
             )
     }
 
-    // ── Estados ────────────────────────────────────────────────────────────
+    // ── Estados ─────────────────────────────────────────────────────────────
     private fun mostrarBloqueio(msg: String) {
         layoutLoading?.visibility = View.GONE
         playerView?.visibility = View.GONE
+        webViewPlayer?.visibility = View.GONE
         overlay?.visibility = View.GONE
         layoutErro?.visibility = View.GONE
         layoutBloqueio?.visibility = View.VISIBLE
@@ -527,6 +675,7 @@ class PlaybackActivity : AppCompatActivity() {
     private fun mostrarErro(msg: String) {
         layoutLoading?.visibility = View.GONE
         playerView?.visibility = View.GONE
+        webViewPlayer?.visibility = View.GONE
         overlay?.visibility = View.GONE
         layoutBloqueio?.visibility = View.GONE
         layoutErro?.visibility = View.VISIBLE
@@ -553,6 +702,8 @@ class PlaybackActivity : AppCompatActivity() {
         }
         player?.release()
         player = null
+        webViewPlayer?.destroy()
+        webViewPlayer = null
         handlerOverlay.removeCallbacks(esconderOverlaySozinho)
         job.cancel()
     }

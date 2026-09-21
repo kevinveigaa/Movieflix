@@ -17,6 +17,15 @@
         app:show_buffering="never"
         app:use_controller="false" />
 
+    <!-- Fallback híbrido: WebView do embed oficial (StreamBetter) usado SOMENTE
+         quando o player nativo (ExoPlayer) não consegue resolver a fonte.
+         O embed é o MESMO que o site/mobile usam (mesma conta, mesmos dados). -->
+    <WebView
+        android:id="@+id/webViewPlayer"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:visibility="gone" />
+
     <!-- Overlay de controles (escondido até o OK) -->
     <FrameLayout
         android:id="@+id/overlayControles"
