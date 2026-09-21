@@ -38,14 +38,12 @@ class MovieRowAdapter(
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): VH {
         val resultado = CardPresenter().onCreateViewHolder(parent)
         val v = resultado.view
-        val largura = MfDesign.dp(
-            parent.context,
-            (CardPresenter.CARD_WIDTH + if (colunas > 1) 18 else 24).toFloat(),
-        )
-        val altura = MfDesign.dp(
-            parent.context,
-            (CardPresenter.CARD_HEIGHT + CardPresenter.TEXT_AREA + 14).toFloat(),
-        )
+        val ctx = parent.context
+        val largura = MfMetrics.cardWidth(ctx) + MfMetrics.cardGutter(ctx)
+        // Reserva a altura do card + o zoom do foco: sem isso o topo da primeira
+        // fileira e a sombra do card focado apareceriam cortados.
+        val altura = MfMetrics.cardHeight(ctx) + MfMetrics.cardTextHeight(ctx) +
+            (MfMetrics.cardHeight(ctx) * 0.10f).toInt()
         v.layoutParams = RecyclerView.LayoutParams(largura, altura)
         v.setOnClickListener { }
         return VH(resultado, v)
@@ -79,6 +77,8 @@ class MfRowView(context: Context) : LinearLayout(context) {
             adapter.definirClique { valor?.invoke(it) }
         }
 
+    private val alturaPoster = MfMetrics.cardHeight(context)
+
     init {
         orientation = LinearLayout.VERTICAL
         recycler.layoutManager = LinearLayoutManager(context, HORIZONTAL, false)
@@ -87,14 +87,22 @@ class MfRowView(context: Context) : LinearLayout(context) {
         recycler.clipToPadding = false
         recycler.isFocusable = false
         recycler.itemAnimator = null
-        val folga = MfDesign.dp(context, 22f)
-        recycler.setPadding(folga, MfDesign.dp(context, 14f), folga, MfDesign.dp(context, 14f))
+        // Padding lateral igual dos dois lados: a fileira fica centralizada na
+        // área de conteúdo e o espaço restante NÃO se acumula na direita.
+        val folga = MfMetrics.paddingCentral(context)
+        recycler.setPadding(folga, MfMetrics.cardGutter(context), folga, MfMetrics.cardGutter(context))
 
         addView(titulo)
-        addView(recycler)
+        addView(
+            recycler,
+            LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT).apply {
+                height = alturaPoster + MfMetrics.cardTextHeight(context) +
+                    (alturaPoster * 0.16f).toInt()
+            },
+        )
 
         layoutParams = LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT).apply {
-            bottomMargin = MfDesign.dp(context, 10f)
+            bottomMargin = (alturaPoster * 0.06f).toInt()
         }
     }
 
@@ -162,7 +170,7 @@ class MfRowsView(context: Context) : ScrollView(context) {
         isFillViewport = false
         isVerticalScrollBarEnabled = false
         clipToPadding = false
-        setPadding(0, 0, 0, MfDesign.dp(context, 30f))
+        setPadding(0, 0, 0, (MfMetrics.altura(context) * 0.028f).toInt())
         addView(coluna)
     }
 
@@ -189,7 +197,7 @@ class MfRowsView(context: Context) : ScrollView(context) {
         coluna.addView(
             linha,
             LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT).apply {
-                topMargin = MfDesign.dp(context, if (linhas.size == 1) 16f else 4f)
+                topMargin = if (linhas.size == 1) (MfMetrics.altura(context) * 0.012f).toInt() else 0
             },
         )
     }
@@ -255,9 +263,10 @@ class MfRowsView(context: Context) : ScrollView(context) {
             rv.setHasFixedSize(true)
             rv.clipToPadding = false
             rv.itemAnimator = null
+            val folga = MfMetrics.contentPad(context)
             rv.setPadding(
-                MfDesign.dp(context, 6f), MfDesign.dp(context, 10f),
-                MfDesign.dp(context, 6f), MfDesign.dp(context, 30f),
+                folga, MfMetrics.cardGutter(context),
+                folga, (MfMetrics.cardHeight(context) * 0.14f).toInt(),
             )
             return rv
         }

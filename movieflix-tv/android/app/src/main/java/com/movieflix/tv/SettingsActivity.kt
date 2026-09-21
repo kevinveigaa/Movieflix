@@ -11,7 +11,6 @@ import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
-import androidx.appcompat.app.AlertDialog
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -192,15 +191,60 @@ class SettingsActivity : SidebarHostActivity() {
     }
 
     private fun escolherQualidade() {
-        val opcoes = arrayOf("Automática", "4K (2160p)", "Full HD (1080p)", "HD (720p)")
-        val valores = arrayOf("auto", "2160", "1080", "720")
-        AlertDialog.Builder(this)
-            .setTitle("Qualidade preferida")
-            .setItems(opcoes) { _, which ->
-                AppPrefs.setQualidadePreferida(this, valores[which])
-                montar()
+        val opcoes = listOf("Automática", "4K (2160p)", "Full HD (1080p)", "HD (720p)")
+        val valores = listOf("auto", "2160", "1080", "720")
+        val atual = valores.indexOf(AppPrefs.qualidadePreferida(this)).coerceAtLeast(0)
+        // Diálogo próprio do app: a lista do AlertDialog do sistema não recebe
+        // foco do D-pad em boa parte dos TV Box.
+        MfDialog.escolher(this, "Qualidade preferida", opcoes, atual) { which ->
+            AppPrefs.setQualidadePreferida(this, valores[which])
+            montar()
+        }
+    }
+
+    /**
+     * TROCA DE SENHA logado — o mesmo fluxo do mobile/site.
+     * Pede a nova senha duas vezes (com o teclado em tela) e chama
+     * `AuthRepository.trocarSenha` (PUT /auth/v1/user).
+     */
+    private fun trocarSenha() {
+        MfDialog.entrarTexto(
+            this,
+            titulo = "Trocar senha",
+            dica = "Nova senha (mínimo 6 caracteres)",
+            rotuloConfirmar = "CONTINUAR",
+            senha = true,
+            validar = { v ->
+                if (v.length < 6) "A senha precisa de pelo menos 6 caracteres." else null
+            },
+        ) { nova ->
+            MfDialog.entrarTexto(
+                this,
+                titulo = "Confirme a nova senha",
+                dica = "Repita a nova senha",
+                rotuloConfirmar = "SALVAR",
+                senha = true,
+                validar = { v -> if (v != nova) "As senhas não conferem." else null },
+            ) {
+                scope.launch {
+                    val r = withContext(Dispatchers.IO) {
+                        AuthRepository.trocarSenha(this@SettingsActivity, nova)
+                    }
+                    avisar(
+                        if (r.ok) {
+                            "Senha alterada com sucesso. Use a nova senha no site, no celular e nesta TV."
+                        } else {
+                            r.error ?: "Não foi possível alterar a senha agora."
+                        },
+                    )
+                }
             }
-            .show()
+        }
+    }
+
+    /** Aviso simples navegável pelo controle. */
+    private fun avisar(mensagem: String) {
+        MfDialog.escolher(this, mensagem, listOf("OK")) { }
     }
 
     /**
@@ -299,22 +343,22 @@ class SettingsActivity : SidebarHostActivity() {
     }
 
     private fun confirmarLogout() {
-        AlertDialog.Builder(this)
-            .setTitle("Sair da conta?")
-            .setMessage("Você precisará entrar de novo com a mesma conta do MovieFlix.")
-            .setPositiveButton("SAIR") { _, _ ->
-                scope.launch {
-                    withContext(Dispatchers.IO) {
-                        PlaybackSessionRepository.encerrar(this@SettingsActivity)
-                        AuthRepository.clearSession(this@SettingsActivity)
-                        ProfilesRepository.setPerfilAtivo(this@SettingsActivity, null)
-                    }
-                    startActivity(Intent(this@SettingsActivity, LoginActivity::class.java))
-                    finishAffinity()
+        MfDialog.escolher(
+            this,
+            "Sair da conta? Você precisará entrar de novo com a mesma conta do MovieFlix.",
+            listOf("SAIR", "CANCELAR"),
+        ) { which ->
+            if (which != 0) return@escolher
+            scope.launch {
+                withContext(Dispatchers.IO) {
+                    PlaybackSessionRepository.encerrar(this@SettingsActivity)
+                    AuthRepository.clearSession(this@SettingsActivity)
+                    ProfilesRepository.setPerfilAtivo(this@SettingsActivity, null)
                 }
+                startActivity(Intent(this@SettingsActivity, LoginActivity::class.java))
+                finishAffinity()
             }
-            .setNegativeButton("CANCELAR", null)
-            .show()
+        }
     }
 
     private fun fundoRow(focado: Boolean): GradientDrawable = GradientDrawable().apply {
@@ -324,6 +368,15 @@ class SettingsActivity : SidebarHostActivity() {
             MfDesign.dp(this@SettingsActivity, if (focado) 3f else 1f),
             if (focado) MfDesign.PURPLE else MfDesign.BORDER,
         )
+    }
+
+    /** BACK fecha o diálogo aberto antes de sair da tela. */
+    override fun onKeyDown(keyCode: Int, event: android.view.KeyEvent?): Boolean {
+        if (keyCode == android.view.KeyEvent.KEYCODE_BACK && MfDialog.estaAberto()) {
+            MfDialog.fechar()
+            return true
+        }
+        return super.onKeyDown(keyCode, event)
     }
 
     override fun onDestroy() {

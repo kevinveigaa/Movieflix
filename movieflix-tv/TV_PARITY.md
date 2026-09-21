@@ -1,4 +1,4 @@
-# MovieFlix TV — Mapa de paridade funcional (v2.0.0)
+# MovieFlix TV — Mapa de paridade funcional (v2.1.0)
 
 Mapa direto: **funcionalidade do mobile → arquivo que a implementa na TV**.
 Tudo em `movieflix-tv/android/app/src/main/java/com/movieflix/tv/`, salvo
@@ -10,12 +10,13 @@ indicação contrária.
 |---|---|---|
 | Acesso REST ao Supabase (PostgREST + GoTrue) | `SupabaseRest.kt` | inclui refresh de sessão |
 | Autenticação (login/cadastro/sessão/logout) | `AuthRepository.kt` | mesma conta do site/app |
+| Recuperação e troca de senha | `AuthRepository.kt` | `/auth/v1/recover` e `PUT /auth/v1/user` |
 | Assinatura e planos | `AccountRepository.kt` | tabelas `subscriptions` / `plans` |
 | Regras de plano (preços, telas, qualidade, downloads, perfis) | `PlanoRegras.kt` | cópia fiel de `src/lib/plans.ts` |
 | Perfis de exibição | `ProfilesRepository.kt` | tabela `viewer_profiles` |
 | Histórico / continuar assistindo | `WatchHistoryRepository.kt` | tabela `watch_history` + regras de `watchProgress.ts` |
 | Limite de telas simultâneas | `PlaybackSessionRepository.kt` | tabela `playback_sessions`, heartbeat |
-| Favoritos / Minha Lista | `FavoritesRepository.kt` | tabela `favorites` por `tmdb_id` |
+| Favoritos | `FavoritesRepository.kt` | tabela `favorites` por `tmdb_id` |
 | Catálogo (filmes, séries, busca, categorias, temporadas, episódios, URL do player) | `CatalogRepository.kt` + `MediaCatalog.kt` | mesmos `filmes.json` / `series.json` |
 | Resolução do stream no backend | `StreamResolver.kt` | mesmo `/api/streambetter-resolve` |
 | Progresso local (retomada instantânea) | `ProgressRepository.kt` | storage local |
@@ -26,6 +27,9 @@ indicação contrária.
 | Tela / componente | Arquivo | Identidade visual nova |
 |---|---|---|
 | Sistema de design (cores, tipografia, foco, fábricas) | `MfDesign.kt` | paleta e métricas da referência aprovada |
+| Métricas responsivas 720p/1080p/4K | `MfMetrics.kt` | card, menu e HERO como fração da tela |
+| Teclado em tela completo (D-pad) | `MfKeyboard.kt` | ABC/123/SYM, SHIFT, CAPS LOCK, acentos |
+| Diálogos navegáveis pelo controle | `MfDialog.kt` | listas e entrada de texto sem `AlertDialog` |
 | Menu lateral persistente | `SidebarView.kt` | pílula em gradiente no item ativo |
 | Base das telas com sidebar | `SidebarHostActivity.kt` + `res/layout/activity_shell.xml` | navegação de foco explícita |
 | Card de catálogo | `CardPresenter.kt` | poster 2:3 grande, selos, anel de foco, play/favorito |
@@ -62,6 +66,6 @@ indicação contrária.
 | Motor de vídeo | embed HTML (StreamBetter) | ExoPlayer/Media3 nativo | WebView/iframe proibidos no pedido |
 | Navegação | toque + gestos | D-pad (↑↓←→ OK BACK) | é uma TV |
 | Layout | vertical, telas pequenas | horizontal, 16:9, alvos grandes | distância de visualização |
-| Recuperação de senha | fluxo por e-mail | feito no site/app | exige e-mail + navegador |
+| Recuperação de senha | fluxo por e-mail | disparado pela TV (`/auth/v1/recover`) | mesma conta Supabase |
 | Checkout | no site/app | exibe o estado e leva aos planos | não criar gateway paralelo |
 | Downloads offline | no aparelho | direito exibido; download no celular | modelo de storage da TV |

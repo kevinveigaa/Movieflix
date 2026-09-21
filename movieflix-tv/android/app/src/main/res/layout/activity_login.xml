@@ -48,7 +48,6 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:gravity="center_vertical"
-            android:minHeight="480dp"
             android:orientation="horizontal"
             android:weightSum="100">
 
@@ -194,6 +193,17 @@
                     android:gravity="start"
                     android:text=""
                     android:textColor="@color/mf_error"
+                    android:textSize="14sp"
+                    android:visibility="gone" />
+
+                <TextView
+                    android:id="@+id/lblSucesso"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:gravity="start"
+                    android:text=""
+                    android:textColor="@color/mf_green_light"
                     android:textSize="14sp"
                     android:visibility="gone" />
             </LinearLayout>

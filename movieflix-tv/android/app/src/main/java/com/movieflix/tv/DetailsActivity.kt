@@ -31,7 +31,7 @@ import kotlinx.coroutines.withContext
  * Lógica preservada do app TV/mobile:
  *  - dados do MESMO catálogo (CatalogRepository.porId);
  *  - botão ASSISTIR monta a mesma URL e abre o player nativo;
- *  - MINHA LISTA usa a MESMA tabela `favorites` do site (por tmdb_id);
+ *  - FAVORITOS usa a MESMA tabela `favorites` do site (por tmdb_id);
  *  - séries usam `episodes_available` para temporadas/episódios.
  *
  * Navegação: OK ativa, LEFT/RIGHT entre chips e botões, UP/DOWN rolam, BACK sai.

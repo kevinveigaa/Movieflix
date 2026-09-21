@@ -529,7 +529,7 @@ class ProfileAdapter(
             )
             background = fundoPerfil(ctx, false)
             layoutParams = RecyclerView.LayoutParams(
-                MfDesign.dp(ctx, 210f),
+                (MfMetrics.largura(ctx) * 0.155f).toInt().coerceIn(140, 340),
                 RecyclerView.LayoutParams.WRAP_CONTENT,
             ).apply {
                 val m = MfDesign.dp(ctx, 10f)
@@ -565,7 +565,10 @@ class ProfileAdapter(
             inicial.apply {
                 gravity = Gravity.CENTER
                 setTextColor(Color.WHITE)
-                setTextSize(TypedValue.COMPLEX_UNIT_SP, 42f)
+                setTextSize(
+                    TypedValue.COMPLEX_UNIT_SP,
+                    (MfMetrics.altura(ctx) * 0.058f).coerceIn(20f, 44f),
+                )
                 typeface = Typeface.DEFAULT_BOLD
                 background = MfDesign.gradientePrimario(MfDesign.dp(ctx, 70f).toFloat())
             }
@@ -579,8 +582,8 @@ class ProfileAdapter(
             card.addView(
                 moldura,
                 LinearLayout.LayoutParams(
-                    MfDesign.dp(ctx, 118f),
-                    MfDesign.dp(ctx, 118f),
+                    (MfMetrics.altura(ctx) * 0.16f).toInt().coerceIn(80, 240),
+                    (MfMetrics.altura(ctx) * 0.16f).toInt().coerceIn(80, 240),
                 ),
             )
 
@@ -635,16 +638,26 @@ class ProfileAdapter(
         fun bind(p: ProfilesRepository.Perfil) {
             nome.text = p.name
             inicial.text = p.name.take(1).uppercase()
-            if (p.avatarUrl.isNotBlank()) {
+            // O avatar do perfil vem do MESMO registro do mobile/site
+            // (coluna profiles.avatar_url): URL de imagem OU emoji. A tela de
+            // perfis do mobile exibe emoji como texto e imagem como foto —
+            // aqui fazemos exatamente o mesmo, para o avatar nunca sumir.
+            val avatarValor = p.avatarUrl.trim()
+            val semImagem = avatarValor.isBlank() ||
+                (!avatarValor.startsWith("http://") && !avatarValor.startsWith("https://"))
+            if (!semImagem) {
                 avatar.visibility = View.VISIBLE
                 inicial.visibility = View.GONE
                 Glide.with(ctx)
                     .load(ProfilesRepository.avatarRenderizavel(p.avatarUrl))
                     .placeholder(ColorDrawable(MfDesign.SURFACE_LIGHT))
+                    .error(ColorDrawable(MfDesign.SURFACE_STRONG))
                     .into(avatar)
             } else {
                 avatar.visibility = View.GONE
                 inicial.visibility = View.VISIBLE
+                // Emoji escolhido pelo usuário; sem emoji, cai na inicial do nome.
+                inicial.text = if (avatarValor.isNotBlank()) avatarValor else p.name.take(1).uppercase()
             }
             card.setOnClickListener { onSelect(p) }
             btnGer.setOnClickListener { onEdit(p) }

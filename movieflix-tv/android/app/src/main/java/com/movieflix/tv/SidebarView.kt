@@ -184,8 +184,11 @@ class SidebarView @JvmOverloads constructor(
         icones[item.id] = icone
         rotulos[item.id] = rotulo
 
-        linha.layoutParams = LayoutParams(LayoutParams.MATCH_PARENT, MfDesign.dp(context, 48f)).apply {
-            topMargin = MfDesign.dp(context, 7f)
+        linha.layoutParams = LayoutParams(
+            LayoutParams.MATCH_PARENT,
+            (MfMetrics.altura(context) * 0.048f).toInt().coerceAtLeast(38),
+        ).apply {
+            topMargin = (MfMetrics.altura(context) * 0.0065f).toInt()
         }
         return linha
     }

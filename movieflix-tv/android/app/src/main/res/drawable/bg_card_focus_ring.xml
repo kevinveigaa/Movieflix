@@ -35,10 +35,10 @@
     </item>
     <!-- Miolo TRANSPARENTE: a capa permanece 100% visível -->
     <item
-        android:bottom="4dp"
-        android:left="4dp"
-        android:right="4dp"
-        android:top="4dp">
+        android:bottom="3dp"
+        android:left="3dp"
+        android:right="3dp"
+        android:top="3dp">
         <shape android:shape="rectangle">
             <solid android:color="#00000000" />
             <corners android:radius="7dp" />
