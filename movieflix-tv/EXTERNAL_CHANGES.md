@@ -1,38 +1,34 @@
-# MovieFlix TV — Arquivos alterados FORA de `movieflix-tv/`
+# MovieFlix TV — Arquivos externos alterados
 
-> Regra do projeto: o TV app é **independente**. Tudo o que foi possível ficou
-> dentro de `movieflix-tv/`. Este documento lista **exatamente** o que foi
-> tocado fora dessa pasta, com a justificativa e o impacto.
+Regra do projeto: **o novo app é independente**. Tudo o que pôde ficar dentro de
+`movieflix-tv/` ficou lá. Qualquer alteração fora desse diretório é mínima,
+justificada e não muda o comportamento existente.
 
----
+## Lista exata (tudo o que foi alterado fora de `movieflix-tv/`)
 
-## Resumo
+Comando de verificação usado:
 
-| # | Arquivo (fora de `movieflix-tv/`) | Tipo | Justificativa | Impacto no comportamento existente |
+```bash
+git diff --cached --name-only | grep -v "^movieflix-tv/"
+```
+
+| # | Arquivo | Alteração | Por que era necessário | Impacto no que já existia |
 |---|---|---|---|---|
-| 1 | `public/apk/MovieFlixTV-v1.9.0.apk` | **novo** | Arquivo do APK TV (entrega pedida). O site já serve `/apk/*` para o APK mobile. | **Nenhum** — arquivo novo, não substitui nada. |
-| 2 | `src/lib/appInfo.ts` | edição aditiva | Central de versões/downloads do site. Adiciona as constantes do APK TV. | **Nenhum** — só exporta constantes novas; nenhum valor existente foi alterado. |
-| 3 | `src/pages/DownloadAppPage.tsx` | edição aditiva | A página de downloads já mencionava "Android TV / Google TV / TV Box". Adiciona o cartão de download do app TV. | **Nenhum** — bloco novo; o cartão do app mobile e todo o resto seguem iguais. |
+| 1 | `src/lib/appInfo.ts` | Bloco `TV_APP_INFO`: `version` 1.9.0 → **2.0.0**, `versionCode` 12 → **13**, `apkFileName` → `MovieFlixTV-v2.0.0.apk`, `sizeMB` → `11.6 MB` | É o ponto único que a página de download lê para exibir a versão do app TV. Sem isso o site anunciaria a versão antiga. | **Aditivo.** Nenhuma outra constante foi tocada: `APP_INFO` (app mobile), `APK_URL`, `DOWNLOAD_PAGE_URL` e as funções de versão continuam idênticas. |
+| 2 | `public/apk/MovieFlixTV-v2.0.0.apk` | **Arquivo novo** (o APK TV v2.0.0) | É a entrega pedida — o site já serve tudo em `/apk/`, então basta colocar o arquivo lá. | **Nenhum.** Arquivo novo; os APKs anteriores permanecem. |
+| 3 | `public/apk/MovieFlixTV-v1.9.0.apk` | **Arquivo novo** (APK TV v1.9.0, build anterior) | Foi gerado em momento anterior desta mesma continuação e ainda não estava versionado. | **Nenhum.** Arquivo novo. |
 
-**Arquivos do app mobile (`src/` mobile, `android/`, `ios/`): NENHUM foi alterado.**
+> `src/pages/DownloadAppPage.tsx` **não precisou de alteração** nesta rodada: ele
+> já consome `TV_APP_INFO.apkFileName` / `TV_APP_INFO.version` de `appInfo.ts`,
+> então atualizar o APK e a constante foi suficiente. (O card "BAIXAR MOVIEFLIX TV"
+> com QR já havia sido adicionado na rodada anterior, com autorização.)
 
----
+## Confirmação de isolamento
 
-## Por que essas 3 mudanças são necessárias e mínimas
-
-1. **Não há alternativa isolada dentro de `movieflix-tv/`.** O site é o único
-   canal público onde o usuário baixa o APK; o arquivo precisa ser servido pelo
-   site (`public/apk/` é o diretório servido pelo backend em `/apk/`).
-2. **A entrega exige o APK acessível.** Sem o arquivo em `public/apk/` e sem um
-   link na página de download, o APK TV não chega ao usuário.
-3. **A edição é puramente aditiva.** Foram acrescentadas constantes e um cartão
-   novo. Nenhuma rota, layout, estilo, autenticação ou regra existente do site
-   foi modificada. O app mobile continua idêntico.
-
----
-
-## Verificação
-
-- `git diff --stat` fora de `movieflix-tv/` deve mostrar **apenas** os itens acima.
-- O app mobile (build Capacitor) não depende de `appInfo` do TV: as constantes
-  adicionadas são novas (`TV_APK_*`), sem colisão de nomes.
+- `git diff --cached --name-only | grep -v "^movieflix-tv/"` retorna **exatamente**
+  os 4 itens acima (2 arquivos de código/dados + 2 APKs).
+- Nada em `src/` do app mobile, `android/`, `ios/`, `public/` (fora de `apk/`) ou
+  qualquer outra página do site foi modificado.
+- O app mobile (`android/`, `ios/`, `src/` do Capacitor) permanece **byte a byte**
+  igual: o módulo TV é um projeto Gradle separado, com `applicationId` próprio
+  (`com.movieflix.tv`), que não compartilha código-fonte com o app mobile.
