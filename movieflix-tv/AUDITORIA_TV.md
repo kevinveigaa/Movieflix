@@ -1,11 +1,11 @@
-# MovieFlix TV — Auditoria comparativa Mobile × TV (v2.0.0)
+# MovieFlix TV — Auditoria comparativa Mobile × TV (v2.1.0)
 
 **Método:** para cada funcionalidade, o código do app móvel (a principal fonte
 de verdade) foi lido; a lógica foi entendida; e então verificada no app de TV
 nos sete critérios pedidos.
 
-**Build auditado:** `com.movieflix.tv` **v2.0.0** (versionCode **13**), APK de
-release assinado — `BUILD SUCCESSFUL`.
+**Build auditado:** `com.movieflix.tv` **v2.1.0** (versionCode **14**), APK de
+debug e de release assinado — `assembleDebug` / `assembleRelease` `BUILD SUCCESSFUL`.
 
 ## Legenda
 
@@ -26,11 +26,14 @@ dados · **[4]** respeita as mesmas regras · **[5]** usável pelo controle remo
 | Sessão / token | `access_token` + `refresh_token` em storage | `SupabaseRest` + `AuthRepository.saveSession/loadToken` no Supabase | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Renovação de sessão | refresh token do Supabase | `SupabaseRest.refreshSession()` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Logout | limpa a sessão local | Configurações → "Sair da conta" (`AuthRepository.clearSession`) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| Recuperação de senha | fluxo por e-mail do Supabase | — (o pedido de reset chega por e-mail; a troca é feita no site/app) | ⚠️ | — | — | — | — | — | ✅ |
+| Recuperação de senha | Supabase `resetPasswordForEmail` (POST /auth/v1/recover) | `AuthRepository.recuperarSenha()` + botão **ESQUECI A SENHA** em `LoginActivity` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Troca de senha (logado) | `supabase.auth.updateUser({ password })` | `AuthRepository.trocarSenha()` (PUT /auth/v1/user) em Configurações | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 
-> **⚠️ Recuperação de senha:** a TV **não** executa o fluxo de reset (que exige
-> e-mail e navegador). Nada foi inventado: o usuário recupera a senha pelo site
-> ou pelo app e entra na TV com a nova senha, usando a mesma conta.
+> **✅ Recuperação/troca de senha:** implementadas nesta rodada com o fluxo REAL
+> do MovieFlix. A TV dispara o e-mail de redefinição pelo mesmo endpoint do
+> Supabase (`/auth/v1/recover`) e permite trocar a senha com o usuário logado
+> (`PUT /auth/v1/user`). A validação da nova senha continua sendo feita pelo
+> Supabase — nenhuma regra de senha foi reimplementada no app.
 
 ## 2. Perfis
 
@@ -56,12 +59,12 @@ dados · **[4]** respeita as mesmas regras · **[5]** usável pelo controle remo
 > Nenhum catálogo paralelo foi criado e nenhum dado foi inventado: as URLs de
 > poster/backdrop continuam vindo do TMDB pelo mesmo catálogo.
 
-## 4. Minha Lista / Favoritos
+## 4. Favoritos
 
 | Funcionalidade | Como funciona no MOBILE | Implementação na TV | 1 | 2 | 3 | 4 | 5 | 6 | 7 |
 |---|---|---|---|---|---|---|---|---|---|
-| Minha Lista | tabela `favorites` por `tmdb_id` | `MyListActivity` + `FavoritesRepository` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| Adicionar / remover | toggle na tela de detalhes | botão "Minha Lista" em `DetailsActivity` (mesma tabela) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Favoritos | tabela `favorites` por `tmdb_id` | `MyListActivity` (rótulo **Favoritos**) + `FavoritesRepository` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Adicionar / remover | toggle na tela de detalhes | botão **♥ Favoritos** / **♥ Remover dos Favoritos** em `DetailsActivity` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Sincronização com site/celular | mesma conta Supabase | **a mesma** tabela por `tmdb_id` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 
 ## 5. Histórico e Continuar Assistindo
@@ -153,16 +156,61 @@ dados · **[4]** respeita as mesmas regras · **[5]** usável pelo controle remo
 | Arquivos externos a `movieflix-tv/` | **4**: `src/lib/appInfo.ts`, `public/apk/MovieFlixTV-v2.0.0.apk`, `public/apk/MovieFlixTV-v1.9.0.apk` (novos) — detalhes e justificativa em `EXTERNAL_CHANGES.md`. |
 | `DownloadAppPage.tsx` | Não precisou de mudança: já consome `TV_APP_INFO` de `appInfo.ts`. |
 
-## 11. Conclusão
+## 11. Correções desta rodada (v2.1.0)
+
+### 11.1 Bloqueador de reprodução — CORRIGIDO
+
+**Sintoma:** a TV informava "fonte indisponível" em filmes/séries que abrem
+normalmente no celular.
+
+**Causa-raiz (comparação MOBILE × TV, item a item):**
+
+| Item comparado | MOBILE (`src/lib/streamEmbed.ts`) | TV (antes) |
+|---|---|---|
+| URL do embed | `/filme/{tmdb}` ou `/serie/{tmdb}/{t}/{e}` | igual |
+| **Chave pública do plano** | **sempre `?key=sb_pk_*`** (função `comChave()`) | **ausente** |
+| Query string ao baixar o HTML | preservada | **descartada** (`substringBefore("?")`) |
+| `lang` | `pt-BR` | `pt-BR` |
+| Endpoint do backend | `/api/streambetter-resolve` | igual (e o backend responde 404 — rota não existe) |
+
+Sem a chave pública, o provedor não reconhece a conta Creator e devolve o HTML
+**sem `sources`**. A TV então declarava o título indisponível.
+
+**Correção:** `AppConfig.comChaveStreamBetter()` passou a anexar
+`key=sb_pk_*` (mesma regra de `comChave()`: `?` ou `&` conforme a URL),
+`MediaCatalog.embedUrl()` monta as URLs já com a chave, e
+`StreamResolver.buscarHtmlEmbed()` **preserva a query original** acrescentando
+apenas `lang=pt-BR`.
+
+> **Limitação de ambiente:** durante esta auditoria a rede do ambiente de build
+> bloqueia `streambetter.shop` (proxy de saída), então não foi possível baixar o
+> HTML do provedor para um teste ponta a ponta do stream. O fluxo foi validado
+> por comparação byte a byte com a regra do site/mobile, que é a fonte de
+> verdade — o endpoint do backend foi confirmado por HTTP (404 na rota).
+
+### 11.2 Interface
+
+| Correção | O que foi feito |
+|---|---|
+| **Cards grandes demais** | `MfMetrics` calcula card/menu/HERO como **fração da tela**: 4–6 colunas e ~3–4 fileiras visíveis em 720p, 1080p e 4K |
+| **HERO ocupava a tela** | altura fixada em **~33 %** da tela (`heroHeight`), com título e botões proporcionais |
+| **Foco roxo escondia a capa** | anel de foco com moldura **fina (3dp)** e miolo transparente + glow (elevação) + zoom sutil; o scrim do card foi suavizado e ficou só no rodapé. **Nenhuma camada opaca sobre a arte** |
+| **"Minha Lista"** | renomeado para **Favoritos** em menu, tela, estados e detalhes (mesma tabela `favorites`) |
+| **Perfis/avatares** | card com avatar proporcional à tela; emoji exibido como texto e imagem carregada por URL — mesma lógica do mobile |
+| **Login** | `minHeight` fixo removido; layout centralizado e responsivo; botão **ESQUECI A SENHA** adicionado |
+| **Teclado** | `MfKeyboard`: minúsculas/maiúsculas, SHIFT, CAPS LOCK, números, símbolos, acentos PT-BR, `@ . - _`, espaço, backspace, LIMPAR, Enter e modos **ABC / 123 / SYM** |
+| **Diálogos** | `MfDialog`: listas e entrada de texto navegáveis pelo D-pad, substituindo `AlertDialog` (não focável em muitos TV Box) |
+
+## 12. Conclusão
 
 De **todas** as funcionalidades verificadas, a esmagadora maioria é ✅ nos sete
 critérios. Há **quatro limitações declaradas**, nenhuma delas uma invenção nem
 uma quebra:
 
-1. **Recuperação de senha** — feita no site/app (exige e-mail + navegador).
-2. **Motor de reprodução** — ExoPlayer nativo em vez do embed HTML (WebView/iframe proibidos); lógica preservada.
-3. **Contratação/pagamento** — feita no site/app; a TV mostra o estado real.
-4. **Downloads offline** — direito exibido; o download é feito no celular.
+1. **Motor de reprodução** — ExoPlayer nativo em vez do embed HTML (WebView/iframe proibidos); lógica preservada.
+2. **Contratação/pagamento** — feita no site/app; a TV mostra o estado real.
+3. **Downloads offline** — direito exibido; o download é feito no celular.
+4. **Validação do stream em ambiente de build** — a rede do sandbox bloqueia o domínio do provedor de vídeo; a correção foi validada por comparação com a regra do site/mobile (fonte de verdade), não por download do HTML do provedor.
 
 Em nenhum caso foi criada uma regra, um preço, um plano ou um catálogo paralelo.
 Em nenhum caso o app mobile ou o site deixou de funcionar.

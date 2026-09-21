@@ -178,14 +178,27 @@ object StreamResolver {
         }
     }
 
+    /**
+     * Baixa o HTML do embed PRESERVANDO a query original (em especial a chave
+     * pública `key=sb_pk_*`) e apenas acrescentando `lang=pt-BR`.
+     *
+     * Isso é essencial: a versão anterior descartava tudo o que vinha depois do
+     * `?`, então a chave do plano Creator nunca chegava ao provedor, o embed
+     * voltava sem `sources` e a TV caía em "fonte indisponível" mesmo em
+     * títulos que funcionam no celular.
+     */
     private fun buscarHtmlEmbed(embedUrl: String): String? {
         val url = try {
-            val u = java.net.URI(embedUrl).toURL()
-            val base = u.toString().substringBefore("?")
-            val sep = if (base.contains("?")) "&" else "?"
-            base + sep + "lang=pt-BR"
+            val u = java.net.URI(embedUrl)
+            val base = "${u.scheme}://${u.authority}${u.path ?: ""}"
+            val params = (u.rawQuery ?: "")
+                .split("&")
+                .filter { it.isNotBlank() && !it.startsWith("lang=") }
+                .toMutableList()
+            params.add("lang=pt-BR")
+            "$base?" + params.joinToString("&")
         } catch (_: Exception) {
-            embedUrl
+            AppConfig.comChaveStreamBetter(embedUrl)
         }
         val req = Request.Builder().url(url)
             .header("User-Agent", UA)

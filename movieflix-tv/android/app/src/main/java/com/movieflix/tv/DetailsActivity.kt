@@ -31,7 +31,7 @@ import kotlinx.coroutines.withContext
  * Lógica preservada do app TV/mobile:
  *  - dados do MESMO catálogo (CatalogRepository.porId);
  *  - botão ASSISTIR monta a mesma URL e abre o player nativo;
- *  - MINHA LISTA usa a MESMA tabela `favorites` do site (por tmdb_id);
+ *  - FAVORITOS usa a MESMA tabela `favorites` do site (por tmdb_id);
  *  - séries usam `episodes_available` para temporadas/episódios.
  *
  * Navegação: OK ativa, LEFT/RIGHT entre chips e botões, UP/DOWN rolam, BACK sai.
@@ -217,7 +217,7 @@ class DetailsActivity : SidebarHostActivity() {
             setPadding(0, MfDesign.dp(this@DetailsActivity, 22f), 0, 0)
         }
         val btnAssistir = botao("\u25B6  Assistir", R.drawable.bg_pill_primary) { abrirPlayer() }
-        btnLista = botao("+  Minha Lista", R.drawable.bg_pill_secondary) { alternarLista() }
+        btnLista = botao("\u2665  Favoritos", R.drawable.bg_pill_secondary) { alternarLista() }
         linhaBotoes.addView(btnAssistir)
         linhaBotoes.addView(
             btnLista,
@@ -427,7 +427,7 @@ class DetailsActivity : SidebarHostActivity() {
     }
 
     private fun atualizarBotaoLista() {
-        btnLista.text = if (naLista) "✓  Na minha lista" else "+  Minha Lista"
+        btnLista.text = if (naLista) "\u2665  Remover dos Favoritos" else "\u2665  Favoritos"
     }
 
     private fun alternarLista() {
@@ -436,7 +436,7 @@ class DetailsActivity : SidebarHostActivity() {
         if (tok.isNullOrBlank()) {
             android.widget.Toast.makeText(
                 this,
-                "Entre com a sua conta (site ou app) para usar a Minha Lista.",
+                "Entre com a sua conta (site ou app) para usar os Favoritos.",
                 android.widget.Toast.LENGTH_LONG,
             ).show()
             return

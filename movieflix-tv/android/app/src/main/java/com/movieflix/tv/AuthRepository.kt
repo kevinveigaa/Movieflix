@@ -75,6 +75,71 @@ object AuthRepository {
             body = JSONObject().put("refresh_token", refreshToken).toString(),
         )
 
+    /**
+     * ESQUECI A SENHA — dispara o e-mail de recuperação.
+     *
+     * MESMO fluxo do site/mobile: `supabase.auth.resetPasswordForEmail`
+     * (POST /auth/v1/recover). O e-mail enviado leva o link de redefinição do
+     * MovieFlix; a senha continua sendo a mesma conta Supabase em todos os
+     * aparelhos. Nenhuma senha é criada ou alterada aqui.
+     */
+    fun recuperarSenha(email: String): AuthResult {
+        val req = Request.Builder()
+            .url(AppConfig.SUPABASE_URL + "/auth/v1/recover")
+            .header("apikey", AppConfig.SUPABASE_ANON_KEY)
+            .header("Authorization", "Bearer ${AppConfig.SUPABASE_ANON_KEY}")
+            .header("Content-Type", "application/json")
+            .post(
+                JSONObject().put("email", email.trim()).toString().toRequestBody(JSON),
+            )
+            .build()
+        return try {
+            client.newCall(req).execute().use { resp ->
+                val text = resp.body?.string() ?: ""
+                if (resp.isSuccessful) {
+                    AuthResult(ok = true, email = email.trim())
+                } else {
+                    AuthResult(ok = false, error = extrairErro(text, resp.code))
+                }
+            }
+        } catch (e: IOException) {
+            AuthResult(ok = false, error = "Sem conexão. Verifique a internet da TV.")
+        } catch (e: Exception) {
+            AuthResult(ok = false, error = "Erro inesperado: ${e.message}")
+        }
+    }
+
+    /**
+     * TROCA DE SENHA com o usuário logado (equivalente a
+     * `supabase.auth.updateUser({ password })` no site/mobile).
+     * PUT /auth/v1/user autenticado com o access token da sessão.
+     */
+    fun trocarSenha(context: Context, novaSenha: String): AuthResult {
+        val token = validToken(context)
+            ?: return AuthResult(ok = false, error = "Sessão expirada. Entre de novo.")
+        val req = Request.Builder()
+            .url(AppConfig.SUPABASE_URL + "/auth/v1/user")
+            .header("apikey", AppConfig.SUPABASE_ANON_KEY)
+            .header("Authorization", "Bearer $token")
+            .header("Content-Type", "application/json")
+            .put(JSONObject().put("password", novaSenha).toString().toRequestBody(JSON))
+            .build()
+        return try {
+            client.newCall(req).execute().use { resp ->
+                val text = resp.body?.string() ?: ""
+                if (resp.isSuccessful) {
+                    AuthResult(ok = true, email = loadEmail(context))
+                } else {
+                    AuthResult(ok = false, error = extrairErro(text, resp.code))
+                }
+            }
+        } catch (e: IOException) {
+            AuthResult(ok = false, error = "Sem conexão. Verifique a internet da TV.")
+        } catch (e: Exception) {
+            AuthResult(ok = false, error = "Erro inesperado: ${e.message}")
+        }
+    }
+
     private fun request(path: String, body: String): AuthResult {
         val req = Request.Builder()
             .url(AppConfig.SUPABASE_URL + path)

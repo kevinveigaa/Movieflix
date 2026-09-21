@@ -23,6 +23,7 @@
     <!-- ══ Acento secundário: magenta → violeta (badges, foco) ══ -->
     <color name="mf_red">#E01E5A</color>
     <color name="mf_red_light">#FF4D82</color>
+    <color name="mf_magenta">#E01E5A</color>
 
     <!-- ══ Texto ══ -->
     <color name="mf_white">#FFFFFF</color>

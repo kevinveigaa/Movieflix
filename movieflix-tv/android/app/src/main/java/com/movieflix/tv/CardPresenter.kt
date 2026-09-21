@@ -43,8 +43,8 @@ class CardPresenter : Presenter() {
     override fun onCreateViewHolder(parent: ViewGroup): ViewHolder {
         val card = MovieCardView(parent.context)
         card.layoutParams = ViewGroup.LayoutParams(
-            MfDesign.dp(parent.context, CARD_WIDTH.toFloat()),
-            MfDesign.dp(parent.context, (CARD_HEIGHT + TEXT_AREA).toFloat()),
+            MfMetrics.cardWidth(parent.context),
+            MfMetrics.cardHeight(parent.context) + MfMetrics.cardTextHeight(parent.context),
         )
         card.isFocusable = true
         card.isFocusableInTouchMode = true
@@ -74,8 +74,10 @@ class CardPresenter : Presenter() {
         private val titulo = TextView(context)
         private val meta = TextView(context)
 
-        private val largura = MfDesign.dp(context, CARD_WIDTH.toFloat())
-        private val altura = MfDesign.dp(context, CARD_HEIGHT.toFloat())
+        private val largura = MfMetrics.cardWidth(context)
+        private val altura = MfMetrics.cardHeight(context)
+        private val alturaTexto = MfMetrics.cardTextHeight(context)
+        private val raio = (altura * 0.045f).toInt().coerceAtLeast(6)
 
         init {
             // ── Poster ────────────────────────────────────────────────────
@@ -94,7 +96,7 @@ class CardPresenter : Presenter() {
             overlay.visibility = View.GONE
             posterWrap.addView(
                 overlay,
-                LayoutParams(LayoutParams.MATCH_PARENT, MfDesign.dp(context, 110f)).apply {
+                LayoutParams(LayoutParams.MATCH_PARENT, (altura * 0.36f).toInt()).apply {
                     gravity = Gravity.BOTTOM
                 },
             )
@@ -102,11 +104,10 @@ class CardPresenter : Presenter() {
             // Botão play circular (centro) — revelado no foco
             btnPlay.setImageResource(R.drawable.ic_mf_play)
             btnPlay.setBackgroundResource(R.drawable.bg_play_circle)
-            btnPlay.setPadding(
-                MfDesign.dp(context, 13f), MfDesign.dp(context, 13f),
-                MfDesign.dp(context, 10f), MfDesign.dp(context, 10f),
-            )
-            val playLp = LayoutParams(MfDesign.dp(context, 52f), MfDesign.dp(context, 52f)).apply {
+            val ladoPlay = (altura * 0.20f).toInt()
+            val padPlay = (ladoPlay * 0.25f).toInt()
+            btnPlay.setPadding(padPlay, padPlay, (padPlay * 0.8f).toInt(), padPlay)
+            val playLp = LayoutParams(ladoPlay, ladoPlay).apply {
                 gravity = Gravity.CENTER
             }
             posterWrap.addView(btnPlay, playLp)
@@ -115,14 +116,13 @@ class CardPresenter : Presenter() {
             // Botão favorito (canto inferior direito) — revelado no foco
             btnFavorito.setImageResource(R.drawable.ic_mf_favorite)
             btnFavorito.setBackgroundResource(R.drawable.bg_icon_circle)
-            btnFavorito.setPadding(
-                MfDesign.dp(context, 9f), MfDesign.dp(context, 9f),
-                MfDesign.dp(context, 9f), MfDesign.dp(context, 9f),
-            )
-            val favLp = LayoutParams(MfDesign.dp(context, 38f), MfDesign.dp(context, 38f)).apply {
+            val ladoFav = (altura * 0.145f).toInt()
+            val padFav = (ladoFav * 0.24f).toInt()
+            btnFavorito.setPadding(padFav, padFav, padFav, padFav)
+            val favLp = LayoutParams(ladoFav, ladoFav).apply {
                 gravity = Gravity.BOTTOM or Gravity.END
-                marginEnd = MfDesign.dp(context, 10f)
-                bottomMargin = MfDesign.dp(context, 10f)
+                marginEnd = (largura * 0.05f).toInt()
+                bottomMargin = (altura * 0.05f).toInt()
             }
             posterWrap.addView(btnFavorito, favLp)
             btnFavorito.visibility = View.GONE
@@ -136,42 +136,65 @@ class CardPresenter : Presenter() {
             )
 
             // ── Selos sobre o poster ──────────────────────────────────────
+            val padSeloH = (largura * 0.045f).toInt()
+            val padSeloV = (altura * 0.022f).toInt()
+            val raioSelo = (altura * 0.022f).toInt().coerceAtLeast(3)
+            val margemSelo = (largura * 0.045f).toInt()
+            val tamSelo = (altura * 0.048f).coerceAtLeast(9f)
+
             seloDublado = MfDesign.selo(
                 context, "Dublado PT-BR", MfDesign.TEAL, MfDesign.WHITE, 6f,
             ).apply {
-                textSize = 10f
+                textSize = tamSelo
                 maxLines = 1
+                setPadding(padSeloH, padSeloV, padSeloH, padSeloV)
+                background = android.graphics.drawable.GradientDrawable().apply {
+                    cornerRadius = raioSelo.toFloat()
+                    setColor(MfDesign.TEAL)
+                }
             }
             posterWrap.addView(
                 seloDublado,
                 LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT).apply {
                     gravity = Gravity.TOP or Gravity.START
-                    topMargin = MfDesign.dp(context, 9f)
-                    marginStart = MfDesign.dp(context, 9f)
+                    topMargin = margemSelo
+                    marginStart = margemSelo
                 },
             )
 
             seloAno = MfDesign.selo(context, "", 0xD905050A.toInt(), MfDesign.WHITE, 6f).apply {
-                textSize = 10f
+                textSize = tamSelo
+                setPadding(padSeloH, padSeloV, padSeloH, padSeloV)
+                background = android.graphics.drawable.GradientDrawable().apply {
+                    cornerRadius = raioSelo.toFloat()
+                    setColor(0xD905050A.toInt())
+                }
             }
             posterWrap.addView(
                 seloAno,
                 LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT).apply {
                     gravity = Gravity.TOP or Gravity.END
-                    topMargin = MfDesign.dp(context, 9f)
-                    marginEnd = MfDesign.dp(context, 9f)
+                    topMargin = margemSelo
+                    marginEnd = margemSelo
                 },
             )
 
             seloSerie = MfDesign.selo(
                 context, "SÉRIE", 0xD905050A.toInt(), MfDesign.GRAY_LIGHT, 6f,
-            ).apply { textSize = 9f }
+            ).apply {
+                textSize = tamSelo
+                setPadding(padSeloH, padSeloV, padSeloH, padSeloV)
+                background = android.graphics.drawable.GradientDrawable().apply {
+                    cornerRadius = raioSelo.toFloat()
+                    setColor(0xD905050A.toInt())
+                }
+            }
             posterWrap.addView(
                 seloSerie,
                 LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT).apply {
                     gravity = Gravity.BOTTOM or Gravity.START
-                    bottomMargin = MfDesign.dp(context, 9f)
-                    marginStart = MfDesign.dp(context, 9f)
+                    bottomMargin = margemSelo
+                    marginStart = margemSelo
                 },
             )
 
@@ -179,32 +202,32 @@ class CardPresenter : Presenter() {
 
             // ── Título e meta (abaixo do poster) ──────────────────────────
             titulo.setTextColor(Color.WHITE)
-            titulo.setTextSize(TypedValue.COMPLEX_UNIT_SP, 14f)
+            titulo.setTextSize(TypedValue.COMPLEX_UNIT_SP, (altura * 0.050f).coerceIn(11f, 22f))
             titulo.typeface = Typeface.DEFAULT_BOLD
             titulo.maxLines = 1
             titulo.ellipsize = android.text.TextUtils.TruncateAt.END
             titulo.layoutParams = LayoutParams(largura, LayoutParams.WRAP_CONTENT).apply {
-                topMargin = altura + MfDesign.dp(context, 8f)
+                topMargin = altura + (alturaTexto * 0.16f).toInt()
             }
             addView(titulo)
 
             meta.setTextColor(MfDesign.GRAY)
-            meta.setTextSize(TypedValue.COMPLEX_UNIT_SP, 12f)
+            meta.setTextSize(TypedValue.COMPLEX_UNIT_SP, (altura * 0.042f).coerceIn(10f, 18f))
             meta.maxLines = 1
             meta.ellipsize = android.text.TextUtils.TruncateAt.END
             meta.layoutParams = LayoutParams(largura, LayoutParams.WRAP_CONTENT).apply {
-                topMargin = altura + MfDesign.dp(context, 28f)
+                topMargin = altura + (alturaTexto * 0.55f).toInt()
             }
             addView(meta)
 
-            // ── Comportamento de foco (D-pad) ─────────────────────────────
+            // A CAPA NUNCA é coberta: foco = borda + glow + zoom sutil.
             setOnFocusChangeListener { _, temFoco ->
                 animate()
                     .scaleX(if (temFoco) 1.06f else 1f)
                     .scaleY(if (temFoco) 1.06f else 1f)
                     .setDuration(150)
                     .start()
-                elevation = if (temFoco) 18f else 0f
+                elevation = if (temFoco) 24f else 0f
                 anelFoco.visibility = if (temFoco) View.VISIBLE else View.INVISIBLE
                 overlay.visibility = if (temFoco) View.VISIBLE else View.GONE
                 btnPlay.visibility = if (temFoco) View.VISIBLE else View.GONE
@@ -229,7 +252,7 @@ class CardPresenter : Presenter() {
                     .load(url)
                     .apply(
                         RequestOptions()
-                            .transform(RoundedCorners(MfDesign.dp(context, RADIUS.toFloat())))
+                            .transform(RoundedCorners(raio))
                             .placeholder(ColorDrawable(MfDesign.SURFACE_LIGHT))
                             .error(ColorDrawable(MfDesign.SURFACE_STRONG))
                             .centerCrop(),

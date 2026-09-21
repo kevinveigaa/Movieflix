@@ -18,8 +18,10 @@
     <dimen name="content_pad_top">28dp</dimen>
     <dimen name="content_pad_bottom">56dp</dimen>
 
-    <!-- HERO -->
-    <dimen name="hero_height">400dp</dimen>
+    <!-- HERO — a altura REAL é calculada por MfMetrics.heroHeight() como
+         fração da tela (33%), para ficar correta em 720p, 1080p e 4K.
+         Este valor é só o fallback usado antes da primeira medição. -->
+    <dimen name="hero_height">200dp</dimen>
     <dimen name="hero_pad">48dp</dimen>
     <dimen name="hero_title">44sp</dimen>
     <dimen name="hero_desc">15sp</dimen>

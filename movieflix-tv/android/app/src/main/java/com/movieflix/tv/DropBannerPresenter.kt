@@ -41,7 +41,7 @@ class DropBannerPresenter : Presenter() {
         val banner = BannerView(parent.context)
         banner.layoutParams = ViewGroup.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT,
-            MfDesign.dp(parent.context, HEIGHT.toFloat()),
+            MfMetrics.heroHeight(parent.context),
         )
         return ViewHolder(banner)
     }
@@ -65,6 +65,14 @@ class DropBannerPresenter : Presenter() {
         private val btnAssistir = TextView(context)
         private val btnInfo = TextView(context)
         private val dots = LinearLayout(context)
+
+        /**
+         * Altura do HERO como fração da tela (33%). É uma PROPRIEDADE (e não
+         * uma variável local do init) porque `montarBotao()` também precisa
+         * dela — e declarada ANTES do init para já estar inicializada quando
+         * o init rodar.
+         */
+        private val alturaHero = MfMetrics.heroHeight(context)
 
         /** Ações expostas para a Activity ligar navegação/player. */
         var onAssistir: (() -> Unit)? = null
@@ -91,8 +99,8 @@ class DropBannerPresenter : Presenter() {
                 orientation = LinearLayout.VERTICAL
                 gravity = Gravity.CENTER_VERTICAL
                 setPadding(
-                    MfDesign.dp(context, 44f), 0,
-                    MfDesign.dp(context, 44f), 0,
+                    (MfMetrics.largura(context) * 0.026f).toInt(), 0,
+                    (MfMetrics.largura(context) * 0.026f).toInt(), 0,
                 )
             }
             addView(
@@ -129,7 +137,9 @@ class DropBannerPresenter : Presenter() {
             // Título display
             titulo.typeface = MfDesign.fonteDisplay(context)
             titulo.setTextColor(Color.WHITE)
-            titulo.setTextSize(TypedValue.COMPLEX_UNIT_SP, 46f)
+            // Título do HERO proporcional à altura do banner (32% dela):
+            // garante o mesmo impacto visual em 720p, 1080p e 4K.
+            titulo.setTextSize(TypedValue.COMPLEX_UNIT_SP, (alturaHero * 0.115f).coerceIn(22f, 58f))
             titulo.letterSpacing = 0.01f
             titulo.maxLines = 2
             titulo.ellipsize = android.text.TextUtils.TruncateAt.END
@@ -245,8 +255,8 @@ class DropBannerPresenter : Presenter() {
             )
             tv.layoutParams = LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.WRAP_CONTENT,
-                MfDesign.dp(context, 48f),
-            ).apply { minimumWidth = MfDesign.dp(context, 190f) }
+                (alturaHero * 0.12f).toInt().coerceAtLeast(34),
+            ).apply { minimumWidth = (MfMetrics.largura(context) * 0.14f).toInt() }
             MfDesign.focoBotao(tv)
             tv.setOnClickListener { acao() }
         }

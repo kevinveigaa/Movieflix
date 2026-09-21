@@ -54,12 +54,15 @@ class LoginActivity : AppCompatActivity() {
         val erro = findViewById<TextView>(R.id.lblErro)
         val btnEntrar = findViewById<TextView>(R.id.btnEntrar)
         val btnCriar = findViewById<TextView>(R.id.btnCriarConta)
+        val btnEsqueci = findViewById<TextView>(R.id.btnEsqueciSenha)
+        val sucesso = findViewById<TextView>(R.id.lblSucesso)
         val teclado = findViewById<MfKeyboard>(R.id.teclado)
         val scroll = findViewById<ScrollView>(R.id.scrollLogin)
 
         // Foco D-pad visível nos botões (mesmo realce do app todo)
         MfDesign.focoBotao(btnEntrar)
         MfDesign.focoBotao(btnCriar)
+        MfDesign.focoBotao(btnEsqueci)
 
         // O teclado do app substitui o IME do sistema. `showSoftInputOnFocus`
         // não existe como atributo de XML (só em código), por isso é desligado
@@ -108,6 +111,37 @@ class LoginActivity : AppCompatActivity() {
         teclado.abaixo = btnEntrar
 
         btnEntrar.setOnClickListener { tentarLogin(email, senha, erro, btnEntrar, btnCriar) }
+
+        // ── ESQUECI A SENHA — fluxo REAL de recuperação do MovieFlix ──
+        // Dispara o e-mail de redefinição (supabase resetPasswordForEmail) para
+        // a MESMA conta do site/celular. Nenhuma senha é criada aqui.
+        btnEsqueci.setOnClickListener {
+            if (trabalhando) return@setOnClickListener
+            val e = email.text.toString().trim()
+            if (e.isEmpty() || !e.contains("@")) {
+                sucesso.isVisible = false
+                mostrarErro(erro, "Digite o e-mail da sua conta para receber o link de recuperação.")
+                email.requestFocus()
+                return@setOnClickListener
+            }
+            trabalhando = true
+            erro.isVisible = false
+            sucesso.isVisible = false
+            btnEsqueci.text = "Enviando…"
+            scope.launch {
+                val r = withContext(Dispatchers.IO) { AuthRepository.recuperarSenha(e) }
+                trabalhando = false
+                btnEsqueci.text = "ESQUECI A SENHA"
+                if (r.ok) {
+                    sucesso.text =
+                        "Se existir uma conta com $e, enviamos o link para redefinir a senha. " +
+                            "Abra o e-mail no celular ou no navegador e crie a nova senha."
+                    sucesso.isVisible = true
+                } else {
+                    mostrarErro(erro, r.error ?: "Não foi possível enviar o e-mail agora.")
+                }
+            }
+        }
 
         btnCriar.setOnClickListener {
             if (trabalhando) return@setOnClickListener

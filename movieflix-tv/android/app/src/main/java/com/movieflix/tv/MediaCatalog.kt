@@ -41,14 +41,21 @@ object MediaCatalog {
      *  - filme:  video_url do catálogo (ou .../filme/{tmdbId}?lang=pt-BR)
      */
     fun embedUrl(movie: Movie, temporada: Int?, episodio: Int?): String {
+        // A chave pública do plano Creator é SEMPRE anexada — é o que faz o
+        // provedor reconhecer a conta e devolver as fontes do vídeo (mesma
+        // regra do site/mobile em src/lib/streamEmbed.ts).
         if (movie.ehSerie) {
             val tmdb = movie.tmdbIdNumerico ?: return ""
             val s = (temporada ?: 1).coerceAtLeast(1)
             val e = (episodio ?: 1).coerceAtLeast(1)
-            return "https://streambetter.shop/serie/$tmdb/$s/$e?lang=pt-BR"
+            return AppConfig.comChaveStreamBetter(
+                "${AppConfig.STREAMBETTER_BASE}/serie/$tmdb/$s/$e",
+            )
         }
-        if (movie.video_url.isNotBlank()) return movie.video_url
+        // Filme: o catálogo já traz a video_url completa; se não trouxer, é
+        // montada pelo tmdb_id — nos dois casos com a chave anexada.
+        if (movie.video_url.isNotBlank()) return AppConfig.comChaveStreamBetter(movie.video_url)
         val tmdb = movie.tmdbIdNumerico ?: return ""
-        return "https://streambetter.shop/filme/$tmdb?lang=pt-BR"
+        return AppConfig.comChaveStreamBetter("${AppConfig.STREAMBETTER_BASE}/filme/$tmdb")
     }
 }

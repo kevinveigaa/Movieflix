@@ -33,6 +33,11 @@ abstract class SidebarHostActivity : AppCompatActivity() {
 
         sidebar = findViewById(R.id.sidebar)
         content = findViewById(R.id.content_frame)
+        // Largura do menu como FRAÇÃO da tela (24%) — mantém a mesma composição
+        // em 720p, 1080p e 4K, sem depender da densidade do aparelho.
+        sidebar.layoutParams = sidebar.layoutParams.apply {
+            width = MfMetrics.sidebarWidth(this@SidebarHostActivity)
+        }
         sidebar.ativo = itemAtivo
         sidebar.definirPerfilAtivo(runCatching { ProfilesRepository.perfilAtivo(this)?.name }.getOrNull())
         sidebar.onSelect = { id -> irPara(id) }

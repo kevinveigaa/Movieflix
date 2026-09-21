@@ -48,7 +48,6 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:gravity="center_vertical"
-            android:minHeight="480dp"
             android:orientation="horizontal"
             android:weightSum="100">
 
@@ -168,6 +167,24 @@
                         android:textStyle="bold" />
                 </LinearLayout>
 
+                <!-- ESQUECI A SENHA — dispara o fluxo REAL de recuperação do
+                     MovieFlix (supabase resetPasswordForEmail), a mesma conta
+                     usada no site e no celular. -->
+                <TextView
+                    android:id="@+id/btnEsqueciSenha"
+                    android:layout_width="match_parent"
+                    android:layout_height="48dp"
+                    android:layout_marginTop="12dp"
+                    android:background="@drawable/bg_pill_ghost"
+                    android:clickable="true"
+                    android:focusable="true"
+                    android:focusableInTouchMode="true"
+                    android:gravity="center"
+                    android:text="ESQUECI A SENHA"
+                    android:textColor="@color/mf_purple_light"
+                    android:textSize="15sp"
+                    android:textStyle="bold" />
+
                 <TextView
                     android:id="@+id/lblErro"
                     android:layout_width="match_parent"
@@ -176,6 +193,17 @@
                     android:gravity="start"
                     android:text=""
                     android:textColor="@color/mf_error"
+                    android:textSize="14sp"
+                    android:visibility="gone" />
+
+                <TextView
+                    android:id="@+id/lblSucesso"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:gravity="start"
+                    android:text=""
+                    android:textColor="@color/mf_green_light"
                     android:textSize="14sp"
                     android:visibility="gone" />
             </LinearLayout>

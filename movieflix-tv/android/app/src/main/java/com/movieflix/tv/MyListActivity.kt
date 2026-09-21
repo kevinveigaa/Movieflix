@@ -11,7 +11,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 /**
- * Minha Lista — conteúdo salvo pelo usuário (mesma tabela `favorites` do site).
+ * Favoritos — conteúdo salvo pelo usuário (mesma tabela `favorites` do site).
  *
  * Regras idênticas ao mobile:
  *  - sem login → orienta a entrar com a mesma conta;
@@ -40,7 +40,7 @@ class MyListActivity : SidebarHostActivity() {
 
         val token = AuthRepository.loadToken(this)
         if (token.isNullOrBlank()) {
-            rows.definirHero(mensagem("Minha Lista", "Entre com a sua conta MovieFlix (a mesma do site) para ver sua lista.\n\nUse o app do celular ou o site para criar a conta e assinar."))
+            rows.definirHero(mensagem("Favoritos", "Entre com a sua conta MovieFlix (a mesma do site) para ver seus Favoritos.\n\nUse o app do celular ou o site para criar a conta e assinar."))
             return
         }
 
@@ -55,14 +55,14 @@ class MyListActivity : SidebarHostActivity() {
             if (lista.isEmpty()) {
                 rows.definirHero(
                     mensagem(
-                        "Minha Lista",
-                        "Sua lista está vazia.\n\nAbra um filme ou série e use o botão \"Minha Lista\" nos detalhes para salvar aqui.",
+                        "Favoritos",
+                        "Sua lista de favoritos está vazia.\n\nAbra um filme ou série e use o botão \"Favoritos\" nos detalhes para salvar aqui.",
                     ),
                 )
                 return@launch
             }
 
-            rows.definirHero(mensagem("Minha Lista", "${lista.size} título(s) salvos por você."))
+            rows.definirHero(mensagem("Favoritos", "${lista.size} título(s) nos seus favoritos."))
             val abrir = { m: Movie ->
                 startActivity(
                     Intent(this@MyListActivity, DetailsActivity::class.java).putExtra("movie_id", m.id),
@@ -70,7 +70,7 @@ class MyListActivity : SidebarHostActivity() {
             }
             lista.chunked(24).forEachIndexed { i, itens ->
                 rows.adicionarLinha(
-                    if (i == 0) "Meus títulos" else "Mais da minha lista",
+                    if (i == 0) "Meus favoritos" else "Mais dos meus favoritos",
                     itens,
                     abrir,
                 )
