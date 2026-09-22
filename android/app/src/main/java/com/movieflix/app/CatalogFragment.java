@@ -28,7 +28,10 @@ public class CatalogFragment extends Fragment {
         View v = inflater.inflate(R.layout.fragment_catalog, container, false);
         rv = v.findViewById(R.id.recycler);
         progress = v.findViewById(R.id.catalog_progress);
-        rv.setLayoutManager(new GridLayoutManager(getContext(), 3));
+        rv.setLayoutManager(new GridLayoutManager(getContext(), 5));
+        rv.setHasFixedSize(true);
+        rv.setClipToPadding(false);
+        rv.setPadding(28, 28, 28, 28);
 
         if (BackendClient.isCarregado()) {
             mostrarCatalogo();
