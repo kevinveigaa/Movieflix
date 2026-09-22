@@ -84,6 +84,19 @@ class PlaybackActivity : AppCompatActivity() {
     private var modoWebView = false
 
     /**
+     * true quando as teclas devem ir DIRETO para o conteúdo do iframe.
+     *
+     * No fallback a única superfície interativa é o embed, e ele é um
+     * documento CROSS-ORIGIN: o widget de verificação e o player do provedor
+     * vivem lá dentro. Assim que o iframe é montado, o Chromium entrega
+     * UP/DOWN/LEFT/RIGHT/OK ao conteúdo focado — exatamente como num navegador
+     * comum. Interceptar essas teclas aqui (como a versão anterior fazia) é o
+     * que quebrava o controle remoto dentro do provedor. BACK continua sendo
+     * tratado por nós, para o usuário nunca ficar preso.
+     */
+    private var controleParaIframe = false
+
+    /**
      * Estado da verificação do provedor (Turnstile).
      *
      * ── O QUE NÃO SE FAZ MAIS (causa raiz do loop) ──────────────────────────
@@ -283,6 +296,9 @@ class PlaybackActivity : AppCompatActivity() {
     private fun iniciarFallbackWebView() {
         val wv = webViewPlayer ?: return
         modoWebView = true
+        // Daqui em diante quem recebe o controle remoto é o conteúdo do iframe
+        // (widget de verificação / player do provedor). BACK segue nosso.
+        controleParaIframe = true
         // Cada tentativa começa limpa — nenhum estado preso da tentativa anterior.
         verificacaoDetectada = false
         taskDesafio?.cancel()
@@ -355,10 +371,48 @@ class PlaybackActivity : AppCompatActivity() {
         }
         wv.visibility = View.VISIBLE
         wv.requestFocus()
-        // O embed oficial do StreamBetter (mesmo do site/mobile), com a chave
-        // pública do plano Creator já anexada por MediaCatalog.embedUrl().
-        wv.loadUrl(embedUrl)
+        // ── CORREÇÃO CENTRAL: o embed TEM de ser carregado DENTRO de um iframe ──
+        //
+        // O provedor recusa acesso direto (navegação de topo): ele responde
+        // "Este link só funciona dentro de um iframe". Era exatamente o print
+        // do usuário. O site e o app mobile NUNCA têm esse problema porque os
+        // dois montam um `<iframe src=\".../filme/{id}\">` (mobile = WebView
+        // Capacitor carregando o site, que por sua vez monta o iframe).
+        //
+        // Aqui fazemos o MESMO: um documento local, só desta tela, que monta o
+        // iframe oficial — com a chave pública do plano Creator já anexada por
+        // MediaCatalog.embedUrl(). A verificação do Cloudflare acontece DENTRO
+        // do iframe (nunca no contexto de topo), que é o fluxo legítimo do
+        // provedor. Nada de token, nada de bypass.
+        wv.loadDataWithBaseURL(
+            AppConfig.STREAMBETTER_BASE,
+            htmlEmbedEmIframe(embedUrl),
+            "text/html",
+            "UTF-8",
+            null,
+        )
         atualizarProximoEpisodio()
+    }
+
+    /**
+     * Documento local que monta o embed oficial dentro de um `<iframe>`.
+     *
+     * O iframe carrega a URL REAL do provedor (com a chave pública). O
+     * documento local não manipula o conteúdo do iframe — apenas o apresenta,
+     * como o `<iframe>` do site faz. `allow` cobre autoplay/tela cheia,
+     * necessários para reproduzir.
+     */
+    private fun htmlEmbedEmIframe(url: String): String {
+        val escapada = url.replace("&", "&amp;").replace("\"", "&quot;")
+        return "<!doctype html><html><head>" +
+            "<meta charset=\"utf-8\">" +
+            "<meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">" +
+            "<style>html,body{height:100%;margin:0;background:#000;overflow:hidden;}" +
+            "iframe{width:100%;height:100%;border:0;display:block;}</style>" +
+            "</head><body>" +
+            "<iframe src=\"$escapada\" allow=\"autoplay; encrypted-media; " +
+            "picture-in-picture; fullscreen\" allowfullscreen frameborder=\"0\">" +
+            "</iframe></body></html>"
     }
 
     /**
@@ -375,17 +429,29 @@ class PlaybackActivity : AppCompatActivity() {
      * usuário faria. O limite de 2 tentativas evita qualquer laço infinito.
      */
     private fun avaliarDesafio(wv: WebView) {
+        // O conteúdo real vive DENTRO do iframe (cross-origin). Tentamos ler o
+        // documento interno; se o provedor for cross-origin, o acesso é
+        // bloqueado e caímos para o documento de topo (o nosso wrapper).
         wv.evaluateJavascript(
             "(function(){" +
-                "var html=document.documentElement?document.documentElement.innerHTML:'';" +
+                "function doc(){try{" +
+                "var f=document.querySelector('iframe');if(!f)return null;" +
+                "var d=f.contentDocument||(f.contentWindow&&f.contentWindow.document);" +
+                "return d||'bloqueado';}catch(e){return 'bloqueado';}}" +
+                "var d=doc();" +
+                "var html=(d&&d!=='bloqueado')?d.documentElement.innerHTML:" +
+                "(document.documentElement?document.documentElement.innerHTML:'');" +
                 "var des=html.indexOf('cf-turnstile')>=0" +
                 "||html.indexOf('challenges.cloudflare.com')>=0" +
                 "||html.indexOf('pessoa de verdade')>=0" +
                 "||html.indexOf('deu pra confirmar')>=0" +
+                "||html.indexOf('so funciona dentro')>=0" +
                 "||html.indexOf('Just a moment')>=0;" +
                 "if(des)return 'desafio';" +
-                "var v=document.querySelector('video');" +
+                "var v=(d&&d!=='bloqueado')?d.querySelector('video'):null;" +
+                "if(!v){try{v=document.querySelector('video');}catch(e){}}" +
                 "if(v&&(v.currentSrc||v.src))return 'player';" +
+                "if(d==='bloqueado')return 'iframe';" +
                 "return 'espera';" +
                 "})();",
         ) { resultado ->
@@ -399,16 +465,19 @@ class PlaybackActivity : AppCompatActivity() {
                     layoutLoading?.visibility = View.GONE
                 }
                 texto.contains("desafio") -> {
-                    // A verificação está na frente. NÃO recarregamos nada:
-                    // apenas liberamos o controle remoto para o WebView (o OK
-                    // precisa chegar ao widget) e armamos o watchdog.
+                    // Verificação na frente. NÃO recarregamos nada: o widget
+                    // precisa terminar sozinho. Só garantimos o foco dentro do
+                    // iframe para o OK do controle chegar nele.
                     verificacaoDetectada = true
                     layoutLoading?.visibility = View.GONE
                     injetarNavegacaoRemota(wv)
                     agendarWatchdogDesafio(wv)
                 }
                 else -> {
-                    // Página em transição (o provedor redireciona algumas vezes).
+                    // 'iframe' (conteúdo cross-origin, caminho normal) ou
+                    // 'espera' (o provedor ainda redireciona). Nada a fazer:
+                    // armamos o watchdog para o usuário nunca ficar preso.
+                    injetarNavegacaoRemota(wv)
                     agendarWatchdogDesafio(wv)
                 }
             }
@@ -434,16 +503,31 @@ class PlaybackActivity : AppCompatActivity() {
                 "(function(){" +
                     "if(window.__mfRemoto){return;}" +
                     "window.__mfRemoto=1;" +
-                    "var sel='input,button,[role=button],[tabindex],a[href],iframe';" +
-                    "function focar(){" +
-                    "try{if(document.activeElement===document.body||!document.activeElement){" +
-                    "var el=document.querySelector(sel);if(el)el.focus();}}catch(e){}" +
+                    "function focaDentro(){" +
+                    "try{" +
+                    "var f=document.querySelector('iframe');" +
+                    "if(!f){return;}" +
+                    // Focar o PRÓPRIO iframe entrega o teclado ao conteúdo: é
+                    // assim que o Chromium passa UP/DOWN/LEFT/RIGHT/OK para o
+                    // widget de verificação e depois para o player.
+                    "f.focus();" +
+                    "try{var d=f.contentDocument||(f.contentWindow&&f.contentWindow.document);" +
+                    "if(d){var a=d.activeElement;" +
+                    "if(!a||a===d.body){" +
+                    "var el=d.querySelector('input,button,[role=button],[tabindex],a[href]');" +
+                    "if(el)el.focus();}}}" +
+                    "catch(e){}" +
+                    "}catch(e){}" +
                     "}" +
-                    "setTimeout(focar,500);setTimeout(focar,1800);" +
+                    "setTimeout(focaDentro,400);setTimeout(focaDentro,1200);setTimeout(focaDentro,2500);" +
                     "document.addEventListener('keydown',function(ev){" +
                     "if(ev.key==='Enter'||ev.key==='Accept'||ev.keyCode===13){" +
                     "var a=document.activeElement;" +
                     "if(a&&a!==document.body){try{a.click();}catch(e){}}" +
+                    "try{var f=document.querySelector('iframe');" +
+                    "if(f){var d=f.contentDocument||(f.contentWindow&&f.contentWindow.document);" +
+                    "if(d){var b=d.activeElement;if(b&&b!==d.body){try{b.click();}catch(e){}}}}}" +
+                    "catch(e){}" +
                     "}" +
                     "},true);" +
                     "})();",
@@ -773,13 +857,13 @@ class PlaybackActivity : AppCompatActivity() {
             return true
         }
 
-        // Enquanto a verificação do provedor está na tela, TODO comando do
-        // controle precisa chegar ao WebView: é assim que o usuário foca e
-        // marca o desafio com o OK. Antes, o OK era interceptado aqui para
-        // abrir/alternar o nosso overlay — o toque nunca chegava ao widget e a
-        // confirmação era impossível pelo controle. Era um dos motivos do
-        // usuário ficar preso naquela tela.
-        if (modoWebView && verificacaoDetectada) return super.onKeyDown(keyCode, event)
+        // No fallback, TODO comando do controle precisa chegar ao conteúdo do
+        // iframe: é assim que o usuário foca e confirma a verificação do
+        // provedor com o OK, e depois controla o player (play/pause, seek).
+        // Antes o OK era interceptado aqui para abrir o nosso overlay — o
+        // toque nunca chegava ao widget e a confirmação era impossível pelo
+        // controle. BACK (tratado acima) continua sendo nosso.
+        if (modoWebView && controleParaIframe) return super.onKeyDown(keyCode, event)
 
         if (p == null && !modoWebView) return super.onKeyDown(keyCode, event)
 
