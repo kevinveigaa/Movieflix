@@ -37,15 +37,71 @@ object FavoritesRepository {
     /** Lista de favoritos do perfil ativo: pares (tmdb_id, media_type). */
     fun listar(context: Context): List<Pair<Long, String>> = listarObjetos(context).map { it.tmdbId to it.mediaType }
 
-    data class Favorito(val tmdbId: Long, val mediaType: String, val movieId: String?)
+    /**
+     * Linha da tabela `favorites`.
+     *
+     * O `id` é essencial: o site REMOVE o favorito por ele
+     * (`supabase.from('favorites').delete().eq('id', row.id)`), e é esse o
+     * fluxo que replicamos aqui.
+     */
+    data class Favorito(
+        val id: String?,
+        val tmdbId: Long,
+        val mediaType: String,
+        val movieId: String?,
+    )
 
-    /** Lista completa dos favoritos do perfil ativo. */
-    fun listarObjetos(context: Context): List<Favorito> {
+    /**
+     * Resultado da listagem com o motivo real de uma eventual falha.
+     *
+     * `semTmdb` conta os registros salvos cujo `tmdb_id` não é numérico (título
+     * do catálogo sem TMDb). A TV casa favoritos por `tmdb_id`, então esses não
+     * são utilizáveis aqui — em vez de sumirem em silêncio numa lista vazia, o
+     * número é devolvido para a tela poder avisar.
+     */
+    data class ResultadoLista(val itens: List<Favorito>, val semTmdb: Int, val erro: String?)
+
+    /** Lista completa dos favoritos do perfil ativo, COM o status real. */
+    fun listarResultado(context: Context): ResultadoLista {
         val uid = AuthRepository.loadUserId(context)
-        if (uid.isBlank()) return emptyList()
+        if (uid.isBlank()) {
+            return ResultadoLista(emptyList(), 0, "Sessão não encontrada. Entre de novo com a conta do site.")
+        }
         val c = colunas(context)
+        val (codigo, arr, corpoErro) = SupabaseRest.selectComStatus(
+            context, "favorites", filtrosLista(context, uid, c),
+        )
+        if (codigo !in 200..299) {
+            return ResultadoLista(emptyList(), 0, "Favoritos: erro $codigo ${corpoErro ?: ""}".trim())
+        }
+        val itens = ArrayList<Favorito>(arr.length())
+        var semTmdb = 0
+        for (i in 0 until arr.length()) {
+            val o = arr.optJSONObject(i) ?: continue
+            val t = o.optLong("tmdb_id", 0L)
+            if (t <= 0L) {
+                semTmdb++
+                continue
+            }
+            itens.add(
+                Favorito(
+                    id = if (o.isNull("id")) null else o.optString("id"),
+                    tmdbId = t,
+                    mediaType = o.optString("media_type", "movie"),
+                    movieId = if (o.isNull("movie_id")) null else o.optString("movie_id"),
+                ),
+            )
+        }
+        return ResultadoLista(itens, semTmdb, null)
+    }
+
+    /** Só os pares (tmdb_id, media_type) — usado pelas telas de catálogo. */
+    fun listarObjetos(context: Context): List<Favorito> = listarResultado(context).itens
+
+    /** Filtros da consulta — MESMOS do site (`src/hooks/useFavorite.ts`). */
+    private fun filtrosLista(context: Context, uid: String, c: Colunas): String {
         val filtros = ArrayList<String>()
-        filtros.add("select=tmdb_id,media_type" + if (c.movieId) ",movie_id" else "")
+        filtros.add("select=id,tmdb_id,media_type" + if (c.movieId) ",movie_id" else "")
         filtros.add(SupabaseRest.eq("user_id", uid))
         if (c.viewerProfileId) {
             val perfil = ProfilesRepository.perfilAtivoId(context)
@@ -55,29 +111,49 @@ object FavoritesRepository {
             )
         }
         filtros.add(SupabaseRest.order("created_at", ascending = false))
-        val arr = SupabaseRest.select(context, "favorites", filtros.joinToString("&"))
-        val out = ArrayList<Favorito>(arr.length())
-        for (i in 0 until arr.length()) {
-            val o = arr.optJSONObject(i) ?: continue
-            val t = o.optLong("tmdb_id", 0L)
-            if (t > 0) {
-                out.add(
-                    Favorito(
-                        tmdbId = t,
-                        mediaType = o.optString("media_type", "movie"),
-                        movieId = if (o.isNull("movie_id")) null else o.optString("movie_id"),
-                    ),
-                )
-            }
-        }
-        return out
+        return filtros.joinToString("&")
     }
 
     fun ehFavorito(context: Context, tmdbId: Long): Boolean =
-        listarObjetos(context).any { it.tmdbId == tmdbId }
+        listarResultado(context).itens.any { it.tmdbId == tmdbId }
 
-    /** Adiciona à lista (idempotente via on_conflict). */
-    fun adicionar(context: Context, tmdbId: Long, mediaType: String, movieId: String? = null): Boolean {
+    /** A linha exata do favorito (para remover pelo `id`, igual ao site). */
+    fun linha(context: Context, tmdbId: Long): Favorito? =
+        listarResultado(context).itens.firstOrNull { it.tmdbId == tmdbId }
+
+    /**
+     * ADICIONA aos favoritos — MESMO fluxo do site (insert simples).
+     *
+     * ── CORREÇÃO DO BUG ───────────────────────────────────────────────────
+     * Antes esta função fazia:
+     *     POST /favorites?on_conflict=user_id,tmdb_id,media_type
+     *     Prefer: resolution=merge-duplicates      (upsert)
+     *
+     * A tabela `favorites` do MovieFlix NÃO tem UNIQUE em
+     * (user_id, tmdb_id, media_type) — e nenhuma migration cria esse índice
+     * (`20260823120000_favorites_profile_columns.sql` e
+     * `20260823130000_favorites_movie_id.sql` só adicionam colunas).
+     * O Postgres então responde sempre:
+     *     42P10 — "there is no unique or exclusion constraint matching the
+     *     ON CONFLICT specification"
+     * ou seja, o upsert falhava SEMPRE. Como a UI só olhava o resultado e
+     * trocava a cor DEPOIS, e como a lista recarregada continuava vazia, o
+     * sintoma era exatamente "o botão fica destacado mas o título não entra na
+     * lista".
+     *
+     * O site nunca usou upsert: ele faz INSERT puro. Aqui replicamos isso.
+     * ──────────────────────────────────────────────────────────────────────
+     */
+    fun adicionar(
+        context: Context,
+        tmdbId: Long,
+        mediaType: String,
+        movieId: String? = null,
+        titulo: String = "",
+        posterPath: String = "",
+        backdropPath: String = "",
+        voteAverage: Double = 0.0,
+    ): Boolean {
         val uid = AuthRepository.loadUserId(context)
         if (uid.isBlank()) return false
         val c = colunas(context)
@@ -85,25 +161,39 @@ object FavoritesRepository {
             .put("user_id", uid)
             .put("tmdb_id", tmdbId)
             .put("media_type", mediaType)
-            .put("title", "")
-            .put("poster_path", "")
-            .put("backdrop_path", "")
-            .put("vote_average", 0)
+            .put("title", titulo)
+            .put("poster_path", posterPath)
+            .put("backdrop_path", backdropPath)
+            .put("vote_average", voteAverage)
         if (c.movieId && !movieId.isNullOrBlank()) row.put("movie_id", movieId)
         if (c.viewerProfileId) {
             row.put("viewer_profile_id", ProfilesRepository.perfilAtivoId(context) ?: JSONObject.NULL)
         }
-        return SupabaseRest.upsert(context, "favorites", row, "user_id,tmdb_id,media_type")
+        val criado = SupabaseRest.insert(context, "favorites", row) ?: return false
+        // O PostgREST devolve a linha criada (return=representation). Sem id =
+        // o INSERT não aconteceu de fato — nunca dizemos "salvou" nesse caso.
+        return criado.length() > 0
     }
 
-    /** Remove da lista. */
+    /**
+     * REMOVE dos favoritos — MESMO fluxo do site: DELETE pelo `id` da LINHA.
+     *
+     * Se a linha vier sem `id` legível, cai no filtro por
+     * (user_id, tmdb_id, media_type), que é o que o app já usava.
+     */
     fun remover(context: Context, tmdbId: Long): Boolean {
-        val uid = AuthRepository.loadUserId(context)
-        if (uid.isBlank()) return false
-        val filtros = listOf(
-            SupabaseRest.eq("user_id", uid),
-            SupabaseRest.eqNum("tmdb_id", tmdbId),
-        ).joinToString("&")
-        return SupabaseRest.delete(context, "favorites", filtros)
+        val f = linha(context, tmdbId) ?: return false
+        val filtro = if (!f.id.isNullOrBlank()) {
+            SupabaseRest.eq("id", f.id)
+        } else {
+            val uid = AuthRepository.loadUserId(context)
+            if (uid.isBlank()) return false
+            listOf(
+                SupabaseRest.eq("user_id", uid),
+                SupabaseRest.eqNum("tmdb_id", tmdbId),
+                SupabaseRest.eq("media_type", f.mediaType),
+            ).joinToString("&")
+        }
+        return SupabaseRest.delete(context, "favorites", filtro)
     }
 }

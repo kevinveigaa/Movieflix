@@ -464,12 +464,30 @@ class DetailsActivity : SidebarHostActivity() {
                 withContext(Dispatchers.IO) { FavoritesRepository.remover(this@DetailsActivity, tmdb) }
             } else {
                 withContext(Dispatchers.IO) {
-                    FavoritesRepository.adicionar(this@DetailsActivity, tmdb, if (movie.ehSerie) "tv" else "movie")
+                    // Metadados REAIS do catálogo (mesmos campos que o site grava).
+                    FavoritesRepository.adicionar(
+                        this@DetailsActivity,
+                        tmdb,
+                        if (movie.ehSerie) "tv" else "movie",
+                        movieId = movie.id,
+                        titulo = movie.title,
+                        posterPath = movie.poster_url,
+                        backdropPath = movie.backdrop_url,
+                    )
                 }
             }
             if (ok) {
                 naLista = !naLista
                 atualizarBotaoLista()
+            } else {
+                // NUNCA fingir que salvou: se o Supabase recusou (sessão, RLS,
+                // rede), avisamos e o botão continua refletindo o estado real.
+                android.widget.Toast.makeText(
+                    this@DetailsActivity,
+                    if (naLista) "Não foi possível remover dos Favoritos. Tente de novo."
+                    else "Não foi possível salvar nos Favoritos. Tente de novo.",
+                    android.widget.Toast.LENGTH_LONG,
+                ).show()
             }
         }
     }

@@ -135,10 +135,10 @@
 
                     <Button
                         android:id="@+id/btnAssistir"
-                        android:layout_width="wrap_content"
+                        android:layout_width="0dp"
                         android:layout_height="64dp"
                         android:background="@drawable/bg_btn_primary"
-                        android:minWidth="220dp"
+                        android:layout_weight="1"
                         android:paddingStart="34dp"
                         android:paddingEnd="34dp"
                         android:text="▶  ASSISTIR"
@@ -148,11 +148,11 @@
 
                     <Button
                         android:id="@+id/btnMinhaLista"
-                        android:layout_width="wrap_content"
+                        android:layout_width="0dp"
                         android:layout_height="64dp"
                         android:layout_marginStart="18dp"
                         android:background="@drawable/bg_btn_secondary"
-                        android:minWidth="220dp"
+                        android:layout_weight="1"
                         android:paddingStart="30dp"
                         android:paddingEnd="30dp"
                         android:text="+  MINHA LISTA"

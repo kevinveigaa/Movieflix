@@ -81,20 +81,36 @@ class MyListActivity : SidebarHostActivity() {
         }
 
         scope.launch {
-            val favoritos = withContext(Dispatchers.IO) { FavoritesRepository.listar(this@MyListActivity) }
+            val res = withContext(Dispatchers.IO) { FavoritesRepository.listarResultado(this@MyListActivity) }
             val catalogo = withContext(Dispatchers.IO) { CatalogRepository.all(this@MyListActivity) }
-            val lista = favoritos.mapNotNull { (tmdb, _) ->
-                catalogo.firstOrNull { (it.tmdbIdNumerico ?: 0L) == tmdb }
+            val lista = res.itens.mapNotNull { fav ->
+                catalogo.firstOrNull { (it.tmdbIdNumerico ?: 0L) == fav.tmdbId }
             }
 
             rows.limpar()
-            if (lista.isEmpty()) {
+
+            // ── ERRO REAL DO SUPABASE ─────────────────────────────────────────
+            // Antes, qualquer falha (sessão expirada, RLS, rede) chegava aqui como
+            // lista vazia e o usuário via "sua lista está vazia" — indistinguível
+            // de uma lista realmente vazia. Agora o motivo é mostrado.
+            if (res.erro != null) {
                 rows.definirHero(
-                    mensagem(
-                        "Favoritos",
-                        "Sua lista de favoritos está vazia.\n\nAbra um filme ou série e use o botão \"Favoritos\" nos detalhes para salvar aqui.",
-                    ),
+                    mensagem("Favoritos", "Não foi possível carregar seus Favoritos agora.\n\n${res.erro}"),
                 )
+                return@launch
+            }
+
+            if (lista.isEmpty()) {
+                // Favoritos salvos em outro aparelho como títulos sem TMDb não são
+                // casáveis aqui (a TV casa por tmdb_id, igual ao site). Em vez de
+                // dizer "vazia" e esconder o dado, explicamos.
+                val texto = if (res.semTmdb > 0) {
+                    "Você tem ${res.semTmdb} título(s) salvo(s) sem TMDb, que não podem ser abertos na TV.\n\n" +
+                        "Abra um filme ou série e use o botão \"Favoritos\" nos detalhes para salvar aqui."
+                } else {
+                    "Sua lista de favoritos está vazia.\n\nAbra um filme ou série e use o botão \"Favoritos\" nos detalhes para salvar aqui."
+                }
+                rows.definirHero(mensagem("Favoritos", texto))
                 return@launch
             }
 

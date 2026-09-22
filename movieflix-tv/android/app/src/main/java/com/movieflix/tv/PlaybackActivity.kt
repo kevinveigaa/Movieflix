@@ -83,8 +83,27 @@ class PlaybackActivity : AppCompatActivity() {
     /** true quando o fallback WebView está ativo (controles via JS). */
     private var modoWebView = false
 
-    /** Recargas feitas para sair da verificação do provedor (limite: 2). */
-    private var tentativasDesafio = 0
+    /**
+     * Estado da verificação do provedor (Turnstile).
+     *
+     * ── O QUE NÃO SE FAZ MAIS (causa raiz do loop) ──────────────────────────
+     * A versão anterior recarregava o WebView sozinha enquanto a tela de
+     * verificação estava na frente:
+     *     wv.postDelayed({ wv.reload() }, 1500)
+     * Isso destruída o próprio progresso da verificação: o widget Turnstile é
+     * recriado do zero, e a página do provedor ainda recarrega sozinha
+     * DEPOIS de validar o token no servidor (`window.location.reload()` no
+     * `onTurnstileOk`). Resultado: o usuário confirmava e era jogado de volta
+     * para o início, para sempre. A página do provedor agora fica INTACTA.
+     * ───────────────────────────────────────────────────────────────────────
+     */
+    private var verificacaoDetectada = false
+
+    /** Watchdog da verificação (nunca deixa o usuário preso sem saída). */
+    private var taskDesafio: Job? = null
+
+    /** Teto de espera da verificação antes de oferecer TENTAR DE NOVO. */
+    private val timeoutDesafioMs = 30_000L
 
     /** true quando o vídeo está em modo janela (não ocupa a tela toda). */
     private var modoJanela = false
@@ -264,6 +283,10 @@ class PlaybackActivity : AppCompatActivity() {
     private fun iniciarFallbackWebView() {
         val wv = webViewPlayer ?: return
         modoWebView = true
+        // Cada tentativa começa limpa — nenhum estado preso da tentativa anterior.
+        verificacaoDetectada = false
+        taskDesafio?.cancel()
+        taskDesafio = null
         layoutLoading?.visibility = View.GONE
         layoutErro?.visibility = View.GONE
         layoutBloqueio?.visibility = View.GONE
@@ -309,6 +332,10 @@ class PlaybackActivity : AppCompatActivity() {
                 super.onPageFinished(view, url)
                 // Enquanto a verificação externa está na tela, mantemos o
                 // carregamento limpo — sem mensagem técnica para o cliente.
+                // Página carregada: o nosso "Preparando o vídeo…" sai de cena
+                // (a tela de verificação do provedor tem UI própria e não deve
+                // ficar com duas mensagens empilhadas) e passamos a observar se
+                // o vídeo apareceu.
                 layoutLoading?.visibility = View.GONE
                 avaliarDesafio(wv)
             }
@@ -350,20 +377,114 @@ class PlaybackActivity : AppCompatActivity() {
     private fun avaliarDesafio(wv: WebView) {
         wv.evaluateJavascript(
             "(function(){" +
-                "var v=document.querySelector('video')||document.querySelector('iframe');" +
-                "var b=document.body?document.body.innerText:'';" +
-                "var des=b.indexOf('humano')>=0||b.indexOf('Just a moment')>=0" +
-                "||b.indexOf('Verificando')>=0||b.indexOf('verifying')>=0;" +
-                "return (v?'player':'desafio');" +
+                "var html=document.documentElement?document.documentElement.innerHTML:'';" +
+                "var des=html.indexOf('cf-turnstile')>=0" +
+                "||html.indexOf('challenges.cloudflare.com')>=0" +
+                "||html.indexOf('pessoa de verdade')>=0" +
+                "||html.indexOf('deu pra confirmar')>=0" +
+                "||html.indexOf('Just a moment')>=0;" +
+                "if(des)return 'desafio';" +
+                "var v=document.querySelector('video');" +
+                "if(v&&(v.currentSrc||v.src))return 'player';" +
+                "return 'espera';" +
                 "})();",
         ) { resultado ->
             val texto = resultado ?: return@evaluateJavascript
-            if (texto.contains("desafio") && tentativasDesafio < 2) {
-                tentativasDesafio++
-                // Uma recarga curta: o cookie de liberação já foi gravado.
-                layoutLoading?.visibility = View.VISIBLE
-                wv.postDelayed({ wv.reload() }, 1500)
+            when {
+                texto.contains("player") -> {
+                    // VÍDEO NA TELA — a verificação (se houve) já passou.
+                    verificacaoDetectada = false
+                    taskDesafio?.cancel()
+                    taskDesafio = null
+                    layoutLoading?.visibility = View.GONE
+                }
+                texto.contains("desafio") -> {
+                    // A verificação está na frente. NÃO recarregamos nada:
+                    // apenas liberamos o controle remoto para o WebView (o OK
+                    // precisa chegar ao widget) e armamos o watchdog.
+                    verificacaoDetectada = true
+                    layoutLoading?.visibility = View.GONE
+                    injetarNavegacaoRemota(wv)
+                    agendarWatchdogDesafio(wv)
+                }
+                else -> {
+                    // Página em transição (o provedor redireciona algumas vezes).
+                    agendarWatchdogDesafio(wv)
+                }
             }
+        }
+    }
+
+    /**
+     * Acessibilidade de controle remoto DENTRO do WebView.
+     *
+     * A página de verificação tem um widget focável. As setas do controle já
+     * chegam ao Chromium (navegação espacial nativa), mas garantimos duas
+     * coisas para o controle funcionar de verdade:
+     *   1. sempre existe um elemento focado ao carregar;
+     *   2. o OK do controle (que chega como `Enter`) aciona o elemento focado.
+     *
+     * Isto NÃO resolve nem contorna o desafio: apenas permite que o usuário o
+     * confirme com o controle, exatamente como faria com o mouse. Nenhum
+     * token é forjado, nenhum CAPTCHA é quebrado.
+     */
+    private fun injetarNavegacaoRemota(wv: WebView) {
+        try {
+            wv.evaluateJavascript(
+                "(function(){" +
+                    "if(window.__mfRemoto){return;}" +
+                    "window.__mfRemoto=1;" +
+                    "var sel='input,button,[role=button],[tabindex],a[href],iframe';" +
+                    "function focar(){" +
+                    "try{if(document.activeElement===document.body||!document.activeElement){" +
+                    "var el=document.querySelector(sel);if(el)el.focus();}}catch(e){}" +
+                    "}" +
+                    "setTimeout(focar,500);setTimeout(focar,1800);" +
+                    "document.addEventListener('keydown',function(ev){" +
+                    "if(ev.key==='Enter'||ev.key==='Accept'||ev.keyCode===13){" +
+                    "var a=document.activeElement;" +
+                    "if(a&&a!==document.body){try{a.click();}catch(e){}}" +
+                    "}" +
+                    "},true);" +
+                    "})();",
+                null,
+            )
+        } catch (_: Exception) {
+            // página ainda não pronta — será chamado novamente no próximo onPageFinished
+        }
+    }
+
+    /**
+     * Watchdog: se em [timeoutDesafioMs] o vídeo não aparecer, mostramos um
+     * estado LIMPO e navegável (TENTAR DE NOVO / VOLTAR) em vez de deixar o
+     * usuário preso na tela do provedor. Nunca dispara sobre vídeo rodando.
+     */
+    private fun agendarWatchdogDesafio(wv: WebView) {
+        if (taskDesafio?.isActive == true) return
+        taskDesafio = scope.launch {
+            delay(timeoutDesafioMs)
+            if (!isActive) return@launch
+            if (!verificacaoDetectada) return@launch
+            val apareceu = withContext(Dispatchers.Main) {
+                var ok = false
+                try {
+                    wv.evaluateJavascript(
+                        "(function(){var v=document.querySelector('video');" +
+                            "return (v&&(v.currentSrc||v.src))?'sim':'nao';})();",
+                    ) { r -> if (r?.contains("sim") == true) ok = true }
+                } catch (_: Exception) { /* WebView já destruído */ }
+                ok
+            }
+            if (apareceu) {
+                verificacaoDetectada = false
+                return@launch
+            }
+            verificacaoDetectada = false
+            mostrarErro(
+                "A verificação de segurança do provedor não foi concluída neste aparelho.\n" +
+                    "Use as setas para focar o quadro de verificação e confirme com OK, " +
+                    "ou toque em TENTAR DE NOVO.",
+            )
         }
     }
 
@@ -652,6 +773,14 @@ class PlaybackActivity : AppCompatActivity() {
             return true
         }
 
+        // Enquanto a verificação do provedor está na tela, TODO comando do
+        // controle precisa chegar ao WebView: é assim que o usuário foca e
+        // marca o desafio com o OK. Antes, o OK era interceptado aqui para
+        // abrir/alternar o nosso overlay — o toque nunca chegava ao widget e a
+        // confirmação era impossível pelo controle. Era um dos motivos do
+        // usuário ficar preso naquela tela.
+        if (modoWebView && verificacaoDetectada) return super.onKeyDown(keyCode, event)
+
         if (p == null && !modoWebView) return super.onKeyDown(keyCode, event)
 
         return when (keyCode) {
@@ -787,6 +916,8 @@ class PlaybackActivity : AppCompatActivity() {
         webViewPlayer?.destroy()
         webViewPlayer = null
         handlerOverlay.removeCallbacks(esconderOverlaySozinho)
+        taskDesafio?.cancel()
+        taskDesafio = null
         job.cancel()
     }
 }

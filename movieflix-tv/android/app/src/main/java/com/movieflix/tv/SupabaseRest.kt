@@ -148,6 +148,39 @@ object SupabaseRest {
         }
     }
 
+    /** Código HTTP do último SELECT (diagnóstico). */
+    @Volatile
+    var ultimoCodigoSelect: Int = 0
+        private set
+
+    /**
+     * SELECT que devolve também o CÓDIGO HTTP e o motivo da falha.
+     *
+     * O `select` acima devolve lista vazia em QUALQUER erro (rede, 4xx, JSON
+     * inválido). Isso é ótimo para tolerância, mas péssimo para diagnosticar:
+     * um erro de permissão aparecia na tela como "nenhum favorito", sem
+     * diferença alguma de uma lista realmente vazia. Aqui o erro é exposto.
+     */
+    fun selectComStatus(
+        context: Context,
+        table: String,
+        query: String,
+    ): Triple<Int, JSONArray, String?> {
+        val r = authed(context, "GET", "/rest/v1/$table?$query", null, null)
+            ?: return Triple(-1, JSONArray(), null)
+        ultimoCodigoSelect = r.code
+        val arr = if (r.ok && !r.body.isNullOrBlank()) {
+            try {
+                JSONArray(r.body)
+            } catch (e: Exception) {
+                JSONArray()
+            }
+        } else {
+            JSONArray()
+        }
+        return Triple(r.code, arr, if (r.ok) null else r.body)
+    }
+
     /** INSERT — devolve a linha criada (ou null). */
     fun insert(context: Context, table: String, row: JSONObject): JSONObject? {
         val r = authed(
