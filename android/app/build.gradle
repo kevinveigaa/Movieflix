@@ -1,17 +1,10 @@
 apply plugin: 'com.android.application'
 
-def tvBuild = project.hasProperty('tv')
-
 android {
     namespace "com.movieflix.app"
-    buildFeatures {
-        buildConfig true
-    }
     compileSdk 34
     defaultConfig {
-        applicationId (tvBuild ? "com.movieflix.tv" : "com.movieflix.app")
-        buildConfigField "boolean", "TV_MODE", tvBuild ? "true" : "false"
-        manifestPlaceholders = [appLabel: (tvBuild ? "MovieFlix TV" : "MovieFlix")]
+        applicationId "com.movieflix.app"
         minSdk 23
         targetSdk 34
         versionCode 10
