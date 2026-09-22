@@ -197,6 +197,14 @@ class MfKeyboard @JvmOverloads constructor(
             capsLock = false
         }
         renderizar()
+        // Trocar entre ABC / 123 / SÍMBOLOS NÃO pode perder o foco: `renderizar()`
+        // recria TODAS as teclas, então a tecla que estava focada é destruída e o
+        // foco iria para lugar nenhum — o próximo OK cairia na tela em vez de
+        // digitar (defeito relatado). Reposicionamos no botão de modo, que é
+        // sempre a PRIMEIRA tecla da última linha na nova renderização.
+        // O CAMPO em edição e a posição da seleção continuam intactos (o EditText
+        // não é recriado) — por isso o usuário consegue completar o e-mail/senha.
+        ultimaLinha.firstOrNull()?.requestFocus()
     }
 
     // ── Renderização ─────────────────────────────────────────────────────
@@ -274,7 +282,11 @@ class MfKeyboard @JvmOverloads constructor(
     /** Reaplica as bordas depois que `acima`/`abaixo` forem definidos. */
     private fun ligarBordas() {
         if (grade.isEmpty()) return
-        primeiraLinha.forEach { it.nextFocusUpId = acima?.id ?: it.id }
+        // Alvo preferencial: o CAMPO EM EDIÇÃO. Assim UP na primeira linha devolve o
+        // foco exatamente ao campo que o usuário está preenchendo, sem trocar de
+        // campo no meio da digitação.
+        val paraCima = alvo?.id ?: acima?.id
+        primeiraLinha.forEach { it.nextFocusUpId = paraCima ?: it.id }
         ultimaLinha.forEach { it.nextFocusDownId = abaixo?.id ?: it.id }
     }
 
@@ -349,6 +361,10 @@ class MfKeyboard @JvmOverloads constructor(
     /** Define em qual campo o teclado escreve. */
     fun definirAlvo(campo: EditText?) {
         alvo = campo
+        // O "UP na primeira linha" volta para o CAMPO em edição (não para um campo
+        // fixo): assim o usuário nunca é jogado para o campo errado no meio da
+        // digitação — o campo fica selecionado do começo ao fim.
+        ligarBordas()
     }
 
     /** Leva o foco para a primeira tecla (chamado ao pressionar OK no campo). */
@@ -375,10 +391,18 @@ class MfKeyboard @JvmOverloads constructor(
         if (modo == Modo.ABC && texto.length == 1 && texto[0] in 'a'..'z') {
             if (capsLock || shiftAtivo) texto = texto.uppercase()
         }
-        val conteudo = campo.text
-        val ini = campo.selectionStart.coerceAtLeast(0).coerceAtMost(conteudo.length)
-        val fim = campo.selectionEnd.coerceAtLeast(0).coerceAtMost(conteudo.length)
-        conteudo.replace(minOf(ini, fim), maxOf(ini, fim), texto)
+        // A edição é feita por TextEditor (lógica pura, testável): substitui a
+        // seleção e reposiciona o cursor no FIM do que foi inserido — SEM depender
+        // de onde está o foco e SEM trocar de campo. É isto que garante que
+        // "@ . _ -", números e símbolos NÃO interrompam a digitação.
+        val r = TextEditor.inserir(
+            conteudo = campo.text,
+            inicioSelecao = campo.selectionStart,
+            fimSelecao = campo.selectionEnd,
+            entrada = texto,
+        )
+        campo.setText(r.texto)
+        campo.setSelection(TextEditor.posicaoFinalSelecao(r.texto, r.selecao))
         // SHIFT é de UMA letra: depois de digitar, volta ao normal.
         if (shiftAtivo && !capsLock) {
             shiftAtivo = false
@@ -388,22 +412,51 @@ class MfKeyboard @JvmOverloads constructor(
 
     private fun apagar() {
         val campo = alvo ?: return
-        val conteudo = campo.text
-        val ini = campo.selectionStart.coerceAtLeast(0)
-        val fim = campo.selectionEnd.coerceAtLeast(0)
-        if (fim > ini) {
-            conteudo.delete(ini, fim)
-        } else if (fim > 0) {
-            conteudo.delete(fim - 1, fim)
-        }
+        val r = TextEditor.apagar(
+            conteudo = campo.text,
+            inicioSelecao = campo.selectionStart,
+            fimSelecao = campo.selectionEnd,
+        )
+        campo.setText(r.texto)
+        campo.setSelection(TextEditor.posicaoFinalSelecao(r.texto, r.selecao))
     }
 
     // ── BACK volta para o campo em vez de sair da tela ───────────────────
 
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
-        if (event.keyCode == KeyEvent.KEYCODE_BACK && findFocus() != null) {
-            alvo?.requestFocus()
-            return true
+        val dentro = findFocus() != null
+
+        // BACK: encerra a EDIÇÃO (devolve o foco ao campo), nunca fecha a tela de
+        // login por acidente. Com o foco fora do teclado, o BACK segue para cima
+        // (comportamento normal da tela).
+        if (event.keyCode == KeyEvent.KEYCODE_BACK) {
+            if (dentro) {
+                alvo?.requestFocus()
+                return true
+            }
+            return super.dispatchKeyEvent(event)
+        }
+
+        if (dentro) {
+            // Teclas de CARACTERE entram DIRETO no campo em edição.
+            //
+            // O teclado da TV é navegado por D-pad e cada tecla é um TextView
+            // focável. Um controle remoto com teclado físico (ou um aparelho que
+            // envie unicodeChar) teria a tecla entregue ao elemento com foco — que
+            // pode não ser o campo. Aqui, enquanto o foco está DENTRO do teclado,
+            // todo caractere imprimível vai para o `alvo`, sem depender de onde
+            // está o foco, sem fechar o teclado e sem trocar de campo.
+            //
+            // Setas, OK e ENTER têm unicodeChar 0 (ou de controle) e continuam
+            // passando normalmente para a tecla focada: a navegação do D-pad e o
+            // "OK abre o teclado" seguem idênticos.
+            if (event.action == KeyEvent.ACTION_DOWN && event.unicodeChar != 0) {
+                val c = event.unicodeChar.toChar()
+                if (!c.isISOControl()) {
+                    inserir(c.toString())
+                    return true
+                }
+            }
         }
         return super.dispatchKeyEvent(event)
     }

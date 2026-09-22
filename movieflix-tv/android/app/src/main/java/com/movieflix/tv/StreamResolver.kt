@@ -31,13 +31,54 @@ object StreamResolver {
     private val json = Json { ignoreUnknownKeys = true }
     private val JSON_MEDIA = "application/json; charset=utf-8".toMediaType()
 
+    /**
+     * ── CORREÇÃO DA REPRODUÇÃO (prioridade máxima) ────────────────────────────
+     *
+     * O cliente passou a usar o cookie jar do WebView ([WebViewCookieJar]).
+     *
+     * No site e no app mobile não existe diferença entre pedir a página e pedir o
+     * vídeo: é o MESMO WebView, com o MESMO cookie jar. Quando o provedor exibe a
+     * verificação e o usuário a confirma legitimamente, é gravado um cookie de
+     * liberação — e é ELE que autoriza as requisições seguintes a receberem a
+     * fonte de vídeo.
+     *
+     * Na TV o player é nativo (Media3/ExoPlayer sobre OkHttp), que tem um cookie jar
+     * PRÓPRIO e VAZIO. Sem esta ponte, a verificação passava no WebView e a
+     * requisição seguinte — feita pelo OkHttp — continuava ANÔNIMA, recebendo de novo
+     * a página de verificação em vez da fonte. Era isso que fazia a TV "avançar mas
+     * voltar para a verificação" enquanto o mobile tocava sem problema.
+     *
+     * Nada é forjado: os cookies são lidos do CookieManager do Android (o mesmo do
+     * Chromium/WebView) e simplesmente repassados. Nenhum CAPTCHA é resolvido,
+     * nenhum token é criado, nenhuma página protegida é raspada por fora do
+     * navegador.
+     */
     private val client = OkHttpClient.Builder()
         .connectTimeout(20, TimeUnit.SECONDS)
         .readTimeout(45, TimeUnit.SECONDS)
+        .cookieJar(WebViewCookieJar)
         .build()
 
     private const val STREAMBETTER_BASE = "https://streambetter.shop"
     private const val UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36"
+
+    /**
+     * Fonte de dados para o ExoPlayer usar o MESMO cliente desta resolução.
+     *
+     * Sem isto o player nativo faria as requisições de playlist e de segmentos
+     * com um cliente PRÓPRIO, sem os cookies da sessão autorizada — o que fazia a
+     * TV receber a página de verificação no lugar do vídeo enquanto o mobile
+     * (mesmo WebView, mesmo cookie jar) tocava normalmente.
+     */
+    fun dataSourceFactory(): androidx.media3.datasource.okhttp.OkHttpDataSource.Factory =
+        androidx.media3.datasource.okhttp.OkHttpDataSource.Factory(client)
+            .setUserAgent(UA)
+            .setDefaultRequestProperties(
+                mapOf(
+                    "Referer" to STREAMBETTER_BASE,
+                    "Accept-Language" to "pt-BR,pt;q=0.9,en;q=0.8",
+                ),
+            )
 
     /** Tenta resolver o stream. Retorna URL se autorizado, senão motivo. */
     fun resolve(embedUrl: String, token: String?): StreamResolution {
@@ -200,10 +241,18 @@ object StreamResolver {
         } catch (_: Exception) {
             AppConfig.comChaveStreamBetter(embedUrl)
         }
+        // Cabeçalhos IDÊNTICOS aos que o iframe do site envia (medidos no fluxo do
+        // mobile). Sem `Sec-Fetch-Dest: iframe` o provedor pode tratar a requisição
+        // como navegação de topo e devolver a página de verificação em vez do
+        // conteúdo do embed. Cookies vão automaticamente pelo cookie jar.
         val req = Request.Builder().url(url)
             .header("User-Agent", UA)
-            .header("Accept", "text/html,application/xhtml+xml")
+            .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
             .header("Accept-Language", "pt-BR,pt;q=0.9,en;q=0.8")
+            .header("Upgrade-Insecure-Requests", "1")
+            .header("Sec-Fetch-Dest", "iframe")
+            .header("Sec-Fetch-Mode", "navigate")
+            .header("Sec-Fetch-Site", "cross-site")
             .build()
         return try {
             client.newCall(req).execute().use { resp ->

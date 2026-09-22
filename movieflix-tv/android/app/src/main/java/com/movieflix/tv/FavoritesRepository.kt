@@ -92,7 +92,19 @@ object FavoritesRepository {
                 ),
             )
         }
-        return ResultadoLista(itens, semTmdb, null)
+        // ── DEDUPLICAÇÃO (correção do bug "o mesmo título aparece várias vezes") ──
+        //
+        // O banco pode já conter duplicatas antigas (criadas por cliques repetidos
+        // no controle remoto antes desta correção). A listagem passa a devolver UMA
+        // única linha por título, preservando a mais recente — assim a tela
+        // Favoritos nunca mostra o mesmo conteúdo duas vezes. A regra vive em
+        // FavoritesLogic (coberta por FavoritesLogicTest).
+        val unicos = FavoritesLogic.deduplicar(
+            itens.map { FavoritesLogic.Linha(it.id, it.tmdbId, it.mediaType) },
+        )
+        val porChave = itens.associateBy { FavoritesLogic.chave(it.mediaType, it.tmdbId) }
+        val finais = unicos.mapNotNull { porChave[FavoritesLogic.chave(it.mediaType, it.tmdbId)] }
+        return ResultadoLista(finais, semTmdb, null)
     }
 
     /** Só os pares (tmdb_id, media_type) — usado pelas telas de catálogo. */
@@ -116,6 +128,18 @@ object FavoritesRepository {
 
     fun ehFavorito(context: Context, tmdbId: Long): Boolean =
         listarResultado(context).itens.any { it.tmdbId == tmdbId }
+
+    /**
+     * O título ESTÁ nos favoritos? — pergunta ao SERVIDOR, não à tela.
+     *
+     * É esta a base da decisão de adicionar/remover (ver FavoritesLogic.decidir):
+     * perguntar ao servidor elimina a janela em que um segundo toque no controle
+     * remoto ainda enxergava o estado antigo da tela e inseria de novo.
+     */
+    fun contem(context: Context, tmdbId: Long, mediaType: String? = null): Boolean =
+        listarResultado(context).itens.any {
+            it.tmdbId == tmdbId && (mediaType == null || it.mediaType == mediaType)
+        }
 
     /** A linha exata do favorito (para remover pelo `id`, igual ao site). */
     fun linha(context: Context, tmdbId: Long): Favorito? =
@@ -156,6 +180,17 @@ object FavoritesRepository {
     ): Boolean {
         val uid = AuthRepository.loadUserId(context)
         if (uid.isBlank()) return false
+        // ── IDEMPOTÊNCIA REAL (correção do bug das duplicatas) ──
+        //
+        // Antes esta função INSERIA DIRETO, sem conferir nada. Com o controle
+        // remoto, dois OKs rápidos viravam duas linhas idênticas na mesma tabela
+        // `favorites`. O site (src/hooks/useFavorite.ts) sempre confere a linha
+        // antes de decidir — a TV não conferia.
+        //
+        // Agora: se o título JÁ ESTÁ salvo, não inserimos de novo (devolvemos
+        // verdadeiro, pois o estado desejado — "favoritado" — já vale). A regra de
+        // decisão é única e vive em FavoritesLogic (coberta por FavoritesLogicTest).
+        if (contem(context, tmdbId, mediaType)) return true
         val c = colunas(context)
         val row = JSONObject()
             .put("user_id", uid)
@@ -176,22 +211,27 @@ object FavoritesRepository {
     }
 
     /**
-     * REMOVE dos favoritos — MESMO fluxo do site: DELETE pelo `id` da LINHA.
+     * REMOVE dos favoritos — MESMO fluxo do site (DELETE pelo `id` da linha), agora
+     * apagando TODAS as linhas do título.
      *
-     * Se a linha vier sem `id` legível, cai no filtro por
-     * (user_id, tmdb_id, media_type), que é o que o app já usava.
+     * ── POR QUE TODAS ──
+     * Se o banco já tem duplicatas antigas e apagássemos só a primeira, o título
+     * continuaria aparecendo nos Favoritos e o botão voltaria para "favoritado"
+     * logo depois de remover — o usuário veria o 2º clique como se nada tivesse
+     * acontecido. Apagar todas as linhas deixa o servidor exatamente no estado
+     * pedido: "não favoritado".
      */
     fun remover(context: Context, tmdbId: Long): Boolean {
-        val f = linha(context, tmdbId) ?: return false
-        val filtro = if (!f.id.isNullOrBlank()) {
-            SupabaseRest.eq("id", f.id)
+        val uid = AuthRepository.loadUserId(context)
+        if (uid.isBlank()) return false
+        val locais = listarResultado(context).itens.filter { it.tmdbId == tmdbId }
+        val filtro = if (locais.isNotEmpty() && locais.all { !it.id.isNullOrBlank() }) {
+            val ids = locais.mapNotNull { it.id }
+            "id=in.(" + ids.joinToString(",") + ")"
         } else {
-            val uid = AuthRepository.loadUserId(context)
-            if (uid.isBlank()) return false
             listOf(
                 SupabaseRest.eq("user_id", uid),
                 SupabaseRest.eqNum("tmdb_id", tmdbId),
-                SupabaseRest.eq("media_type", f.mediaType),
             ).joinToString("&")
         }
         return SupabaseRest.delete(context, "favorites", filtro)

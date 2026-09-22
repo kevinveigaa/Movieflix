@@ -225,9 +225,21 @@ class LoginActivity : AppCompatActivity() {
         tv.isVisible = true
     }
 
-    // BACK na tela de login (sem sessão) sai do app
+    // BACK: comportamento PREVISÍVEL.
+    //
+    //   • foco dentro do teclado em tela → o PRÓPRIO MfKeyboard consome o evento
+    //     (devolve o foco ao campo em edição) e nada chega até aqui;
+    //   • foco em um CAMPO de texto      → sai da edição e vai para ENTRAR, sem
+    //     fechar nada. Era aqui que o login era fechado "acidentalmente durante a
+    //     edição" (finishAffinity), perdendo e-mail e senha digitados;
+    //   • foco já fora da edição         → aí sim o BACK sai do app.
     override fun onKeyDown(keyCode: Int, event: KeyEvent?): Boolean {
         if (keyCode == KeyEvent.KEYCODE_BACK) {
+            val foco = currentFocus
+            if (foco is EditText) {
+                findViewById<View>(R.id.btnEntrar)?.requestFocus()
+                return true
+            }
             finishAffinity()
             return true
         }

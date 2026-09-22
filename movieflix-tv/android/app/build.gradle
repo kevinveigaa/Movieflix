@@ -74,6 +74,10 @@ dependencies {
 
     // Imagens
     implementation 'com.github.bumptech.glide:glide:4.16.0'
+
+    // Testes JVM da lógica corrigida (favoritos, teclado, desafio, URLs).
+    // Não dependem de Android nem de emulador: rodam com `./gradlew test`.
+    testImplementation 'junit:junit:4.13.2'
 }
 
 android {

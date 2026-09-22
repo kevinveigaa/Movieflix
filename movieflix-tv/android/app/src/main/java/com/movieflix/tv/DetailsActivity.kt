@@ -438,16 +438,48 @@ class DetailsActivity : SidebarHostActivity() {
     }
 
     private fun atualizarBotaoLista() {
-        // Feedback IMEDIATO do estado (pedido do dono): o rótulo, a cor e o
-        // fundo mudam no mesmo instante do clique no controle — sem esperar
-        // recarregar a tela.
-        btnLista.text = if (naLista) "♥  Remover dos Favoritos" else "♡  Favoritos"
-        btnLista.setTextColor(if (naLista) MfDesign.GOLD else Color.WHITE)
+        // Feedback IMEDIATO do estado: o rótulo, a cor e o fundo mudam no mesmo
+        // instante do clique. O estado visual NÃO deixa dúvida — não é apenas uma
+        // borda branca:
+        //   · não favoritado → "♡  Favoritos", texto branco, fundo secundário;
+        //   · favoritado     → "♥  Remover dos Favoritos", texto AMARELO (GOLD, o
+        //                      mesmo da nota ★ do MovieFlix) e fundo destacado.
+        // A regra vive em FavoritesLogic.estadoBotao (coberta por FavoritesLogicTest).
+        val estado = FavoritesLogic.estadoBotao(
+            favoritado = naLista,
+            corNormal = Color.WHITE,
+            corAtivo = MfDesign.GOLD,
+            fundoAtivo = 0,
+        )
+        btnLista.text = estado.rotulo
+        btnLista.setTextColor(estado.cor)
         btnLista.setBackgroundResource(
             if (naLista) R.drawable.bg_pill_fav else R.drawable.bg_pill_secondary,
         )
     }
 
+    /**
+     * Guarda anti-duplo-toque do botão Favoritos.
+     *
+     * O controle remoto dispara OK várias vezes por segundo. Antes, cada clique
+     * iniciava uma corrotina e a decisão era tomada a partir da variável
+     * `naLista` (estado da TELA, atualizado só DEPOIS da resposta chegar): vários
+     * OKs rápidos liam `naLista == false` e cada um INSERIA uma linha igual na
+     * tabela `favorites`. Era essa a causa das duplicatas.
+     */
+    private var trabalhandoLista = false
+
+    /**
+     * Alterna Favoritos usando o ESTADO REAL do servidor.
+     *
+     * Comportamento obrigatório (1º clique adiciona, 2º remove, 3º adiciona,
+     * 4º remove…), sempre com UMA única ocorrência do conteúdo:
+     *  1. pergunta ao servidor se o título já está salvo (não à tela);
+     *  2. FavoritesLogic.decidir() devolve ADICIONAR / REMOVER / IGNORAR;
+     *  3. a escrita só acontece depois de a trava ser obtida — um segundo toque
+     *     durante a requisição é IGNORADO em vez de virar outra linha;
+     *  4. ao terminar, o botão é repintado a partir do estado REAL relido.
+     */
     private fun alternarLista() {
         val tok = AuthRepository.loadToken(this)
         val tmdb = movie.tmdbIdNumerico ?: return
@@ -459,25 +491,42 @@ class DetailsActivity : SidebarHostActivity() {
             ).show()
             return
         }
+        // Trava obtida ANTES de qualquer suspensão: é isso que impede o INSERT duplo.
+        if (trabalhandoLista) return
+        trabalhandoLista = true
+        val tipo = if (movie.ehSerie) "tv" else "movie"
         scope.launch {
-            val ok = if (naLista) {
-                withContext(Dispatchers.IO) { FavoritesRepository.remover(this@DetailsActivity, tmdb) }
-            } else {
-                withContext(Dispatchers.IO) {
-                    // Metadados REAIS do catálogo (mesmos campos que o site grava).
-                    FavoritesRepository.adicionar(
-                        this@DetailsActivity,
-                        tmdb,
-                        if (movie.ehSerie) "tv" else "movie",
-                        movieId = movie.id,
-                        titulo = movie.title,
-                        posterPath = movie.poster_url,
-                        backdropPath = movie.backdrop_url,
-                    )
+            val resultado = withContext(Dispatchers.IO) {
+                val jaNoServidor = FavoritesRepository.contem(this@DetailsActivity, tmdb, tipo)
+                val acao = FavoritesLogic.decidir(
+                    jaNoServidor = jaNoServidor,
+                    travado = false,
+                    podeEscrever = true,
+                )
+                val ok = when (acao) {
+                    FavoritesLogic.Acao.REMOVER ->
+                        FavoritesRepository.remover(this@DetailsActivity, tmdb)
+                    FavoritesLogic.Acao.ADICIONAR ->
+                        // Metadados REAIS do catálogo (mesmos campos que o site grava).
+                        FavoritesRepository.adicionar(
+                            this@DetailsActivity,
+                            tmdb,
+                            tipo,
+                            movieId = movie.id,
+                            titulo = movie.title,
+                            posterPath = movie.poster_url,
+                            backdropPath = movie.backdrop_url,
+                        )
+                    FavoritesLogic.Acao.IGNORAR -> jaNoServidor
                 }
+                // Relê o estado REAL para pintar o botão — nunca supõe.
+                val agora = FavoritesRepository.contem(this@DetailsActivity, tmdb, tipo)
+                ok to agora
             }
-            if (ok) {
-                naLista = !naLista
+            trabalhandoLista = false
+            val (ok, agoraNoServidor) = resultado
+            if (ok || agoraNoServidor != naLista) {
+                naLista = agoraNoServidor
                 atualizarBotaoLista()
             } else {
                 // NUNCA fingir que salvou: se o Supabase recusou (sessão, RLS,

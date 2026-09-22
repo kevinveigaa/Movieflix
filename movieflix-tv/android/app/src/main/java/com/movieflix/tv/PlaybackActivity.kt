@@ -19,6 +19,7 @@ import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.PlayerView
+import org.json.JSONObject
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -115,8 +116,64 @@ class PlaybackActivity : AppCompatActivity() {
     /** Watchdog da verificação (nunca deixa o usuário preso sem saída). */
     private var taskDesafio: Job? = null
 
-    /** Teto de espera da verificação antes de oferecer TENTAR DE NOVO. */
-    private val timeoutDesafioMs = 30_000L
+    /**
+     * Observação CONTÍNUA do que o provedor está exibindo dentro do WebView.
+     *
+     * A versão anterior avaliava a tela UMA única vez, no `onPageFinished`. O
+     * conteúdo real (widget de verificação / `<video>`) vive dentro do iframe
+     * cross-origin, e o próprio provedor faz `window.location.reload()` DEPOIS de
+     * validar a confirmação. Sem reavaliação periódica, o app nunca percebia nem a
+     * passagem da verificação nem o aparecimento do vídeo — e ficava exatamente no
+     * "Confirmando que você é uma pessoa de verdade..." relatado.
+     */
+    private var taskMonitor: Job? = null
+
+    /** Um único self-recovery quando o provedor responde "só funciona dentro de um iframe". */
+    private var recuperacaoEnquadramento = false
+
+    /** Quantos ciclos de watchdog já foram rearmados (evita laço infinito). */
+    private var ciclosWatchdog = 0
+
+    /** Teto de espera antes de oferecer TENTAR DE NOVO (generoso: a verificação é humana). */
+    private val timeoutDesafioMs = 90_000L
+
+    /** Intervalo da observação contínua do provedor. */
+    private val intervaloMonitorMs = 1_200L
+
+    /**
+     * Origem do documento-wrapper que monta o iframe oficial.
+     *
+     * PRECISA ser diferente da origem do provedor. O wrapper era carregado com
+     * `loadDataWithBaseURL(AppConfig.STREAMBETTER_BASE, ...)` — a MESMA origem do
+     * iframe. Com origem igual, o Chromium não trata o iframe como frame aninhado
+     * e a página do provedor responde "Este link só funciona dentro de um iframe":
+     * a verificação nem começava e a TV ficava presa no texto de confirmação.
+     * O site e o app mobile montam o iframe a partir da origem do APP — é isso que
+     * replicamos. Este valor não vai à rede: só define a origem do documento local.
+     */
+    private val ORIGEM_WRAPPER = "https://movieflix.tv/"
+
+    /**
+     * Fotografia do estado do provedor, lida de DENTRO da página.
+     *
+     * Lê os DOIS documentos (topo e iframe, quando acessível) porque o conteúdo
+     * relevante vive no iframe cross-origin. O HTML vai truncado: os marcadores que
+     * decidem o estado ficam no começo do documento.
+     */
+    private val JS_ESTADO = "(function(){" +
+        "function doc(){try{var f=document.querySelector('iframe');if(!f)return null;" +
+        "var d=f.contentDocument||(f.contentWindow&&f.contentWindow.document);" +
+        "return d||null;}catch(e){return null;}}" +
+        "var d=null;try{d=doc();}catch(e){}" +
+        "var legivel=(d!==null&&d!==undefined);" +
+        "function corta(s){return String(s||'').substring(0,8000);}" +
+        "var topo=corta(document.documentElement?document.documentElement.innerHTML:'');" +
+        "var dentro=legivel?corta(d.documentElement.innerHTML):'';" +
+        "var v=null;try{v=document.querySelector('video');}catch(e){}" +
+        "if(!v&&legivel){try{v=d.querySelector('video');}catch(e){}}" +
+        "var src='';try{src=(v&&(v.currentSrc||v.src))?String(v.currentSrc||v.src):'';}catch(e){}" +
+        "return JSON.stringify({t:topo,d:dentro,l:legivel,v:v?true:false,s:src});" +
+        "})();"
 
     /** true quando o vídeo está em modo janela (não ocupa a tela toda). */
     private var modoJanela = false
@@ -303,6 +360,10 @@ class PlaybackActivity : AppCompatActivity() {
         verificacaoDetectada = false
         taskDesafio?.cancel()
         taskDesafio = null
+        taskMonitor?.cancel()
+        taskMonitor = null
+        recuperacaoEnquadramento = false
+        ciclosWatchdog = 0
         layoutLoading?.visibility = View.GONE
         layoutErro?.visibility = View.GONE
         layoutBloqueio?.visibility = View.GONE
@@ -384,13 +445,24 @@ class PlaybackActivity : AppCompatActivity() {
         // MediaCatalog.embedUrl(). A verificação do Cloudflare acontece DENTRO
         // do iframe (nunca no contexto de topo), que é o fluxo legítimo do
         // provedor. Nada de token, nada de bypass.
+        // ORIGEM DO WRAPPER — causa raiz do "só funciona dentro de um iframe".
+        //
+        // O wrapper era carregado com `loadDataWithBaseURL(AppConfig.STREAMBETTER_BASE, ...)`,
+        // isto é, com a MESMA origem do iframe. Com origem igual, o Chromium não o
+        // trata como frame aninhado e o provedor responde "Este link só funciona
+        // dentro de um iframe" — a verificação nem começava e a TV ficava presa em
+        // "Confirmando que você é uma pessoa de verdade...". O site/mobile montam o
+        // iframe a partir de OUTRA origem (a do app), e é isso que fazemos aqui.
         wv.loadDataWithBaseURL(
-            AppConfig.STREAMBETTER_BASE,
+            ORIGEM_WRAPPER,
             htmlEmbedEmIframe(embedUrl),
             "text/html",
             "UTF-8",
             null,
         )
+        // Observação CONTÍNUA: sem ela o app nunca percebia a passagem da
+        // verificação nem o aparecimento do vídeo.
+        monitorarProvedor(wv)
         atualizarProximoEpisodio()
     }
 
@@ -432,56 +504,154 @@ class PlaybackActivity : AppCompatActivity() {
         // O conteúdo real vive DENTRO do iframe (cross-origin). Tentamos ler o
         // documento interno; se o provedor for cross-origin, o acesso é
         // bloqueado e caímos para o documento de topo (o nosso wrapper).
-        wv.evaluateJavascript(
-            "(function(){" +
-                "function doc(){try{" +
-                "var f=document.querySelector('iframe');if(!f)return null;" +
-                "var d=f.contentDocument||(f.contentWindow&&f.contentWindow.document);" +
-                "return d||'bloqueado';}catch(e){return 'bloqueado';}}" +
-                "var d=doc();" +
-                "var html=(d&&d!=='bloqueado')?d.documentElement.innerHTML:" +
-                "(document.documentElement?document.documentElement.innerHTML:'');" +
-                "var des=html.indexOf('cf-turnstile')>=0" +
-                "||html.indexOf('challenges.cloudflare.com')>=0" +
-                "||html.indexOf('pessoa de verdade')>=0" +
-                "||html.indexOf('deu pra confirmar')>=0" +
-                "||html.indexOf('so funciona dentro')>=0" +
-                "||html.indexOf('Just a moment')>=0;" +
-                "if(des)return 'desafio';" +
-                "var v=(d&&d!=='bloqueado')?d.querySelector('video'):null;" +
-                "if(!v){try{v=document.querySelector('video');}catch(e){}}" +
-                "if(v&&(v.currentSrc||v.src))return 'player';" +
-                "if(d==='bloqueado')return 'iframe';" +
-                "return 'espera';" +
-                "})();",
-        ) { resultado ->
-            val texto = resultado ?: return@evaluateJavascript
-            when {
-                texto.contains("player") -> {
-                    // VÍDEO NA TELA — a verificação (se houve) já passou.
-                    verificacaoDetectada = false
-                    taskDesafio?.cancel()
-                    taskDesafio = null
-                    layoutLoading?.visibility = View.GONE
-                }
-                texto.contains("desafio") -> {
-                    // Verificação na frente. NÃO recarregamos nada: o widget
-                    // precisa terminar sozinho. Só garantimos o foco dentro do
-                    // iframe para o OK do controle chegar nele.
-                    verificacaoDetectada = true
-                    layoutLoading?.visibility = View.GONE
-                    injetarNavegacaoRemota(wv)
-                    agendarWatchdogDesafio(wv)
-                }
-                else -> {
-                    // 'iframe' (conteúdo cross-origin, caminho normal) ou
-                    // 'espera' (o provedor ainda redireciona). Nada a fazer:
-                    // armamos o watchdog para o usuário nunca ficar preso.
-                    injetarNavegacaoRemota(wv)
-                    agendarWatchdogDesafio(wv)
+        try {
+            wv.evaluateJavascript(JS_ESTADO) { resultado ->
+                val estado = lerEstado(resultado) ?: return@evaluateJavascript
+                when (estado.estado) {
+                    ChallengeScreen.PLAYER -> {
+                        // VÍDEO NA TELA — a autorização (se houve) foi obtida
+                        // LEGITIMAMENTE pelo usuário e está no cookie jar do
+                        // WebView. A partir daqui o player nativo assume.
+                        verificacaoDetectada = false
+                        taskDesafio?.cancel()
+                        taskDesafio = null
+                        layoutLoading?.visibility = View.GONE
+                        capturarFonteEAssumirNativo(wv, estado.src)
+                    }
+                    ChallengeScreen.DESAFIO -> {
+                        // Verificação legítima na frente. NÃO recarregamos nada: o
+                        // widget precisa terminar sozinho. Apenas garantimos que o
+                        // OK do controle chegue ao quadro e armamos o watchdog.
+                        verificacaoDetectada = true
+                        layoutLoading?.visibility = View.GONE
+                        injetarNavegacaoRemota(wv)
+                        agendarWatchdogDesafio(wv)
+                    }
+                    "reenquadrar" -> {
+                        // Defeito NOSSO (origem do documento-wrapper): recupera UMA
+                        // vez, sem laço, recarregando o wrapper já pela origem neutra.
+                        layoutLoading?.visibility = View.GONE
+                        wv.loadDataWithBaseURL(
+                            ORIGEM_WRAPPER,
+                            htmlEmbedEmIframe(embedUrl),
+                            "text/html",
+                            "UTF-8",
+                            null,
+                        )
+                        injetarNavegacaoRemota(wv)
+                        agendarWatchdogDesafio(wv)
+                    }
+                    else -> {
+                        // IFRAME (cross-origin: o caminho NORMAL, nada de errado) ou
+                        // CONTROLES (o provedor ainda redireciona). Não recarregamos
+                        // — recarregar aqui é o que destruía o progresso da
+                        // verificação. O watchdog garante que ninguém fica preso.
+                        injetarNavegacaoRemota(wv)
+                        agendarWatchdogDesafio(wv)
+                    }
                 }
             }
+        } catch (_: Exception) {
+            // WebView já destruído — nada a avaliar.
         }
+    }
+
+    /** Estado lido da página: o rótulo e a URL do vídeo (quando já há uma). */
+    private data class EstadoProvedor(val estado: String, val src: String)
+
+    /**
+     * Converte o resultado do [JS_ESTADO] em um estado, usando o módulo PURO
+     * [ChallengeScreen] (coberto por ChallengeScreenTest) para decidir.
+     */
+    private fun lerEstado(resultado: String?): EstadoProvedor? {
+        val bruto = resultado ?: return null
+        if (bruto == "null" || bruto.isBlank() || bruto == "\"\"") return null
+        // `evaluateJavascript` entrega uma STRING JSON-encodada: decodifica a camada
+        // externa antes de virar objeto.
+        val json = try {
+            JSONObject(org.json.JSONTokener(bruto).nextValue() as String)
+        } catch (_: Exception) {
+            return null
+        }
+        val topo = if (json.isNull("t")) null else json.optString("t")
+        val interno = if (json.isNull("d")) null else json.optString("d")
+        val legivel = json.optBoolean("l", false)
+        val temVideo = json.optBoolean("v", false)
+
+        val estado = ChallengeScreen.classificar(topo, legivel, interno, temVideo)
+
+        // "Este link só funciona dentro de um iframe" é defeito NOSSO, não do
+        // usuário: o app se recupera sozinho, uma única vez.
+        if (ChallengeScreen.ehErroDeEnquadramento(topo) && !recuperacaoEnquadramento) {
+            recuperacaoEnquadramento = true
+            return EstadoProvedor("reenquadrar", "")
+        }
+        return EstadoProvedor(estado, json.optString("s", ""))
+    }
+
+    /**
+     * Observação contínua do provedor enquanto o WebView é a superfície ativa.
+     *
+     * É o que faz o app PERCEBER a passagem da verificação (inclusive depois do
+     * `window.location.reload()` do provedor) e o aparecimento do vídeo.
+     */
+    private fun monitorarProvedor(wv: WebView) {
+        taskMonitor?.cancel()
+        taskMonitor = scope.launch {
+            while (isActive && modoWebView && player == null) {
+                delay(intervaloMonitorMs)
+                if (!modoWebView || player != null) break
+                withContext(Dispatchers.Main) { avaliarDesafio(wv) }
+            }
+        }
+    }
+
+    /**
+     * Com a fonte AUTORIZADA em mãos, entrega a reprodução ao player NATIVO.
+     *
+     * É o fluxo idêntico ao do mobile: a mesma sessão já autorizada. Se o provedor
+     * expôs uma URL de mídia direta, ela é usada; se não, pedimos a fonte pelo
+     * MESMO caminho do MovieFlix (`StreamResolver`), agora COM os cookies desta
+     * sessão — que é o que faltava para a requisição não voltar à verificação.
+     */
+    private fun capturarFonteEAssumirNativo(wv: WebView, src: String) {
+        if (ehUrlDeMidia(src)) {
+            encerrarWebViewEAbrirNativo(wv, src)
+            return
+        }
+        val token = AuthRepository.loadToken(this)
+        scope.launch {
+            val valido = withContext(Dispatchers.IO) { AuthRepository.validToken(this@PlaybackActivity) }
+            val r = withContext(Dispatchers.IO) { StreamResolver.resolve(embedUrl, valido ?: token) }
+            val u = r.url
+            if (r.success && u != null && ehUrlDeMidia(u)) {
+                encerrarWebViewEAbrirNativo(wv, u)
+            }
+            // Caso contrário o próprio WebView segue tocando — exatamente o que o
+            // mobile faz. Nenhum estado fica preso.
+        }
+    }
+
+    private fun encerrarWebViewEAbrirNativo(wv: WebView, url: String) {
+        taskMonitor?.cancel()
+        taskMonitor = null
+        taskDesafio?.cancel()
+        taskDesafio = null
+        modoWebView = false
+        controleParaIframe = false
+        wv.visibility = View.GONE
+        iniciarPlayer(url)
+    }
+
+    /**
+     * A URL é uma mídia reproduzível pelo ExoPlayer? Só aceitamos http(s) — o que
+     * protege contra entregar ao player um `blob:`/`data:` interno da página.
+     */
+    private fun ehUrlDeMidia(url: String): Boolean {
+        val u = url.lowercase()
+        if (!u.startsWith("http://") && !u.startsWith("https://")) return false
+        return u.contains(".m3u8") || u.contains("ext=m3u8") || u.contains(".mp4") ||
+            u.contains(".mpd") || u.contains("/api/proxy") || u.contains("stream")
     }
 
     /**
@@ -548,26 +718,34 @@ class PlaybackActivity : AppCompatActivity() {
         taskDesafio = scope.launch {
             delay(timeoutDesafioMs)
             if (!isActive) return@launch
-            if (!verificacaoDetectada) return@launch
-            val apareceu = withContext(Dispatchers.Main) {
+            val tocando = withContext(Dispatchers.Main) {
+                if (player != null) return@withContext true
                 var ok = false
                 try {
                     wv.evaluateJavascript(
                         "(function(){var v=document.querySelector('video');" +
-                            "return (v&&(v.currentSrc||v.src))?'sim':'nao';})();",
+                            "return (v&&(v.currentSrc||v.src)&&!v.paused)?'sim':'nao';})();",
                     ) { r -> if (r?.contains("sim") == true) ok = true }
                 } catch (_: Exception) { /* WebView já destruído */ }
                 ok
             }
-            if (apareceu) {
+            if (tocando) {
                 verificacaoDetectada = false
+                return@launch
+            }
+            // Verificação legítima em andamento e o usuário ainda pode estar
+            // confirmando: NÃO interrompemos a tela dele — apenas rearmamos o
+            // watchdog, com teto de ciclos para nunca virar laço.
+            if (verificacaoDetectada && ciclosWatchdog < 3) {
+                ciclosWatchdog++
+                agendarWatchdogDesafio(wv)
                 return@launch
             }
             verificacaoDetectada = false
             mostrarErro(
-                "A verificação de segurança do provedor não foi concluída neste aparelho.\n" +
-                    "Use as setas para focar o quadro de verificação e confirme com OK, " +
-                    "ou toque em TENTAR DE NOVO.",
+                "Não foi possível carregar o vídeo neste aparelho.\n\n" +
+                    "Se apareceu a confirmação de segurança do provedor, use as setas para " +
+                    "focar o quadro e confirme com OK. Caso contrário, toque em TENTAR DE NOVO.",
             )
         }
     }
@@ -599,12 +777,22 @@ class PlaybackActivity : AppCompatActivity() {
     private fun iniciarPlayer(url: String) {
         val pv = playerView ?: return
         val exo = try {
-            ExoPlayer.Builder(this).build().apply {
-                setMediaItem(MediaItem.fromUri(url))
-                if (retomadaSegundos > 0) seekTo(retomadaSegundos)
-                playWhenReady = true
-                prepare()
-            }
+            // O player usa o MESMO cliente/cookie jar da resolução: assim os pedidos
+            // de playlist e de segmentos carregam os cookies da sessão já autorizada
+            // no WebView — exatamente o que o mobile faz (mesmo WebView, mesmo jar).
+            val fabrica = androidx.media3.datasource.DefaultDataSource.Factory(
+                this,
+                StreamResolver.dataSourceFactory(),
+            )
+            ExoPlayer.Builder(this)
+                .setMediaSourceFactory(androidx.media3.exoplayer.source.DefaultMediaSourceFactory(fabrica))
+                .build()
+                .apply {
+                    setMediaItem(MediaItem.fromUri(url))
+                    if (retomadaSegundos > 0) seekTo(retomadaSegundos)
+                    playWhenReady = true
+                    prepare()
+                }
         } catch (e: Exception) {
             iniciarFallbackWebView()
             return
@@ -1002,6 +1190,8 @@ class PlaybackActivity : AppCompatActivity() {
         handlerOverlay.removeCallbacks(esconderOverlaySozinho)
         taskDesafio?.cancel()
         taskDesafio = null
+        taskMonitor?.cancel()
+        taskMonitor = null
         job.cancel()
     }
 }

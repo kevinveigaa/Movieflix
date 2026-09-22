@@ -83,7 +83,17 @@ class MyListActivity : SidebarHostActivity() {
         scope.launch {
             val res = withContext(Dispatchers.IO) { FavoritesRepository.listarResultado(this@MyListActivity) }
             val catalogo = withContext(Dispatchers.IO) { CatalogRepository.all(this@MyListActivity) }
-            val lista = res.itens.mapNotNull { fav ->
+            // ── UMA ÚNICA OCORRÊNCIA por título (pedido explícito) ──
+            //
+            // Deduplicamos ANTES de cruzar com o catálogo: se o banco ainda guarda
+            // linhas repetidas de um mesmo título (criadas por cliques no controle
+            // antes desta correção), o cruzamento devolveria o MESMO Movie várias
+            // vezes e a tela mostraria o título duplicado. A regra é pura e testada
+            // (FavoritesLogic.deduplicar / FavoritesLogicTest).
+            val favoritosUnicos = FavoritesLogic.deduplicar(
+                res.itens.map { FavoritesLogic.Linha(it.id, it.tmdbId, it.mediaType) },
+            )
+            val lista = favoritosUnicos.mapNotNull { fav ->
                 catalogo.firstOrNull { (it.tmdbIdNumerico ?: 0L) == fav.tmdbId }
             }
 
