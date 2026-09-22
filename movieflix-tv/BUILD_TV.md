@@ -30,4 +30,3 @@ adb install -r app/build/outputs/apk/debug/app-debug.apk
 
 O player tenta a fonte nativa Media3/ExoPlayer e usa o embed oficial como fallback quando o provedor exige JavaScript, mantendo a mesma fonte e a mesma conta do Mobile/site.
 
-O workflow `.github/workflows/movieflix-tv.yml` executa os testes JVM e gera o APK debug automaticamente em cada alteração do módulo TV.
