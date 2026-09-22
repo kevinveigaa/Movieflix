@@ -1,21 +1,13 @@
 package com.movieflix.tv
 
 import android.content.Context
-import org.json.JSONArray
 import org.json.JSONObject
 
 /**
- * Continuar assistindo + Histórico (`watch_history`) — MESMA tabela do site.
+ * Continuar assistindo + Historico (`watch_history`) — MESMA tabela do site.
  *
- * Regras replicadas de `src/lib/watchProgress.ts` e `useWatchHistory.ts`:
- *  - Progresso REAL: posição >= 10 min OU >= 30% da duração; nunca >= 95%
- *    (título concluído) e nunca "lixo" (posição/duração <= 0).
- *  - Registro por perfil (viewer_profile_id) e por título (movie_id = tmdb id).
- *  - O upsert procura o registro existente e faz PATCH; senão INSERT — o mesmo
- *    fluxo do mobile (evita duplicar linhas).
- *
- * As colunas opcionais (viewer_profile_id / movie_id / season_number) são
- * detectadas uma vez, para o app funcionar antes e depois das migrations.
+ * Regras de `src/lib/watchProgress.ts`: progresso real = posicao >= 10 min OU
+ * >= 30% da duracao; nunca >= 95% (concluido) e nunca posicao/duracao <= 0.
  */
 object WatchHistoryRepository {
 
@@ -33,113 +25,96 @@ object WatchHistoryRepository {
         val updatedAt: String?,
     )
 
-    data class Colunas(
-        val viewerProfileId: Boolean,
-        val movieId: Boolean,
-        val seasonEpisode: Boolean,
-    )
+    data class Colunas(val viewerProfileId: Boolean, val movieId: Boolean, val seasonEpisode: Boolean)
 
-    @Volatile
-    private var colunasCache: Colunas? = null
+    @Volatile private var colunasCache: Colunas? = null
 
-    private fun colunas(context: Context): Colunas {
+    private fun colunas(ctx: Context): Colunas {
         colunasCache?.let { return it }
-        val vp = SupabaseRest.selectDetectando(context, "watch_history", "select=viewer_profile_id&limit=0").second
-        val mi = SupabaseRest.selectDetectando(context, "watch_history", "select=movie_id&limit=0").second
-        val se = SupabaseRest.selectDetectando(context, "watch_history", "select=season_number&limit=0").second
-        val c = Colunas(vp, mi, se)
-        colunasCache = c
-        return c
+        val vp = SupabaseRest.selectDetectando(ctx, "watch_history", "select=viewer_profile_id&limit=0").second
+        val mi = SupabaseRest.selectDetectando(ctx, "watch_history", "select=movie_id&limit=0").second
+        val se = SupabaseRest.selectDetectando(ctx, "watch_history", "select=season_number&limit=0").second
+        return Colunas(vp, mi, se).also { colunasCache = it }
     }
 
-    // ─────────────────────── Leitura ───────────────────────
+    // ── Leitura ──
 
-    /** Registro mais recente de um título (para retomar). */
-    fun doTitulo(context: Context, movieId: String): Registro? {
-        val uid = AuthRepository.loadUserId(context)
+    fun doTitulo(ctx: Context, movieId: String): Registro? {
+        val uid = AuthRepository.loadUserId(ctx)
         if (uid.isBlank()) return null
-        val c = colunas(context)
+        val c = colunas(ctx)
         val filtros = ArrayList<String>()
         filtros.add("select=*")
         filtros.add(SupabaseRest.eq("user_id", uid))
         if (c.movieId && movieId.isNotBlank()) filtros.add(SupabaseRest.eq("movie_id", movieId))
-        filtros.add(filtroPerfil(context, c))
+        filtroPerfil(ctx, c)?.let { filtros.add(it) }
         filtros.add(SupabaseRest.order("updated_at", ascending = false))
         filtros.add(SupabaseRest.limit(1))
-        val arr = SupabaseRest.select(context, "watch_history", filtros.joinToString("&"))
-        if (arr.length() == 0) return null
-        return parse(arr.optJSONObject(0) ?: return null)
+        val arr = SupabaseRest.select(ctx, "watch_history", filtros.joinToString("&"))
+        return arr.optJSONObject(0)?.let { parse(it) }
     }
 
-    /** Histórico do perfil ativo (mais recente primeiro). */
-    fun listar(context: Context): List<Registro> {
-        val uid = AuthRepository.loadUserId(context)
+    fun listar(ctx: Context): List<Registro> {
+        val uid = AuthRepository.loadUserId(ctx)
         if (uid.isBlank()) return emptyList()
-        val c = colunas(context)
+        val c = colunas(ctx)
         val filtros = ArrayList<String>()
         filtros.add("select=*")
         filtros.add(SupabaseRest.eq("user_id", uid))
-        filtros.add(filtroPerfil(context, c))
+        filtroPerfil(ctx, c)?.let { filtros.add(it) }
         filtros.add(SupabaseRest.order("updated_at", ascending = false))
         filtros.add(SupabaseRest.limit(60))
-        val arr = SupabaseRest.select(context, "watch_history", filtros.joinToString("&"))
+        val arr = SupabaseRest.select(ctx, "watch_history", filtros.joinToString("&"))
         return (0 until arr.length()).mapNotNull { i -> arr.optJSONObject(i)?.let { parse(it) } }
     }
 
-    private fun filtroPerfil(context: Context, c: Colunas): String {
-        if (!c.viewerProfileId) return "select=id&limit=0".let { "" } // sem a coluna não filtra
-        val perfil = ProfilesRepository.perfilAtivoId(context)
+    /** Continuar assistindo: so registros com progresso REAL. */
+    fun continuarAssistindo(ctx: Context, limite: Int = 20): List<Registro> =
+        listar(ctx)
+            .filter { temProgressoReal(it.positionSeconds, it.durationSeconds) }
+            .filter { it.tmdbId != null }
+            .take(limite)
+
+    private fun filtroPerfil(ctx: Context, c: Colunas): String? {
+        if (!c.viewerProfileId) return null
+        val perfil = ProfilesRepository.perfilAtivoId(ctx)
         return if (perfil != null) SupabaseRest.eq("viewer_profile_id", perfil) else SupabaseRest.isNull("viewer_profile_id")
     }
 
-    // ─────────────────────── Escrita ───────────────────────
+    // ── Escrita ──
 
     data class UpsertArgs(
-        val movieId: String?,
-        val tmdbId: Long?,
-        val mediaType: String,
-        val title: String,
-        val posterPath: String?,
-        val backdropPath: String?,
+        val movie: Movie,
         val positionSeconds: Int,
         val durationSeconds: Int,
         val season: Int?,
         val episode: Int?,
     )
 
-    fun upsert(context: Context, a: UpsertArgs) {
-        val uid = AuthRepository.loadUserId(context)
+    fun upsert(ctx: Context, a: UpsertArgs) {
+        val uid = AuthRepository.loadUserId(ctx)
         if (uid.isBlank()) return
-        val c = colunas(context)
-
-        // 1) procura registro existente (mesma lógica do useUpsertHistory)
+        val c = colunas(ctx)
+        val tmdb = a.movie.tmdbIdNumerico
         val filtros = ArrayList<String>()
         filtros.add("select=id")
         filtros.add(SupabaseRest.eq("user_id", uid))
-        if (c.movieId && !a.movieId.isNullOrBlank()) {
-            filtros.add(SupabaseRest.eq("movie_id", a.movieId))
-        } else if (a.tmdbId != null) {
-            filtros.add(SupabaseRest.eqNum("tmdb_id", a.tmdbId))
-            filtros.add(SupabaseRest.eq("media_type", a.mediaType))
-        } else {
-            return
-        }
-        if (c.viewerProfileId) {
-            val perfil = ProfilesRepository.perfilAtivoId(context)
-            filtros.add(
-                if (perfil != null) SupabaseRest.eq("viewer_profile_id", perfil)
-                else SupabaseRest.isNull("viewer_profile_id"),
-            )
-        }
+        if (c.movieId && a.movie.id.isNotBlank()) {
+            filtros.add(SupabaseRest.eq("movie_id", a.movie.id))
+        } else if (tmdb != null) {
+            filtros.add(SupabaseRest.eqNum("tmdb_id", tmdb))
+            filtros.add(SupabaseRest.eq("media_type", if (a.movie.ehSerie) "tv" else "movie"))
+        } else return
+        filtroPerfil(ctx, c)?.let { filtros.add(it) }
         filtros.add(SupabaseRest.limit(1))
-        val existente = SupabaseRest.select(context, "watch_history", filtros.joinToString("&"))
+        val existente = SupabaseRest.select(ctx, "watch_history", filtros.joinToString("&"))
 
         val patch = JSONObject()
             .put("position_seconds", a.positionSeconds)
             .put("duration_seconds", a.durationSeconds)
-            .put("title", a.title)
-            .put("poster_path", a.posterPath ?: JSONObject.NULL)
-            .put("backdrop_path", a.backdropPath ?: JSONObject.NULL)
+            .put("title", a.movie.title)
+            .put("poster_path", a.movie.poster_url)
+            .put("backdrop_path", a.movie.backdrop_url)
             .put("updated_at", isoAgora())
         if (c.seasonEpisode) {
             patch.put("season_number", a.season ?: JSONObject.NULL)
@@ -148,47 +123,39 @@ object WatchHistoryRepository {
 
         val idExistente = existente.optJSONObject(0)?.optString("id")
         if (!idExistente.isNullOrBlank()) {
-            SupabaseRest.update(context, "watch_history", SupabaseRest.eq("id", idExistente), patch)
+            SupabaseRest.update(ctx, "watch_history", SupabaseRest.eq("id", idExistente), patch)
             return
         }
 
-        // 2) não existe → INSERT
         val row = JSONObject()
             .put("user_id", uid)
-            .put("tmdb_id", a.tmdbId ?: JSONObject.NULL)
-            .put("media_type", a.mediaType)
-            .put("title", a.title)
-            .put("poster_path", a.posterPath ?: JSONObject.NULL)
-            .put("backdrop_path", a.backdropPath ?: JSONObject.NULL)
+            .put("tmdb_id", tmdb ?: JSONObject.NULL)
+            .put("media_type", if (a.movie.ehSerie) "tv" else "movie")
+            .put("title", a.movie.title)
+            .put("poster_path", a.movie.poster_url)
+            .put("backdrop_path", a.movie.backdrop_url)
             .put("position_seconds", a.positionSeconds)
             .put("duration_seconds", a.durationSeconds)
             .put("updated_at", isoAgora())
-        if (c.movieId && !a.movieId.isNullOrBlank()) row.put("movie_id", a.movieId)
-        if (c.viewerProfileId) row.put("viewer_profile_id", ProfilesRepository.perfilAtivoId(context) ?: JSONObject.NULL)
+        if (c.movieId && a.movie.id.isNotBlank()) row.put("movie_id", a.movie.id)
+        if (c.viewerProfileId) row.put("viewer_profile_id", ProfilesRepository.perfilAtivoId(ctx) ?: JSONObject.NULL)
         if (c.seasonEpisode) {
             row.put("season_number", a.season ?: JSONObject.NULL)
             row.put("episode_number", a.episode ?: JSONObject.NULL)
         }
-        SupabaseRest.insert(context, "watch_history", row)
+        SupabaseRest.insert(ctx, "watch_history", row)
     }
 
-    fun remover(context: Context, id: String): Boolean =
-        SupabaseRest.delete(context, "watch_history", SupabaseRest.eq("id", id))
+    fun remover(ctx: Context, id: String): Boolean =
+        SupabaseRest.delete(ctx, "watch_history", SupabaseRest.eq("id", id))
 
-    fun limparTudo(context: Context): Boolean {
-        val uid = AuthRepository.loadUserId(context)
+    fun limparTudo(ctx: Context): Boolean {
+        val uid = AuthRepository.loadUserId(ctx)
         if (uid.isBlank()) return false
-        return SupabaseRest.delete(context, "watch_history", SupabaseRest.eq("user_id", uid))
+        return SupabaseRest.delete(ctx, "watch_history", SupabaseRest.eq("user_id", uid))
     }
 
-    private fun isoAgora(): String {
-        if (android.os.Build.VERSION.SDK_INT >= 26) {
-            return java.time.Instant.now().toString()
-        }
-        val fmt = java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", java.util.Locale.US)
-        fmt.timeZone = java.util.TimeZone.getTimeZone("UTC")
-        return fmt.format(java.util.Date())
-    }
+    private fun isoAgora(): String = java.time.Instant.now().toString()
 
     private fun parse(o: JSONObject): Registro = Registro(
         id = o.optString("id"),
@@ -204,31 +171,25 @@ object WatchHistoryRepository {
         updatedAt = if (o.isNull("updated_at")) null else o.optString("updated_at"),
     )
 
-    // ─────────────────────── Regras de progresso (watchProgress.ts) ───────────────────────
+    // ── Regras de progresso (watchProgress.ts) ──
 
     private const val MIN_PROGRESS_SECONDS = 600
     private const val MIN_PROGRESS_PCT = 30
     private const val MAX_RESUME_PCT = 95
 
-    /** O registro representa progresso REAL (merece "continuar assistindo")? */
     fun temProgressoReal(positionSeconds: Int, durationSeconds: Int): Boolean {
-        val pos = positionSeconds
-        val dur = durationSeconds
-        if (pos <= 0) return false
-        if (dur > 0 && pos.toDouble() / dur.toDouble() >= MAX_RESUME_PCT / 100.0) return false
-        if (pos >= MIN_PROGRESS_SECONDS) return true
-        if (dur > 0 && pos.toDouble() / dur.toDouble() >= MIN_PROGRESS_PCT / 100.0) return true
+        if (positionSeconds <= 0) return false
+        if (durationSeconds > 0 && positionSeconds.toDouble() / durationSeconds >= MAX_RESUME_PCT / 100.0) return false
+        if (positionSeconds >= MIN_PROGRESS_SECONDS) return true
+        if (durationSeconds > 0 && positionSeconds.toDouble() / durationSeconds >= MIN_PROGRESS_PCT / 100.0) return true
         return false
     }
 
-    /** Progresso "lixo" (gravado por engano ao abrir o player) — nunca exibir. */
     fun ehProgressoLixo(positionSeconds: Int, durationSeconds: Int): Boolean =
         positionSeconds <= 0 || durationSeconds <= 0
 
-    /** % concluído (0–100) para a barra de progresso nos cards. */
     fun progressoPercentual(positionSeconds: Int, durationSeconds: Int): Int {
         if (durationSeconds <= 0) return 0
-        val pct = (positionSeconds.toDouble() / durationSeconds.toDouble()) * 100.0
-        return pct.toInt().coerceIn(0, 100)
+        return ((positionSeconds.toDouble() / durationSeconds) * 100.0).toInt().coerceIn(0, 100)
     }
 }

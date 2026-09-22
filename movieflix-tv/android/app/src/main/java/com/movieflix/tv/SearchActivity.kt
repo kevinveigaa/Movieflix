@@ -1,221 +1,112 @@
 package com.movieflix.tv
 
 import android.content.Intent
-import android.graphics.Color
-import android.graphics.Typeface
-import android.util.TypedValue
 import android.os.Bundle
+import android.text.Editable
+import android.text.TextWatcher
 import android.view.Gravity
-import android.view.KeyEvent
 import android.view.View
+import android.view.ViewGroup
 import android.widget.EditText
-import android.widget.FrameLayout
+import android.widget.GridLayout
 import android.widget.LinearLayout
+import android.widget.ScrollView
 import android.widget.TextView
-import androidx.recyclerview.widget.RecyclerView
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.cancel
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
+import androidx.core.content.ContextCompat
+import java.util.concurrent.Executors
 
 /**
- * Busca — mesma lógica do mobile (busca local no catálogo embutido pelo título)
- * com interface de TV: campo grande, teclado em tela e grade de cards.
- *
- * ── CORREÇÃO v2.0.1 ───────────────────────────────────────────────────────────
- * Antes a digitação dependia do teclado virtual do Android (`showSoftInput`) —
- * que em Android TV / Google TV / TV Box frequentemente não abre pelo controle
- * remoto. Agora a busca usa o mesmo teclado em tela do login (MfKeyboard),
- * navegável apenas com UP/DOWN/LEFT/RIGHT + OK. Sem IME, sem touchscreen.
- *
- * Ordem de foco: campo → teclado (OK abre) → BUSCAR → grade de resultados.
+ * BUSCA no catalogo real. No Android TV o campo abre o teclado virtual do
+ * sistema quando focado — a busca roda enquanto se digita.
  */
-class SearchActivity : SidebarHostActivity() {
+class SearchActivity : BaseTvActivity() {
 
-    override val itemAtivo: String = "busca"
-
-    private val job = Job()
-    private val scope = CoroutineScope(Dispatchers.Main + job)
-
-    private lateinit var input: EditText
-    private lateinit var grade: RecyclerView
-    private lateinit var lblInfo: TextView
-    private lateinit var teclado: MfKeyboard
+    private val executor = Executors.newSingleThreadExecutor()
+    private lateinit var campo: EditText
+    private lateinit var grade: GridLayout
+    private lateinit var vazio: TextView
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        montarTela()
+    }
 
+    private fun montarTela() {
         val raiz = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(
-                MfDesign.dp(this@SearchActivity, 34f),
-                MfDesign.dp(this@SearchActivity, 20f),
-                MfDesign.dp(this@SearchActivity, 34f),
-                0,
+            setPadding(resources.getDimensionPixelSize(R.dimen.content_pad), TvUi.dp(this@SearchActivity, 24), resources.getDimensionPixelSize(R.dimen.content_pad), 0)
+        }
+
+        val titulo = TvUi.texto(this, "BUSCAR", 26f, ContextCompat.getColor(this, R.color.mf_white), negrito = true)
+        raiz.addView(titulo)
+
+        campo = EditText(this)
+        campo.hint = "Digite o nome do filme ou serie"
+        campo.setTextSize(15f)
+        campo.inputType = android.text.InputType.TYPE_CLASS_TEXT
+        campo.setHintTextColor(ContextCompat.getColor(this, R.color.mf_gray))
+        campo.setTextColor(ContextCompat.getColor(this, R.color.mf_white))
+        campo.background = TvUi.fundo(ContextCompat.getColor(this, R.color.mf_surface_light), 10, this, ContextCompat.getColor(this, R.color.mf_border), 1)
+        campo.setPadding(TvUi.dp(this, 18), TvUi.dp(this, 14), TvUi.dp(this, 18), TvUi.dp(this, 14))
+        campo.isFocusable = true
+        campo.isFocusableInTouchMode = true
+        campo.layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { topMargin = TvUi.dp(this@SearchActivity, 12) }
+        campo.setOnFocusChangeListener { v, temFoco ->
+            v.background = TvUi.fundo(
+                ContextCompat.getColor(this, if (temFoco) R.color.mf_surface_strong else R.color.mf_surface_light),
+                10, this, ContextCompat.getColor(this, if (temFoco) R.color.mf_purple else R.color.mf_border), if (temFoco) 2 else 1,
             )
         }
-        content.addView(
-            raiz,
-            FrameLayout.LayoutParams(
-                FrameLayout.LayoutParams.MATCH_PARENT,
-                FrameLayout.LayoutParams.MATCH_PARENT,
-            ),
-        )
+        campo.addTextChangedListener(object : TextWatcher {
+            override fun beforeTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) {}
+            override fun onTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) { buscar(s?.toString() ?: "") }
+            override fun afterTextChanged(s: Editable?) {}
+        })
+        raiz.addView(campo)
 
-        raiz.addView(MfDesign.tituloTela(this, "Pesquisar"))
-        raiz.addView(
-            MfDesign.texto(this, "Busque por título, filme ou série — o mesmo catálogo do app e do site."),
-            LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.WRAP_CONTENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT,
-            ).apply { topMargin = MfDesign.dp(this@SearchActivity, 4f) },
-        )
+        vazio = TvUi.texto(this, "Digite para buscar no catalogo MovieFlix.", 14f, ContextCompat.getColor(this, R.color.mf_gray))
+        vazio.gravity = Gravity.CENTER
+        vazio.setPadding(0, TvUi.dp(this, 40), 0, 0)
+        raiz.addView(vazio)
 
-        // ── Linha do campo de busca + botão ──
-        val linhaBusca = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER_VERTICAL
-            setPadding(0, MfDesign.dp(this@SearchActivity, 14f), 0, 0)
+        val scroll = ScrollView(this).apply { isVerticalScrollBarEnabled = false }
+        grade = GridLayout(this).apply {
+            columnCount = 6
+            setPadding(0, TvUi.dp(this@SearchActivity, 20), 0, TvUi.dp(this@SearchActivity, 30))
         }
+        scroll.addView(grade)
+        raiz.addView(scroll, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f))
 
-        input = EditText(this).apply {
-            hint = "Título do filme ou série"
-            inputType = android.text.InputType.TYPE_CLASS_TEXT
-            isSingleLine = true
-            importantForAutofill = View.IMPORTANT_FOR_AUTOFILL_NO
-            // O teclado é o do app: o IME do sistema nunca é chamado.
-            showSoftInputOnFocus = false
-            background = resources.getDrawable(R.drawable.bg_input, null)
-            setTextColor(Color.WHITE)
-            setHintTextColor(MfDesign.GRAY)
-            setTextSize(TypedValue.COMPLEX_UNIT_SP, 16f)
-            setPadding(
-                MfDesign.dp(this@SearchActivity, 20f), 0,
-                MfDesign.dp(this@SearchActivity, 20f), 0,
-            )
-        }
-        linhaBusca.addView(
-            input,
-            LinearLayout.LayoutParams(0, MfDesign.dp(this@SearchActivity, 56f), 1f),
-        )
-
-        val btnBuscar = TextView(this).apply {
-            text = "Buscar"
-            background = resources.getDrawable(R.drawable.bg_pill_primary, null)
-            setTextColor(Color.WHITE)
-            setTextSize(TypedValue.COMPLEX_UNIT_SP, 15f)
-            typeface = Typeface.DEFAULT_BOLD
-            gravity = Gravity.CENTER
-            isFocusable = true
-            isFocusableInTouchMode = true
-            isClickable = true
-            setPadding(
-                MfDesign.dp(this@SearchActivity, 28f), 0,
-                MfDesign.dp(this@SearchActivity, 28f), 0,
-            )
-            MfDesign.focoBotao(this)
-            setOnClickListener { buscar() }
-        }
-        linhaBusca.addView(
-            btnBuscar,
-            LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.WRAP_CONTENT,
-                MfDesign.dp(this@SearchActivity, 56f),
-            ).apply { marginStart = MfDesign.dp(this@SearchActivity, 12f) },
-        )
-        raiz.addView(linhaBusca)
-
-        lblInfo = MfDesign.texto(this, "").apply { textSize = 14f }
-        raiz.addView(
-            lblInfo,
-            LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT,
-            ).apply { topMargin = MfDesign.dp(this@SearchActivity, 8f) },
-        )
-
-        // ── Grade de resultados (mesmo card do resto do app) ──
-        grade = MfRowsView.criarGrade(this, MfMetrics.colunasGrade(this)) { m ->
-            startActivity(Intent(this, DetailsActivity::class.java).putExtra("movie_id", m.id))
-        }
-
-        // ── Teclado em tela (substitui o teclado do sistema) ──
-        teclado = MfKeyboard(this).apply {
-            rotuloConfirmar = "BUSCAR"
-            definirAlvo(input)
-            aoConfirmar = { buscar() }
-            acima = input
-            abaixo = grade
-        }
-        raiz.addView(
-            teclado,
-            LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT,
-            ).apply { topMargin = MfDesign.dp(this@SearchActivity, 10f) },
-        )
-
-        raiz.addView(
-            grade,
-            LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                0,
-                1f,
-            ),
-        )
-
-        // OK no campo abre o teclado em tela (que já está visível).
-        input.setOnClickListener {
-            teclado.definirAlvo(input)
-            input.setBackgroundResource(R.drawable.bg_input_active)
-            input.setSelection(input.text.length)
-            teclado.focarPrimeira()
-        }
-        input.setOnKeyListener { _, code, event ->
-            val ok = code == KeyEvent.KEYCODE_DPAD_CENTER ||
-                code == KeyEvent.KEYCODE_ENTER ||
-                code == KeyEvent.KEYCODE_NUMPAD_ENTER
-            if (ok && event.action == KeyEvent.ACTION_UP) {
-                teclado.definirAlvo(input)
-                input.setBackgroundResource(R.drawable.bg_input_active)
-                teclado.focarPrimeira()
-                true
-            } else {
-                false
-            }
-        }
-
-        input.requestFocus()
+        conteudo(raiz)
+        garantirFocoAposLayout(raiz, campo)
     }
 
-    private fun buscar() {
-        val termo = input.text.toString().trim()
-        if (termo.isBlank()) {
-            lblInfo.text = "Digite um título para pesquisar."
+    private fun buscar(termo: String) {
+        if (termo.trim().length < 2) {
+            grade.removeAllViews()
+            vazio.visibility = View.VISIBLE
+            vazio.text = "Digite para buscar no catalogo MovieFlix."
             return
         }
-        lblInfo.text = "Buscando…"
-        scope.launch {
-            val res = withContext(Dispatchers.IO) { CatalogRepository.buscar(this@SearchActivity, termo) }
-            if (res.isEmpty()) {
-                MfRowsView.publicarNaGrade(grade, emptyList())
-                lblInfo.text = "Nenhum resultado para \"$termo\"."
-            } else {
-                MfRowsView.publicarNaGrade(grade, res) { m ->
-                    startActivity(
-                        Intent(this@SearchActivity, DetailsActivity::class.java).putExtra("movie_id", m.id),
-                    )
+        executor.execute {
+            val achados = CatalogRepository.buscar(this, termo)
+            runOnUiThread {
+                grade.removeAllViews()
+                if (achados.isEmpty()) {
+                    vazio.visibility = View.VISIBLE
+                    vazio.text = "Nenhum resultado para \"$termo\"."
+                    return@runOnUiThread
                 }
-                lblInfo.text = "${res.size} resultado(s) para \"$termo\"."
-                grade.requestFocus()
+                vazio.visibility = View.GONE
+                for (m in achados) {
+                    val card = TvUi.card(this, m.poster_url.ifBlank { m.backdrop_url }, m.title, m.qualidade()) {
+                        startActivity(Intent(this, DetailsActivity::class.java).putExtra("movie_id", m.id))
+                    }
+                    grade.addView(card)
+                }
             }
         }
     }
 
-    override fun onDestroy() {
-        super.onDestroy()
-        job.cancel()
-    }
+    override fun focoPadrao(): View? = campo
 }

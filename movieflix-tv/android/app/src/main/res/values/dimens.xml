@@ -1,55 +1,29 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!--
-  Métricas da interface de TV (novo design aprovado pelo dono).
-
-  Ajuste desta rodada: os cards estavam GRANDES DEMAIS e a Home mostrava
-  poucas colunas. Os valores abaixo priorizam ~6 colunas visíveis e mais
-  fileiras por tela, mantendo legibilidade a distância (nada ficou minúsculo).
-  Tudo em dp/sp, portanto escala corretamente para 720p (x0.67), 1080p (x1) e
-  4K (x2) — nenhum layout é cortado em nenhuma dessas resoluções.
--->
+<!-- Metricas da interface de TV. Tudo em dp/sp: escala em 720p/1080p/4K. -->
 <resources>
-    <!-- Menu lateral -->
-    <dimen name="sidebar_width">232dp</dimen>
-    <dimen name="sidebar_logo_top">30dp</dimen>
-    <dimen name="sidebar_item_height">46dp</dimen>
-    <dimen name="sidebar_item_gap">7dp</dimen>
-    <dimen name="sidebar_item_start">18dp</dimen>
-    <dimen name="sidebar_icon">20dp</dimen>
-    <dimen name="sidebar_radius">10dp</dimen>
-
-    <!-- Área de conteúdo -->
     <dimen name="content_pad">34dp</dimen>
     <dimen name="content_pad_top">22dp</dimen>
-    <dimen name="content_pad_bottom">44dp</dimen>
 
-    <!-- HERO (banner) — grande, mas NUNCA ocupa a tela inteira -->
-    <dimen name="hero_height">288dp</dimen>
+    <!-- HERO (banner da Home) -->
+    <dimen name="hero_height">272dp</dimen>
     <dimen name="hero_pad">40dp</dimen>
-    <dimen name="hero_title">38sp</dimen>
+    <dimen name="hero_title">36sp</dimen>
     <dimen name="hero_desc">14sp</dimen>
-    <dimen name="hero_btn_height">44dp</dimen>
-    <dimen name="hero_btn_min">190dp</dimen>
+    <dimen name="hero_btn_height">46dp</dimen>
 
-    <!-- Carrosséis / cards (menores: ~6 colunas visíveis em 1080p) -->
+    <!-- Cards (poster) -->
     <dimen name="card_width">168dp</dimen>
     <dimen name="card_height">252dp</dimen>
-    <dimen name="card_radius">10dp</dimen>
     <dimen name="card_gutter">14dp</dimen>
-    <dimen name="card_text_area">50dp</dimen>
     <dimen name="row_title">17sp</dimen>
-    <dimen name="row_gap">14dp</dimen>
+    <dimen name="row_spacing">26dp</dimen>
 
-    <!-- Títulos de tela -->
-    <dimen name="screen_title">28sp</dimen>
-    <dimen name="screen_subtitle">14sp</dimen>
+    <!-- Grid -->
+    <dimen name="grid_pad">34dp</dimen>
 
-    <!-- Botões / chips -->
-    <dimen name="btn_height">48dp</dimen>
-    <dimen name="chip_height">28dp</dimen>
-    <dimen name="chip_radius">14dp</dimen>
-    <dimen name="pill_radius">24dp</dimen>
+    <!-- Sidebar -->
+    <dimen name="sidebar_width">216dp</dimen>
+    <dimen name="sidebar_item_height">44dp</dimen>
 
-    <!-- Linhas de configuração / conta -->
-    <dimen name="list_row_height">56dp</dimen>
+    <dimen name="focus_ring">4dp</dimen>
 </resources>

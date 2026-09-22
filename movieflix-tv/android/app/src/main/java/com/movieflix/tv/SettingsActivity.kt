@@ -1,386 +1,142 @@
 package com.movieflix.tv
 
-import android.content.Intent
-import android.graphics.Color
-import android.graphics.Typeface
-import android.graphics.drawable.GradientDrawable
-import android.util.TypedValue
 import android.os.Bundle
 import android.view.View
-import android.widget.FrameLayout
+import android.view.ViewGroup
 import android.widget.LinearLayout
 import android.widget.ScrollView
-import android.widget.TextView
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.cancel
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
+import androidx.core.content.ContextCompat
+import java.util.concurrent.Executors
 
 /**
- * Configurações da TV — paridade com as opções aplicáveis do app mobile:
- * qualidade preferida, próximo episódio automático, limites do plano, perfil
- * ativo, conta e SAIR (logout). Somente preferências de uso: nenhuma regra de
- * negócio nova é criada aqui.
+ * CONFIGURACOES — preferencias locais do app de TV.
+ * Nada aqui altera dados do site: sao apenas opcoes de reproducao.
  */
-class SettingsActivity : SidebarHostActivity() {
+class SettingsActivity : BaseTvActivity() {
 
-    override val itemAtivo: String = "config"
-
-    private val job = Job()
-    private val scope = CoroutineScope(Dispatchers.Main + job)
-    private lateinit var container: LinearLayout
-    private var primeiroItem: View? = null
+    private val executor = Executors.newSingleThreadExecutor()
+    private val prefs by lazy { getSharedPreferences("mf_settings", MODE_PRIVATE) }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        montarTela()
+    }
 
-        val scroll = ScrollView(this).apply { isFillViewport = false; clipToPadding = false }
-        container = LinearLayout(this).apply {
+    private fun montarTela() {
+        val scroll = ScrollView(this).apply { isVerticalScrollBarEnabled = false }
+        val raiz = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(
-                MfDesign.dp(this@SettingsActivity, 34f),
-                MfDesign.dp(this@SettingsActivity, 26f),
-                MfDesign.dp(this@SettingsActivity, 34f),
-                MfDesign.dp(this@SettingsActivity, 30f),
-            )
-        }
-        scroll.addView(container)
-        content.addView(
-            scroll,
-            FrameLayout.LayoutParams(
-                FrameLayout.LayoutParams.MATCH_PARENT,
-                FrameLayout.LayoutParams.MATCH_PARENT,
-            ),
-        )
-
-        montar()
-    }
-
-    private fun montar() {
-        container.removeAllViews()
-        primeiroItem = null
-
-        adicionarSecao("Conta")
-        adicionarLinha("E-mail", AuthRepository.loadEmail(this) ?: "—") { }
-        adicionarLinha("Perfil ativo", ProfilesRepository.perfilAtivo(this)?.name ?: "Nenhum") {
-            startActivity(Intent(this, ProfilesActivity::class.java))
-        }
-        adicionarLinha("Assinatura e planos", "Ver planos, vencimento e limites") {
-            startActivity(Intent(this, AccountActivity::class.java))
-        }
-        adicionarLinha("Trocar senha", "Altera a senha da sua conta MovieFlix") {
-            dialogoTrocarSenha()
+            setPadding(TvUi.dp(this@SettingsActivity, 44), TvUi.dp(this@SettingsActivity, 26), TvUi.dp(this@SettingsActivity, 44), TvUi.dp(this@SettingsActivity, 34))
         }
 
-        adicionarSecao("Reprodução")
-        adicionarLinha("Qualidade preferida", AppPrefs.qualidadeLabel(AppPrefs.qualidadePreferida(this))) {
-            escolherQualidade()
-        }
-        adicionarToggle(
-            "Próximo episódio automático",
-            AppPrefs.autoplayProximoEpisodio(this),
-        ) { ativo -> AppPrefs.setAutoplayProximoEpisodio(this, ativo) }
+        raiz.addView(TvUi.texto(this, "CONFIGURACOES", 26f, ContextCompat.getColor(this, R.color.mf_white), negrito = true))
 
-        adicionarSecao("Seu plano")
-        val lblPlano = adicionarLinha("Carregando limites…", "") { }
-        scope.launch {
-            val (assinatura, planos) = withContext(Dispatchers.IO) {
-                AccountRepository.assinatura(this@SettingsActivity) to
-                    AccountRepository.planos(this@SettingsActivity)
+        // Auto-proximo episodio
+        raiz.addView(interruptor(
+            "Reproduzir proximo episodio automaticamente",
+            prefs.getBoolean(CHAVE_AUTO_NEXT, true),
+        ) { v -> prefs.edit().putBoolean(CHAVE_AUTO_NEXT, v).apply() })
+
+        raiz.addView(interruptor(
+            "Iniciar em tela cheia no player",
+            prefs.getBoolean(CHAVE_FULLSCREEN, true),
+        ) { v -> prefs.edit().putBoolean(CHAVE_FULLSCREEN, v).apply() })
+
+        raiz.addView(interruptor(
+            "Preferir player nativo (se falhar, usa o modo web)",
+            prefs.getBoolean(CHAVE_PREFERIR_NATIVO, true),
+        ) { v -> prefs.edit().putBoolean(CHAVE_PREFERIR_NATIVO, v).apply() })
+
+        // Trocar de perfil
+        val botaoPerfil = TvUi.botao(this, "Trocar de perfil")
+        botaoPerfil.layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { topMargin = TvUi.dp(this@SettingsActivity, 20) }
+        botaoPerfil.setOnClickListener { startActivity(android.content.Intent(this, ProfilesActivity::class.java)); finish() }
+        raiz.addView(botaoPerfil)
+
+        // Limpar cache do catalogo
+        val botaoCache = TvUi.botao(this, "Atualizar catalogo")
+        botaoCache.layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { topMargin = TvUi.dp(this@SettingsActivity, 12) }
+        botaoCache.setOnClickListener {
+            executor.execute {
+                java.io.File(filesDir, "catalogo_v4.json").delete()
+                CatalogRepository.atualizarSeNecessario(this)
+                runOnUiThread { TvUi.aviso(this, "Catalogo atualizado") }
             }
-            val ativa = AccountRepository.temAssinaturaAtiva(assinatura)
-            val ent = PlanoRegras.entitlementsForSubscription(assinatura, ativa, planos)
-            val downloadLabel = when {
-                ent.downloads <= 0 -> "sem downloads offline"
-                ent.downloads == PlanoRegras.UNLIMITED -> "downloads ilimitados por mês"
-                else -> "${ent.downloads} downloads por mês"
-            }
-            val venc = if (ativa) {
-                " • vence em ${PlanoRegras.formatarVencimento(assinatura?.expiresAt)}"
-            } else {
-                " • sem assinatura ativa"
-            }
-            lblPlano.text = "Qualidade até ${ent.qualityLabel} • ${PlanoRegras.telasLabel(ent.screens)} • " +
-                "$downloadLabel$venc\n(Os downloads offline são feitos no app do celular, com esta mesma conta.)"
         }
+        raiz.addView(botaoCache)
 
-        adicionarSecao("Idioma")
-        adicionarLinha("Áudio e legendas", "Português (pt-BR) — padrão do catálogo") { }
-
-        adicionarSecao("Sessão")
-        adicionarLinha("Sair da conta", "Encerra a sessão nesta TV") { confirmarLogout() }
-
-        primeiroItem?.requestFocus()
-    }
-
-    private fun adicionarSecao(titulo: String) {
-        container.addView(
-            TextView(this).apply {
-                text = titulo.uppercase()
-                setTextColor(MfDesign.PURPLE_LIGHT)
-                textSize = 13f
-                typeface = Typeface.DEFAULT_BOLD
-                letterSpacing = 0.12f
-                setPadding(
-                    0, MfDesign.dp(this@SettingsActivity, 22f), 0,
-                    MfDesign.dp(this@SettingsActivity, 8f),
-                )
-            },
-        )
-    }
-
-    private fun adicionarLinha(rotulo: String, valor: String, acao: () -> Unit): TextView {
-        val row = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(
-                MfDesign.dp(this@SettingsActivity, 26f), MfDesign.dp(this@SettingsActivity, 16f),
-                MfDesign.dp(this@SettingsActivity, 26f), MfDesign.dp(this@SettingsActivity, 16f),
-            )
-            isFocusable = true
-            isFocusableInTouchMode = true
-            isClickable = true
-            background = fundoRow(false)
-        }
-
-        row.addView(
-            TextView(this).apply {
-                text = rotulo
-                setTextColor(MfDesign.WHITE)
-                textSize = 18f
-                typeface = Typeface.DEFAULT_BOLD
-            },
-        )
-
-        val valTv = TextView(this).apply {
-            text = valor
-            setTextColor(MfDesign.GRAY)
-            textSize = 14f
-            setPadding(0, MfDesign.dp(this@SettingsActivity, 4f), 0, 0)
-        }
-        row.addView(valTv)
-
-        row.setOnClickListener { acao() }
-        row.setOnFocusChangeListener { v, temFoco ->
-            v.background = fundoRow(temFoco)
-            v.animate().scaleX(if (temFoco) 1.012f else 1f)
-                .scaleY(if (temFoco) 1.012f else 1f).setDuration(120).start()
-        }
-
-        container.addView(
-            row,
-            LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT,
-            ).apply { bottomMargin = MfDesign.dp(this@SettingsActivity, 10f) },
-        )
-        if (primeiroItem == null) primeiroItem = row
-        return valTv
-    }
-
-    private fun adicionarToggle(rotulo: String, inicial: Boolean, onChange: (Boolean) -> Unit) {
-        var estado = inicial
-        val valor = adicionarLinha(rotulo, if (estado) "Ligado" else "Desligado") { }
-        (valor.parent as? LinearLayout)?.setOnClickListener {
-            estado = !estado
-            valor.text = if (estado) "Ligado" else "Desligado"
-            valor.setTextColor(if (estado) MfDesign.TEAL else MfDesign.GRAY)
-            onChange(estado)
-        }
-    }
-
-    private fun escolherQualidade() {
-        val opcoes = listOf("Automática", "4K (2160p)", "Full HD (1080p)", "HD (720p)")
-        val valores = listOf("auto", "2160", "1080", "720")
-        val atual = valores.indexOf(AppPrefs.qualidadePreferida(this)).coerceAtLeast(0)
-        // Diálogo próprio do app: a lista do AlertDialog do sistema não recebe
-        // foco do D-pad em boa parte dos TV Box.
-        MfDialog.escolher(this, "Qualidade preferida", opcoes, atual) { which ->
-            AppPrefs.setQualidadePreferida(this, valores[which])
-            montar()
-        }
-    }
-
-    /**
-     * TROCA DE SENHA logado — o mesmo fluxo do mobile/site.
-     * Pede a nova senha duas vezes (com o teclado em tela) e chama
-     * `AuthRepository.trocarSenha` (PUT /auth/v1/user).
-     */
-    private fun trocarSenha() {
-        MfDialog.entrarTexto(
-            this,
-            titulo = "Trocar senha",
-            dica = "Nova senha (mínimo 6 caracteres)",
-            rotuloConfirmar = "CONTINUAR",
-            senha = true,
-            validar = { v ->
-                if (v.length < 6) "A senha precisa de pelo menos 6 caracteres." else null
-            },
-        ) { nova ->
-            MfDialog.entrarTexto(
+        // Sobre
+        raiz.addView(
+            TvUi.texto(
                 this,
-                titulo = "Confirme a nova senha",
-                dica = "Repita a nova senha",
-                rotuloConfirmar = "SALVAR",
-                senha = true,
-                validar = { v -> if (v != nova) "As senhas não conferem." else null },
-            ) {
-                scope.launch {
-                    val r = withContext(Dispatchers.IO) {
-                        AuthRepository.trocarSenha(this@SettingsActivity, nova)
-                    }
-                    avisar(
-                        if (r.ok) {
-                            "Senha alterada com sucesso. Use a nova senha no site, no celular e nesta TV."
-                        } else {
-                            r.error ?: "Não foi possível alterar a senha agora."
-                        },
-                    )
-                }
-            }
-        }
-    }
-
-    /** Aviso simples navegável pelo controle. */
-    private fun avisar(mensagem: String) {
-        MfDialog.escolher(this, mensagem, listOf("OK")) { }
-    }
-
-    /**
-     * TROCA DE SENHA logado — MESMO endpoint do supabase-js (`updateUser`).
-     * A senha nova passa a valer no site, no celular e na TV (mesma conta).
-     */
-    private fun dialogoTrocarSenha() {
-        val coluna = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(
-                MfDesign.dp(this@SettingsActivity, 18f), MfDesign.dp(this@SettingsActivity, 10f),
-                MfDesign.dp(this@SettingsActivity, 18f), MfDesign.dp(this@SettingsActivity, 12f),
-            )
-        }
-        val campo = android.widget.EditText(this).apply {
-            inputType = android.text.InputType.TYPE_CLASS_TEXT or
-                android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD
-            hint = "Nova senha (mínimo 6 caracteres)"
-            setTextColor(android.graphics.Color.WHITE)
-            setHintTextColor(MfDesign.GRAY)
-            showSoftInputOnFocus = false
-            importantForAutofill = View.IMPORTANT_FOR_AUTOFILL_NO
-            background = resources.getDrawable(R.drawable.bg_input, null)
-            setPadding(
-                MfDesign.dp(this@SettingsActivity, 20f), 0,
-                MfDesign.dp(this@SettingsActivity, 20f), 0,
-            )
-        }
-        coluna.addView(
-            campo,
-            LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                MfDesign.dp(this, 56f),
-            ),
-        )
-        val aviso = TextView(this).apply {
-            text = "Use no mínimo 6 caracteres."
-            setTextColor(MfDesign.GRAY)
-            textSize = 13f
-            setPadding(0, MfDesign.dp(this@SettingsActivity, 10f), 0, 0)
-        }
-        coluna.addView(aviso)
-        val teclado = MfKeyboard(this).apply {
-            rotuloConfirmar = "SALVAR"
-            definirAlvo(campo)
-            acima = campo
-        }
-        coluna.addView(
-            teclado,
-            LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT,
-            ).apply { topMargin = MfDesign.dp(this@SettingsActivity, 12f) },
+                "MovieFlix TV  4.0.0\nAndroid TV  •  Google TV  •  TV Box\nSuporte: WhatsApp ${AppConfig.WHATSAPP_NUMBER}",
+                13f, ContextCompat.getColor(this, R.color.mf_gray), maxLinhas = 4,
+            ).apply { setPadding(0, TvUi.dp(this@SettingsActivity, 24), 0, 0) },
         )
 
-        val dialog = androidx.appcompat.app.AlertDialog.Builder(this)
-            .setTitle("Trocar senha")
-            .setView(coluna)
-            .setPositiveButton("FECHAR", null)
-            .create()
-
-        fun salvar() {
-            val senha = campo.text.toString()
-            if (senha.length < 6) {
-                aviso.text = "A senha precisa de pelo menos 6 caracteres."
-                aviso.setTextColor(MfDesign.ERROR)
-                return
-            }
-            val token = AuthRepository.loadToken(this)
-            if (token.isNullOrBlank()) {
-                aviso.text = "Sessão expirada. Entre novamente."
-                aviso.setTextColor(MfDesign.ERROR)
-                return
-            }
-            aviso.text = "Salvando…"
-            aviso.setTextColor(MfDesign.GRAY)
-            scope.launch {
-                val ok = withContext(Dispatchers.IO) { AuthRepository.atualizarSenha(senha, token) }
-                aviso.text = if (ok) "Senha alterada! Vale no site, no celular e aqui."
-                else "Não foi possível alterar. Tente novamente."
-                aviso.setTextColor(if (ok) MfDesign.TEAL else MfDesign.ERROR)
-            }
+        // Sair
+        val sair = TvUi.botao(this, "Sair da conta")
+        sair.layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { topMargin = TvUi.dp(this@SettingsActivity, 18) }
+        sair.setOnClickListener {
+            AuthRepository.clearSession(this)
+            ProfilesRepository.setPerfilAtivo(this, null)
+            val i = android.content.Intent(this, LoginActivity::class.java)
+            i.flags = android.content.Intent.FLAG_ACTIVITY_NEW_TASK or android.content.Intent.FLAG_ACTIVITY_CLEAR_TASK
+            startActivity(i)
+            finish()
         }
+        raiz.addView(sair)
 
-        teclado.aoConfirmar = { salvar() }
-        campo.setOnClickListener { teclado.definirAlvo(campo); teclado.focarPrimeira() }
-        dialog.setOnShowListener {
-            dialog.getButton(android.content.DialogInterface.BUTTON_POSITIVE)
-                .setOnClickListener { dialog.dismiss() }
-        }
-        dialog.show()
-        dialog.window?.setLayout(
-            MfDesign.dp(this, 820f),
-            android.view.ViewGroup.LayoutParams.WRAP_CONTENT,
-        )
+        scroll.addView(raiz)
+        conteudo(scroll)
+        garantirFocoAposLayout(raiz)
     }
 
-    private fun confirmarLogout() {
-        MfDialog.escolher(
+    private fun interruptor(rotulo: String, valorInicial: Boolean, aoMudar: (Boolean) -> Unit): View {
+        val linha = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = android.view.Gravity.CENTER_VERTICAL
+            isFocusable = true
+            setPadding(TvUi.dp(this@SettingsActivity, 20), TvUi.dp(this@SettingsActivity, 16), TvUi.dp(this@SettingsActivity, 20), TvUi.dp(this@SettingsActivity, 16))
+        }
+        linha.layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { topMargin = TvUi.dp(this@SettingsActivity, 12) }
+        val normal = TvUi.fundo(ContextCompat.getColor(this, R.color.mf_surface), 10, this, ContextCompat.getColor(this, R.color.mf_border), 1)
+        val foco = TvUi.fundo(ContextCompat.getColor(this, R.color.mf_surface_strong), 10, this, ContextCompat.getColor(this, R.color.mf_purple), 3)
+        linha.background = normal
+        linha.setOnFocusChangeListener { v, temFoco -> v.background = if (temFoco) foco else normal }
+
+        val texto = TvUi.texto(this, rotulo, 15f, ContextCompat.getColor(this, R.color.mf_white), maxLinhas = 2)
+        linha.addView(texto, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+
+        val estado = TvUi.texto(
             this,
-            "Sair da conta? Você precisará entrar de novo com a mesma conta do MovieFlix.",
-            listOf("SAIR", "CANCELAR"),
-        ) { which ->
-            if (which != 0) return@escolher
-            scope.launch {
-                withContext(Dispatchers.IO) {
-                    PlaybackSessionRepository.encerrar(this@SettingsActivity)
-                    AuthRepository.clearSession(this@SettingsActivity)
-                    ProfilesRepository.setPerfilAtivo(this@SettingsActivity, null)
-                }
-                startActivity(Intent(this@SettingsActivity, LoginActivity::class.java))
-                finishAffinity()
-            }
-        }
-    }
-
-    private fun fundoRow(focado: Boolean): GradientDrawable = GradientDrawable().apply {
-        cornerRadius = MfDesign.dp(this@SettingsActivity, 14f).toFloat()
-        setColor(if (focado) MfDesign.SURFACE_STRONG else MfDesign.SURFACE_LIGHT)
-        setStroke(
-            MfDesign.dp(this@SettingsActivity, if (focado) 3f else 1f),
-            if (focado) MfDesign.PURPLE else MfDesign.BORDER,
+            if (valorInicial) "LIGADO" else "DESLIGADO",
+            14f,
+            ContextCompat.getColor(this, if (valorInicial) R.color.mf_green else R.color.mf_gray),
+            negrito = true,
         )
-    }
+        linha.addView(estado)
 
-    /** BACK fecha o diálogo aberto antes de sair da tela. */
-    override fun onKeyDown(keyCode: Int, event: android.view.KeyEvent?): Boolean {
-        if (keyCode == android.view.KeyEvent.KEYCODE_BACK && MfDialog.estaAberto()) {
-            MfDialog.fechar()
-            return true
+        linha.setOnClickListener {
+            val novo = !valorInicialCorrente(rotulo)
+            atualizarEstado(rotulo, novo)
+            aoMudar(novo)
+            estado.text = if (novo) "LIGADO" else "DESLIGADO"
+            estado.setTextColor(ContextCompat.getColor(this, if (novo) R.color.mf_green else R.color.mf_gray))
         }
-        return super.onKeyDown(keyCode, event)
+        estados[rotulo] = valorInicial
+        return linha
     }
 
-    override fun onDestroy() {
-        super.onDestroy()
-        job.cancel()
+    private val estados = HashMap<String, Boolean>()
+    private fun valorInicialCorrente(rotulo: String): Boolean = estados[rotulo] ?: false
+    private fun atualizarEstado(rotulo: String, v: Boolean) { estados[rotulo] = v }
+
+    override fun focoPadrao(): View? = raizView().findFocus()
+
+    companion object {
+        const val CHAVE_AUTO_NEXT = "auto_next"
+        const val CHAVE_FULLSCREEN = "fullscreen"
+        const val CHAVE_PREFERIR_NATIVO = "preferir_nativo"
     }
 }

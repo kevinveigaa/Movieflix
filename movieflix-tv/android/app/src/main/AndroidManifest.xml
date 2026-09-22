@@ -5,7 +5,7 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
 
-    <!-- Android TV nativo: exige leanback e não exige touchscreen (controle remoto D-pad). -->
+    <!-- App NATIVO de Android TV: exige Leanback e NAO exige touchscreen (controle remoto). -->
     <uses-feature
         android:name="android.software.leanback"
         android:required="true" />
@@ -14,21 +14,21 @@
         android:required="false" />
 
     <application
+        android:name=".TvApp"
         android:allowBackup="true"
+        android:banner="@drawable/tv_banner"
         android:icon="@mipmap/ic_launcher"
-        android:roundIcon="@mipmap/ic_launcher_round"
-        android:banner="@mipmap/tv_banner"
         android:label="@string/app_name"
         android:supportsRtl="true"
         android:usesCleartextTraffic="false"
-        android:theme="@style/Theme.MovieFlixTV"
+        android:theme="@style/Theme.MovieFlixTv"
         tools:targetApi="34">
 
         <activity
             android:name=".SplashActivity"
             android:exported="true"
-            android:theme="@style/Theme.MovieFlixTV.Splash"
-            android:screenOrientation="landscape">
+            android:screenOrientation="landscape"
+            android:theme="@style/Theme.MovieFlixTv">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
@@ -39,69 +39,22 @@
             </intent-filter>
         </activity>
 
-        <activity
-            android:name=".LoginActivity"
-            android:exported="false"
-            android:screenOrientation="landscape" />
-
-        <!-- Perfis de exibição (viewer_profiles) — "Quem está assistindo?" -->
-        <activity
-            android:name=".ProfilesActivity"
-            android:exported="false"
-            android:screenOrientation="landscape" />
-
-        <activity
-            android:name=".MainActivity"
-            android:exported="false"
-            android:screenOrientation="landscape" />
+        <activity android:name=".LoginActivity" android:exported="false" android:screenOrientation="landscape" />
+        <activity android:name=".ProfilesActivity" android:exported="false" android:screenOrientation="landscape" />
+        <activity android:name=".HomeActivity" android:exported="false" android:screenOrientation="landscape" />
+        <activity android:name=".CatalogActivity" android:exported="false" android:screenOrientation="landscape" />
+        <activity android:name=".SearchActivity" android:exported="false" android:screenOrientation="landscape" />
+        <activity android:name=".DetailsActivity" android:exported="false" android:screenOrientation="landscape" />
+        <activity android:name=".MyListActivity" android:exported="false" android:screenOrientation="landscape" />
+        <activity android:name=".HistoryActivity" android:exported="false" android:screenOrientation="landscape" />
+        <activity android:name=".AccountActivity" android:exported="false" android:screenOrientation="landscape" />
+        <activity android:name=".PaywallActivity" android:exported="false" android:screenOrientation="landscape" />
+        <activity android:name=".SettingsActivity" android:exported="false" android:screenOrientation="landscape" />
 
         <activity
-            android:name=".CatalogActivity"
-            android:exported="false"
-            android:screenOrientation="landscape" />
-
-        <activity
-            android:name=".MyListActivity"
-            android:exported="false"
-            android:screenOrientation="landscape" />
-
-        <!-- Continuar assistindo + histórico (watch_history) -->
-        <activity
-            android:name=".HistoryActivity"
-            android:exported="false"
-            android:screenOrientation="landscape" />
-
-        <activity
-            android:name=".DetailsActivity"
-            android:exported="false"
-            android:screenOrientation="landscape" />
-
-        <activity
-            android:name=".SearchActivity"
-            android:exported="false"
-            android:screenOrientation="landscape" />
-
-        <!-- Assinatura / planos (subscriptions + plans) -->
-        <activity
-            android:name=".AccountActivity"
-            android:exported="false"
-            android:screenOrientation="landscape" />
-
-        <!-- Configurações da TV (+ logout) -->
-        <activity
-            android:name=".SettingsActivity"
-            android:exported="false"
-            android:screenOrientation="landscape" />
-
-        <activity
-            android:name=".PaywallActivity"
-            android:exported="false"
-            android:screenOrientation="landscape" />
-
-        <activity
-            android:name=".PlaybackActivity"
+            android:name=".PlayerActivity"
             android:exported="false"
             android:screenOrientation="landscape"
-            android:configChanges="orientation|screenSize|keyboardHidden" />
+            android:configChanges="orientation|screenSize|keyboardHidden|navigation|uiMode" />
     </application>
 </manifest>

@@ -2,7 +2,7 @@ package com.movieflix.tv
 
 import kotlinx.serialization.Serializable
 
-/** Item do catálogo MovieFlix (espelha filmes.json / series.json). */
+/** Item do catalogo MovieFlix (espelha filmes.json / series.json do site). */
 @Serializable
 data class Movie(
     val id: String,
@@ -25,13 +25,13 @@ data class Movie(
     val episodes: Int? = null,
     val episodes_available: List<String> = emptyList(),
     val dublado_ptbr: Boolean? = null,
-    /** Campos extras do MESMO catálogo, usados para ordenar lançamentos/populares. */
     val popularity: Double = 0.0,
     val release_date: String? = null,
 ) {
     val ehSerie: Boolean
         get() = type.equals("series", true) || type.equals("serie", true) || type.equals("tv", true)
 
+    /** Id numerico do TMDb (campo `tmdb_id` ou o proprio `id`). */
     val tmdbIdNumerico: Long?
         get() = tmdb_id ?: id.toLongOrNull()
 
@@ -42,45 +42,32 @@ data class Movie(
     val nota: String
         get() = if (vote_average > 0) "%.1f".format(vote_average) else "—"
 
-    val ano: String
-        get() = year ?: ""
-
-    /** URL do embed (fonte de verdade do catálogo). */
-    val embedUrl: String
-        get() = if (video_url.isNotBlank()) video_url else player
-
-    /** Rótulo de qualidade (ou tipo, quando não informada). */
-    fun qualidade(): String = if (quality.isNotBlank()) quality else if (ehSerie) "Série" else "Filme"
-
-    /** Ano numérico (0 quando ausente) — usado para ordenar "Lançamentos". */
     val anoNumerico: Int
         get() = (year ?: release_date?.take(4))?.toIntOrNull() ?: 0
 
+    val embedUrl: String
+        get() = if (video_url.isNotBlank()) video_url else player
+
+    fun qualidade(): String = if (quality.isNotBlank()) quality else if (ehSerie) "Serie" else "Filme"
+
     companion object {
-        /**
-         * Gênero PT-BR → gênero do catálogo.
-         *
-         * O catálogo guarda `category` em português ("Ação, Aventura"), mas a API
-         * pública de gêneros (usada pelas LINHAS por gênero da Home, paridade com o
-         * site) devolve os nomes em inglês. Este mapa traduz um no outro — os DADOS
-         * continuam vindo do mesmo catálogo e do mesmo endpoint; nada é inventado.
-         */
+        /** Genero PT-BR -> genero do catalogo (mesma tabela do site). */
         val CATEGORIAS: Map<String, String> = mapOf(
-            "Action" to "Ação",
+            "Action" to "Acao",
             "Adventure" to "Aventura",
-            "Animation" to "Animação",
-            "Comedy" to "Comédia",
+            "Animation" to "Animacao",
+            "Comedy" to "Comedia",
             "Crime" to "Crime",
-            "Documentary" to "Documentário",
+            "Documentary" to "Documentario",
             "Drama" to "Drama",
-            "Family" to "Família",
+            "Family" to "Familia",
             "Fantasy" to "Fantasia",
-            "History" to "História",
+            "History" to "Historia",
             "Horror" to "Terror",
-            "Music" to "Música",
-            "Mystery" to "Mistério",
+            "Music" to "Musica",
+            "Mystery" to "Misterio",
             "Romance" to "Romance",
-            "Science Fiction" to "Ficção científica",
+            "Science Fiction" to "Ficcao cientifica",
             "TV Movie" to "Cinema TV",
             "Thriller" to "Suspense",
             "War" to "Guerra",

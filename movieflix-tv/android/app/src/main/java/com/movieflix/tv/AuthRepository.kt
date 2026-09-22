@@ -2,14 +2,13 @@ package com.movieflix.tv
 
 import android.content.Context
 import okhttp3.MediaType.Companion.toMediaType
-import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONObject
 import java.io.IOException
 import java.util.concurrent.TimeUnit
 
-/** Resultado da autenticação. */
+/** Resultado da autenticacao. */
 data class AuthResult(
     val ok: Boolean,
     val accessToken: String? = null,
@@ -21,23 +20,19 @@ data class AuthResult(
 )
 
 /**
- * Autenticação via Supabase Auth REST (GoTrue) — MESMA conta do site e do app
- * mobile. Nenhuma conta paralela é criada: e-mail/senha são os mesmos.
+ * Autenticacao via Supabase Auth REST (GoTrue) — MESMA conta do site e do app
+ * mobile. Nenhuma conta paralela e criada: e-mail/senha sao os mesmos.
  *
- * - login:    POST {SUPABASE_URL}/auth/v1/token?grant_type=password
- * - signup:   POST {SUPABASE_URL}/auth/v1/signup
- * - refresh:  POST {SUPABASE_URL}/auth/v1/token?grant_type=refresh_token
- *
- * A sessão (access_token + refresh_token + expiração) é persistida em
- * SharedPreferences e renovada automaticamente — equivalente ao
- * `persistSession` + `autoRefreshToken` do supabase-js usado no site.
+ *  login:   POST /auth/v1/token?grant_type=password
+ *  signup:  POST /auth/v1/signup
+ *  refresh: POST /auth/v1/token?grant_type=refresh_token
+ *  recover: POST /auth/v1/recover
  */
 object AuthRepository {
 
-    private val client = OkHttpClient.Builder()
+    private val client = SupabaseRest.client.newBuilder()
         .connectTimeout(15, TimeUnit.SECONDS)
         .readTimeout(20, TimeUnit.SECONDS)
-        // Timeout TOTAL: em TVs com rede lenta o app NUNCA fica preso esperando.
         .callTimeout(30, TimeUnit.SECONDS)
         .build()
 
@@ -52,90 +47,46 @@ object AuthRepository {
 
     fun login(email: String, password: String): AuthResult =
         request(
-            path = "/auth/v1/token?grant_type=password",
-            body = JSONObject()
-                .put("email", email.trim())
-                .put("password", password)
-                .toString(),
+            "/auth/v1/token?grant_type=password",
+            JSONObject().put("email", email.trim()).put("password", password).toString(),
         )
 
     fun signup(email: String, password: String): AuthResult =
         request(
-            path = "/auth/v1/signup",
-            body = JSONObject()
-                .put("email", email.trim())
-                .put("password", password)
-                .toString(),
+            "/auth/v1/signup",
+            JSONObject().put("email", email.trim()).put("password", password).toString(),
         )
 
-    /**
-     * TROCA DE SENHA logado — mesmo endpoint do supabase-js (`updateUser`).
-     * Exige o access token da sessão atual.
-     */
-    fun atualizarSenha(novaSenha: String, accessToken: String): Boolean {
-        val req = Request.Builder()
-            .url(AppConfig.SUPABASE_URL + "/auth/v1/user")
-            .header("apikey", AppConfig.SUPABASE_ANON_KEY)
-            .header("Authorization", "Bearer $accessToken")
-            .header("Content-Type", "application/json")
-            .put(JSONObject().put("password", novaSenha).toString().toRequestBody(JSON))
-            .build()
-        return try {
-            client.newCall(req).execute().use { it.isSuccessful }
-        } catch (e: Exception) {
-            false
-        }
-    }
-
-    /** Renova o access token usando o refresh_token salvo. */
     fun refresh(refreshToken: String): AuthResult =
         request(
-            path = "/auth/v1/token?grant_type=refresh_token",
-            body = JSONObject().put("refresh_token", refreshToken).toString(),
+            "/auth/v1/token?grant_type=refresh_token",
+            JSONObject().put("refresh_token", refreshToken).toString(),
         )
 
-    /**
-     * ESQUECI A SENHA — dispara o e-mail de recuperação.
-     *
-     * MESMO fluxo do site/mobile: `supabase.auth.resetPasswordForEmail`
-     * (POST /auth/v1/recover). O e-mail enviado leva o link de redefinição do
-     * MovieFlix; a senha continua sendo a mesma conta Supabase em todos os
-     * aparelhos. Nenhuma senha é criada ou alterada aqui.
-     */
+    /** ESQUECI A SENHA — dispara o e-mail de recuperacao (POST /auth/v1/recover). */
     fun recuperarSenha(email: String): AuthResult {
         val req = Request.Builder()
             .url(AppConfig.SUPABASE_URL + "/auth/v1/recover")
             .header("apikey", AppConfig.SUPABASE_ANON_KEY)
             .header("Authorization", "Bearer ${AppConfig.SUPABASE_ANON_KEY}")
             .header("Content-Type", "application/json")
-            .post(
-                JSONObject().put("email", email.trim()).toString().toRequestBody(JSON),
-            )
+            .post(JSONObject().put("email", email.trim()).toString().toRequestBody(JSON))
             .build()
         return try {
             client.newCall(req).execute().use { resp ->
-                val text = resp.body?.string() ?: ""
-                if (resp.isSuccessful) {
-                    AuthResult(ok = true, email = email.trim())
-                } else {
-                    AuthResult(ok = false, error = extrairErro(text, resp.code))
-                }
+                if (resp.isSuccessful) AuthResult(ok = true, email = email.trim())
+                else AuthResult(ok = false, error = extrairErro(resp.body?.string() ?: "", resp.code))
             }
         } catch (e: IOException) {
-            AuthResult(ok = false, error = "Sem conexão. Verifique a internet da TV.")
+            AuthResult(ok = false, error = "Sem conexao. Verifique a internet da TV.")
         } catch (e: Exception) {
             AuthResult(ok = false, error = "Erro inesperado: ${e.message}")
         }
     }
 
-    /**
-     * TROCA DE SENHA com o usuário logado (equivalente a
-     * `supabase.auth.updateUser({ password })` no site/mobile).
-     * PUT /auth/v1/user autenticado com o access token da sessão.
-     */
-    fun trocarSenha(context: Context, novaSenha: String): AuthResult {
-        val token = validToken(context)
-            ?: return AuthResult(ok = false, error = "Sessão expirada. Entre de novo.")
+    /** TROCA DE SENHA logado (PUT /auth/v1/user). */
+    fun trocarSenha(ctx: Context, novaSenha: String): AuthResult {
+        val token = validToken(ctx) ?: return AuthResult(ok = false, error = "Sessao expirada. Entre de novo.")
         val req = Request.Builder()
             .url(AppConfig.SUPABASE_URL + "/auth/v1/user")
             .header("apikey", AppConfig.SUPABASE_ANON_KEY)
@@ -145,15 +96,9 @@ object AuthRepository {
             .build()
         return try {
             client.newCall(req).execute().use { resp ->
-                val text = resp.body?.string() ?: ""
-                if (resp.isSuccessful) {
-                    AuthResult(ok = true, email = loadEmail(context))
-                } else {
-                    AuthResult(ok = false, error = extrairErro(text, resp.code))
-                }
+                if (resp.isSuccessful) AuthResult(ok = true, email = loadEmail(ctx))
+                else AuthResult(ok = false, error = extrairErro(resp.body?.string() ?: "", resp.code))
             }
-        } catch (e: IOException) {
-            AuthResult(ok = false, error = "Sem conexão. Verifique a internet da TV.")
         } catch (e: Exception) {
             AuthResult(ok = false, error = "Erro inesperado: ${e.message}")
         }
@@ -171,17 +116,13 @@ object AuthRepository {
             client.newCall(req).execute().use { resp ->
                 val text = resp.body?.string() ?: ""
                 if (resp.isSuccessful) {
-                    // Sucesso: {"access_token":..., "refresh_token":..., "expires_in":3600, "user":{...}}
                     val obj = JSONObject(text)
-                    val token = obj.optString("access_token", "")
-                    val refresh = obj.optString("refresh_token", "")
-                    val expiresIn = obj.optLong("expires_in", 3600L)
                     val user = obj.optJSONObject("user")
                     AuthResult(
                         ok = true,
-                        accessToken = token,
-                        refreshToken = refresh,
-                        expiresIn = expiresIn,
+                        accessToken = obj.optString("access_token", ""),
+                        refreshToken = obj.optString("refresh_token", ""),
+                        expiresIn = obj.optLong("expires_in", 3600L),
                         userId = user?.optString("id"),
                         email = user?.optString("email"),
                     )
@@ -190,26 +131,18 @@ object AuthRepository {
                 }
             }
         } catch (e: IOException) {
-            AuthResult(ok = false, error = "Sem conexão. Verifique a internet da TV.")
+            AuthResult(ok = false, error = "Sem conexao. Verifique a internet da TV.")
         } catch (e: Exception) {
             AuthResult(ok = false, error = "Erro inesperado: ${e.message}")
         }
     }
 
-    /**
-     * Extrai a mensagem de erro de respostas não-2xx do Supabase Auth.
-     * Formatos reais observados:
-     *   {"code":"400","error_code":"invalid_credentials","msg":"Invalid login credentials"}
-     *   {"error":"invalid_grant","error_description":"Invalid login credentials"}
-     *   {"message":"...","hint":"...","request_id":"..."}   (gateway/erros internos)
-     * Falha ao parsear (HTML/gateway/proxy) → mensagem amigável com o código HTTP.
-     */
     private fun extrairErro(text: String, code: Int): String {
         val amigavel = when (code) {
-            400 -> "E-mail ou senha inválidos. Confira e tente de novo."
-            401 -> "Sessão expirada ou e-mail não confirmado. Verifique seu e-mail."
+            400 -> "E-mail ou senha invalidos. Confira e tente de novo."
+            401 -> "Sessao expirada ou e-mail nao confirmado. Verifique seu e-mail."
             403 -> "Acesso negado. Verifique se o e-mail foi confirmado."
-            422 -> "E-mail inválido ou senha muito curta (mínimo 6 caracteres)."
+            422 -> "E-mail invalido ou senha muito curta (minimo 6 caracteres)."
             429 -> "Muitas tentativas. Aguarde um minuto e tente de novo."
             else -> "Erro do servidor ($code). Tente novamente em instantes."
         }
@@ -217,105 +150,57 @@ object AuthRepository {
             val obj = JSONObject(text)
             obj.optString("msg").takeIf { it.isNotBlank() }
                 ?: obj.optString("error_description").takeIf { it.isNotBlank() }
-                ?: obj.optString("error").takeIf { it.isNotBlank() && it != "invalid_grant" }
                 ?: obj.optString("message").takeIf { it.isNotBlank() }
                 ?: amigavel
-        } catch (_: Exception) {
-            // Corpo não é JSON (HTML/erro de proxy/gateway) → nunca quebra o app.
-            amigavel
-        }
+        } catch (_: Exception) { amigavel }
     }
 
-    // ─────────────────────────── Sessão persistida ───────────────────────────
+    // ── Sessao persistida ──
 
-    /** Salva a sessão completa (access + refresh + expiração). */
-    fun saveSession(
-        context: Context,
-        token: String,
-        email: String,
-        userId: String? = null,
-        refreshToken: String? = null,
-        expiresInSeconds: Long = 3600L,
-    ) {
-        val expiresAt = System.currentTimeMillis() + (expiresInSeconds * 1000L)
-        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
-            .putString(K_TOKEN, token)
-            .putString(K_EMAIL, email)
-            .putString(K_USER_ID, userId ?: "")
-            .putString(K_REFRESH, refreshToken ?: "")
-            .putLong(K_EXPIRES_AT, expiresAt)
-            .apply()
-    }
-
-    /** Salva a sessão a partir de um AuthResult (login/signup/refresh). */
-    fun saveSession(context: Context, r: AuthResult): Boolean {
+    fun saveSession(ctx: Context, r: AuthResult): Boolean {
         val t = r.accessToken
         if (t.isNullOrBlank()) return false
-        saveSession(
-            context = context,
-            token = t,
-            email = r.email ?: loadEmail(context) ?: "",
-            userId = r.userId ?: loadUserId(context),
-            refreshToken = r.refreshToken ?: loadRefreshToken(context),
-            expiresInSeconds = if (r.expiresIn > 0) r.expiresIn else 3600L,
-        )
+        val expiresAt = System.currentTimeMillis() + (r.expiresIn.coerceAtLeast(60L) * 1000L)
+        ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
+            .putString(K_TOKEN, t)
+            .putString(K_REFRESH, r.refreshToken ?: loadRefreshToken(ctx) ?: "")
+            .putLong(K_EXPIRES_AT, expiresAt)
+            .putString(K_EMAIL, r.email ?: loadEmail(ctx) ?: "")
+            .putString(K_USER_ID, r.userId ?: loadUserId(ctx))
+            .apply()
         return true
     }
 
-    fun loadToken(context: Context): String? =
-        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-            .getString(K_TOKEN, null)
+    fun loadToken(ctx: Context): String? = ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getString(K_TOKEN, null)
+    fun loadRefreshToken(ctx: Context): String? = ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getString(K_REFRESH, null)
+    fun loadEmail(ctx: Context): String? = ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getString(K_EMAIL, null)
+    fun loadUserId(ctx: Context): String = ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getString(K_USER_ID, "") ?: ""
+    private fun loadExpiresAt(ctx: Context): Long = ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getLong(K_EXPIRES_AT, 0L)
 
-    fun loadRefreshToken(context: Context): String? =
-        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-            .getString(K_REFRESH, null)
+    fun estaLogado(ctx: Context): Boolean = !loadToken(ctx).isNullOrBlank()
 
-    fun loadEmail(context: Context): String? =
-        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-            .getString(K_EMAIL, null)
-
-    fun loadUserId(context: Context): String =
-        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-            .getString(K_USER_ID, "") ?: ""
-
-    fun loadExpiresAt(context: Context): Long =
-        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-            .getLong(K_EXPIRES_AT, 0L)
-
-    fun estaLogado(context: Context): Boolean = !loadToken(context).isNullOrBlank()
-
-    /**
-     * Token VÁLIDO para usar em requisições: renova proativamente quando está
-     * perto de expirar (margem de 90s), como o supabase-js faz.
-     * Devolve null apenas quando não há sessão (ou o refresh falhou de vez).
-     */
-    fun validToken(context: Context): String? {
-        val token = loadToken(context) ?: return null
-        val expiresAt = loadExpiresAt(context)
+    /** Token VALIDO: renova proativamente 90s antes de expirar (como supabase-js). */
+    fun validToken(ctx: Context): String? {
+        val token = loadToken(ctx) ?: return null
+        val expiresAt = loadExpiresAt(ctx)
         if (expiresAt == 0L) {
-            // Sessão antiga sem expiração gravada: tenta renovar; se não houver
-            // refresh_token, segue com o token atual.
-            if (loadRefreshToken(context) != null) return forcarRefresh(context) ?: token
+            if (loadRefreshToken(ctx) != null) return forcarRefresh(ctx) ?: token
             return token
         }
-        if (System.currentTimeMillis() > expiresAt - 90_000L) {
-            return forcarRefresh(context) ?: token
-        }
+        if (System.currentTimeMillis() > expiresAt - 90_000L) return forcarRefresh(ctx) ?: token
         return token
     }
 
-    /** Força a renovação do access token. Devolve o novo token (ou null). */
-    fun forcarRefresh(context: Context): String? {
-        val refreshToken = loadRefreshToken(context) ?: return null
+    fun forcarRefresh(ctx: Context): String? {
+        val refreshToken = loadRefreshToken(ctx) ?: return null
         val r = refresh(refreshToken)
-        if (r.ok && !r.accessToken.isNullOrBlank()) {
-            saveSession(context, r)
-            return r.accessToken
-        }
-        return null
+        return if (r.ok && !r.accessToken.isNullOrBlank()) {
+            saveSession(ctx, r)
+            r.accessToken
+        } else null
     }
 
-    fun clearSession(context: Context) {
-        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().clear().apply()
+    fun clearSession(ctx: Context) {
+        ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().clear().apply()
     }
 }

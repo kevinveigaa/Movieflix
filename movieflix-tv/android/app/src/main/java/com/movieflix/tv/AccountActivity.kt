@@ -1,268 +1,176 @@
 package com.movieflix.tv
 
 import android.content.Intent
-import android.graphics.Color
-import android.graphics.Typeface
-import android.graphics.drawable.GradientDrawable
-import android.util.TypedValue
 import android.os.Bundle
 import android.view.Gravity
 import android.view.View
-import android.widget.FrameLayout
+import android.view.ViewGroup
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.cancel
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
+import androidx.core.content.ContextCompat
+import java.util.concurrent.Executors
 
 /**
- * Assinatura e planos — MESMAS regras, MESMOS preços e MESMOS limites do site.
- *
- * Fonte: tabelas `subscriptions` e `plans` do Supabase + `PlanoRegras`
- * (cópia fiel de `src/lib/plans.ts`). A contratação acontece no site/app com a
- * mesma conta — a TV exibe o estado real e os planos disponíveis.
+ * CONTA — plano atual, validade REAL (expires_at), beneficios e atalhos.
+ * Espelha a pagina /minha-assinatura do site, sem alterar nenhuma regra.
  */
-class AccountActivity : SidebarHostActivity() {
+class AccountActivity : BaseTvActivity() {
 
-    override val itemAtivo: String = "config"
-
-    private val job = Job()
-    private val scope = CoroutineScope(Dispatchers.Main + job)
-
-    private lateinit var lblAtual: TextView
-    private lateinit var lblStatus: TextView
-    private lateinit var lblLimites: TextView
-    private lateinit var container: LinearLayout
+    private val executor = Executors.newSingleThreadExecutor()
+    private lateinit var coluna: LinearLayout
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-
-        val raiz = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
-        content.addView(
-            raiz,
-            FrameLayout.LayoutParams(
-                FrameLayout.LayoutParams.MATCH_PARENT,
-                FrameLayout.LayoutParams.MATCH_PARENT,
-            ),
-        )
-
-        val cabecalho = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(
-                MfDesign.dp(this@AccountActivity, 34f),
-                MfDesign.dp(this@AccountActivity, 26f),
-                MfDesign.dp(this@AccountActivity, 34f),
-                MfDesign.dp(this@AccountActivity, 4f),
-            )
-        }
-        cabecalho.addView(MfDesign.tituloTela(this, "Assinatura e planos"))
-
-        lblAtual = TextView(this).apply {
-            setTextColor(Color.WHITE)
-            setTextSize(TypedValue.COMPLEX_UNIT_SP, 22f)
-            typeface = Typeface.DEFAULT_BOLD
-        }
-        cabecalho.addView(
-            lblAtual,
-            LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.WRAP_CONTENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT,
-            ).apply { topMargin = MfDesign.dp(this@AccountActivity, 16f) },
-        )
-
-        lblStatus = MfDesign.texto(this, "").apply { textSize = 15f; maxLines = 3 }
-        cabecalho.addView(
-            lblStatus,
-            LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT,
-            ).apply { topMargin = MfDesign.dp(this@AccountActivity, 6f) },
-        )
-
-        lblLimites = MfDesign.texto(this, "", 14f, MfDesign.PURPLE_LIGHT).apply { maxLines = 2 }
-        cabecalho.addView(
-            lblLimites,
-            LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT,
-            ).apply { topMargin = MfDesign.dp(this@AccountActivity, 6f) },
-        )
-        raiz.addView(cabecalho)
-
-        val scroll = ScrollView(this).apply { isFillViewport = false; clipToPadding = false }
-        container = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(
-                MfDesign.dp(this@AccountActivity, 34f), 0,
-                MfDesign.dp(this@AccountActivity, 34f),
-                MfDesign.dp(this@AccountActivity, 30f),
-            )
-        }
-        scroll.addView(container)
-        raiz.addView(
-            scroll,
-            LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                0,
-                1f,
-            ),
-        )
-
+        montarTela()
         carregar()
     }
 
-    private fun carregar() {
-        if (!AuthRepository.estaLogado(this)) {
-            lblAtual.text = "Entre com a sua conta"
-            lblStatus.text = "Use a mesma conta do site/app MovieFlix."
-            return
-        }
-
-        scope.launch {
-            val (assinatura, planos) = withContext(Dispatchers.IO) {
-                AccountRepository.assinatura(this@AccountActivity) to
-                    AccountRepository.planos(this@AccountActivity)
-            }
-            val ativa = AccountRepository.temAssinaturaAtiva(assinatura)
-            val planoAtual = PlanoRegras.resolvePlano(assinatura, planos)
-            val ent = PlanoRegras.entitlementsForSubscription(assinatura, ativa, planos)
-
-            if (ativa && planoAtual != null) {
-                lblAtual.text = "Seu plano: ${planoAtual.name}"
-                val venc = PlanoRegras.formatarVencimento(assinatura?.expiresAt)
-                lblStatus.text = "Assinatura ATIVA • vence em $venc\n" +
-                    PlanoRegras.rotuloDiasRestantes(assinatura?.expiresAt)
-                lblStatus.setTextColor(MfDesign.TEAL)
-            } else if (assinatura != null) {
-                lblAtual.text = "Assinatura inativa ou expirada"
-                lblStatus.text = "Status: ${assinatura.status ?: "—"} • " +
-                    PlanoRegras.rotuloDiasRestantes(assinatura.expiresAt)
-                lblStatus.setTextColor(MfDesign.ERROR)
-            } else {
-                lblAtual.text = "Você ainda não tem assinatura"
-                lblStatus.text = "Escolha um plano no site ou no app MovieFlix — a mesma conta vale aqui na TV."
-                lblStatus.setTextColor(MfDesign.GRAY)
-            }
-
-            val downloadLabel = when {
-                ent.downloads <= 0 -> "sem downloads"
-                ent.downloads == PlanoRegras.UNLIMITED -> "downloads ilimitados"
-                else -> "${ent.downloads} downloads/mês"
-            }
-            lblLimites.text = "Liberado no seu plano: até ${ent.qualityLabel} • " +
-                "${PlanoRegras.telasLabel(ent.screens)} • $downloadLabel • " +
-                (if (ent.maxProfiles <= 1) "1 perfil" else "até ${ent.maxProfiles} perfis")
-
-            container.removeAllViews()
-            for (p in planos) {
-                container.addView(criarCartaoPlano(p, planoAtual?.id == p.id))
-            }
-            if (planos.isNotEmpty()) container.getChildAt(0).requestFocus()
-        }
-    }
-
-    /** Cartão de plano (preço/limites vindos do banco — nada é inventado). */
-    private fun criarCartaoPlano(plano: AccountRepository.Plano, atual: Boolean): View {
-        val card = LinearLayout(this).apply {
+    private fun montarTela() {
+        val scroll = ScrollView(this).apply { isVerticalScrollBarEnabled = false }
+        coluna = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(
-                MfDesign.dp(this@AccountActivity, 30f), MfDesign.dp(this@AccountActivity, 24f),
-                MfDesign.dp(this@AccountActivity, 30f), MfDesign.dp(this@AccountActivity, 24f),
+            setPadding(TvUi.dp(this@AccountActivity, 44), TvUi.dp(this@AccountActivity, 26), TvUi.dp(this@AccountActivity, 44), TvUi.dp(this@AccountActivity, 34))
+        }
+        val titulo = TvUi.texto(this, "MINHA CONTA", 26f, ContextCompat.getColor(this, R.color.mf_white), negrito = true)
+        coluna.addView(titulo)
+        scroll.addView(coluna)
+        conteudo(scroll)
+    }
+
+    private fun carregar() {
+        executor.execute {
+            val email = AuthRepository.loadEmail(this) ?: "(nao disponivel)"
+            val assinatura = AccountRepository.assinatura(this)
+            val ativa = AccountRepository.temAssinaturaAtiva(assinatura)
+            val planos = AccountRepository.planos(this)
+            val plano = PlanoRegras.resolvePlano(assinatura, planos)
+            val ent = PlanoRegras.entitlementsForSubscription(assinatura, ativa, planos)
+            val perfil = ProfilesRepository.perfilAtivo(this)
+            runOnUiThread { render(email, assinatura, ativa, plano, ent, perfil) }
+        }
+    }
+
+    private fun render(
+        email: String,
+        assinatura: AccountRepository.Assinatura?,
+        ativa: Boolean,
+        plano: AccountRepository.Plano?,
+        ent: PlanoRegras.PlanEntitlements,
+        perfil: ProfilesRepository.Perfil?,
+    ) {
+        while (coluna.childCount > 1) coluna.removeViewAt(1)
+
+        coluna.addView(cartao("Conta", listOf("E-mail: $email", "Perfil ativo: ${perfil?.name ?: "nenhum"}")))
+
+        if (ativa && plano != null) {
+            coluna.addView(
+                cartao(
+                    "Assinatura ativa — ${plano.name}",
+                    listOf(
+                        "Valor: ${PlanoRegras.precoFormatado(plano.priceCents)}",
+                        "Vencimento: ${PlanoRegras.formatarVencimento(assinatura?.expiresAt)}",
+                        PlanoRegras.rotuloDiasRestantes(assinatura?.expiresAt),
+                    ) + PlanoRegras.destaques(plano),
+                ),
             )
-            isFocusable = true
-            isFocusableInTouchMode = true
-            background = fundoCartao(false, atual)
+        } else if (ativa) {
+            coluna.addView(
+                cartao(
+                    "Assinatura ativa",
+                    listOf(
+                        "Plano: ${assinatura?.planCode ?: assinatura?.planId ?: "—"}",
+                        "Vencimento: ${PlanoRegras.formatarVencimento(assinatura?.expiresAt)}",
+                        PlanoRegras.rotuloDiasRestantes(assinatura?.expiresAt),
+                        "Qualidade ate ${ent.qualityLabel}",
+                        PlanoRegras.telasLabel(ent.screens),
+                    ),
+                ),
+            )
+        } else {
+            coluna.addView(
+                cartao(
+                    "Sem assinatura ativa",
+                    listOf(
+                        "Voce esta no plano gratuito: catalogo e trailers.",
+                        "Assine para liberar filmes e series completos.",
+                        "Qualidade, telas simultaneas e downloads conforme o plano.",
+                    ),
+                ),
+            )
         }
 
-        val topo = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER_VERTICAL
-        }
-        card.addView(topo)
-
-        topo.addView(
-            TextView(this).apply {
-                text = "${plano.name}   •   ${PlanoRegras.precoFormatado(plano.priceCents)}/mês"
-                setTextColor(Color.WHITE)
-                setTextSize(TypedValue.COMPLEX_UNIT_SP, 21f)
-                typeface = Typeface.DEFAULT_BOLD
-            },
+        val botaoPlano = TvUi.botao(
+            this,
+            if (ativa) "Trocar plano" else "Assinar plano",
+            primario = true,
         )
+        botaoPlano.setOnClickListener { startActivity(Intent(this, PaywallActivity::class.java)) }
+        coluna.addView(botaoPlano, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { topMargin = TvUi.dp(this@AccountActivity, 18) })
 
-        if (atual) {
-            topo.addView(
-                TextView(this).apply {
-                    text = "PLANO ATUAL"
-                    setTextColor(Color.WHITE)
-                    setTextSize(TypedValue.COMPLEX_UNIT_SP, 11f)
-                    typeface = Typeface.DEFAULT_BOLD
-                    letterSpacing = 0.1f
-                    setPadding(
-                        MfDesign.dp(this@AccountActivity, 12f), MfDesign.dp(this@AccountActivity, 5f),
-                        MfDesign.dp(this@AccountActivity, 12f), MfDesign.dp(this@AccountActivity, 5f),
-                    )
-                    background = MfDesign.gradienteDestaque(8f)
-                },
-                LinearLayout.LayoutParams(
-                    LinearLayout.LayoutParams.WRAP_CONTENT,
-                    LinearLayout.LayoutParams.WRAP_CONTENT,
-                ).apply { marginStart = MfDesign.dp(this@AccountActivity, 14f) },
-            )
+        val linha2 = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+        linha2.setPadding(0, TvUi.dp(this, 12), 0, 0)
+        val botaoSenha = TvUi.botao(this, "Alterar senha")
+        botaoSenha.setOnClickListener { trocarSenha() }
+        linha2.addView(botaoSenha)
+
+        val botaoConfig = TvUi.botao(this, "Configuracoes")
+        botaoConfig.layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { marginStart = TvUi.dp(this@AccountActivity, 12) }
+        botaoConfig.setOnClickListener { startActivity(Intent(this, SettingsActivity::class.java)) }
+        linha2.addView(botaoConfig)
+
+        val botaoSair = TvUi.botao(this, "Sair da conta")
+        botaoSair.layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { marginStart = TvUi.dp(this@AccountActivity, 12) }
+        botaoSair.setOnClickListener {
+            AuthRepository.clearSession(this)
+            ProfilesRepository.setPerfilAtivo(this, null)
+            startActivity(Intent(this, LoginActivity::class.java))
+            finish()
         }
-
-        card.addView(
-            TextView(this).apply {
-                text = plano.description.ifBlank { "Acesso completo ao catálogo MovieFlix." }
-                setTextColor(MfDesign.GRAY)
-                textSize = 15f
-            },
-            LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.WRAP_CONTENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT,
-            ).apply { topMargin = MfDesign.dp(this@AccountActivity, 10f) },
-        )
-
-        for (destaque in PlanoRegras.destaques(plano)) {
-            card.addView(
-                TextView(this).apply {
-                    text = "•  $destaque"
-                    setTextColor(MfDesign.GRAY_LIGHT)
-                    textSize = 15f
-                    setPadding(0, MfDesign.dp(this@AccountActivity, 3f), 0, 0)
-                },
-            )
-        }
-
-        card.setOnFocusChangeListener { v, temFoco ->
-            v.background = fundoCartao(temFoco, atual)
-            v.animate().scaleX(if (temFoco) 1.02f else 1f)
-                .scaleY(if (temFoco) 1.02f else 1f).setDuration(130).start()
-        }
-
-        card.layoutParams = LinearLayout.LayoutParams(
-            LinearLayout.LayoutParams.MATCH_PARENT,
-            LinearLayout.LayoutParams.WRAP_CONTENT,
-        ).apply { bottomMargin = MfDesign.dp(this@AccountActivity, 16f) }
-
-        return card
+        linha2.addView(botaoSair)
+        coluna.addView(linha2)
     }
 
-    private fun fundoCartao(focado: Boolean, atual: Boolean): GradientDrawable = GradientDrawable().apply {
-        cornerRadius = MfDesign.dp(this@AccountActivity, 18f).toFloat()
-        setColor(if (focado) MfDesign.SURFACE_STRONG else MfDesign.SURFACE_LIGHT)
-        when {
-            focado -> setStroke(MfDesign.dp(this@AccountActivity, 3f), MfDesign.PURPLE)
-            atual -> setStroke(MfDesign.dp(this@AccountActivity, 3f), MfDesign.MAGENTA)
-            else -> setStroke(MfDesign.dp(this@AccountActivity, 1f), MfDesign.BORDER)
+    private fun cartao(titulo: String, linhas: List<String>): View {
+        val c = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(TvUi.dp(this@AccountActivity, 22), TvUi.dp(this@AccountActivity, 18), TvUi.dp(this@AccountActivity, 22), TvUi.dp(this@AccountActivity, 18))
+            background = TvUi.fundo(ContextCompat.getColor(this@AccountActivity, R.color.mf_surface), 12, this@AccountActivity, ContextCompat.getColor(this@AccountActivity, R.color.mf_border), 1)
         }
+        c.layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { topMargin = TvUi.dp(this@AccountActivity, 16) }
+        c.addView(TvUi.texto(this, titulo, 18f, ContextCompat.getColor(this, R.color.mf_purple_light), negrito = true))
+        for (l in linhas) {
+            val t = TvUi.texto(this, "•  $l", 14f, ContextCompat.getColor(this, R.color.mf_gray_light), maxLinhas = 2)
+            t.setPadding(0, TvUi.dp(this, 6), 0, 0)
+            c.addView(t)
+        }
+        return c
     }
 
-    override fun onDestroy() {
-        super.onDestroy()
-        job.cancel()
+    private fun trocarSenha() {
+        val campo = android.widget.EditText(this).apply {
+            hint = "Nova senha (min. 6 caracteres)"
+            inputType = android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD
+            setPadding(TvUi.dp(this@AccountActivity, 16), TvUi.dp(this@AccountActivity, 12), TvUi.dp(this@AccountActivity, 16), TvUi.dp(this@AccountActivity, 12))
+        }
+        androidx.appcompat.app.AlertDialog.Builder(this)
+            .setTitle("Alterar senha")
+            .setView(campo)
+            .setPositiveButton("Salvar") { _, _ ->
+                val nova = campo.text.toString()
+                if (nova.length < 6) { TvUi.aviso(this, "A senha precisa de pelo menos 6 caracteres."); return@setPositiveButton }
+                executor.execute {
+                    val r = AuthRepository.trocarSenha(this, nova)
+                    runOnUiThread {
+                        TvUi.aviso(this, if (r.ok) "Senha alterada com sucesso" else (r.error ?: "Nao foi possivel alterar"))
+                    }
+                }
+            }
+            .setNegativeButton("Cancelar", null)
+            .show()
     }
+
+    override fun onResume() { super.onResume(); carregar() }
+
+    override fun focoPadrao(): View? = if (::coluna.isInitialized && coluna.childCount > 1) coluna.getChildAt(coluna.childCount - 1) else null
 }

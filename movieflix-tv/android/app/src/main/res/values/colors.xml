@@ -1,51 +1,35 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- Identidade visual MovieFlix TV: fundo preto premium + acento violeta/indigo. -->
 <resources>
-    <!--
-      Identidade visual MovieFlix TV — paleta da referência visual nova.
-      Fundo preto premium, acento violeta→índigo (ações), magenta→violeta
-      (destaques), teal (selos de idioma), cinza frio (texto secundário).
-      Os nomes históricos (mf_red, mf_purple, mf_green) foram MANTIDOS e
-      reapontados para os novos valores — nenhuma referência quebra.
-    -->
-
-    <!-- ══ Superfícies (fundo preto premium) ══ -->
+    <!-- Superficies -->
     <color name="mf_black">#050505</color>
     <color name="mf_surface">#0C0A12</color>
     <color name="mf_surface_light">#16121F</color>
     <color name="mf_surface_strong">#221B30</color>
 
-    <!-- ══ Acento primário: violeta → índigo (botões, item ativo) ══ -->
+    <!-- Acento primario -->
     <color name="mf_purple">#9D38FF</color>
     <color name="mf_purple_light">#BC8CFF</color>
     <color name="mf_indigo">#5B42F3</color>
-    <color name="mf_violet_deep">#6D28D9</color>
 
-    <!-- ══ Acento secundário: magenta → violeta (badges, foco) ══ -->
+    <!-- Acento secundario (magenta) -->
     <color name="mf_red">#E01E5A</color>
-    <color name="mf_red_light">#FF4D82</color>
     <color name="mf_magenta">#E01E5A</color>
 
-    <!-- ══ Texto ══ -->
+    <!-- Texto -->
     <color name="mf_white">#FFFFFF</color>
     <color name="mf_gray">#B0B0B0</color>
     <color name="mf_gray_light">#D4D4D8</color>
-    <color name="mf_border">#404040</color>
+    <color name="mf_border">#3A3A44</color>
 
-    <!-- ══ Teal (selo "Dublado PT-BR") ══ -->
+    <!-- Teal (selo Dublado PT-BR) / nota / erro -->
     <color name="mf_green">#00A896</color>
-    <color name="mf_green_light">#14C4AD</color>
-
-    <!-- ══ Estrela de nota ══ -->
     <color name="mf_gold">#FFD700</color>
-
-    <!-- ══ Erro ══ -->
     <color name="mf_error">#F87171</color>
 
-    <color name="splash_background">#050505</color>
-
-    <!-- Transparências utilitárias (usadas pelos drawables e presenters) -->
+    <!-- Scrims / overlays -->
     <color name="mf_scrim_bottom">#E6050505</color>
     <color name="mf_scrim_mid">#99050505</color>
     <color name="mf_overlay_card">#CC05050A</color>
-    <color name="mf_focus_ring">#9D38FF</color>
+    <color name="mf_transparent">#00000000</color>
 </resources>

@@ -1,341 +1,232 @@
 package com.movieflix.tv
 
 import android.content.Intent
+import android.graphics.Color
 import android.os.Bundle
-import android.view.KeyEvent
+import android.text.InputType
+import android.view.Gravity
 import android.view.View
+import android.view.ViewGroup
 import android.widget.EditText
+import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
-import androidx.appcompat.app.AppCompatActivity
-import androidx.core.view.isVisible
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.cancel
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
+import androidx.core.content.ContextCompat
+import java.util.concurrent.Executors
 
 /**
- * Login/Cadastro nativo — MESMA conta Supabase do site e do celular:
- * - "ENTRAR"      → signInWithPassword (POST /auth/v1/token?grant_type=password)
- * - "CRIAR CONTA" → signUp (POST /auth/v1/signup) — entra automaticamente
+ * Login / Cadastro / Recuperacao de senha — MESMA conta do site (Supabase Auth).
  *
- * ── CORREÇÃO v2.0.1 (bug "trava na tela de login") ────────────────────────────
- * Duas causas foram encontradas e corrigidas:
- *
- *  1) LAYOUT ESTOURANDO O 16:9. A tela empilhava tudo verticalmente; em TV Box
- *     com altura útil de ~540dp o campo de SENHA e o botão ENTRAR saíam pela
- *     borda inferior. Sem rolagem, o usuário via apenas o e-mail (exatamente o
- *     print do problema) e não tinha como alcançar o resto pelo D-pad.
- *     → Agora: colunas formulário + teclado, dentro de ScrollView.
- *
- *  2) DEPENDÊNCIA DO TECLADO DO SISTEMA. `showSoftInput` + inputType deixavam a
- *     digitação nas mãos do IME do aparelho. Em Android TV / Google TV / TV Box
- *     o IME costuma não abrir pelo controle remoto, então não havia como
- *     escrever a senha.
- *     → Agora: teclado em tela próprio (MfKeyboard), sempre visível e navegável
- *     só com UP/DOWN/LEFT/RIGHT + OK. Zero dependência do IME e do touchscreen.
- *
- * A ordem de foco é fixa e determinística:
- *   e-mail → senha → (OK abre o teclado) → teclado → ENTRAR / CRIAR CONTA.
- *
- * ── FLUXO DE PREENCHIMENTO (pedido do dono, v2.3.0) ────────────────────────────
- * O login ficou completável SEM sair do teclado:
- *
- *   OK no E-MAIL → o teclado abre já escrevendo no e-mail;
- *   ENTER        → desce para a SENHA e MANTÉM o teclado aberto (digitando nela);
- *   ENTER        → vai para o botão ENTRAR (fim da linha);
- *   OK em ENTRAR → autentica.
- *
- * A tecla ENTER do teclado NÃO autentica — antes dela existir, a única tecla de
- * confirmação executava o login, então apertar ENTER no e-mail disparava a
- * autenticação com a senha vazia. O destino de cada ENTER é decidido pela lógica
- * PURA do LoginFlow (LoginFlowTest). A autenticação em si continua sendo o
- * AuthRepository — a MESMA conta Supabase do site e do celular, com os mesmos
- * endpoints e as mesmas regras; só a navegação pelo controle mudou.
+ * Uma unica tela em 3 modos (LOGIN, CADASTRO, RECUPERAR). O formulario e
+ * navegavel apenas pelo controle remoto: os campos sao EditText (o teclado da TV
+ * aparece ao focar) e os botoes tem anel de foco visivel.
  */
-class LoginActivity : AppCompatActivity() {
+class LoginActivity : BaseTvActivity() {
 
-    private val job = Job()
-    private val scope = CoroutineScope(Dispatchers.Main + job)
-    private var trabalhando = false
+    private enum class Modo { LOGIN, CADASTRO, RECUPERAR }
+
+    private var modo = Modo.LOGIN
+    private lateinit var campoTitulo: TextView
+    private lateinit var campoSubtitulo: TextView
+    private lateinit var campoEmail: EditText
+    private lateinit var campoSenha: EditText
+    private lateinit var campoConfirmar: EditText
+    private lateinit var botaoPrincipal: TextView
+    private lateinit var botaoAlternar: TextView
+    private lateinit var botaoRecuperar: TextView
+    private lateinit var campoMensagem: TextView
+    private lateinit var coluna: LinearLayout
+    private val executor = Executors.newSingleThreadExecutor()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContentView(R.layout.activity_login)
+        montarTela()
+    }
 
-        val email = findViewById<EditText>(R.id.inputEmail)
-        val senha = findViewById<EditText>(R.id.inputSenha)
-        val erro = findViewById<TextView>(R.id.lblErro)
-        val btnEntrar = findViewById<TextView>(R.id.btnEntrar)
-        val btnCriar = findViewById<TextView>(R.id.btnCriarConta)
-        val btnEsqueci = findViewById<TextView>(R.id.btnEsqueciSenha)
-        val sucesso = findViewById<TextView>(R.id.lblSucesso)
-        val teclado = findViewById<MfKeyboard>(R.id.teclado)
-        val scroll = findViewById<ScrollView>(R.id.scrollLogin)
+    private fun montarTela() {
+        val scroll = ScrollView(this).apply { isVerticalScrollBarEnabled = false }
+        coluna = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            gravity = Gravity.CENTER_HORIZONTAL
+            setPadding(TvUi.dp(this@LoginActivity, 120), TvUi.dp(this@LoginActivity, 40), TvUi.dp(this@LoginActivity, 120), TvUi.dp(this@LoginActivity, 40))
+        }
 
-        // Foco D-pad visível nos botões (mesmo realce do app todo)
-        MfDesign.focoBotao(btnEntrar)
-        MfDesign.focoBotao(btnCriar)
-        MfDesign.focoBotao(btnEsqueci)
+        val marca = TvUi.texto(this, "MOVIEFLIX", 40f, ContextCompat.getColor(this, R.color.mf_purple), negrito = true)
+        coluna.addView(marca, LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply { bottomMargin = TvUi.dp(this@LoginActivity, 6) })
 
-        // O teclado do app substitui o IME do sistema. `showSoftInputOnFocus`
-        // não existe como atributo de XML (só em código), por isso é desligado
-        // aqui: em vários TV Box o IME do sistema abria por cima do formulário
-        // e "engolia" as setas do controle. Agora o teclado em tela é a única
-        // via de digitação — determinística em qualquer aparelho.
-        email.showSoftInputOnFocus = false
-        senha.showSoftInputOnFocus = false
+        campoTitulo = TvUi.texto(this, "", 24f, ContextCompat.getColor(this, R.color.mf_white), negrito = true)
+        coluna.addView(campoTitulo)
 
-        // O campo em edição fica DESTACADO (bg_input_active) e o outro volta ao
-        // normal. Isto NÃO segue o foco do D-pad — que vive nas teclas enquanto
-        // se digita — e sim o campo que o teclado está alimentando.
-        fun marcarCampoAtivo(campo: EditText) {
-            email.setBackgroundResource(
-                if (campo === email) R.drawable.bg_input_active else R.drawable.bg_input,
+        campoSubtitulo = TvUi.texto(this, "", 13f, ContextCompat.getColor(this, R.color.mf_gray), maxLinhas = 2)
+        campoSubtitulo.gravity = Gravity.CENTER
+        coluna.addView(campoSubtitulo, LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply {
+            topMargin = TvUi.dp(this@LoginActivity, 6); bottomMargin = TvUi.dp(this@LoginActivity, 22)
+        })
+
+        campoEmail = criarCampo("E-mail", InputType.TYPE_TEXT_VARIATION_EMAIL_ADDRESS)
+        campoSenha = criarCampo("Senha", InputType.TYPE_TEXT_VARIATION_PASSWORD)
+        campoConfirmar = criarCampo("Confirmar senha", InputType.TYPE_TEXT_VARIATION_PASSWORD)
+
+        coluna.addView(campoEmail)
+        coluna.addView(campoSenha)
+        coluna.addView(campoConfirmar)
+
+        botaoPrincipal = TvUi.botao(this, "Entrar", primario = true)
+        botaoPrincipal.setTextSize(16f)
+        botaoPrincipal.layoutParams = LinearLayout.LayoutParams(TvUi.dp(this, 260), ViewGroup.LayoutParams.WRAP_CONTENT).apply {
+            topMargin = TvUi.dp(this@LoginActivity, 22); gravity = Gravity.CENTER_HORIZONTAL
+        }
+        botaoPrincipal.setOnClickListener { executar() }
+        coluna.addView(botaoPrincipal)
+
+        botaoRecuperar = TvUi.botao(this, "Esqueci a senha")
+        val lpRec = LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
+            topMargin = TvUi.dp(this@LoginActivity, 14); gravity = Gravity.CENTER_HORIZONTAL
+        }
+        botaoRecuperar.layoutParams = lpRec
+        botaoRecuperar.setOnClickListener { if (modo == Modo.RECUPERAR) setModo(Modo.LOGIN) else setModo(Modo.RECUPERAR) }
+        coluna.addView(botaoRecuperar)
+
+        botaoAlternar = TvUi.botao(this, "Criar conta")
+        botaoAlternar.layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
+            topMargin = TvUi.dp(this@LoginActivity, 10); gravity = Gravity.CENTER_HORIZONTAL
+        }
+        botaoAlternar.setOnClickListener { if (modo == Modo.CADASTRO) setModo(Modo.LOGIN) else setModo(Modo.CADASTRO) }
+        coluna.addView(botaoAlternar)
+
+        campoMensagem = TvUi.texto(this, "", 13f, ContextCompat.getColor(this, R.color.mf_error), maxLinhas = 3)
+        campoMensagem.gravity = Gravity.CENTER
+        coluna.addView(campoMensagem, LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply {
+            topMargin = TvUi.dp(this@LoginActivity, 16)
+        })
+
+        scroll.addView(coluna)
+        conteudo(scroll)
+        setModo(Modo.LOGIN)
+        garantirFocoAposLayout(scroll, campoEmail)
+    }
+
+    private fun criarCampo(dica: String, tipo: Int): EditText {
+        val e = EditText(this)
+        e.hint = dica
+        e.inputType = tipo
+        e.setTextSize(14f)
+        e.setHintTextColor(ContextCompat.getColor(this, R.color.mf_gray))
+        e.setTextColor(ContextCompat.getColor(this, R.color.mf_white))
+        e.background = TvUi.fundo(ContextCompat.getColor(this, R.color.mf_surface_light), 10, this, ContextCompat.getColor(this, R.color.mf_border), 1)
+        e.setPadding(TvUi.dp(this, 18), TvUi.dp(this, 14), TvUi.dp(this, 18), TvUi.dp(this, 14))
+        e.isFocusable = true
+        e.isFocusableInTouchMode = true
+        e.layoutParams = LinearLayout.LayoutParams(TvUi.dp(this, 460), ViewGroup.LayoutParams.WRAP_CONTENT).apply {
+            bottomMargin = TvUi.dp(this@LoginActivity, 12); gravity = Gravity.CENTER_HORIZONTAL
+        }
+        e.setOnFocusChangeListener { v, temFoco ->
+            v.background = TvUi.fundo(
+                ContextCompat.getColor(this, if (temFoco) R.color.mf_surface_strong else R.color.mf_surface_light),
+                10, this, ContextCompat.getColor(this, if (temFoco) R.color.mf_purple else R.color.mf_border), if (temFoco) 2 else 1,
             )
-            senha.setBackgroundResource(
-                if (campo === senha) R.drawable.bg_input_active else R.drawable.bg_input,
-            )
         }
+        return e
+    }
 
-        // ── Cada campo aponta o teclado para si e abre o teclado com OK ──
-        // Nenhum passo depende do IME do sistema.
-        fun ligarCampo(campo: EditText) {
-            campo.setOnFocusChangeListener { _, temFoco ->
-                if (temFoco) {
-                    teclado.definirAlvo(campo)
-                    marcarCampoAtivo(campo)
-                    campo.setSelection(campo.text.length)
-                    scroll.smoothScrollTo(0, 0)
-                }
+    private fun setModo(novo: Modo) {
+        modo = novo
+        campoMensagem.text = ""
+        campoSenha.setText("")
+        campoConfirmar.setText("")
+        when (novo) {
+            Modo.LOGIN -> {
+                campoTitulo.text = "Entrar na sua conta"
+                campoSubtitulo.text = "Use o mesmo e-mail e senha do site MovieFlix"
+                botaoPrincipal.text = "Entrar"
+                botaoAlternar.text = "Criar conta"
+                campoConfirmar.visibility = View.GONE
+                botaoRecuperar.visibility = View.VISIBLE
             }
-            campo.setOnClickListener {
-                teclado.definirAlvo(campo)
-                marcarCampoAtivo(campo)
-                teclado.focarPrimeira()
+            Modo.CADASTRO -> {
+                campoTitulo.text = "Criar conta"
+                campoSubtitulo.text = "A mesma conta funciona no site, no celular e na TV"
+                botaoPrincipal.text = "Criar conta"
+                botaoAlternar.text = "Ja tenho conta"
+                campoConfirmar.visibility = View.VISIBLE
+                botaoRecuperar.visibility = View.VISIBLE
             }
-            // KEYCODE_DPAD_CENTER é o "OK" do controle remoto.
-            campo.setOnKeyListener { _, code, event ->
-                val ok = code == KeyEvent.KEYCODE_DPAD_CENTER ||
-                    code == KeyEvent.KEYCODE_ENTER ||
-                    code == KeyEvent.KEYCODE_NUMPAD_ENTER
-                if (ok && event.action == KeyEvent.ACTION_UP) {
-                    teclado.definirAlvo(campo)
-                    marcarCampoAtivo(campo)
-                    teclado.focarPrimeira()
-                    true
-                } else {
-                    false
-                }
-            }
-        }
-        ligarCampo(email)
-        ligarCampo(senha)
-
-        // ── Teclado em tela ──
-        teclado.rotuloConfirmar = "ENTRAR"
-
-        // UP na 1ª linha e DOWN na última devolvem ao CAMPO EM EDIÇÃO: quem sai do
-        // teclado para a tela é a tecla ENTER, não a seta. Assim o D-pad não fica
-        // preso nem "escapa" por engano para um botão no meio da digitação.
-        fun apontarTeclado(campo: EditText) {
-            teclado.definirAlvo(campo)
-            teclado.acima = campo
-            teclado.abaixo = campo
-        }
-
-        // ── FLUXO PEDIDO PELO DONO: E-MAIL → ENTER → SENHA → ENTER → ENTRAR ──
-        //
-        // A tecla ENTER NÃO autentica: ela desce um campo. O destino é decidido
-        // pelo LoginFlow (lógica pura, testada em LoginFlowTest); aqui só se
-        // aplica o resultado, mantendo o teclado aberto e o foco visível.
-        teclado.aoAvancar = {
-            when (LoginFlow.proximoPasso(campoEmEdicao(email, senha, teclado))) {
-                LoginFlow.Passo.SENHA -> {
-                    // Vai para a SENHA e MANTÉM o teclado aberto, já digitando nela.
-                    senha.requestFocus()
-                    senha.setSelection(senha.text.length)
-                    marcarCampoAtivo(senha)
-                    apontarTeclado(senha)
-                    teclado.focarPrimeira()
-                }
-                LoginFlow.Passo.ENTRAR -> {
-                    // Fim da linha: o foco vai para o botão ENTRAR.
-                    btnEntrar.requestFocus()
-                }
-                LoginFlow.Passo.NENHUM -> Unit
+            Modo.RECUPERAR -> {
+                campoTitulo.text = "Recuperar senha"
+                campoSubtitulo.text = "Enviaremos um link de redefinicao para o seu e-mail"
+                botaoPrincipal.text = "Enviar link"
+                botaoAlternar.text = "Voltar"
+                campoConfirmar.visibility = View.GONE
+                botaoRecuperar.visibility = View.GONE
             }
         }
+        campoEmail.requestFocus()
+    }
 
-        // Tecla [ENTRAR] do teclado = ação da TELA (autenticar).
-        teclado.aoConfirmar = { tentarLogin(email, senha, erro, btnEntrar, btnCriar) }
+    private fun executar() {
+        val email = campoEmail.text.toString().trim()
+        val senha = campoSenha.text.toString()
+        if (email.isBlank() || !email.contains("@")) {
+            erro("Informe um e-mail valido."); return
+        }
+        if (modo != Modo.RECUPERAR && senha.length < 6) {
+            erro("A senha precisa de pelo menos 6 caracteres."); return
+        }
+        if (modo == Modo.CADASTRO && senha != campoConfirmar.text.toString()) {
+            erro("As senhas nao conferem."); return
+        }
 
-        apontarTeclado(email)
-
-        btnEntrar.setOnClickListener { tentarLogin(email, senha, erro, btnEntrar, btnCriar) }
-
-        // ── ESQUECI A SENHA — fluxo REAL de recuperação do MovieFlix ──
-        // Dispara o e-mail de redefinição (supabase resetPasswordForEmail) para
-        // a MESMA conta do site/celular. Nenhuma senha é criada aqui.
-        btnEsqueci.setOnClickListener {
-            if (trabalhando) return@setOnClickListener
-            val e = email.text.toString().trim()
-            if (e.isEmpty() || !e.contains("@")) {
-                sucesso.isVisible = false
-                mostrarErro(erro, "Digite o e-mail da sua conta para receber o link de recuperação.")
-                email.requestFocus()
-                return@setOnClickListener
+        ocupado(true)
+        executor.execute {
+            val r = when (modo) {
+                Modo.LOGIN -> AuthRepository.login(email, senha)
+                Modo.CADASTRO -> AuthRepository.signup(email, senha)
+                Modo.RECUPERAR -> AuthRepository.recuperarSenha(email)
             }
-            trabalhando = true
-            erro.isVisible = false
-            sucesso.isVisible = false
-            btnEsqueci.text = "Enviando…"
-            scope.launch {
-                val r = withContext(Dispatchers.IO) { AuthRepository.recuperarSenha(e) }
-                trabalhando = false
-                btnEsqueci.text = "ESQUECI A SENHA"
-                if (r.ok) {
-                    sucesso.text =
-                        "Se existir uma conta com $e, enviamos o link para redefinir a senha. " +
-                            "Abra o e-mail no celular ou no navegador e crie a nova senha."
-                    sucesso.isVisible = true
-                } else {
-                    mostrarErro(erro, r.error ?: "Não foi possível enviar o e-mail agora.")
+            runOnUiThread {
+                ocupado(false)
+                if (!r.ok) { erro(r.error ?: "Nao foi possivel concluir."); return@runOnUiThread }
+                when (modo) {
+                    Modo.LOGIN -> {
+                        AuthRepository.saveSession(this, r)
+                        ProfilesRepository.setPerfilAtivo(this, null)
+                        startActivity(Intent(this, ProfilesActivity::class.java)); finish()
+                    }
+                    Modo.CADASTRO -> {
+                        val salvou = AuthRepository.saveSession(this, r)
+                        if (salvou) {
+                            ProfilesRepository.setPerfilAtivo(this, null)
+                            startActivity(Intent(this, ProfilesActivity::class.java)); finish()
+                        } else {
+                            ok("Conta criada! Verifique seu e-mail para confirmar e depois entre.")
+                            setModo(Modo.LOGIN)
+                        }
+                    }
+                    Modo.RECUPERAR -> {
+                        ok("Link enviado para $email. Confira a caixa de entrada e o spam.")
+                        setModo(Modo.LOGIN)
+                    }
                 }
             }
         }
-
-        btnCriar.setOnClickListener {
-            if (trabalhando) return@setOnClickListener
-            val e = email.text.toString().trim()
-            val s = senha.text.toString()
-            if (e.isEmpty() || s.length < 6) {
-                mostrarErro(erro, "Informe um e-mail válido e uma senha com 6+ caracteres.")
-                return@setOnClickListener
-            }
-            trabalhando = true
-            erro.isVisible = false
-            travarBotoes(btnEntrar, btnCriar, true)
-            btnCriar.text = "Criando conta…"
-            scope.launch {
-                val r = withContext(Dispatchers.IO) { AuthRepository.signup(e, s) }
-                trabalhando = false
-                travarBotoes(btnEntrar, btnCriar, false)
-                btnCriar.text = "CRIAR CONTA"
-                if (r.ok && !r.accessToken.isNullOrBlank()) {
-                    AuthRepository.saveSession(this@LoginActivity, r)
-                    abrirPerfis()
-                } else {
-                    mostrarErro(erro, r.error ?: "Não foi possível criar a conta. Tente de novo.")
-                }
-            }
-        }
-
-        email.requestFocus()
     }
 
-    /**
-     * Qual campo está em edição agora.
-     *
-     * Ordem de decisão: (1) o ALVO do teclado — é ele quem recebe o que for
-     * digitado; (2) o campo com foco; (3) o E-MAIL, que é o primeiro do fluxo.
-     * É esta função que faz o ENTER saber se deve descer para a SENHA ou sair
-     * para o botão ENTRAR.
-     */
-    private fun campoEmEdicao(
-        email: EditText,
-        senha: EditText,
-        teclado: MfKeyboard,
-    ): CampoLogin? = when {
-        teclado.alvo === senha -> CampoLogin.SENHA
-        teclado.alvo === email -> CampoLogin.EMAIL
-        currentFocus === senha -> CampoLogin.SENHA
-        currentFocus === email -> CampoLogin.EMAIL
-        else -> CampoLogin.EMAIL
-    }
-
-    private fun tentarLogin(
-        email: EditText,
-        senha: EditText,
-        erro: TextView,
-        btnEntrar: TextView,
-        btnCriar: TextView,
-    ) {
-        if (trabalhando) return
-        val e = email.text.toString().trim()
-        val s = senha.text.toString()
-        if (e.isEmpty() || s.isEmpty()) {
-            mostrarErro(erro, "Informe e-mail e senha.")
-            email.requestFocus()
-            return
-        }
-        trabalhando = true
-        erro.isVisible = false
-        travarBotoes(btnEntrar, btnCriar, true)
-        btnEntrar.text = "Entrando…"
-        scope.launch {
-            val r = withContext(Dispatchers.IO) { AuthRepository.login(e, s) }
-            trabalhando = false
-            travarBotoes(btnEntrar, btnCriar, false)
-            btnEntrar.text = "ENTRAR"
-            if (r.ok && !r.accessToken.isNullOrBlank()) {
-                AuthRepository.saveSession(this@LoginActivity, r)
-                abrirPerfis()
-            } else {
-                mostrarErro(erro, r.error ?: "Não foi possível entrar. Tente de novo.")
-                email.requestFocus()
-            }
+    private fun ocupado(v: Boolean) {
+        botaoPrincipal.isEnabled = !v
+        botaoPrincipal.text = if (v) "Aguarde..." else when (modo) {
+            Modo.LOGIN -> "Entrar"
+            Modo.CADASTRO -> "Criar conta"
+            Modo.RECUPERAR -> "Enviar link"
         }
     }
 
-    private fun travarBotoes(a: TextView, b: TextView, travar: Boolean) {
-        a.isEnabled = !travar
-        b.isEnabled = !travar
-        a.alpha = if (travar) 0.5f else 1f
-        b.alpha = if (travar) 0.5f else 1f
+    private fun erro(msg: String) {
+        campoMensagem.setTextColor(ContextCompat.getColor(this, R.color.mf_error))
+        campoMensagem.text = msg
     }
 
-    /** Paridade com o site/mobile: depois do login escolhe-se o perfil. */
-    private fun abrirPerfis() {
-        startActivity(Intent(this, ProfilesActivity::class.java))
-        finish()
-    }
-
-    private fun mostrarErro(tv: TextView, msg: String) {
-        tv.text = msg
-        tv.isVisible = true
-    }
-
-    // BACK: comportamento PREVISÍVEL.
-    //
-    //   • foco dentro do teclado em tela → volta ao CAMPO EM EDIÇÃO (nunca fecha o
-    //     login nem perde o que já foi digitado). É o primeiro caminho do fluxo;
-    //   • foco em um CAMPO de texto      → sai da edição e vai para ENTRAR, sem
-    //     fechar nada. Era aqui que o login era fechado "acidentalmente durante a
-    //     edição" (finishAffinity), perdendo e-mail e senha digitados;
-    //   • foco já fora da edição         → aí sim o BACK sai do app.
-    override fun onKeyDown(keyCode: Int, event: KeyEvent?): Boolean {
-        if (keyCode == KeyEvent.KEYCODE_BACK) {
-            val teclado = findViewById<MfKeyboard>(R.id.teclado)
-            val foco = currentFocus
-            if (teclado.contem(foco)) {
-                teclado.alvo?.requestFocus()
-                return true
-            }
-            if (foco is EditText) {
-                findViewById<View>(R.id.btnEntrar)?.requestFocus()
-                return true
-            }
-            finishAffinity()
-            return true
-        }
-        return super.onKeyDown(keyCode, event)
-    }
-
-    override fun onDestroy() {
-        super.onDestroy()
-        job.cancel()
+    private fun ok(msg: String) {
+        campoMensagem.setTextColor(ContextCompat.getColor(this, R.color.mf_green))
+        campoMensagem.text = msg
     }
 }

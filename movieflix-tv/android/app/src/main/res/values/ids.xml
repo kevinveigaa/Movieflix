@@ -1,9 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<resources>
-    <!--
-      Id fixo da PRIMEIRA tecla do teclado em tela (MfKeyboard).
-      É o destino de `nextFocusDown` dos campos de texto — garante ordem de
-      foco determinística no D-pad em qualquer aparelho.
-    -->
-    <item name="tecla0" type="id" />
-</resources>

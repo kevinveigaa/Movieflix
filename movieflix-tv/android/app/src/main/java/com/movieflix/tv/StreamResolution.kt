@@ -2,6 +2,7 @@ package com.movieflix.tv
 
 import kotlinx.serialization.Serializable
 
+/** Resultado da resolucao de stream do backend oficial. */
 @Serializable
 data class StreamResolution(
     val success: Boolean = false,
