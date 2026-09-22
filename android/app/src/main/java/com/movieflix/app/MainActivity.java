@@ -15,11 +15,6 @@ import android.os.Bundle;
 import android.os.Environment;
 import android.view.View;
 import android.view.ViewGroup;
-import android.view.KeyEvent;
-import android.view.WindowManager;
-import android.content.pm.ActivityInfo;
-
-import org.json.JSONObject;
 import android.webkit.CookieManager;
 import android.webkit.DownloadListener;
 import android.webkit.JavascriptInterface;
@@ -76,24 +71,13 @@ public class MainActivity extends AppCompatActivity {
     private View retryView;
     private boolean pageLoaded = false;
 
-    private boolean isTvMode() {
-        return BuildConfig.TV_MODE;
-    }
-
     @SuppressLint("SetJavaScriptEnabled")
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
-        if (isTvMode()) {
-            setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE);
-            getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
-        }
-
         webView = findViewById(R.id.webview);
-        webView.setFocusable(true);
-        webView.setFocusableInTouchMode(true);
         fullscreenContainer = findViewById(R.id.fullscreen_container);
         loadingLayout = findViewById(R.id.loading_layout);
         errorLayout = findViewById(R.id.error_layout);
@@ -155,10 +139,6 @@ public class MainActivity extends AppCompatActivity {
                 pageLoaded = true;
                 loadingLayout.setVisibility(View.GONE);
                 errorLayout.setVisibility(View.GONE);
-                if (isTvMode()) {
-                    aplicarExperienciaTv();
-                    webView.requestFocus(View.FOCUS_DOWN);
-                }
             }
 
             @Override
@@ -307,88 +287,6 @@ public class MainActivity extends AppCompatActivity {
         } else {
             webView.restoreState(savedInstanceState);
         }
-    }
-
-    /**
-     * Encaminha o D-pad para a mesma camada de navegação do site.
-     * No modo TV o evento original é consumido para evitar dupla execução;
-     * a página recebe um KeyboardEvent compatível com o hook existente.
-     */
-    @Override
-    public boolean dispatchKeyEvent(KeyEvent event) {
-        if (isTvMode() && event.getAction() == KeyEvent.ACTION_DOWN
-                && deveEncaminharParaTv(event.getKeyCode()) && webView != null) {
-            String key = chaveTv(event.getKeyCode());
-            String code = codigoTv(event.getKeyCode());
-            int keyCode = event.getKeyCode();
-            String js = "(function(){var t=document.activeElement||document.body;"
-                    + "var e=new KeyboardEvent('keydown',{key:" + JSONObject.quote(key)
-                    + ",code:" + JSONObject.quote(code)
-                    + ",keyCode:" + keyCode + ",which:" + keyCode
-                    + ",bubbles:true,cancelable:true});"
-                    + "t.dispatchEvent(e);document.dispatchEvent(e);window.dispatchEvent(e);})();";
-            webView.evaluateJavascript(js, null);
-            return true;
-        }
-        return super.dispatchKeyEvent(event);
-    }
-
-    private boolean deveEncaminharParaTv(int keyCode) {
-        return keyCode == KeyEvent.KEYCODE_DPAD_UP
-                || keyCode == KeyEvent.KEYCODE_DPAD_DOWN
-                || keyCode == KeyEvent.KEYCODE_DPAD_LEFT
-                || keyCode == KeyEvent.KEYCODE_DPAD_RIGHT
-                || keyCode == KeyEvent.KEYCODE_DPAD_CENTER
-                || keyCode == KeyEvent.KEYCODE_ENTER
-                || keyCode == KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE
-                || keyCode == KeyEvent.KEYCODE_MEDIA_FAST_FORWARD
-                || keyCode == KeyEvent.KEYCODE_MEDIA_REWIND
-                || keyCode == KeyEvent.KEYCODE_MENU;
-    }
-
-    private String chaveTv(int keyCode) {
-        switch (keyCode) {
-            case KeyEvent.KEYCODE_DPAD_UP: return "ArrowUp";
-            case KeyEvent.KEYCODE_DPAD_DOWN: return "ArrowDown";
-            case KeyEvent.KEYCODE_DPAD_LEFT: return "ArrowLeft";
-            case KeyEvent.KEYCODE_DPAD_RIGHT: return "ArrowRight";
-            case KeyEvent.KEYCODE_DPAD_CENTER:
-            case KeyEvent.KEYCODE_ENTER: return "Enter";
-            case KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE: return "MediaPlayPause";
-            case KeyEvent.KEYCODE_MEDIA_FAST_FORWARD: return "MediaFastForward";
-            case KeyEvent.KEYCODE_MEDIA_REWIND: return "MediaRewind";
-            case KeyEvent.KEYCODE_MENU: return "ContextMenu";
-            default: return "Unidentified";
-        }
-    }
-
-    private String codigoTv(int keyCode) {
-        switch (keyCode) {
-            case KeyEvent.KEYCODE_DPAD_UP: return "ArrowUp";
-            case KeyEvent.KEYCODE_DPAD_DOWN: return "ArrowDown";
-            case KeyEvent.KEYCODE_DPAD_LEFT: return "ArrowLeft";
-            case KeyEvent.KEYCODE_DPAD_RIGHT: return "ArrowRight";
-            case KeyEvent.KEYCODE_DPAD_CENTER:
-            case KeyEvent.KEYCODE_ENTER: return "Enter";
-            default: return "MediaKey";
-        }
-    }
-
-    /** Mantém a identidade visual e acrescenta foco legível para 720p/1080p/4K. */
-    private void aplicarExperienciaTv() {
-        if (!isTvMode()) return;
-        String css = "body.movieflix-tv{background:#0a0a0f!important;}"
-                + "body.movieflix-tv :focus{outline:3px solid #a970ff!important;"
-                + "outline-offset:5px!important;box-shadow:0 0 0 5px rgba(169,112,255,.22)!important;}"
-                + "body.movieflix-tv button,body.movieflix-tv a,body.movieflix-tv input,"
-                + "body.movieflix-tv select,body.movieflix-tv [role=button],body.movieflix-tv [tabindex]{"
-                + "scroll-margin:12vh;transition:transform .12s ease,outline .12s ease;}"
-                + "body.movieflix-tv :focus{transform:scale(1.025);z-index:5;}";
-        String js = "(function(){document.body.classList.add('movieflix-tv');"
-                + "var s=document.getElementById('movieflix-tv-style');"
-                + "if(!s){s=document.createElement('style');s.id='movieflix-tv-style';"
-                + "document.head.appendChild(s);}s.textContent=" + JSONObject.quote(css) + ";})();";
-        webView.evaluateJavascript(js, null);
     }
 
     /** Ponte nativa exposta ao site (MovieFlixApp). */
