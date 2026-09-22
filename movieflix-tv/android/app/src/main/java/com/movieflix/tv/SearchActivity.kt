@@ -137,7 +137,7 @@ class SearchActivity : SidebarHostActivity() {
         )
 
         // ── Grade de resultados (mesmo card do resto do app) ──
-        grade = MfRowsView.criarGrade(this, 6) { m ->
+        grade = MfRowsView.criarGrade(this, MfMetrics.colunasGrade(this)) { m ->
             startActivity(Intent(this, DetailsActivity::class.java).putExtra("movie_id", m.id))
         }
 
@@ -169,6 +169,7 @@ class SearchActivity : SidebarHostActivity() {
         // OK no campo abre o teclado em tela (que já está visível).
         input.setOnClickListener {
             teclado.definirAlvo(input)
+            input.setBackgroundResource(R.drawable.bg_input_active)
             input.setSelection(input.text.length)
             teclado.focarPrimeira()
         }
@@ -178,6 +179,7 @@ class SearchActivity : SidebarHostActivity() {
                 code == KeyEvent.KEYCODE_NUMPAD_ENTER
             if (ok && event.action == KeyEvent.ACTION_UP) {
                 teclado.definirAlvo(input)
+                input.setBackgroundResource(R.drawable.bg_input_active)
                 teclado.focarPrimeira()
                 true
             } else {

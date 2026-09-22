@@ -85,7 +85,10 @@ class ProfilesActivity : SidebarHostActivity() {
         )
 
         val lista = RecyclerView(this).apply {
-            layoutManager = GridLayoutManager(this@ProfilesActivity, 5)
+            layoutManager = GridLayoutManager(
+                this@ProfilesActivity,
+                MfMetrics.colunasPerfis(this@ProfilesActivity),
+            )
             clipToPadding = false
             itemAnimator = null
             setPadding(0, MfDesign.dp(this@ProfilesActivity, 18f), 0, 0)

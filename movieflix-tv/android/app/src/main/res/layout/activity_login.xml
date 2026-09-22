@@ -15,7 +15,16 @@
   resolução o botão ENTRAR fica inalcançável.
 
   Ordem de foco determinística para o D-pad:
-    e-mail → senha → teclado (OK abre o teclado) → ENTRAR → CRIAR CONTA
+    e-mail → senha → teclado (OK abre) → ENTRAR → CRIAR CONTA
+
+  FLUXO DE PREENCHIMENTO (pedido do dono):
+    OK no E-MAIL → o teclado sobe já escrevendo no e-mail;
+    ENTER        → desce para a SENHA, SEM fechar o teclado;
+    ENTER        → vai para o botão ENTRAR (teclado recolhe);
+    OK em ENTRAR → autentica.
+
+  O campo em edição fica destacado com bg_input_active, porque o foco do D-pad
+  vive nas TECLAS do teclado — sem esse destaque não se saberia onde se digita.
 -->
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
@@ -123,7 +132,7 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="8dp"
-                    android:text="Escolha a tecla com as setas e confirme com OK."
+                    android:text="Digite com as setas + OK. ENTER desce para a senha; ENTER de novo leva ao botão ENTRAR."
                     android:textColor="@color/mf_gray"
                     android:textSize="12sp" />
 

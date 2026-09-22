@@ -54,6 +54,23 @@ class MfKeyboard @JvmOverloads constructor(
     /** Ação da tecla de confirmação (a última da direita). */
     var aoConfirmar: (() -> Unit)? = null
 
+    /**
+     * Ação da tecla ENTER (dedicada), que fica ANTES da tecla de confirmação.
+     *
+     * Existe para o fluxo de login: ENTER no E-MAIL desce o foco para a SENHA e
+     * ENTER na SENHA leva o foco para o botão ENTRAR — sem executar o login por
+     * engano no meio da digitação. Quem decide o destino é a TELA (LoginActivity,
+     * via LoginFlow); o teclado só informa o evento.
+     */
+    var aoAvancar: (() -> Unit)? = null
+        set(valor) {
+            val antes = field != null
+            field = valor
+            // Ligar/desligar a ação faz a tecla ENTER aparecer ou desaparecer:
+            // a grade precisa ser redesenhada quando isso muda (ver LINHA_ACOES).
+            if (antes != (valor != null)) renderizar()
+        }
+
     /** Rótulo da tecla de confirmação — ex.: "ENTRAR" ou "BUSCAR". */
     var rotuloConfirmar: String = "OK"
         set(valor) {
@@ -164,18 +181,28 @@ class MfKeyboard @JvmOverloads constructor(
     private fun teclaBackspace() = Tecla("⌫") { apagar() }
 
     /**
-     * Linha de ações: alterna o modo (ABC → 123 → SYM), espaço, limpar e o
+     * Linha de ações: alterna o modo (ABC → 123 → SYM), espaço, limpar, ENTER e o
      * botão de confirmação. Definida como propriedade para poder ser reusada
      * pelos três modos (as ações leem o estado atual do teclado).
+     *
+     * ENTER e o botão de confirmação são teclas DIFERENTES de propósito:
+     *   • ENTER    → avança para o próximo campo (não autentica);
+     *   • [ENTRAR] → executa a ação da tela (autenticar / buscar).
+     * Antes existia só a segunda, então apertar ENTER no e-mail disparava o login
+     * com a senha vazia — o defeito relatado.
      */
     private val LINHA_ACOES: List<Tecla>
-        get() = listOf(
+        get() = listOfNotNull(
             Tecla(rotuloModo(), peso = 2f) { alternarModo() },
             Tecla("ESPAÇO", peso = 4f) { inserir(" ") },
             Tecla("LIMPAR", peso = 2f) {
                 alvo?.text?.clear()
                 alvo?.setSelection(0)
             },
+            // A tecla ENTER só é desenhada onde existe um PRÓXIMO campo (login:
+            // e-mail → senha → ENTRAR). Na busca, que tem um campo único, ela não
+            // aparece — lá a ação é o próprio botão BUSCAR.
+            if (aoAvancar != null) Tecla("ENTER", peso = 2f) { aoAvancar?.invoke() } else null,
             Tecla(rotuloConfirmar, peso = 2f, destaque = true) { aoConfirmar?.invoke() },
         )
 

@@ -108,7 +108,10 @@ class HistoryActivity : SidebarHostActivity() {
         coluna.addView(cabecalho)
 
         lista = RecyclerView(this).apply {
-            layoutManager = GridLayoutManager(this@HistoryActivity, 3)
+            layoutManager = GridLayoutManager(
+                this@HistoryActivity,
+                MfMetrics.colunasHistorico(this@HistoryActivity),
+            )
             adapter = this@HistoryActivity.adapter
             setHasFixedSize(true)
             clipToPadding = false

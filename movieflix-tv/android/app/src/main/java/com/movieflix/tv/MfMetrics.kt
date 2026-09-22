@@ -72,6 +72,29 @@ object MfMetrics {
         }
     }
 
+    // ── Colunas de GRADE por resolução (720p / 1080p / 4K) ─────────────────────
+    //
+    // As telas de Busca, Histórico e Perfis usavam um número FIXO de colunas
+    // (6, 3 e 5). Número fixo não é layout de TV: em 720p seis cards ficam
+    // menores do que o card da Home (quebra a hierarquia) e, em 4K, sobrava
+    // espaço.
+    //
+    // O princípio aqui é o MESMO do resto do app: a grade deve mostrar
+    // aproximadamente a mesma quantidade de cards que a Home mostra por fileira
+    // — e a Home usa `colunas()` acima. Assim o card de uma grade nunca fica
+    // menor que o card dos carrosséis, em nenhuma resolução.
+
+    /** Grade de catálogo/busca: mesma densidade da Home (5–6 cards por linha). */
+    fun colunasGrade(ctx: Context): Int = colunas(ctx)
+
+    /** Histórico: card LARGO (16:9, item_history) — 2 colunas em 720p, 3 em 1080p+. */
+    fun colunasHistorico(ctx: Context): Int =
+        if (largura(ctx) >= 1600) 3 else 2
+
+    /** Perfis: card quadrado de avatar — 4 colunas em 720p, 5 em 1080p+. */
+    fun colunasPerfis(ctx: Context): Int =
+        if (largura(ctx) >= 1600) 5 else 4
+
     /**
      * Padding lateral que centraliza a fileira de cards na área de conteúdo.
      * Evita o "vão" assimétrico à direita quando a fileira não preenche a

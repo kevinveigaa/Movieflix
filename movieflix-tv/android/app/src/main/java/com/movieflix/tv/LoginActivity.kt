@@ -39,6 +39,21 @@ import kotlinx.coroutines.withContext
  *
  * A ordem de foco é fixa e determinística:
  *   e-mail → senha → (OK abre o teclado) → teclado → ENTRAR / CRIAR CONTA.
+ *
+ * ── FLUXO DE PREENCHIMENTO (pedido do dono, v2.3.0) ────────────────────────────
+ * O login ficou completável SEM sair do teclado:
+ *
+ *   OK no E-MAIL → o teclado abre já escrevendo no e-mail;
+ *   ENTER        → desce para a SENHA e MANTÉM o teclado aberto (digitando nela);
+ *   ENTER        → vai para o botão ENTRAR (fim da linha);
+ *   OK em ENTRAR → autentica.
+ *
+ * A tecla ENTER do teclado NÃO autentica — antes dela existir, a única tecla de
+ * confirmação executava o login, então apertar ENTER no e-mail disparava a
+ * autenticação com a senha vazia. O destino de cada ENTER é decidido pela lógica
+ * PURA do LoginFlow (LoginFlowTest). A autenticação em si continua sendo o
+ * AuthRepository — a MESMA conta Supabase do site e do celular, com os mesmos
+ * endpoints e as mesmas regras; só a navegação pelo controle mudou.
  */
 class LoginActivity : AppCompatActivity() {
 
@@ -73,18 +88,32 @@ class LoginActivity : AppCompatActivity() {
         email.showSoftInputOnFocus = false
         senha.showSoftInputOnFocus = false
 
+        // O campo em edição fica DESTACADO (bg_input_active) e o outro volta ao
+        // normal. Isto NÃO segue o foco do D-pad — que vive nas teclas enquanto
+        // se digita — e sim o campo que o teclado está alimentando.
+        fun marcarCampoAtivo(campo: EditText) {
+            email.setBackgroundResource(
+                if (campo === email) R.drawable.bg_input_active else R.drawable.bg_input,
+            )
+            senha.setBackgroundResource(
+                if (campo === senha) R.drawable.bg_input_active else R.drawable.bg_input,
+            )
+        }
+
         // ── Cada campo aponta o teclado para si e abre o teclado com OK ──
         // Nenhum passo depende do IME do sistema.
         fun ligarCampo(campo: EditText) {
             campo.setOnFocusChangeListener { _, temFoco ->
                 if (temFoco) {
                     teclado.definirAlvo(campo)
+                    marcarCampoAtivo(campo)
                     campo.setSelection(campo.text.length)
                     scroll.smoothScrollTo(0, 0)
                 }
             }
             campo.setOnClickListener {
                 teclado.definirAlvo(campo)
+                marcarCampoAtivo(campo)
                 teclado.focarPrimeira()
             }
             // KEYCODE_DPAD_CENTER é o "OK" do controle remoto.
@@ -94,6 +123,7 @@ class LoginActivity : AppCompatActivity() {
                     code == KeyEvent.KEYCODE_NUMPAD_ENTER
                 if (ok && event.action == KeyEvent.ACTION_UP) {
                     teclado.definirAlvo(campo)
+                    marcarCampoAtivo(campo)
                     teclado.focarPrimeira()
                     true
                 } else {
@@ -106,10 +136,43 @@ class LoginActivity : AppCompatActivity() {
 
         // ── Teclado em tela ──
         teclado.rotuloConfirmar = "ENTRAR"
+
+        // UP na 1ª linha e DOWN na última devolvem ao CAMPO EM EDIÇÃO: quem sai do
+        // teclado para a tela é a tecla ENTER, não a seta. Assim o D-pad não fica
+        // preso nem "escapa" por engano para um botão no meio da digitação.
+        fun apontarTeclado(campo: EditText) {
+            teclado.definirAlvo(campo)
+            teclado.acima = campo
+            teclado.abaixo = campo
+        }
+
+        // ── FLUXO PEDIDO PELO DONO: E-MAIL → ENTER → SENHA → ENTER → ENTRAR ──
+        //
+        // A tecla ENTER NÃO autentica: ela desce um campo. O destino é decidido
+        // pelo LoginFlow (lógica pura, testada em LoginFlowTest); aqui só se
+        // aplica o resultado, mantendo o teclado aberto e o foco visível.
+        teclado.aoAvancar = {
+            when (LoginFlow.proximoPasso(campoEmEdicao(email, senha, teclado))) {
+                LoginFlow.Passo.SENHA -> {
+                    // Vai para a SENHA e MANTÉM o teclado aberto, já digitando nela.
+                    senha.requestFocus()
+                    senha.setSelection(senha.text.length)
+                    marcarCampoAtivo(senha)
+                    apontarTeclado(senha)
+                    teclado.focarPrimeira()
+                }
+                LoginFlow.Passo.ENTRAR -> {
+                    // Fim da linha: o foco vai para o botão ENTRAR.
+                    btnEntrar.requestFocus()
+                }
+                LoginFlow.Passo.NENHUM -> Unit
+            }
+        }
+
+        // Tecla [ENTRAR] do teclado = ação da TELA (autenticar).
         teclado.aoConfirmar = { tentarLogin(email, senha, erro, btnEntrar, btnCriar) }
-        // UP na 1ª linha volta ao campo de senha; DOWN na última vai ao ENTRAR.
-        teclado.acima = senha
-        teclado.abaixo = btnEntrar
+
+        apontarTeclado(email)
 
         btnEntrar.setOnClickListener { tentarLogin(email, senha, erro, btnEntrar, btnCriar) }
 
@@ -173,6 +236,26 @@ class LoginActivity : AppCompatActivity() {
         email.requestFocus()
     }
 
+    /**
+     * Qual campo está em edição agora.
+     *
+     * Ordem de decisão: (1) o ALVO do teclado — é ele quem recebe o que for
+     * digitado; (2) o campo com foco; (3) o E-MAIL, que é o primeiro do fluxo.
+     * É esta função que faz o ENTER saber se deve descer para a SENHA ou sair
+     * para o botão ENTRAR.
+     */
+    private fun campoEmEdicao(
+        email: EditText,
+        senha: EditText,
+        teclado: MfKeyboard,
+    ): CampoLogin? = when {
+        teclado.alvo === senha -> CampoLogin.SENHA
+        teclado.alvo === email -> CampoLogin.EMAIL
+        currentFocus === senha -> CampoLogin.SENHA
+        currentFocus === email -> CampoLogin.EMAIL
+        else -> CampoLogin.EMAIL
+    }
+
     private fun tentarLogin(
         email: EditText,
         senha: EditText,
@@ -227,15 +310,20 @@ class LoginActivity : AppCompatActivity() {
 
     // BACK: comportamento PREVISÍVEL.
     //
-    //   • foco dentro do teclado em tela → o PRÓPRIO MfKeyboard consome o evento
-    //     (devolve o foco ao campo em edição) e nada chega até aqui;
+    //   • foco dentro do teclado em tela → volta ao CAMPO EM EDIÇÃO (nunca fecha o
+    //     login nem perde o que já foi digitado). É o primeiro caminho do fluxo;
     //   • foco em um CAMPO de texto      → sai da edição e vai para ENTRAR, sem
     //     fechar nada. Era aqui que o login era fechado "acidentalmente durante a
     //     edição" (finishAffinity), perdendo e-mail e senha digitados;
     //   • foco já fora da edição         → aí sim o BACK sai do app.
     override fun onKeyDown(keyCode: Int, event: KeyEvent?): Boolean {
         if (keyCode == KeyEvent.KEYCODE_BACK) {
+            val teclado = findViewById<MfKeyboard>(R.id.teclado)
             val foco = currentFocus
+            if (teclado.contem(foco)) {
+                teclado.alvo?.requestFocus()
+                return true
+            }
             if (foco is EditText) {
                 findViewById<View>(R.id.btnEntrar)?.requestFocus()
                 return true
