@@ -44,6 +44,13 @@ public class TitleAdapter extends RecyclerView.Adapter<TitleAdapter.ViewHolder> 
                     .placeholder(R.drawable.placeholder_poster)
                     .into(holder.poster);
         }
+        holder.itemView.setFocusable(true);
+        holder.itemView.setFocusableInTouchMode(true);
+        holder.itemView.setOnFocusChangeListener((v, hasFocus) -> {
+            v.setScaleX(hasFocus ? 1.04f : 1f);
+            v.setScaleY(hasFocus ? 1.04f : 1f);
+            v.setElevation(hasFocus ? 12f : 0f);
+        });
         holder.itemView.setOnClickListener(v -> {
             Intent i = new Intent(context, DetailActivity.class);
             i.putExtra("title_id", t.id);
