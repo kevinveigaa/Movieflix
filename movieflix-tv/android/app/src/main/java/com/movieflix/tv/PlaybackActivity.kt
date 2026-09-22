@@ -72,6 +72,7 @@ class PlaybackActivity : AppCompatActivity() {
     private var btnRetroceder: TextView? = null
     private var btnAvancar: TextView? = null
     private var btnProximoEp: TextView? = null
+    private var btnEpAnterior: TextView? = null
     private var progressFill: View? = null
     private var progressRest: View? = null
 
@@ -210,6 +211,7 @@ class PlaybackActivity : AppCompatActivity() {
         btnRetroceder = findViewById(R.id.btnRetroceder)
         btnAvancar = findViewById(R.id.btnAvancar)
         btnProximoEp = findViewById(R.id.lblProximoEp)
+        btnEpAnterior = findViewById(R.id.lblEpAnterior)
         progressFill = findViewById(R.id.progressFill)
         progressRest = findViewById(R.id.progressRest)
 
@@ -229,6 +231,7 @@ class PlaybackActivity : AppCompatActivity() {
         btnAvancar?.setOnClickListener { seekRelativo(15_000) }
         btnPlayPause?.setOnClickListener { alternarPlayPause() }
         btnProximoEp?.setOnClickListener { abrirProximoEpisodio() }
+        btnEpAnterior?.setOnClickListener { abrirEpisodioAnterior() }
         findViewById<TextView>(R.id.btnSairPlayer).setOnClickListener { sair() }
         findViewById<TextView>(R.id.btnTentarNovamente).setOnClickListener {
             resolverEIniciar()
@@ -240,7 +243,7 @@ class PlaybackActivity : AppCompatActivity() {
         findViewById<TextView>(R.id.btnSairBloqueio).setOnClickListener { finish() }
 
         // Foco visível com o mesmo realce do resto do app
-        listOf(btnRetroceder, btnPlayPause, btnAvancar, btnProximoEp).forEach {
+        listOf(btnRetroceder, btnPlayPause, btnAvancar, btnEpAnterior, btnProximoEp).forEach {
             it?.let { v -> MfDesign.focoBotao(v, 1.04f) }
         }
         listOf(
@@ -808,6 +811,18 @@ class PlaybackActivity : AppCompatActivity() {
             override fun onIsPlayingChanged(isPlaying: Boolean) {
                 btnPlayPause?.text = if (isPlaying) "\u23F8  Pausar" else "\u25B6  Continuar"
             }
+
+            override fun onPlaybackStateChanged(state: Int) {
+                // Fim do episódio: mesma regra do mobile — se o autoplay estiver
+                // ligado (Configurações) e existir próximo, ele começa sozinho,
+                // salvando o progresso do atual antes de trocar.
+                if (state == Player.STATE_ENDED &&
+                    movie?.ehSerie == true &&
+                    AppPrefs.autoplayProximoEpisodio(this@PlaybackActivity)
+                ) {
+                    abrirProximoEpisodio()
+                }
+            }
         })
         player = exo
         pv.player = exo
@@ -901,29 +916,63 @@ class PlaybackActivity : AppCompatActivity() {
         val m = movie ?: return
         if (!m.ehSerie) {
             btnProximoEp?.visibility = View.GONE
+            btnEpAnterior?.visibility = View.GONE
             return
         }
-        val eps = MediaCatalog.episodios(m, temporada)
-        val temProximo = eps.any { it > episodio } || MediaCatalog.temporadas(m).any { it > temporada }
-        btnProximoEp?.visibility = if (temProximo) View.VISIBLE else View.GONE
+        // A decisão vem de EpisodeNavigation (lógica pura, testada em JVM):
+        // EPISÓDIO ANTERIOR existe só quando há episódio antes deste (mesma
+        // temporada ou o ÚLTIMO da anterior); PRÓXIMO existe só quando há um
+        // depois (mesma temporada ou o PRIMEIRO da seguinte). Se não há, o
+        // botão desaparece em vez de mentir.
+        val temporadas = MediaCatalog.temporadas(m)
+        val epsAtual = MediaCatalog.episodios(m, temporada)
+        val epsAnterior = temporadas.filter { it < temporada }.maxOrNull()
+            ?.let { MediaCatalog.episodios(m, it) } ?: emptyList()
+        val epsProximo = temporadas.filter { it > temporada }.minOrNull()
+            ?.let { MediaCatalog.episodios(m, it) } ?: emptyList()
+        btnEpAnterior?.visibility = if (
+            EpisodeNavigation.anterior(temporadas, epsAtual, temporada, episodio, epsAnterior) != null
+        ) View.VISIBLE else View.GONE
+        btnEpAnterior?.text = "\u23EE  Epis\u00f3dio anterior"
+        btnProximoEp?.visibility = if (
+            EpisodeNavigation.proximo(temporadas, epsAtual, temporada, episodio, epsProximo) != null
+        ) View.VISIBLE else View.GONE
         btnProximoEp?.text = "\u23ED  Próximo episódio"
+    }
+
+    /**
+     * Vai para o episódio indicado, respeitando temporada/episódio/ordem.
+     * O progresso do episódio ATUAL é salvo antes de trocar (em [reiniciar]),
+     * exatamente como o mobile faz.
+     */
+    private fun irParaEpisodio(destino: EpisodeNavigation.Par?) {
+        val m = movie ?: return
+        if (!m.ehSerie || destino == null) return
+        reiniciar(m, destino.season, destino.episode)
     }
 
     private fun abrirProximoEpisodio() {
         val m = movie ?: return
         if (!m.ehSerie) return
-        salvarAgora()
-        val eps = MediaCatalog.episodios(m, temporada)
-        val proximoNaTemporada = eps.firstOrNull { it > episodio }
-        if (proximoNaTemporada != null) {
-            reiniciar(m, temporada, proximoNaTemporada)
-            return
-        }
-        val proximaTemporada = MediaCatalog.temporadas(m).firstOrNull { it > temporada }
-        if (proximaTemporada != null) {
-            val primeiroEp = MediaCatalog.episodios(m, proximaTemporada).firstOrNull() ?: 1
-            reiniciar(m, proximaTemporada, primeiroEp)
-        }
+        val temporadas = MediaCatalog.temporadas(m)
+        val epsAtual = MediaCatalog.episodios(m, temporada)
+        val epsProximo = temporadas.filter { it > temporada }.minOrNull()
+            ?.let { MediaCatalog.episodios(m, it) } ?: emptyList()
+        irParaEpisodio(
+            EpisodeNavigation.proximo(temporadas, epsAtual, temporada, episodio, epsProximo),
+        )
+    }
+
+    private fun abrirEpisodioAnterior() {
+        val m = movie ?: return
+        if (!m.ehSerie) return
+        val temporadas = MediaCatalog.temporadas(m)
+        val epsAtual = MediaCatalog.episodios(m, temporada)
+        val epsAnterior = temporadas.filter { it < temporada }.maxOrNull()
+            ?.let { MediaCatalog.episodios(m, it) } ?: emptyList()
+        irParaEpisodio(
+            EpisodeNavigation.anterior(temporadas, epsAtual, temporada, episodio, epsAnterior),
+        )
     }
 
     private fun reiniciar(m: Movie, s: Int, e: Int) {

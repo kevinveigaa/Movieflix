@@ -52,10 +52,24 @@ object MediaCatalog {
                 "${AppConfig.STREAMBETTER_BASE}/serie/$tmdb/$s/$e",
             )
         }
-        // Filme: o catálogo já traz a video_url completa; se não trouxer, é
-        // montada pelo tmdb_id — nos dois casos com a chave anexada.
+        // ── FILME: paridade EXATA com o mobile/site ──────────────────────────
+        // A fonte primária é SEMPRE o embed OFICIAL montado a partir do
+        // `tmdb_id`, com a chave pública do plano Creator — é o que
+        // `buildStreamBetterMovieUrl()` faz no site (src/lib/streamEmbed.ts).
+        //
+        // O site/mobile NUNCA usam a `video_url` do catálogo como fonte
+        // primária do player: eles montam `streambetter.shop/filme/{tmdb_id}`
+        // e anexam a chave. Era essa a última diferença entre os dois fluxos —
+        // a `video_url` do catálogo pode não trazer a chave, e sem ela o
+        // provedor não reconhece a conta Creator, devolve o HTML sem `sources`
+        // e a TV ficava presa na verificação enquanto o MESMO título abria no
+        // celular. A `video_url` fica apenas como último recurso, quando o
+        // título não tem `tmdb_id` (e recebe a chave se ainda não tiver).
+        val tmdb = movie.tmdbIdNumerico
+        if (tmdb != null) {
+            return AppConfig.comChaveStreamBetter("${AppConfig.STREAMBETTER_BASE}/filme/$tmdb")
+        }
         if (movie.video_url.isNotBlank()) return AppConfig.comChaveStreamBetter(movie.video_url)
-        val tmdb = movie.tmdbIdNumerico ?: return ""
-        return AppConfig.comChaveStreamBetter("${AppConfig.STREAMBETTER_BASE}/filme/$tmdb")
+        return ""
     }
 }
