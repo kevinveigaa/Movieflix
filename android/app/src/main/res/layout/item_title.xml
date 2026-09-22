@@ -3,16 +3,12 @@
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:orientation="vertical"
-    android:padding="8dp"
-    android:focusable="true"
-    android:focusableInTouchMode="true"
-    android:background="?android:attr/selectableItemBackground"
-    android:descendantFocusability="blocksDescendants">
+    android:padding="4dp">
 
     <ImageView
         android:id="@+id/poster"
         android:layout_width="match_parent"
-        android:layout_height="220dp"
+        android:layout_height="150dp"
         android:scaleType="centerCrop"
         android:contentDescription="Poster" />
 
@@ -24,5 +20,5 @@
         android:ellipsize="end"
         android:maxLines="1"
         android:textColor="@color/text_primary"
-        android:textSize="16sp" />
+        android:textSize="13sp" />
 </LinearLayout>
