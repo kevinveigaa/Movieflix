@@ -200,7 +200,8 @@ export function TvDetailPage({ id: idProp }: { id?: string } = {}) {
                 className={cn('tv-btn tv-btn-ghost tv-btn-lg', fav.isFavorite && 'tv-btn-ativo')}
                 onClick={() => {
                   if (!user) {
-                    navigate('/login');
+                    // Login DENTRO da experiência de TV (nunca `/login` do site).
+                    navigate('/tv/login');
                     return;
                   }
                   fav.toggle();

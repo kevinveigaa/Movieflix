@@ -74,9 +74,33 @@ export function useCatalogWatchHistory() {
     })
     .filter((x): x is { history: WatchHistoryRow; movie: CatalogMovie } => Boolean(x));
 
+  /**
+   * DEDUPLICAÇÃO NA ORIGEM (correção do "Continuar assistindo" repetido).
+   *
+   * CAUSA RAIZ: `watch_history` guarda UMA LINHA POR EPISÓDIO (chave
+   * tmdb_id + temporada + episódio). Uma série com progresso em vários
+   * episódios devolvia N linhas do MESMO título — e a interface mostrava o
+   * mesmo cartaz repetido (ex.: "Say Cheese", "Say Cheese", "Say Cheese").
+   *
+   * Aqui cada CONTEÚDO aparece uma única vez. A lista já vem ordenada por
+   * `updated_at desc` (ver useWatchHistory), então preservamos o PRIMEIRO
+   * registro de cada título — isto é, o progresso MAIS RECENTE, com a sua
+   * temporada/episódio/posição. Nenhum dado é apagado do banco: a dedupe é
+   * feita na leitura, no hook COMPARTILHADO, então site, mobile e TV passam a
+   * se comportar igual.
+   */
+  const deduplicados: typeof items = [];
+  const vistos = new Set<string>();
+  for (const it of items) {
+    const chave = String(it.movie.id);
+    if (vistos.has(chave)) continue;
+    vistos.add(chave);
+    deduplicados.push(it);
+  }
+
   return {
     isLoading: history.isLoading || movies.isLoading,
-    items,
+    items: deduplicados,
     raw: history.data ?? [],
   };
 }

@@ -55,7 +55,7 @@ export function TvSubscriptionPage() {
       <div className="tv-page tv-page-center">
         <div className="tv-error">
           <h2>Faça login para ver sua assinatura</h2>
-          <button data-tv-focusable tabIndex={0} className="tv-btn" onClick={() => navigate('/')}>
+          <button data-tv-focusable tabIndex={0} className="tv-btn" onClick={() => navigate('/tv/login')}>
             Ir para o login
           </button>
         </div>

@@ -11,34 +11,57 @@ import { TvPlayerPage } from './TvPlayerPage';
 import { TvSubscriptionPage } from './TvSubscriptionPage';
 import { TvMyListPage } from './TvMyListPage';
 import { TvContinueWatchingPage } from './TvContinueWatchingPage';
+import { TvLoginPage } from './TvLoginPage';
+import { TvAccountPage } from './TvAccountPage';
 import { TvLoading } from './TvStates';
 
 /**
  * TvApp — aplicação MovieFlix TV.
  *
- * É a MESMA aplicação MovieFlix (mesma marca, mesma conta, mesmo backend,
- * mesmo catálogo, mesmos planos, mesmos favoritos, mesmo histórico), com a
- * interface adaptada para televisão.
+ * É a MESMA aplicação MovieFlix (mesma marca, mesma conta, mesmo backend, mesmo
+ * catálogo, mesmos planos, mesmos favoritos, mesmo histórico), com a interface
+ * adaptada para televisão.
  *
  * ROTEAMENTO: o App usa HashRouter, então a TV vive em `#/tv` (não `/tv`).
  * Aqui resolvemos a sub-rota por `useLocation()` em vez de aninhar um <Routes>
  * — o roteamento aninhado dependia do prefixo do segmento pai e não casava de
  * forma confiável. A tabela abaixo é explícita e determinística.
+ *
+ * CAUSA RAIZ DO "LAYOUT WEB DEPOIS DO LOGIN" (corrigida): o login, a seleção de
+ * perfil e a conta eram rotas do SITE (`/login`, `/selecionar-perfil`,
+ * `/perfil`), que vivem sob o `AppLayout` (Navbar no topo + Footer) e usam o
+ * formulário mobile/web. Assim que o usuário autenticava, a TV o entregava para
+ * aquele layout e não havia caminho de volta. Agora existem `/tv/login` e
+ * `/tv/perfil`, com formulário e perfis GRANDES, de TV, controláveis pelo D-pad —
+ * e toda a navegação autenticada continua dentro do `TvLayout`.
  */
 
-const SUB_ROTAS = ['filmes', 'series', 'pesquisa', 'minha-lista', 'continuar', 'assinatura', 'titulo', 'assistir'];
+const SUB_ROTAS = [
+  'filmes',
+  'series',
+  'pesquisa',
+  'minha-lista',
+  'continuar',
+  'assinatura',
+  'titulo',
+  'assistir',
+  'login',
+  'perfil',
+];
 
 function RequireAuthTv({ children }: { children: ReactNode }) {
   const { user, loading } = useAuth();
   if (loading) return <TvLoading label="Verificando sessão..." />;
-  if (!user) return <Navigate to="/login" replace />;
+  // Autenticação necessária → login DENTRO da TV (nunca `/login` do site).
+  if (!user) return <Navigate to="/tv/login" replace />;
   return <>{children}</>;
 }
 
 export function TvApp() {
   const { pathname } = useLocation();
 
-  // Bloqueio silencioso de popups/redirects de anúncio (camada JS).
+  // Bloqueio silencioso de popups/redirects de anúncio (camada JS) — o mesmo
+  // antiAds do site; a camada nativa (MainActivity) é a última linha de defesa.
   useEffect(() => {
     const limpar = instalarBloqueioAnuncios();
     return () => limpar();
@@ -63,6 +86,14 @@ export function TvApp() {
     pagina = <TvDetailPage id={id} />;
   } else if (raiz === 'assistir' && id) {
     pagina = <TvPlayerPage id={id} />;
+  } else if (raiz === 'login') {
+    pagina = <TvLoginPage />;
+  } else if (raiz === 'perfil') {
+    pagina = (
+      <RequireAuthTv>
+        <TvAccountPage />
+      </RequireAuthTv>
+    );
   } else if (raiz === 'minha-lista') {
     pagina = (
       <RequireAuthTv>
@@ -89,7 +120,7 @@ export function TvApp() {
   }
 
   return (
-    <TvLayout>
+    <TvLayout imersivo={raiz === 'assistir'}>
       <Suspense fallback={<TvLoading label="Carregando..." />}>{pagina}</Suspense>
     </TvLayout>
   );

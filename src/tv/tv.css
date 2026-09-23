@@ -81,112 +81,403 @@
   opacity: 0.95;
 }
 
-/* ── Cabeçalho (substitui o antigo menu lateral escuro) ───────────────── */
+/* ── Rail lateral esquerda (navegação de TV — corrige o "layout de celular") ── */
 
-.tv-header {
-  position: sticky;
-  top: 0;
-  z-index: 60;
-  display: flex;
-  align-items: center;
-  gap: 1.6vw;
-  padding: 1.5vh 1.8vw;
-  background: linear-gradient(180deg, rgba(10, 10, 15, 0.97) 0%, rgba(10, 10, 15, 0.82) 70%, rgba(10, 10, 15, 0) 100%);
-  backdrop-filter: blur(6px);
-}
-
-.tv-header-logo {
+.tv-nav-rail {
+  position: relative;
   flex: 0 0 auto;
+  width: clamp(104px, 13.2vh, 150px);
+  height: 100%;
   display: flex;
+  flex-direction: column;
   align-items: center;
-  padding: 0.5vh 0.5vw;
-  border-radius: 10px;
-  border: 2px solid transparent;
-  outline: none;
-  cursor: pointer;
+  gap: 1.2vh;
+  padding: 2.4vh 0.5vw 1.8vh;
+  background: linear-gradient(90deg, rgba(10, 10, 15, 1) 0%, rgba(10, 10, 15, 0.97) 76%, rgba(10, 10, 15, 0.84) 100%);
+  border-right: 1px solid rgba(255, 255, 255, 0.07);
+  z-index: 70;
 }
 
-.tv-header-logo-img {
-  /* A logo oficial é o ícone quadrado da marca (símbolo M + wordmark MOVIEFLIX
-     dentro dele). Altura maior para o wordmark continuar legível na distância
-     de uma TV. */
-  height: clamp(28px, 4.6vh, 72px);
-  width: auto;
-  max-width: 22vw;
+/* Marca: símbolo "M" oficial (mesmo asset do ícone do app). */
+.tv-rail-logo {
+  width: 74%;
+  aspect-ratio: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.3vh;
+  border: 2px solid transparent;
+  border-radius: 16px;
+  background: transparent;
+  cursor: pointer;
+  outline: none;
+  transition: transform 0.14s ease, box-shadow 0.14s ease;
+}
+
+.tv-rail-logo-img {
+  width: 100%;
+  height: auto;
   object-fit: contain;
-  object-position: left center;
+  border-radius: 12px;
   display: block;
 }
 
-.tv-header-logo.tv-focus,
-.tv-header-logo:focus-visible {
+.tv-rail-logo.tv-focus,
+.tv-rail-logo:focus-visible {
   border-color: #fff;
-  box-shadow: 0 0 0 3px rgba(223, 10, 21, 0.4);
+  box-shadow: 0 0 0 3px rgba(223, 10, 21, 0.42);
+  transform: scale(1.05);
 }
 
-.tv-header-nav {
+.tv-rail-itens,
+.tv-rail-rodape {
   display: flex;
-  align-items: center;
-  gap: 0.5vw;
-  flex: 1 1 auto;
-  min-width: 0;
-  overflow: hidden;
+  flex-direction: column;
+  gap: 0.6vh;
+  width: 100%;
 }
 
-.tv-header-right {
-  flex: 0 0 auto;
+.tv-rail-itens { flex: 1 1 auto; }
+
+.tv-rail-item {
   display: flex;
+  flex-direction: column;
   align-items: center;
-  gap: 0.5vw;
-}
-
-.tv-header-item {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.5vw;
-  padding: 1.05vh 1vw;
+  justify-content: center;
+  gap: 0.45vh;
+  width: 90%;
+  margin: 0 auto;
+  padding: 1.1vh 0.25vw;
   border: 2px solid transparent;
-  border-radius: 999px;
+  border-radius: 14px;
   background: transparent;
-  color: #ceceD8;
-  font-size: clamp(12px, 1.45vh, 23px);
+  color: #c9c9d6;
+  font-size: clamp(9px, 1.16vh, 17px);
   font-weight: 700;
-  white-space: nowrap;
   cursor: pointer;
   outline: none;
-  transition: background 0.14s ease, color 0.14s ease;
+  transition: background 0.14s ease, color 0.14s ease, transform 0.14s ease;
 }
 
-.tv-header-item:hover { color: #fff; background: rgba(255, 255, 255, 0.06); }
+.tv-rail-item:hover { color: #fff; background: rgba(255, 255, 255, 0.06); }
 
-/* Item ativo: sublinhado + texto vermelho da marca (não roxo genérico). */
-.tv-header-item-ativo {
+/* Item ATIVO: gradiente oficial vermelho→roxo da marca (não roxo genérico). */
+.tv-rail-item-ativo {
   color: #fff;
-  background: rgba(255, 255, 255, 0.07);
-  box-shadow: inset 0 -3px 0 0 var(--mf-red-600);
-}
-
-.tv-header-item-assinante { color: #ffd479; }
-
-.tv-header-item.tv-focus,
-.tv-header-item:focus-visible {
-  border-color: #fff;
   background: var(--mf-grad-soft);
-  color: #fff;
-  box-shadow: 0 0 0 3px rgba(223, 10, 21, 0.38), 0 8px 22px rgba(0, 0, 0, 0.5);
+  box-shadow: 0 6px 18px rgba(223, 10, 21, 0.26);
 }
 
-.tv-header-icon {
-  width: clamp(15px, 1.9vh, 28px);
-  height: clamp(15px, 1.9vh, 28px);
+.tv-rail-item-assinante { color: #ffd479; }
+.tv-rail-item-sair { color: #ffb4b4; }
+
+/* FOCO do controle: anel da marca + gradiente + leve aumento. */
+.tv-rail-item.tv-focus,
+.tv-rail-item:focus-visible {
+  border-color: #fff;
+  background: var(--mf-grad);
+  color: #fff;
+  transform: scale(1.06);
+  box-shadow: 0 0 0 3px rgba(223, 10, 21, 0.42), 0 10px 24px rgba(0, 0, 0, 0.55);
+}
+
+.tv-rail-icon {
+  width: clamp(19px, 2.6vh, 38px);
+  height: clamp(19px, 2.6vh, 38px);
   flex: 0 0 auto;
 }
 
-.tv-header-user {
-  max-width: 11vw;
+.tv-rail-label {
+  text-align: center;
+  line-height: 1.12;
+  max-width: 100%;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.tv-rail-user {
+  width: 100%;
+  text-align: center;
+  padding: 0.6vh 0.3vw;
+}
+
+.tv-rail-user-nome {
+  display: block;
+  font-size: clamp(9px, 1.02vh, 15px);
+  color: var(--mf-muted);
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ── Login de TV (dentro de /tv — o login do site tem layout de celular) ── */
+
+.tv-login {
+  width: min(64vw, 760px);
+  display: flex;
+  flex-direction: column;
+}
+
+.tv-login-marca {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 1.6vh;
+}
+
+.tv-login-marca-img {
+  height: clamp(52px, 9vh, 132px);
+  width: auto;
+  object-fit: contain;
+  filter: drop-shadow(0 0 2.4vh rgba(223, 10, 21, 0.42));
+}
+
+.tv-login-titulo {
+  font-size: clamp(22px, 3.2vh, 52px);
+  font-weight: 800;
+  color: #fff;
+  margin: 0 0 0.8vh;
+  text-align: center;
+}
+
+.tv-login-sub {
+  font-size: clamp(11px, 1.42vh, 21px);
+  color: var(--mf-muted);
+  text-align: center;
+  margin: 0 0 2.4vh;
+}
+
+.tv-login-form {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5vh;
+}
+
+.tv-login-campo {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65vh;
+}
+
+.tv-login-rotulo {
+  font-size: clamp(11px, 1.32vh, 20px);
+  font-weight: 700;
+  color: #d8d8e2;
+}
+
+.tv-login-input-wrap { position: relative; display: block; }
+
+.tv-login-icone {
+  position: absolute;
+  left: 1vw;
+  top: 50%;
+  transform: translateY(-50%);
+  width: clamp(18px, 2.2vh, 34px);
+  height: clamp(18px, 2.2vh, 34px);
+  color: #8c8c9c;
+  pointer-events: none;
+}
+
+.tv-login-input {
+  width: 100%;
+  padding: 1.5vh 1.1vw 1.5vh 3.3vw;
+  border: 2px solid rgba(255, 255, 255, 0.14);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.05);
+  color: #fff;
+  font-size: clamp(13px, 1.65vh, 26px);
+  outline: none;
+}
+
+.tv-login-input.tv-focus,
+.tv-login-input:focus {
+  border-color: #fff;
+  background: rgba(255, 255, 255, 0.08);
+  box-shadow: 0 0 0 3px rgba(223, 10, 21, 0.42);
+}
+
+.tv-login-entrar { width: 100%; justify-content: center; }
+
+.tv-login-erro {
+  display: flex;
+  align-items: center;
+  gap: 0.6vw;
+  padding: 1.1vh 1vw;
+  border: 1px solid rgba(223, 10, 21, 0.5);
+  border-radius: 12px;
+  background: rgba(223, 10, 21, 0.14);
+  color: #ffb4b4;
+  font-size: clamp(11px, 1.38vh, 20px);
+}
+
+.tv-login-rodape { display: flex; justify-content: center; margin-top: 2vh; }
+
+/* ── Conta / Perfis de TV ─────────────────────────────────────────────── */
+
+.tv-page-conta { display: flex; flex-direction: column; }
+
+.tv-conta-topo {
+  display: flex;
+  align-items: center;
+  gap: 1.2vw;
+  margin-bottom: 2.4vh;
+  flex-wrap: wrap;
+}
+
+.tv-conta-logo { height: clamp(40px, 6.4vh, 96px); width: auto; }
+
+.tv-conta-email {
+  margin: 0;
+  color: var(--mf-muted);
+  font-size: clamp(11px, 1.38vh, 20px);
+}
+
+.tv-conta-plano {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4vw;
+  margin-left: auto;
+  padding: 0.9vh 1vw;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.07);
+  color: #d8d8e2;
+  font-weight: 700;
+  font-size: clamp(10px, 1.28vh, 19px);
+}
+
+.tv-conta-plano-ativo { background: var(--mf-grad-soft); color: #fff; }
+
+.tv-conta-secao {
+  font-size: clamp(14px, 1.9vh, 30px);
+  font-weight: 800;
+  color: #fff;
+  margin: 1.4vh 0 1.6vh;
+}
+
+.tv-perfis { display: flex; flex-wrap: wrap; gap: 1.6vw; }
+
+.tv-perfil {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.85vh;
+  width: clamp(112px, 12vh, 190px);
+  padding: 1.6vh 0.5vw;
+  border: 2px solid transparent;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.04);
+  color: #d8d8e2;
+  font-weight: 700;
+  cursor: pointer;
+  outline: none;
+  transition: transform 0.14s ease, background 0.14s ease;
+}
+
+.tv-perfil.tv-focus,
+.tv-perfil:focus-visible {
+  border-color: #fff;
+  background: rgba(255, 255, 255, 0.08);
+  transform: scale(1.05);
+  box-shadow: 0 0 0 3px rgba(223, 10, 21, 0.42);
+}
+
+.tv-perfil-ativo { border-color: rgba(223, 10, 21, 0.72); }
+
+.tv-perfil-avatar {
+  position: relative;
+  width: clamp(56px, 8.4vh, 118px);
+  height: clamp(56px, 8.4vh, 118px);
+  border-radius: 50%;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(150deg, #1b1b26 0%, #0e0e16 100%);
+  color: #fff;
+}
+
+.tv-perfil-avatar img { width: 100%; height: 100%; object-fit: cover; }
+
+.tv-perfil-check {
+  position: absolute;
+  right: -2px;
+  bottom: -2px;
+  width: clamp(22px, 3vh, 40px);
+  height: clamp(22px, 3vh, 40px);
+  border: 2px solid var(--mf-ink-950);
+  border-radius: 50%;
+  background: var(--mf-grad);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+}
+
+.tv-perfil-nome {
+  font-size: clamp(11px, 1.38vh, 21px);
+  text-align: center;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tv-perfil-kid { font-size: clamp(9px, 1.08vh, 16px); color: #7ee0c0; font-weight: 700; }
+
+.tv-perfil-novo { border-style: dashed; border-color: rgba(255, 255, 255, 0.22); }
+
+.tv-conta-acoes { display: flex; gap: 1vw; margin-top: 3vh; flex-wrap: wrap; }
+
+.tv-conta-nota {
+  margin-top: 2.4vh;
+  color: var(--mf-muted);
+  font-size: clamp(10px, 1.22vh, 18px);
+}
+
+/* ── Player: modo imersivo + controles que aparecem só quando chamados ── */
+
+/* No player a rail desaparece: o vídeo ocupa a tela inteira. */
+.tv-shell-imersivo .tv-content { height: 100%; }
+
+.tv-player-embed { position: absolute; inset: 0; }
+
+/* Superfície de OK: cobre o vídeo e mostra os controles. */
+.tv-player-tap {
+  position: absolute;
+  inset: 0;
+  z-index: 15;
+  padding: 0;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+}
+
+.tv-player-tap-oculto { display: none; }
+
+/* Overlay (topo + controles): existe sempre, mas invisível até o OK. */
+.tv-player-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 25;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.22s ease;
+}
+
+.tv-player-overlay-ativo { opacity: 1; }
+.tv-player-overlay-ativo .tv-player-controls { pointer-events: auto; }
+
+.tv-player-dica {
+  position: absolute;
+  bottom: 1.4vh;
+  left: 0;
+  right: 0;
+  margin: 0;
+  text-align: center;
+  color: #c9c9d4;
+  font-size: clamp(10px, 1.22vh, 18px);
+  text-shadow: 0 2px 10px rgba(0, 0, 0, 0.8);
 }
 
 /* ── Conteúdo ─────────────────────────────────────────────────────────── */

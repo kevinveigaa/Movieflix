@@ -228,7 +228,7 @@ export function useTvNavigation() {
           return;
         }
         if (window.history.length > 1) navigate(-1);
-        else navigate("/");
+        else navigate('/tv');
         return;
       }
 

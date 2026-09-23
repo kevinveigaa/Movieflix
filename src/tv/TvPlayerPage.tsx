@@ -5,10 +5,11 @@ import {
   Maximize,
   Minimize,
   SkipForward,
-  Gamepad2,
   Info,
   Loader2,
   AlertCircle,
+  Pause,
+  Play,
 } from 'lucide-react';
 import { useMovies } from '@/hooks/useMovies';
 import { useAuth } from '@/context/AuthContext';
@@ -19,7 +20,6 @@ import {
   streambetterSeriesEmbedUrl,
 } from '@/lib/strembetter';
 import { StreamBetterEmbed } from '@/components/player/StreamBetterEmbed';
-import { useTvPlayerControls } from '@/hooks/useTvPlayerControls';
 import { TvMark } from './TvBrand';
 import { cn } from '@/lib/cn';
 
@@ -27,26 +27,39 @@ import { cn } from '@/lib/cn';
  * TvPlayerPage — player do MovieFlix TV.
  *
  * REPRODUÇÃO: o embed OFICIAL do StreamBetter, montado em iframe — a MESMA
- * lógica do site e do app Mobile (`StreamBetterEmbed` + `src/lib/streamEmbed`).
+ * lógica do site e do app Mobile (`StreamBetterEmbed` + `src/lib/strembetter`).
  * É isso que evita o erro "Este link só funciona dentro de um iframe": o
  * provedor exige ser carregado DENTRO de um iframe, e é exatamente assim que
  * carregamos. A proteção contra popups/redirects/anúncios é o antiAds global
- * (`src/lib/antiAds.ts`), com os domínios de verificação Cloudflare/Turnstile
- * preservados.
+ * (`src/lib/antiAds.ts`), com Cloudflare/Turnstile preservados.
  *
- * EXPERIÊNCIA DE TV (controles ocultos durante a reprodução):
- *  - Ao abrir, o vídeo ocupa a tela e NENHUMA barra de controles fica por cima.
- *  - BACK: o primeiro toque sai dos controles; só sai da reprodução se os
- *    controles já estiverem fechados (nunca fecha o app de surpresa).
- *  - SEGURAR OK (~1s) com o foco no player alterna o MODO CONTROLE DO PLAYER
- *    (setas passam a operar o vídeo). Segurar OK de novo sai — implementado em
- *    `useTvPlayerControls`, que conhece os keyCodes de Android TV / Tizen /
- *    webOS.
+ * ── PLAYER LIMPO (experiência de TV) ────────────────────────────────────────
+ * Durante a reprodução NENHUMA barra fica sobre o vídeo. Os controles aparecem
+ * quando o usuário aperta OK (ou uma tecla de mídia) e desaparecem sozinhos
+ * depois de ~4s de inatividade. O vídeo ocupa a tela inteira — não há barra
+ * fixa como na versão anterior.
  *
- * "PRÓXIMO EPISÓDIO" só aparece para SÉRIE e SOMENTE quando existe um próximo
- * episódio de verdade com fonte no catálogo (`episodes_available` + a lista
- * ordenada) — em filme, o controle nunca é mostrado.
+ * ── TECLAS DE MÍDIA DO CONTROLE REMOTO ──────────────────────────────────────
+ * O shell Android (MainActivity) converte as teclas de mídia do controle no
+ * evento `mf-media-key` e nós o escutamos:
+ *   togglePlay → play/pause        next → próximo episódio (quando existe)
+ *   seekFwd/seekBack → ±10s        stop → sai da reprodução
+ * Essas ações são repassadas ao player embutido por `postMessage` (o canal
+ * padrão de comunicação com o embed do provedor) e refletidas nos controles
+ * desta tela. O provider continua sendo o dono da reprodução — não inventamos
+ * um player paralelo.
+ *
+ * ── "PRÓXIMO EPISÓDIO" ──────────────────────────────────────────────────────
+ * Só aparece para SÉRIE e SOMENTE quando existe um próximo episódio real com
+ * fonte no catálogo (`episodes_available` ordenado). Em filme, nunca é mostrado.
+ *
+ * ── BACK ────────────────────────────────────────────────────────────────────
+ * Hierarquia: 1º sai dos controles (se abertos) → 2º volta para os DETALHES.
+ * Nunca fecha o app de surpresa.
  */
+
+/** Tempo de inatividade antes de esconder os controles (ms). */
+const AUTO_HIDE_MS = 4000;
 
 export function TvPlayerPage({ id: idProp }: { id?: string } = {}) {
   const { id: idParam } = useParams();
@@ -57,7 +70,13 @@ export function TvPlayerPage({ id: idProp }: { id?: string } = {}) {
   const { user, subscription, loading: authLoading } = useAuth();
   const assinante = hasActiveSubscription(subscription);
   const frameRef = useRef<HTMLDivElement>(null);
-  const [playerMode, setPlayerMode] = useState(false);
+  const iframeWrapRef = useRef<HTMLDivElement>(null);
+  const autoHideRef = useRef<number | null>(null);
+
+  /** Controles visíveis (nunca ficam abertos durante a reprodução). */
+  const [controles, setControles] = useState(false);
+  /** Estado otimista de play/pause para o ícone do controle. */
+  const [emReproducao, setEmReproducao] = useState(true);
 
   const movie = useMemo(
     () => (movies.data ?? []).find((m) => String(m.id) === String(id)) ?? null,
@@ -92,10 +111,7 @@ export function TvPlayerPage({ id: idProp }: { id?: string } = {}) {
         .filter((x): x is { season: number; episode: number } => x !== null)
         .sort((a, b) => a.season - b.season || a.episode - b.episode);
 
-      const atual = temPedido
-        ? { season: pedida, episode: pedido }
-        : primeiroEpisodioDisponivel(movie);
-
+      const atual = temPedido ? { season: pedida, episode: pedido } : primeiroEpisodioDisponivel(movie);
       if (!atual) return { src: '', proximo: null };
 
       const idx = ordenados.findIndex((e) => e.season === atual.season && e.episode === atual.episode);
@@ -113,32 +129,135 @@ export function TvPlayerPage({ id: idProp }: { id?: string } = {}) {
   }, [movie, ehSerie, params]);
 
   const voltar = useCallback(() => {
-    // Volta para os DETALHES (o player é sempre aberto a partir deles).
     if (movie) navigate(`/tv/titulo/${movie.id}`);
     else navigate('/tv');
   }, [movie, navigate]);
-
-  // Controles do player por controle remoto (Back da página + long-press OK).
-  useTvPlayerControls(
-    Boolean(user) && assinante && Boolean(src),
-    playerMode,
-    frameRef,
-    voltar,
-  );
-
-  // Sincroniza o badge com o evento do hook (long-press OK).
-  useEffect(() => {
-    function onChange() {
-      setPlayerMode(document.documentElement.classList.contains('tv-in-player'));
-    }
-    window.addEventListener('mf-player-mode-change', onChange);
-    return () => window.removeEventListener('mf-player-mode-change', onChange);
-  }, []);
 
   const proximoEpisodio = useCallback(() => {
     if (!proximo || !movie) return;
     navigate(`/tv/assistir/${movie.id}?temporada=${proximo.season}&episodio=${proximo.episode}`);
   }, [proximo, movie, navigate]);
+
+  /**
+   * Envia um comando para o player embutido. Os embeds de provedor escutam
+   * `postMessage` na janela do iframe; enviamos o formato genérico que os
+   * players HTML5 (e o próprio StreamBetter) reconhecem, de forma tolerante.
+   */
+  const comandarPlayer = useCallback((acao: 'play' | 'pause' | 'toggle' | 'seekFwd' | 'seekBack') => {
+    const iframe = iframeWrapRef.current?.querySelector('iframe');
+    if (!iframe?.contentWindow) return;
+    try {
+      iframe.contentWindow.postMessage({ event: 'command', func: acao, args: [] }, '*');
+      iframe.contentWindow.postMessage({ type: 'mf-player-command', command: acao }, '*');
+    } catch {
+      /* o provedor pode não aceitar comandos externos — o embed tem controles próprios */
+    }
+  }, []);
+
+  const alternarPlay = useCallback(() => {
+    setEmReproducao((v) => {
+      comandarPlayer(v ? 'pause' : 'play');
+      return !v;
+    });
+  }, [comandarPlayer]);
+
+  /** Mostra os controles e (re)agenda o auto-hide. */
+  const mostrarControles = useCallback(() => {
+    setControles(true);
+    if (autoHideRef.current !== null) window.clearTimeout(autoHideRef.current);
+    autoHideRef.current = window.setTimeout(() => setControles(false), AUTO_HIDE_MS);
+  }, []);
+
+  const esconderControles = useCallback(() => {
+    if (autoHideRef.current !== null) window.clearTimeout(autoHideRef.current);
+    autoHideRef.current = null;
+    setControles(false);
+  }, []);
+
+  useEffect(() => () => {
+    if (autoHideRef.current !== null) window.clearTimeout(autoHideRef.current);
+  }, []);
+
+  /** Só faz sentido quando há assinante e fonte real de vídeo. */
+  const pronto = Boolean(user) && assinante && Boolean(src);
+
+  /**
+   * Teclas de mídia do controle remoto (emitidas pelo shell Android como o
+   * evento `mf-media-key`) + OK/BACK do player.
+   */
+  useEffect(() => {
+    if (!pronto) return;
+
+    function onMediaKey(e: Event) {
+      const tipo = (e as CustomEvent<string>).detail;
+      mostrarControles();
+      if (tipo === 'togglePlay') alternarPlay();
+      else if (tipo === 'next') {
+        // Só troca de episódio quando existe próximo real (série).
+        if (proximo) proximoEpisodio();
+      } else if (tipo === 'stop') voltar();
+      else if (tipo === 'seekFwd') comandarPlayer('seekFwd');
+      else if (tipo === 'seekBack') comandarPlayer('seekBack');
+    }
+
+    function onKeyDown(e: KeyboardEvent) {
+      const k = e.key;
+      const c = e.keyCode || e.which;
+
+      // OK / Enter (13, 23, 32): alterna os controles. Nunca sai do modo sozinho.
+      const ehOk = k === 'Enter' || k === 'OK' || k === 'Select' || c === 13 || c === 23 || c === 32;
+      // BACK (4 Tizen/Android TV, 8, 27, 461 webOS, 10009 Samsung).
+      const ehBack = k === 'GoBack' || k === 'BrowserBack' || k === 'Escape' || k === 'Backspace'
+        || c === 4 || c === 8 || c === 27 || c === 461 || c === 10009;
+
+      if (ehOk) {
+        e.preventDefault();
+        e.stopPropagation();
+        // BACK é hierárquico: 1º fecha os controles, depois sai.
+        if (controles) alternarPlay();
+        else mostrarControles();
+        return;
+      }
+
+      if (ehBack) {
+        if (controles) {
+          e.preventDefault();
+          e.stopPropagation();
+          esconderControles();
+        }
+        // Controles fechados: deixa o BACK seguir a hierarquia normal (TvApp).
+        return;
+      }
+
+      // Com os controles abertos, as setas laterais buscam ±10s.
+      if (controles && (k === 'ArrowLeft' || c === 37 || c === 21)) {
+        e.preventDefault();
+        comandarPlayer('seekBack');
+        mostrarControles();
+      } else if (controles && (k === 'ArrowRight' || c === 39 || c === 22)) {
+        e.preventDefault();
+        comandarPlayer('seekFwd');
+        mostrarControles();
+      }
+    }
+
+    window.addEventListener('mf-media-key', onMediaKey as EventListener);
+    window.addEventListener('keydown', onKeyDown, true);
+    return () => {
+      window.removeEventListener('mf-media-key', onMediaKey as EventListener);
+      window.removeEventListener('keydown', onKeyDown, true);
+    };
+  }, [
+    pronto,
+    controles,
+    proximo,
+    proximoEpisodio,
+    voltar,
+    alternarPlay,
+    mostrarControles,
+    esconderControles,
+    comandarPlayer,
+  ]);
 
   // Aviso do episódio atual (só em série).
   const epLabel = ehSerie
@@ -171,7 +290,7 @@ export function TvPlayerPage({ id: idProp }: { id?: string } = {}) {
               data-tv-initial-focus
               tabIndex={0}
               className="tv-btn tv-btn-primary"
-              onClick={() => navigate('/login')}
+              onClick={() => navigate('/tv/login')}
             >
               Entrar na minha conta
             </button>
@@ -228,83 +347,105 @@ export function TvPlayerPage({ id: idProp }: { id?: string } = {}) {
 
   return (
     <div className="tv-page tv-page-player">
+      {/* O vídeo ocupa a tela. Nenhuma barra fixa sobre ele. */}
       <div className="tv-player-box" data-tv-player-box ref={frameRef} tabIndex={0}>
-        <StreamBetterEmbed key={src} embedUrl={src} onBack={voltar} />
-      </div>
-
-      {/* Barra de topo discreta: marca + título do conteúdo. */}
-      <div className="tv-player-top">
-        <TvMark className="tv-player-logo" />
-        <div>
-          <div className="tv-player-title">{movie.title}</div>
-          {epLabel ? <div className="tv-player-sub">Episódio {epLabel}</div> : null}
+        <div ref={iframeWrapRef} className="tv-player-embed">
+          <StreamBetterEmbed key={src} embedUrl={src} onBack={voltar} />
         </div>
+
+        {/* Superfície clicável: um OK mostra os controles (o iframe continua
+            recebendo o foco do D-pad para o desafio de verificação). */}
+        <button
+          type="button"
+          className={cn('tv-player-tap', controles && 'tv-player-tap-oculto')}
+          aria-label="Mostrar controles"
+          tabIndex={-1}
+          onClick={mostrarControles}
+        />
       </div>
 
-      {/* Controles: aparecem só quando chamados, nunca cobrindo o vídeo. */}
-      <div className="tv-player-controls">
-        <button
-          data-tv-focusable
-          tabIndex={0}
-          className="tv-player-ctrl"
-          aria-label="Voltar"
-          onClick={voltar}
-        >
-          <ArrowLeft className="tv-player-ctrl-icon" />
-        </button>
+      {/* Barra de topo + controles: existem no DOM apenas quando abertos. */}
+      <div className={cn('tv-player-overlay', controles && 'tv-player-overlay-ativo')} aria-hidden={!controles}>
+        <div className="tv-player-top">
+          {/* Símbolo "M" da marca — nunca a palavra MOVIEFLIX escrita. */}
+          <TvMark className="tv-player-logo" />
+          <div>
+            <div className="tv-player-title">{movie.title}</div>
+            {epLabel ? <div className="tv-player-sub">Episódio {epLabel}</div> : null}
+          </div>
+        </div>
 
-        {/* Próximo episódio: só para SÉRIE e só quando existe próximo real. */}
-        {proximo ? (
+        <div className="tv-player-controls">
           <button
             data-tv-focusable
-            tabIndex={0}
-            className="tv-player-ctrl tv-player-ctrl-main"
-            aria-label="Próximo episódio"
-            onClick={proximoEpisodio}
+            tabIndex={controles ? 0 : -1}
+            className="tv-player-ctrl"
+            aria-label="Voltar"
+            onClick={voltar}
           >
-            <SkipForward className="tv-player-ctrl-icon" fill="currentColor" />
+            <ArrowLeft className="tv-player-ctrl-icon" />
           </button>
-        ) : null}
 
-        <button
-          data-tv-focusable
-          tabIndex={0}
-          className="tv-player-ctrl"
-          aria-label="Tela cheia"
-          onClick={() => {
-            const el = frameRef.current;
-            if (!el) return;
-            if (document.fullscreenElement) {
-              document.exitFullscreen().catch(() => undefined);
-            } else {
-              el.requestFullscreen?.().catch(() => undefined);
-            }
-          }}
-        >
-          {typeof document !== 'undefined' && document.fullscreenElement ? (
-            <Minimize className="tv-player-ctrl-icon" />
-          ) : (
-            <Maximize className="tv-player-ctrl-icon" />
-          )}
-        </button>
+          <button
+            data-tv-focusable
+            tabIndex={controles ? 0 : -1}
+            className="tv-player-ctrl tv-player-ctrl-main"
+            aria-label={emReproducao ? 'Pausar' : 'Reproduzir'}
+            onClick={alternarPlay}
+          >
+            {emReproducao ? (
+              <Pause className="tv-player-ctrl-icon" fill="currentColor" />
+            ) : (
+              <Play className="tv-player-ctrl-icon" fill="currentColor" />
+            )}
+          </button>
 
-        <button
-          data-tv-focusable
-          tabIndex={0}
-          className="tv-player-ctrl"
-          aria-label="Informações"
-          onClick={voltar}
-        >
-          <Info className="tv-player-ctrl-icon" />
-        </button>
-      </div>
+          {/* Próximo episódio: SÓ para série e SÓ quando existe próximo real. */}
+          {ehSerie && proximo ? (
+            <button
+              data-tv-focusable
+              tabIndex={controles ? 0 : -1}
+              className="tv-player-ctrl"
+              aria-label="Próximo episódio"
+              onClick={proximoEpisodio}
+            >
+              <SkipForward className="tv-player-ctrl-icon" fill="currentColor" />
+            </button>
+          ) : null}
 
-      {/* Dica de controle remoto (a reprodução é do provedor StreamBetter). */}
-      <div className={cn('tv-player-mode-badge', playerMode && 'tv-player-mode-ativo')} data-tv-player-mode>
-        <Gamepad2 className="tv-icon-sm" style={{ width: '1.5vh', height: '1.5vh' }} />
-        {playerMode
-          ? 'CONTROLE DO PLAYER - as setas controlam o vídeo. Segure OK para sair.'
-          : 'Segure OK no vídeo para controlar a reprodução. BACK volta.'}
+          <button
+            data-tv-focusable
+            tabIndex={controles ? 0 : -1}
+            className="tv-player-ctrl"
+            aria-label="Tela cheia"
+            onClick={() => {
+              const el = frameRef.current;
+              if (!el) return;
+              if (document.fullscreenElement) document.exitFullscreen().catch(() => undefined);
+              else el.requestFullscreen?.().catch(() => undefined);
+            }}
+          >
+            {typeof document !== 'undefined' && document.fullscreenElement ? (
+              <Minimize className="tv-player-ctrl-icon" />
+            ) : (
+              <Maximize className="tv-player-ctrl-icon" />
+            )}
+          </button>
+
+          <button
+            data-tv-focusable
+            tabIndex={controles ? 0 : -1}
+            className="tv-player-ctrl"
+            aria-label="Informações"
+            onClick={voltar}
+          >
+            <Info className="tv-player-ctrl-icon" />
+          </button>
+        </div>
+
+        <p className="tv-player-dica">
+          OK mostra os controles · BACK sai dos controles e depois volta aos detalhes
+        </p>
       </div>
     </div>
   );
