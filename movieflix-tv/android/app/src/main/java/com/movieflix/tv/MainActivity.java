@@ -118,6 +118,47 @@ public class MainActivity extends Activity {
     private boolean controlesAbertos = false;
 
     /**
+     * ══════════════════════════════════════════════════════════════════════════
+     * CAUSA RAIZ DO BUG RELATADO — "os botões do player não respondem ao controle
+     * remoto (D-pad)" — E A CORREÇÃO APLICADA NESTA VERSÃO (5.0.0).
+     * ══════════════════════════════════════════════════════════════════════════
+     *
+     * SINTOMA: com o vídeo aberto, as setas do controle não moviam o foco entre os
+     * botões da barra (play/pause, ±10s, volume, próximo, sair) e o OK não
+     * acionava nada. Os botões existiam, estavam focáveis e tinham onClick — a
+     * página no NAVEGADOR funciona (há um teste automatizado que prova isso). Só
+     * DENTRO DO APP os controles pareciam mortos.
+     *
+     * DEFEITO (localizado em `dispatchKeyEvent`, logo abaixo): a camada nativa
+     * consumia as teclas do D-pad e as de mídia com `return true`. Como
+     * `Activity.dispatchKeyEvent` roda ANTES de a tecla chegar ao WebView, o
+     * `return true` significava "esta tecla NÃO vai para a página". Ou seja: dentro
+     * do app, ← → ↑ ↓ OK e as teclas de mídia NUNCA chegavam ao site — o foco não
+     * se movia e o OK não virava clique. O `return true` era INTENCIONAL (evita
+     * sair do app por engano), mas tinha um efeito colateral fatal para os botões.
+     *
+     * CORREÇÃO: a decisão passa a ser do PRÓPRIO SITE, que é quem conhece o
+     * contexto da tela. O player pede as teclas pela ponte
+     * (`window.MovieFlixApp.setTeclasNavegacao(true,[...])` — ver
+     * `src/tv/TvPlayerPage.tsx`) e o shell simplesmente repassa as teclas pedidas
+     * ao WebView, em vez de engoli-las. Fora do player a página não pede nada e
+     * tudo continua exatamente como antes (Voltar hierárquico e saída do app).
+     *
+     * O QUE NÃO FOI TOCADO: navegação (frame, host), volume/mudo, teclado (IME),
+     * ponte do WhatsApp, autoclick do passo intermediário do provedor, tela cheia,
+     * `onCreateWindow` e o BACK hierárquico — nenhum desses trechos foi alterado.
+     */
+
+    /**
+     * Teclas que a PÁGINA pediu para receber (ver `setTeclasNavegacao`).
+     *
+     * Fica vazio por padrão: enquanto o site não pedir nada, o comportamento é
+     * o histórico (D-pad/mídia consumidos pela camada nativa). É o player que
+     * habilita a passagem, e só enquanto a tela dele está montada.
+     */
+    private final java.util.Set<Integer> teclasParaPagina = new java.util.HashSet<>();
+
+    /**
      * O teclado virtual (IME) está aberto? Detectado pela GEOMETRIA real do
      * WebView — não por heurística de "campo focado".
      *
@@ -728,6 +769,30 @@ public class MainActivity extends Activity {
 
         int code = event.getKeyCode();
 
+        // ── TECLAS PEDIDAS PELA PÁGINA (correção do bug dos botões do player) ──
+        //
+        // CAUSA RAIZ: ver o bloco de auditoria no topo da classe. O WebView está
+        // SEMPRE com o foco, então ele é quem sabe onde o usuário está. Quando a
+        // página pede uma tecla (o player pede o D-pad e as teclas de mídia), a
+        // nativa NÃO pode consumi-la: ela precisa descer até o WebView para mover
+        // o foco entre os botões da barra e para o OK virar clique.
+        //
+        // Fora do player a página não pede nada e `teclasParaPagina` fica vazio —
+        // o comportamento abaixo é, então, o MESMO de antes.
+        if (teclasParaPagina.contains(code) && webView != null) {
+            if (webView.hasFocus()) {
+                // D-pad/OK/mídia seguem para o site: sem consumo, sem preventDefault.
+                return super.dispatchKeyEvent(event);
+            }
+            // O foco se perdeu (ex.: uma janela do desafio o levou): devolve o
+            // foco ao WebView e, no ACTION_DOWN, consome só esta tecla para o
+            // foco assentar. Sem isso o D-pad "desaparece" e o usuário fica preso.
+            if (event.getAction() == KeyEvent.ACTION_DOWN) {
+                webView.requestFocus();
+                return true;
+            }
+        }
+
         // ── VOLUME PELO CONTROLE REMOTO ────────────────────────────────────────
         // Estas teclas são do MovieFlix: ajustamos a stream de MÍDIA (o que o
         // usuário ouve) e avisamos o site para ele mostrar o feedback na tela.
@@ -867,6 +932,27 @@ public class MainActivity extends Activity {
         @JavascriptInterface
         public void setControlesAbertos(boolean aberto) {
             controlesAbertos = aberto;
+        }
+
+        /**
+         * O SITE diz quais teclas devem CHEGAR À PÁGINA (correção do bug dos
+         * botões do player).
+         *
+         * Chamado pelo player (`src/tv/TvPlayerPage.tsx`) com `ligado=true` e a
+         * lista de keyCodes do D-pad/OK/mídia enquanto a tela de reprodução está
+         * montada, e com `ligado=false` (lista vazia) quando ela sai — restaurando
+         * o comportamento nativo.
+         *
+         * A ponte valida o pedido: apenas keyCodes plausíveis (1..300) e no
+         * máximo 32, para um site comprometido não conseguir liberar o conjunto
+         * inteiro de teclas do aparelho.
+         */
+        @JavascriptInterface
+        public void setTeclasNavegacao(boolean ligado, int[] codigos) {
+            teclasParaPagina.clear();
+            if (!ligado) return;
+            // A validação vive em TvConfig (Java puro) e é coberta por testes JVM.
+            teclasParaPagina.addAll(TvConfig.teclasDeNavegacao(codigos));
         }
 
         /** Abre o WhatsApp oficial no app externo (mesma regra do mobile). */

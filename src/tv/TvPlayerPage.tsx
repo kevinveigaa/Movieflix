@@ -80,6 +80,52 @@ const AUTO_HIDE_MS = 4000;
 /** Passo do seek pelo controle remoto, em segundos. */
 const PASSO_SEEK = 10;
 
+/**
+ * TECLAS QUE A CAMADA NATIVA PRECISA "SOLTAR" PARA A PÁGINA.
+ *
+ * CAUSA RAIZ do defeito relatado ("os botões do player não respondem ao
+ * controle remoto"): o shell Android de TV (`MainActivity.dispatchKeyEvent`)
+ * consumia o D-pad e as teclas de mídia ANTES do WebView, com `return true`.
+ * No navegador isso passa despercebido (o site navega por teclado), mas DENTRO
+ * DO APP as setas/OK/mídia nunca chegavam à página: o foco não se movia entre os
+ * botões da barra e o OK não virava clique — os controles pareciam mortos.
+ *
+ * Aqui o PLAYER diz ao shell quais teclas ele quer receber. A liberação dura
+ * apenas enquanto esta tela está montada: fora do player as teclas continuam
+ * com o comportamento nativo (Voltar hierárquico e saída do app) intacto.
+ */
+const TECLAS_PLAYER = [
+  19, // DPAD_UP
+  20, // DPAD_DOWN
+  21, // DPAD_LEFT
+  22, // DPAD_RIGHT
+  23, // DPAD_CENTER (OK)
+  66, // ENTER / NUMPAD_ENTER (OK de vários TV Box)
+  85, // MEDIA_PLAY_PAUSE
+  126, // MEDIA_PLAY
+  127, // MEDIA_PAUSE
+  87, // MEDIA_NEXT
+  88, // MEDIA_PREVIOUS
+  90, // MEDIA_FAST_FORWARD
+  89, // MEDIA_REWIND
+  // BACK NÃO entra: o shell já tem a hierarquia de Voltar (fechar controles →
+  // voltar ao detalhe) e mantê-la nativa preserva o comportamento atual.
+];
+
+/** Avisa a camada nativa (Android TV) quais teclas devem chegar à página. */
+function definirTeclasNativas(codes: number[]): void {
+  try {
+    const w = window as unknown as {
+      MovieFlixApp?: { setTeclasNavegacao?: (on: boolean, c: number[]) => void };
+      MovieFlixAndroid?: { setTeclasNavegacao?: (on: boolean, c: number[]) => void };
+    };
+    const ponte = w.MovieFlixApp ?? w.MovieFlixAndroid;
+    ponte?.setTeclasNavegacao?.(codes.length > 0, codes);
+  } catch {
+    /* fora do app nativo: o navegador já entrega as teclas normalmente */
+  }
+}
+
 export function TvPlayerPage({ id: idProp }: { id?: string } = {}) {
   const { id: idParam } = useParams();
   const id = idProp ?? idParam;
@@ -336,6 +382,24 @@ export function TvPlayerPage({ id: idProp }: { id?: string } = {}) {
       /* fora do app nativo: nada a fazer */
     }
   }, [controles, config]);
+
+  // ── CONTRATO DE TECLAS COM A CAMADA NATIVA (Android TV) ──────────────────
+  //
+  // CAUSA RAIZ do bug relatado (ver `TECLAS_PLAYER` no topo do arquivo): o shell
+  // nativo consumia o D-pad e as teclas de mídia antes de o WebView recebê-las,
+  // então os botões do player não respondiam ao controle remoto. Aqui a tela de
+  // reprodução PEDE essas teclas e as DEVOLVE ao sair (a limpeza roda no unmount
+  // e no `pagehide`), de modo que o resto do app mantém o comportamento nativo —
+  // inclusive o Voltar hierárquico e a saída do app.
+  useEffect(() => {
+    definirTeclasNativas(TECLAS_PLAYER);
+    const devolver = () => definirTeclasNativas([]);
+    window.addEventListener('pagehide', devolver);
+    return () => {
+      window.removeEventListener('pagehide', devolver);
+      devolver();
+    };
+  }, []);
 
   // O shell nativo pede o fechamento dos controles (1ª pulsação de BACK).
   useEffect(() => {

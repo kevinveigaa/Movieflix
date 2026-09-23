@@ -29,8 +29,51 @@ public class TvConfigTest {
 
     @Test
     public void versaoBateComABuild() {
-        assertEquals("4.0.1", TvConfig.VERSAO);
-        assertEquals(41, TvConfig.VERSAO_CODIGO);
+        assertEquals("5.0.0", TvConfig.VERSAO);
+        assertEquals(500, TvConfig.VERSAO_CODIGO);
+    }
+
+    /**
+     * CONTRATO DA CORREÇÃO DOS BOTÕES DO PLAYER.
+     *
+     * O player pede à camada nativa as teclas que precisam chegar ao WebView
+     * (D-pad + OK + mídia). O pedido passa por este filtro: só keyCodes
+     * plausíveis, no máximo {@link TvConfig#LIMITE_TECLAS_PAGINA}, sem repetição.
+     * Sem isso, uma página comprometida poderia liberar o teclado inteiro do
+     * aparelho — inclusive as teclas de mídia que o app usa para navegar.
+     */
+    @Test
+    public void aceitaAsTeclasDoPlayer() {
+        java.util.Set<Integer> t = TvConfig.teclasDeNavegacao(
+                new int[] {19, 20, 21, 22, 23, 66, 85, 90, 89});
+        assertTrue(t.contains(19)); // DPAD_UP
+        assertTrue(t.contains(23)); // DPAD_CENTER (OK)
+        assertTrue(t.contains(66)); // ENTER / NUMPAD_ENTER
+        assertTrue(t.contains(85)); // MEDIA_PLAY_PAUSE
+        assertEquals(9, t.size());
+    }
+
+    @Test
+    public void descartaCodigosImpossiveisEDuplicados() {
+        java.util.Set<Integer> t = TvConfig.teclasDeNavegacao(
+                new int[] {0, -1, 301, 999999, 23, 23, 19});
+        assertEquals(2, t.size());
+        assertTrue(t.contains(23));
+        assertTrue(t.contains(19));
+    }
+
+    @Test
+    public void limitaAQuantidadeDeTeclasPedidas() {
+        int[] muitas = new int[200];
+        for (int i = 0; i < muitas.length; i++) muitas[i] = i + 1;
+        assertEquals(TvConfig.LIMITE_TECLAS_PAGINA, TvConfig.teclasDeNavegacao(muitas).size());
+    }
+
+    /** Lista nula/vazia devolve conjunto vazio: volta ao comportamento nativo. */
+    @Test
+    public void listaVaziaDevolveNada() {
+        assertTrue(TvConfig.teclasDeNavegacao(null).isEmpty());
+        assertTrue(TvConfig.teclasDeNavegacao(new int[] {}).isEmpty());
     }
 
     @Test
@@ -38,7 +81,7 @@ public class TvConfigTest {
         assertTrue(TvConfig.ficaNoWebView("https://movieflix-bszf.onrender.com/#/tv"));
         assertTrue(TvConfig.ficaNoWebView("https://movieflix-bszf.onrender.com/#/tv/filmes"));
         assertTrue(TvConfig.ficaNoWebView("https://movieflix-bszf.onrender.com/#/tv/assistir/123"));
-        assertTrue(TvConfig.ficaNoWebView("https://movieflix-bszf.onrender.com/apk/MovieFlix-TV-v4.0.1.apk"));
+        assertTrue(TvConfig.ficaNoWebView("https://movieflix-bszf.onrender.com/apk/MovieFlix-TV-v5.0.0.apk"));
         assertTrue(TvConfig.ficaNoWebView("https://movieflix-bszf.onrender.com:443/#/tv"));
     }
 

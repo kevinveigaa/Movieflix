@@ -37,11 +37,17 @@ public final class TvConfig {
     public static final String TV_URL = "https://" + HOST_OFICIAL + "/#/tv";
 
     /** Marcador de versão no User-Agent. */
-    public static final String TV_UA_SUFIXO = " MovieFlixTV/4.0.1";
+    public static final String TV_UA_SUFIXO = " MovieFlixTV/5.0.0";
 
     /** Versão do produto (deve espelhar o build.gradle). */
-    public static final String VERSAO = "4.0.1";
-    public static final int VERSAO_CODIGO = 41;
+    public static final String VERSAO = "5.0.0";
+    public static final int VERSAO_CODIGO = 500;
+
+    /**
+     * Teto de teclas que a PÁGINA pode pedir para receber
+     * (ver {@link #teclasDeNavegacao(int[])}).
+     */
+    public static final int LIMITE_TECLAS_PAGINA = 32;
 
     /** Paleta oficial da marca, idêntica à do site (tailwind.config.js). */
     public static final int COR_VERMELHO = 0xFFDF0A15;
@@ -78,6 +84,34 @@ public final class TvConfig {
             "cloudflare.com",
             "turnstile",
     };
+
+    /**
+     * Valida e normaliza as teclas que a página pediu para receber.
+     *
+     * ── CORREÇÃO DO BUG DOS BOTÕES DO PLAYER (5.0.0) ──────────────────────────
+     * A camada nativa consumia o D-pad e as teclas de mídia antes de o WebView
+     * recebê-las, então os botões do player não respondiam ao controle remoto. A
+     * página agora PEDE as teclas pela ponte `MovieFlixApp.setTeclasNavegacao`,
+     * passando pelos filtros abaixo.
+     *
+     * Fica aqui (Java puro, sem Android) para poder ser testado na JVM: garante
+     * que um pedido vindo da página nunca consiga liberar mais do que um conjunto
+     * pequeno de teclas plausíveis — o resto continua com o comportamento nativo
+     * (Voltar hierárquico e saída do app).
+     *
+     * @param codigos keyCodes pedidos pelo site (pode ser nulo).
+     * @return códigos válidos, sem repetição; vazio quando a lista é nula/vazia.
+     */
+    public static java.util.Set<Integer> teclasDeNavegacao(int[] codigos) {
+        java.util.Set<Integer> aceitas = new java.util.LinkedHashSet<>();
+        if (codigos == null) return aceitas;
+        int limite = Math.min(codigos.length, LIMITE_TECLAS_PAGINA);
+        for (int i = 0; i < limite; i++) {
+            int c = codigos[i];
+            if (c > 0 && c <= 300) aceitas.add(c);
+        }
+        return aceitas;
+    }
 
     /** O host pertence a um domínio do provedor de vídeo? */
     public static boolean ehHostPlayer(String host) {
