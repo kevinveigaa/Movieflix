@@ -37,11 +37,11 @@ public final class TvConfig {
     public static final String TV_URL = "https://" + HOST_OFICIAL + "/#/tv";
 
     /** Marcador de versão no User-Agent. */
-    public static final String TV_UA_SUFIXO = " MovieFlixTV/5.0.1";
+    public static final String TV_UA_SUFIXO = " MovieFlixTV/5.0.2";
 
     /** Versão do produto (deve espelhar o build.gradle). */
-    public static final String VERSAO = "5.0.1";
-    public static final int VERSAO_CODIGO = 501;
+    public static final String VERSAO = "5.0.2";
+    public static final int VERSAO_CODIGO = 502;
 
     /**
      * Teto de teclas que a PÁGINA pode pedir para receber

@@ -72,15 +72,16 @@ export const APK_SIZE_MB = '10.4 MB';
  */
 export const TV_APP_INFO = {
   name: 'MovieFlix TV',
-  version: '5.0.1',
-  versionCode: 501,
+  version: '5.0.2',
+  versionCode: 502,
   /** Arquivo do APK TV em public/apk/ (mesma pasta servida em /apk/) */
-  apkFileName: 'MovieFlix-TV-v5.0.1.apk',
-  /** Tamanho exibido (sincronizado com public/apk/MovieFlix-TV-v5.0.1.apk) */
+  apkFileName: 'MovieFlix-TV-v5.0.2.apk',
+  /** Tamanho exibido (sincronizado com public/apk/MovieFlix-TV-v5.0.2.apk) */
   sizeMB: '5.3 MB',
   package: 'com.movieflix.tv',
   releaseDate: '2026-09-23',
   changelog: [
+    'TOQUE (correção): no CELULAR, tocar em pausar/retomar, avançar e retroceder agora funciona — a superfície de tela cheia que abria os controles ENGOLIA o toque antes de ele chegar ao player e virou `pointer-events: none`, então o toque atravessa para o vídeo e o player responde',
     'CONTROLE REMOTO (correção): pausar, retomar, avançar e retroceder agora respondem de verdade ao controle remoto — o PLAY/PAUSE do controle voltou a funcionar',
     'CONTROLE REMOTO (correção): SEGURAR as setas ←/→ ou os botões ⏪/⏩ faz a reprodução avançar/retroceder PROGRESSIVAMENTE; ao soltar, o movimento para',
     'CONTROLE REMOTO (correção): com os controles abertos, as setas movem o foco entre os botões e o OK (ou o botão central do TV Box) aciona o botão focado — o foco fica sempre visível',

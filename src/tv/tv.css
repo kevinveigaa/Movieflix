@@ -452,6 +452,32 @@
   border: none;
   background: transparent;
   cursor: pointer;
+
+  /* ═══════════════════════════════════════════════════════════════════════
+     CAUSA RAIZ do relato "no CELULAR, tocar em PAUSAR / AVANÇAR / RETROCEDER
+     não funciona (embora volume/mudo e configurações funcionem)".
+
+     Esta superfície é um <button> de tela cheia, empilhado ACIMA do iframe do
+     player, com o único propósito de "abrir a barra de controles ao toque".
+     Como ela cobria o vídeo inteiro, ela ENGOLIA o toque: o toque que o
+     usuário dava para pausar/retroceder/avançar morria aqui (virava um simples
+     "mostrar a barra") e NUNCA chegava ao player do provedor, que vive no
+     iframe e TEM controles de reprodução que funcionam.
+
+     Volume/mudo nunca sofreram disso porque não passam pelo vídeo: são o
+     ÁUDIO do aparelho, ajustado pela camada nativa (AudioManager). Do mesmo
+     modo, configurações é interface local. Só a reprodução (pausar/retomar/
+     avançar/retroceder) depende de chegar ao player — e era justamente a que
+     o toque não alcançava.
+
+     CORREÇÃO (mínima e cirúrgica): a superfície deixa de capturar o ponteiro.
+     O toque atravessa para o iframe e o player do próprio provedor responde
+     (pausa, retoma e faz o seek — o comportamento que o usuário espera do
+     toque). A barra do MovieFlix continua sendo aberta pelo CONTROLE REMOTO
+     (↓, OK ou qualquer tecla de mídia — tratado em TvPlayerPage), que é o
+     caminho de TV, e esses falantes continuam funcionando.
+     ═══════════════════════════════════════════════════════════════════════ */
+  pointer-events: none;
 }
 
 .tv-player-tap-oculto { display: none; }
