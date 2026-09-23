@@ -138,7 +138,7 @@ class AccountActivity : BaseTvActivity() {
             background = TvUi.fundo(ContextCompat.getColor(this@AccountActivity, R.color.mf_surface), 12, this@AccountActivity, ContextCompat.getColor(this@AccountActivity, R.color.mf_border), 1)
         }
         c.layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { topMargin = TvUi.dp(this@AccountActivity, 16) }
-        c.addView(TvUi.texto(this, titulo, 18f, ContextCompat.getColor(this, R.color.mf_purple_light), negrito = true))
+        c.addView(TvUi.texto(this, titulo, 18f, ContextCompat.getColor(this, R.color.mf_white), negrito = true))
         for (l in linhas) {
             val t = TvUi.texto(this, "•  $l", 14f, ContextCompat.getColor(this, R.color.mf_gray_light), maxLinhas = 2)
             t.setPadding(0, TvUi.dp(this, 6), 0, 0)

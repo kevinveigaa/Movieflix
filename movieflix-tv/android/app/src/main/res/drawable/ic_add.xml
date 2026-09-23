@@ -1,12 +1,13 @@
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
-    android:width="108dp"
-    android:height="108dp"
-    android:viewportWidth="108"
-    android:viewportHeight="108">
+    android:width="30dp"
+    android:height="30dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <!-- Botao circular de reproducao do card — VERMELHO DA MARCA (brand-600). -->
     <path
-        android:fillColor="#9D38FF"
-        android:pathData="M54,14 A40,40 0 1,1 53.9,14 Z" />
+        android:fillColor="#DF0A15"
+        android:pathData="M12,2 A10,10 0 1,1 11.99,2 Z" />
     <path
         android:fillColor="#FFFFFF"
-        android:pathData="M43,34 L43,74 L77,54 Z" />
+        android:pathData="M9.6,6.9 L9.6,17.1 L18,12 Z" />
 </vector>

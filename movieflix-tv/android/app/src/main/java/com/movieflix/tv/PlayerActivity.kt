@@ -182,7 +182,7 @@ class PlayerActivity : BaseTvActivity() {
         s.useWideViewPort = true
         s.allowFileAccess = false
         s.allowContentAccess = false
-        s.javaScriptCanOpenWindowsAutomatically = false
+        s.javaScriptCanOpenWindowsAutomatically = true
         s.setSupportMultipleWindows(false)
         s.userAgentString = s.userAgentString + " MovieFlixTV/4.0"
         if (android.os.Build.VERSION.SDK_INT >= 21) s.mixedContentMode = WebSettings.MIXED_CONTENT_COMPATIBILITY_MODE
@@ -215,7 +215,16 @@ class PlayerActivity : BaseTvActivity() {
         webView = wv
 
         if (embedUrl.isNotBlank()) {
-            wv.loadUrl(embedUrl)
+            // CAUSA RAIZ CORRIGIDA (erro "Este link so funciona dentro de um iframe"):
+            // o provedor de embed so entrega o video quando a pagina e carregada
+            // DENTRO DE UM IFRAME. O site faz exatamente isso
+            // (StreamBetterEmbed.tsx -> <iframe src={embedUrl}>); a TV carregava a
+            // URL NO TOPO do WebView, e por isso o provedor respondia com a tela de
+            // bloqueio "Copiar codigo do iframe". Aqui reproduzimos a MESMA condicao
+            // do site: a URL entra como `src` de um <iframe> do tamanho da tela e o
+            // documento base e a propria URL do embed (mesma origem => o provedor
+            // reconhece o enquadramento).
+            wv.loadDataWithBaseURL(embedUrl, paginaComIframe(embedUrl), "text/html", "UTF-8", null)
         } else {
             val html = "<html><body style='background:#000;color:#fff;font-family:sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;text-align:center'><div><h2>Nao foi possivel reproduzir</h2><p>$motivo</p></div></body></html>"
             wv.loadDataWithBaseURL(null, html, "text/html", "UTF-8", null)
@@ -224,6 +233,21 @@ class PlayerActivity : BaseTvActivity() {
     }
 
     // ── Overlay de controles (controle remoto) ──
+
+    /**
+     * Documento minimo que carrega o embed DENTRO DE UM IFRAME — a mesma estrutura
+     * usada pelo player do site. Sem isto o provedor devolve a tela de bloqueio
+     * "Este link so funciona dentro de um iframe" e o usuario nao assiste nada.
+     */
+    private fun paginaComIframe(url: String): String {
+        val alvo = url.replace("\"", "%22")
+        return """<!DOCTYPE html><html><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>html,body{margin:0;padding:0;background:#000;height:100%;overflow:hidden}
+iframe{position:absolute;inset:0;width:100%;height:100%;border:0}</style></head>
+<body><iframe src="$alvo" allow="autoplay; fullscreen; encrypted-media; picture-in-picture"
+allowfullscreen referrerpolicy="no-referrer-when-downgrade"></iframe></body></html>"""
+    }
 
     private fun montarOverlay() {
         controles = LinearLayout(this).apply {

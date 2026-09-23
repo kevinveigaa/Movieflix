@@ -97,12 +97,12 @@ class PaywallActivity : BaseTvActivity() {
         lp.marginEnd = TvUi.dp(this, 20)
         card.layoutParams = lp
         val normal = TvUi.fundo(ContextCompat.getColor(this, R.color.mf_surface), 14, this, ContextCompat.getColor(this, R.color.mf_border), 1)
-        val foco = TvUi.fundo(ContextCompat.getColor(this, R.color.mf_surface_strong), 14, this, ContextCompat.getColor(this, R.color.mf_purple), 3)
+        val foco = TvUi.fundo(ContextCompat.getColor(this, R.color.mf_surface_strong), 14, this, ContextCompat.getColor(this, R.color.mf_red), 3)
         card.background = normal
 
         card.addView(TvUi.texto(this, p.name.ifBlank { p.code.uppercase() }, 20f, ContextCompat.getColor(this, R.color.mf_white), negrito = true))
 
-        val preco = TvUi.texto(this, PlanoRegras.precoFormatado(p.priceCents), 26f, ContextCompat.getColor(this, R.color.mf_purple_light), negrito = true)
+        val preco = TvUi.texto(this, PlanoRegras.precoFormatado(p.priceCents), 26f, ContextCompat.getColor(this, R.color.mf_white), negrito = true)
         preco.setPadding(0, TvUi.dp(this, 8), 0, TvUi.dp(this, 2))
         card.addView(preco)
 

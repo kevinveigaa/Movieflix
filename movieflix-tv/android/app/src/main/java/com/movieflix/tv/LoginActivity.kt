@@ -51,8 +51,11 @@ class LoginActivity : BaseTvActivity() {
             setPadding(TvUi.dp(this@LoginActivity, 120), TvUi.dp(this@LoginActivity, 40), TvUi.dp(this@LoginActivity, 120), TvUi.dp(this@LoginActivity, 40))
         }
 
-        val marca = TvUi.texto(this, "MOVIEFLIX", 40f, ContextCompat.getColor(this, R.color.mf_purple), negrito = true)
-        coluna.addView(marca, LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply { bottomMargin = TvUi.dp(this@LoginActivity, 6) })
+        val marca = android.widget.ImageView(this)
+        marca.layoutParams = LinearLayout.LayoutParams(TvUi.dp(this, 232), TvUi.dp(this, 70)).apply { bottomMargin = TvUi.dp(this@LoginActivity, 6) }
+        marca.setImageResource(R.drawable.mf_wordmark)
+        marca.scaleType = android.widget.ImageView.ScaleType.FIT_CENTER
+        coluna.addView(marca)
 
         campoTitulo = TvUi.texto(this, "", 24f, ContextCompat.getColor(this, R.color.mf_white), negrito = true)
         coluna.addView(campoTitulo)
@@ -123,7 +126,7 @@ class LoginActivity : BaseTvActivity() {
         e.setOnFocusChangeListener { v, temFoco ->
             v.background = TvUi.fundo(
                 ContextCompat.getColor(this, if (temFoco) R.color.mf_surface_strong else R.color.mf_surface_light),
-                10, this, ContextCompat.getColor(this, if (temFoco) R.color.mf_purple else R.color.mf_border), if (temFoco) 2 else 1,
+                10, this, ContextCompat.getColor(this, if (temFoco) R.color.mf_red else R.color.mf_border), if (temFoco) 2 else 1,
             )
         }
         return e

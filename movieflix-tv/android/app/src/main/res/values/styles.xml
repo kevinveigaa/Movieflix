@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Tema do MovieFlix TV: fundo preto premium + acento violeta/vermelho da marca. -->
+<!-- Tema do MovieFlix TV: fundo preto premium + acento VERMELHO da marca
+     (mesmo `colorAccent` do mobile, que usa brand-600). -->
 <resources>
     <style name="Theme.MovieFlixTv" parent="Theme.AppCompat.NoActionBar">
         <item name="android:windowBackground">@color/mf_black</item>

@@ -116,7 +116,7 @@ class CatalogActivity : BaseTvActivity() {
         t.isFocusable = true
         t.setPadding(TvUi.dp(this, 14), TvUi.dp(this, 7), TvUi.dp(this, 14), TvUi.dp(this, 7))
         val normal = TvUi.fundo(ContextCompat.getColor(this, R.color.mf_surface_light), 20, this, ContextCompat.getColor(this, R.color.mf_border), 1)
-        val foco = TvUi.fundo(ContextCompat.getColor(this, R.color.mf_purple), 20, this, ContextCompat.getColor(this, R.color.mf_white), 2)
+        val foco = TvUi.fundo(ContextCompat.getColor(this, R.color.mf_red), 20, this, ContextCompat.getColor(this, R.color.mf_white), 2)
         t.background = normal
         t.layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { marginEnd = TvUi.dp(this@CatalogActivity, 8) }
         t.setOnFocusChangeListener { v, temFoco -> v.background = if (temFoco) foco else normal }

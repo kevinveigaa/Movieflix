@@ -1,23 +1,25 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Identidade visual MovieFlix TV — MESMA paleta do MovieFlix Mobile/site.
-     Fundo preto premium (ink-950 #050505 + #0A0A0F), acento violeta
-     (roxo-600 #7C3AED / roxo-400 #A78BFA) e a MARCA MovieFlix (brand #DF0A15).
-     Os nomes dos tokens sao os mesmos do tailwind.config.js do site. -->
+<!-- Identidade visual MovieFlix TV — tokens com os MESMOS nomes e valores do site
+     (tailwind.config.js). Preto premium (ink-950) + VERMELHO DA MARCA
+     (brand-600 #DF0A15) como acento principal + VIOLETA (roxo-600 #7C3AED)
+     como apoio / fim do gradiente vermelho->violeta. Nada de paleta nova. -->
 <resources>
-    <!-- Superficies (ink-950 / #0A0A0F / ink-800 / roxo escuro) -->
+    <!-- Superficies (ink-950 / ink-900 / ink-800) -->
     <color name="mf_black">#050505</color>
     <color name="mf_surface">#0A0A0F</color>
-    <color name="mf_surface_light">#171717</color>
+    <color name="mf_surface_light">#16161F</color>
     <color name="mf_surface_strong">#241B33</color>
 
-    <!-- Acento primario (roxo-600 / roxo-400 / indigo) -->
+    <!-- MARCA MovieFlix (brand-*) — acento PRINCIPAL da TV -->
+    <color name="mf_red">#DF0A15</color>
+    <color name="mf_red_light">#FF2D2D</color>
+    <color name="mf_red_dark">#A30000</color>
+    <color name="mf_magenta">#E01E5A</color>
+
+    <!-- Apoio violeta (roxo-*) — fim do gradiente da marca -->
     <color name="mf_purple">#7C3AED</color>
     <color name="mf_purple_light">#A78BFA</color>
     <color name="mf_indigo">#5B42F3</color>
-
-    <!-- MARCA MovieFlix (brand-600 do site) + secundario (magenta) -->
-    <color name="mf_red">#DF0A15</color>
-    <color name="mf_magenta">#E01E5A</color>
 
     <!-- Texto -->
     <color name="mf_white">#FFFFFF</color>
@@ -26,7 +28,7 @@
     <color name="mf_border">#3A3A44</color>
 
     <!-- Selo Dublado PT-BR / nota / erro -->
-    <color name="mf_green">#00A896</color>
+    <color name="mf_green">#059669</color>
     <color name="mf_gold">#FBBF24</color>
     <color name="mf_error">#F87171</color>
 

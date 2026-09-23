@@ -230,7 +230,7 @@ class HomeActivity : BaseTvActivity() {
         )
         info.addView(heroTitulo)
 
-        heroMeta = TvUi.texto(this, "", 13f, ContextCompat.getColor(this, R.color.mf_purple_light), negrito = true, maxLinhas = 1)
+        heroMeta = TvUi.texto(this, "", 13f, ContextCompat.getColor(this, R.color.mf_red_light), negrito = true, maxLinhas = 1)
         heroMeta.setPadding(0, TvUi.dp(this, 8), 0, TvUi.dp(this, 8))
         info.addView(heroMeta)
 

@@ -54,7 +54,7 @@ class SearchActivity : BaseTvActivity() {
         campo.setOnFocusChangeListener { v, temFoco ->
             v.background = TvUi.fundo(
                 ContextCompat.getColor(this, if (temFoco) R.color.mf_surface_strong else R.color.mf_surface_light),
-                10, this, ContextCompat.getColor(this, if (temFoco) R.color.mf_purple else R.color.mf_border), if (temFoco) 2 else 1,
+                10, this, ContextCompat.getColor(this, if (temFoco) R.color.mf_red else R.color.mf_border), if (temFoco) 2 else 1,
             )
         }
         campo.addTextChangedListener(object : TextWatcher {

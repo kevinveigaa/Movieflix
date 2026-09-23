@@ -103,7 +103,7 @@ class ProfilesActivity : BaseTvActivity() {
         col.layoutParams = lp
 
         val fundoNormal = TvUi.fundo(0x00000000, 14, this)
-        val fundoFoco = TvUi.fundo(ContextCompat.getColor(this, R.color.mf_surface_strong), 14, this, ContextCompat.getColor(this, R.color.mf_purple), 3)
+        val fundoFoco = TvUi.fundo(ContextCompat.getColor(this, R.color.mf_surface_strong), 14, this, ContextCompat.getColor(this, R.color.mf_red), 3)
         col.background = fundoNormal
         col.setOnFocusChangeListener { v, temFoco ->
             v.background = if (temFoco) fundoFoco else fundoNormal
@@ -137,7 +137,7 @@ class ProfilesActivity : BaseTvActivity() {
         lp.bottomMargin = TvUi.dp(this, 20)
         col.layoutParams = lp
         val fundoNormal = TvUi.fundo(0x00000000, 14, this)
-        val fundoFoco = TvUi.fundo(ContextCompat.getColor(this, R.color.mf_surface_strong), 14, this, ContextCompat.getColor(this, R.color.mf_purple), 3)
+        val fundoFoco = TvUi.fundo(ContextCompat.getColor(this, R.color.mf_surface_strong), 14, this, ContextCompat.getColor(this, R.color.mf_red), 3)
         col.background = fundoNormal
         col.setOnFocusChangeListener { v, temFoco ->
             v.background = if (temFoco) fundoFoco else fundoNormal
@@ -147,7 +147,7 @@ class ProfilesActivity : BaseTvActivity() {
         val lado = TvUi.dp(this, 118)
         img.layoutParams = LinearLayout.LayoutParams(lado, lado)
         img.setImageResource(R.drawable.ic_add)
-        img.setColorFilter(ContextCompat.getColor(this, R.color.mf_purple))
+        img.setColorFilter(ContextCompat.getColor(this, R.color.mf_gray_light))
         img.setBackgroundColor(ContextCompat.getColor(this, R.color.mf_surface_light))
         img.setPadding(TvUi.dp(this, 34), TvUi.dp(this, 34), TvUi.dp(this, 34), TvUi.dp(this, 34))
         col.addView(img)

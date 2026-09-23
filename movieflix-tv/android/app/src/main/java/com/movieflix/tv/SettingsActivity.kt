@@ -101,7 +101,7 @@ class SettingsActivity : BaseTvActivity() {
         }
         linha.layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { topMargin = TvUi.dp(this@SettingsActivity, 12) }
         val normal = TvUi.fundo(ContextCompat.getColor(this, R.color.mf_surface), 10, this, ContextCompat.getColor(this, R.color.mf_border), 1)
-        val foco = TvUi.fundo(ContextCompat.getColor(this, R.color.mf_surface_strong), 10, this, ContextCompat.getColor(this, R.color.mf_purple), 3)
+        val foco = TvUi.fundo(ContextCompat.getColor(this, R.color.mf_surface_strong), 10, this, ContextCompat.getColor(this, R.color.mf_red), 3)
         linha.background = normal
         linha.setOnFocusChangeListener { v, temFoco -> v.background = if (temFoco) foco else normal }
 

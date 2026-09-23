@@ -78,7 +78,7 @@ class DetailsActivity : BaseTvActivity() {
         titulo = TvUi.texto(this, "", 34f, ContextCompat.getColor(this, R.color.mf_white), negrito = true, maxLinhas = 2)
         info.addView(titulo)
 
-        meta = TvUi.texto(this, "", 13f, ContextCompat.getColor(this, R.color.mf_purple_light), negrito = true)
+        meta = TvUi.texto(this, "", 13f, ContextCompat.getColor(this, R.color.mf_red_light), negrito = true)
         meta.setPadding(0, TvUi.dp(this, 6), 0, TvUi.dp(this, 8))
         info.addView(meta)
 
@@ -178,14 +178,14 @@ class DetailsActivity : BaseTvActivity() {
             }
             linha.layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { bottomMargin = TvUi.dp(this@DetailsActivity, 8) }
             val normal = TvUi.fundo(ContextCompat.getColor(this, R.color.mf_surface), 10, this, ContextCompat.getColor(this, R.color.mf_border), 1)
-            val foco = TvUi.fundo(ContextCompat.getColor(this, R.color.mf_surface_strong), 10, this, ContextCompat.getColor(this, R.color.mf_purple), 3)
+            val foco = TvUi.fundo(ContextCompat.getColor(this, R.color.mf_surface_strong), 10, this, ContextCompat.getColor(this, R.color.mf_red), 3)
             linha.background = normal
             linha.setOnFocusChangeListener { v, temFoco ->
                 v.background = if (temFoco) foco else normal
                 v.animate().scaleX(if (temFoco) 1.02f else 1f).scaleY(if (temFoco) 1.02f else 1f).setDuration(110).start()
             }
 
-            val num = TvUi.texto(this, "E${String.format("%02d", e)}", 16f, ContextCompat.getColor(this, R.color.mf_purple_light), negrito = true)
+            val num = TvUi.texto(this, "E${String.format("%02d", e)}", 16f, ContextCompat.getColor(this, R.color.mf_red_light), negrito = true)
             num.width = TvUi.dp(this, 70)
             linha.addView(num)
 
