@@ -127,9 +127,21 @@
 .tv-nav input:focus,
 .tv-nav select:focus,
 .tv-nav textarea:focus,
-.tv-nav [tabindex]:focus,
-.tv-nav [data-tv-focusable]:focus,
-.tv-nav .tv-focus {
+/* EXCEÇÃO OBRIGATÓRIA — o CONTÊINER DO VÍDEO nunca recebe o anel de foco.
+
+   CAUSA RAIZ (relato: "a borda vermelha ao redor do vídeo está feia"): o
+   `.tv-player-box` é `tabindex="0"` e a navegação espacial acrescenta a ele a
+   classe `.tv-focus` — então estas regras genéricas pintavam, em volta de TODO
+   o vídeo, um anel vermelho (rgba(223,10,21) + rgba(124,58,237)). A regra
+   `.tv-nav.tv-in-player [data-tv-player-box]` só cobria o modo de controle;
+   no estado NORMAL (foco no player durante a reprodução) a moldura aparecia.
+
+   Aqui a exclusão é estrutural: o seletor genérico não alcança o player, nem o
+   iframe dentro dele. O indicador de "onde está o controle" no player é a
+   própria BARRA de controles — nunca uma moldura sobre a imagem. */
+.tv-nav [tabindex]:not([data-tv-player-box]):focus,
+.tv-nav [data-tv-focusable]:not([data-tv-player-box]):focus,
+.tv-nav .tv-focus:not([data-tv-player-box]) {
   outline: none !important;
   border-radius: 0.5rem;
   box-shadow:
@@ -138,6 +150,19 @@
   transition: box-shadow 0.15s ease, transform 0.15s ease;
   z-index: 30;
   position: relative;
+}
+
+/* Cinto e suspensório: nem o contêiner do player nem o iframe que hospeda o
+   embed podem ganhar moldura/anel em NENHUM estado (foco, modo de controle,
+   fullscreen). Uma borda sobre a imagem é sempre lida como defeito. */
+.tv-nav [data-tv-player-box],
+.tv-nav [data-tv-player-box]:focus,
+.tv-nav [data-tv-player-box].tv-focus,
+.tv-nav [data-tv-player-box] iframe,
+.tv-nav [data-tv-player-box] iframe:focus,
+.tv-nav [data-tv-player-box] iframe.tv-focus {
+  box-shadow: none !important;
+  border-radius: 0 !important;
 }
 
 /* Card de poster: ao focar, cresce LEVEMENTE (1.03) e clareia a borda — feedback
