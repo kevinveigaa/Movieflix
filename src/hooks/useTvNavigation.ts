@@ -156,6 +156,21 @@ function playerModeAtivo(): boolean {
   return document.documentElement.classList.contains("tv-in-player");
 }
 
+/**
+ * O foco est num CAMPO DE TEXTO de um formulrio de TV (login)?
+ *
+ * Um formulrio de TV marca a si mesmo com `data-tv-form` e cuida do prprio
+ * foco/teclado. Enquanto um campo de texto desses estiver focado, a navegao
+ * espacial global NO pode interceptar as teclas: ela roda em fase de CAPTURA,
+ * ento consumia as setas e o OK ANTES que chegassem ao campo — o foco parecia
+ * "sair sozinho" e a digitao ficava impossvel. Quando o foco est nas TECLAS do
+ * teclado na tela (que no so campos de texto), a navegao continua normal.
+ */
+function emFormularioTv(): boolean {
+  const ativo = document.activeElement as HTMLElement | null;
+  return !!ativo && ehCampoDeTexto(ativo) && !!ativo.closest?.("[data-tv-form]");
+}
+
 /** Sincroniza o estado do modo com o badge/indicador (evento do useTvPlayerControls). */
 function emitirModoPlayer() {
   window.dispatchEvent(new CustomEvent("mf-player-mode-change"));
@@ -203,6 +218,13 @@ export function useTvNavigation() {
       // controles antes de sair) já tratou a tecla. Sem esta guarda o BACK
       // navegava de página no meio da reprodução — o "saiu do player" relatado.
       if (e.defaultPrevented) return;
+
+      // ── FORMULÁRIO DE TV (login) ──
+      // Com um CAMPO DE TEXTO focado dentro de [data-tv-form], o formulário é o
+      // dono do foco e do teclado: a navegação espacial não toca em nada. Antes,
+      // as setas/OK eram consumidos aqui (fase de captura) antes de chegar ao
+      // campo — o foco "saía" e não dava para digitar.
+      if (emFormularioTv()) return;
 
       // ── CAMPO DE TEXTO (login/busca) ───────────────────────────────────────
       // Com um campo de texto focado, TODA tecla que produz caractere (letras,
@@ -349,9 +371,12 @@ export function useTvNavigation() {
       limparFocoVisual();
       const ativo = document.activeElement as HTMLElement | null;
       if (ativo && ativo !== document.body) ativo.classList.add("tv-focus");
-      // Campo de texto focado: pede o teclado da TV já na entrada do campo
-      // (nas TVs que aceitam, o teclado abre sem nem precisar do OK).
-      if (ehCampoDeTexto(ativo)) abrirTecladoDaTv();
+      // Campo de texto focado: NÃO pedimos mais o teclado do sistema na entrada
+      // do campo. Foco programático não abre o IME no WebView, e o pedido
+      // repetido a cada reentrada de foco (com blur+focus) fazia o foco "piscar"
+      // e cair fora do campo. A digitação na TV agora tem o TECLADO NA TELA
+      // (TvKeyboard), que não depende de IME; o IME continua disponível pelo OK
+      // quando o campo está fora de um formulário de TV (ex.: busca).
       // Ao SAIR de um campo, o "primeiro OK" volta a valer nos demais.
       document.querySelectorAll<HTMLElement>('[data-mf-teclado-ok]').forEach((el) => {
         if (el !== document.activeElement) delete el.dataset.mfTecladoOk;

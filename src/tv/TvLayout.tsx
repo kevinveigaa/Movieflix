@@ -28,6 +28,19 @@ import { cn } from '@/lib/cn';
  */
 const TENTATIVAS_FOCO = [250, 700, 1300, 2100, 3200];
 
+/**
+ * O foco está em algo que o USUÁRIO escolheu (campo de texto ou formulário de
+ * TV)? Nesse caso a recuperação automática de foco NÃO pode agir — ela movia o
+ * foco para o elemento inicial enquanto o usuário digitava no login.
+ */
+function focoDoUsuario(): boolean {
+  const ativo = document.activeElement as HTMLElement | null;
+  if (!ativo || ativo === document.body) return false;
+  if (ativo.closest?.('[data-tv-form]')) return true;
+  const tag = ativo.tagName;
+  return tag === 'INPUT' || tag === 'TEXTAREA' || ativo.isContentEditable === true;
+}
+
 export function TvLayout({ children, imersivo = false }: { children: ReactNode; imersivo?: boolean }) {
   const [splash, setSplash] = useState(true);
 
@@ -40,6 +53,8 @@ export function TvLayout({ children, imersivo = false }: { children: ReactNode; 
     if (splash) return;
     const timers = TENTATIVAS_FOCO.map((ms) =>
       window.setTimeout(() => {
+        // Nunca mexe no foco quando o usuário está num campo de texto/formulário.
+        if (focoDoUsuario()) return;
         const ativo = document.activeElement as HTMLElement | null;
         // Só assume o foco se ele se perdeu (ou nunca aconteceu).
         if (ativo && ativo !== document.body && ativo.getBoundingClientRect().width > 0) return;

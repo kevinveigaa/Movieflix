@@ -1577,3 +1577,105 @@
   .tv-player-top { transition: none; }
   .tv-loading-spinner { animation-duration: 2s; }
 }
+
+/* ══════════════════════════════════════════════════════════════════════════
+   LOGIN DA TV — layout, foco e TECLADO NA TELA (digitação sem IME)
+   ══════════════════════════════════════════════════════════════════════════
+
+   A tela precisa caber em 720p COM o teclado na tela aberto: por isso o
+   formulário é compacto, os dois campos ficam lado a lado em telas largas e o
+   conjunto é centralizado mas pode rolar quando a altura é pequena (antes o
+   `.tv-page-center` com `min-height: 92vh` empurrava o conteúdo para fora da
+   área visível e os campos ficavam cortados/invisíveis). */
+
+.tv-page-login {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100%;
+  padding: 1.6vh 1.8vw 2.4vh;
+}
+
+.tv-page-login .tv-login {
+  width: min(88vw, 1180px);
+}
+
+/* E-mail e senha lado a lado quando há largura; empilhados em telas estreitas. */
+.tv-login-campos {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.2vw;
+}
+
+/* Anel de foco no ENVOLTÓRIO do campo: fica visível mesmo quando o anel do
+   próprio input é discreto, e mostra qual campo o teclado na tela está
+   preenchendo. */
+.tv-login-campo-ativo .tv-login-input-wrap {
+  border-radius: 14px;
+  box-shadow: 0 0 0 3px rgba(223, 10, 21, 0.42);
+}
+
+.tv-login-teclado-wrap {
+  margin-top: 0.4vh;
+}
+
+.tv-login-teclado {
+  display: flex;
+  flex-direction: column;
+  gap: 0.7vh;
+  align-items: center;
+}
+
+/* Teclas um pouco menores que as da busca: o formulário inteiro (campos +
+   teclado + botão Entrar) precisa caber na tela de uma TV 720p. */
+.tv-page-login .tv-key {
+  min-width: clamp(30px, 3.7vh, 58px);
+  height: clamp(30px, 3.7vh, 58px);
+  font-size: clamp(11px, 1.42vh, 21px);
+}
+
+.tv-page-login .tv-key-space {
+  min-width: clamp(88px, 11vh, 168px);
+}
+
+/* Teclas de função (⇧ / Apagar / Limpar): crescem com o texto. */
+.tv-key-larga {
+  padding: 0 1.1vw;
+  min-width: 0;
+}
+
+/* Ação principal dentro do teclado (Entrar) — gradiente da marca. */
+.tv-key-entrar {
+  padding: 0 1.6vw;
+  min-width: 0;
+  background: var(--mf-grad);
+  border-color: transparent;
+  font-weight: 800;
+}
+
+/* Maiúsculas ativadas (⇧) — mesma linguagem visual do item ativo. */
+.tv-key-ativo {
+  background: var(--mf-grad);
+  border-color: transparent;
+}
+
+.tv-login-dica {
+  text-align: center;
+  font-size: clamp(10px, 1.2vh, 18px);
+  color: var(--mf-muted);
+  margin: 0;
+}
+
+/* Alturas pequenas (720p): reduz o cabeçalho para o teclado caber inteiro. */
+@media (max-height: 780px) {
+  .tv-page-login .tv-login-marca { margin-bottom: 0.6vh; }
+  .tv-page-login .tv-login-marca-img { height: clamp(40px, 6.4vh, 82px); }
+  .tv-page-login .tv-login-sub { margin-bottom: 1.2vh; }
+  .tv-page-login .tv-login-form { gap: 1vh; }
+  .tv-page-login .tv-login-rodape { margin-top: 1vh; }
+}
+
+/* Telas estreitas: campos empilhados. */
+@media (max-width: 900px) {
+  .tv-login-campos { grid-template-columns: 1fr; }
+}

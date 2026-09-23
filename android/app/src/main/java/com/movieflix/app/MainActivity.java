@@ -38,6 +38,9 @@ import android.widget.Toast;
 import androidx.annotation.Nullable;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.content.FileProvider;
+import androidx.core.view.WindowCompat;
+import androidx.core.view.WindowInsetsCompat;
+import androidx.core.view.WindowInsetsControllerCompat;
 
 import java.io.File;
 import java.net.URI;
@@ -177,10 +180,7 @@ public class MainActivity extends AppCompatActivity {
                         ViewGroup.LayoutParams.MATCH_PARENT,
                         ViewGroup.LayoutParams.MATCH_PARENT));
                 webView.setVisibility(View.GONE);
-                getWindow().getDecorView().setSystemUiVisibility(
-                        View.SYSTEM_UI_FLAG_FULLSCREEN
-                                | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
-                                | View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY);
+                entrarTelaCheiaNativa();
             }
 
             @Override
@@ -191,7 +191,8 @@ public class MainActivity extends AppCompatActivity {
                 customViewCallback = null;
                 webView.setVisibility(View.VISIBLE);
                 fullscreenContainer.setVisibility(View.GONE);
-                getWindow().getDecorView().setSystemUiVisibility(View.SYSTEM_UI_FLAG_VISIBLE);
+                sairTelaCheiaNativa();
+                webView.requestFocus();
             }
 
             @Override
@@ -491,6 +492,44 @@ public class MainActivity extends AppCompatActivity {
             return nc != null && nc.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET);
         }
         return cm.getActiveNetworkInfo() != null && cm.getActiveNetworkInfo().isConnected();
+    }
+
+    /**
+     * Entra em tela cheia REAL para o vídeo.
+     *
+     * CAUSA RAIZ da correção: o código anterior usava
+     * SYSTEM_UI_FLAG_FULLSCREEN + SYSTEM_UI_FLAG_HIDE_NAVIGATION. Além de
+     * obsoleto (o Android 11+ ignora esses flags), SYSTEM_UI_FLAG_FULLSCREEN
+     * SUPRIME o teclado virtual — e este mesmo app precisa do IME na tela de
+     * login. Agora usamos o controlador de insets (Android 11+) e deixamos a API
+     * legada apenas como caminho de compatibilidade.
+     */
+    private void entrarTelaCheiaNativa() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            WindowInsetsControllerCompat c =
+                    WindowCompat.getInsetsController(getWindow(), getWindow().getDecorView());
+            c.setSystemBarsBehavior(
+                    WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE);
+            c.hide(WindowInsetsCompat.Type.systemBars());
+            return;
+        }
+        getWindow().getDecorView().setSystemUiVisibility(
+                View.SYSTEM_UI_FLAG_LAYOUT_STABLE
+                        | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
+                        | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
+                        | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
+                        | View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY);
+    }
+
+    /** Sai da tela cheia e devolve o app ao estado normal (com barras visíveis). */
+    private void sairTelaCheiaNativa() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            WindowInsetsControllerCompat c =
+                    WindowCompat.getInsetsController(getWindow(), getWindow().getDecorView());
+            c.show(WindowInsetsCompat.Type.systemBars());
+            return;
+        }
+        getWindow().getDecorView().setSystemUiVisibility(View.SYSTEM_UI_FLAG_VISIBLE);
     }
 
     // ===== Botão voltar: fullscreen → página → sair =====

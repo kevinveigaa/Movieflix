@@ -5,6 +5,7 @@ import android.app.Activity;
 import android.content.ActivityNotFoundException;
 import android.content.Intent;
 import android.graphics.Bitmap;
+import android.graphics.Rect;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
@@ -115,6 +116,22 @@ public class MainActivity extends Activity {
      */
     private boolean controlesAbertos = false;
 
+    /**
+     * O teclado virtual (IME) está aberto? Detectado pela GEOMETRIA real do
+     * WebView — não por heurística de "campo focado".
+     *
+     * CAUSA RAIZ DO BUG "não dá para digitar no login da TV": em várias versões
+     * do Android, entrar em modo fullscreen / esconder barras SUPRIME o teclado
+     * virtual. Como o teclado na tela é a única forma de digitar com o controle
+     * remoto, o campo recebia foco e nada podia ser digitado. Agora, quando o
+     * teclado abre (a área útil encolhe), o app sai do modo imersivo para o IME
+     * aparecer; quando fecha, volta ao modo de cinema.
+     */
+    private boolean tecladoVisivel = false;
+
+    /** Quanto a área visível precisa encolher para considerarmos o IME aberto. */
+    private static final int ALTURA_MINIMA_TECLADO = 140;
+
     @SuppressLint({"SetJavaScriptEnabled", "AddJavascriptInterface"})
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -210,6 +227,9 @@ public class MainActivity extends Activity {
         webView.addJavascriptInterface(ponte, "MovieFlixApp");
         webView.addJavascriptInterface(ponte, "MovieFlixAndroid");
 
+        // Mantém tela cheia de TV e teclado utilizável ao mesmo tempo.
+        instalarMonitorDoTeclado();
+
         // Aciona sozinho o botão "Abrir link" do passo intermediário do
         // provedor (ver instalarAutoclickAbrirLink).
         instalarAutoclickAbrirLink(webView);
@@ -264,6 +284,10 @@ public class MainActivity extends Activity {
                         ViewGroup.LayoutParams.MATCH_PARENT,
                         ViewGroup.LayoutParams.MATCH_PARENT));
                 webView.setVisibility(View.GONE);
+                // Tela cheia REAL do vídeo nas DUAS APIs (o helper cuida da
+                // diferença entre elas; antes só a API legada era tratada).
+                tecladoVisivel = false;
+                aplicarBarras();
             }
 
             @Override
@@ -272,6 +296,9 @@ public class MainActivity extends Activity {
                 ((ViewGroup) raiz).removeView(telaCheia);
                 telaCheia = null;
                 webView.setVisibility(View.VISIBLE);
+                // Volta ao modo imersivo do app (antes o código ligava
+                // SYSTEM_UI_FLAG_VISIBLE e as barras reapareciam sobre o site).
+                aplicarModoImersivo();
                 webView.requestFocus();
                 if (callbackTelaCheia != null) {
                     callbackTelaCheia.onCustomViewHidden();
@@ -334,19 +361,62 @@ public class MainActivity extends Activity {
     private void aplicarModoImersivo() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
             androidx.core.view.WindowCompat.setDecorFitsSystemWindows(getWindow(), false);
+        }
+        // O IME precisa de espaço: o modo de redimensionamento é definido ANTES
+        // de qualquer pedido de teclado (sem isso ele é pedido e não aparece).
+        getWindow().setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE
+                | WindowManager.LayoutParams.SOFT_INPUT_STATE_UNSPECIFIED);
+        aplicarBarras();
+    }
+
+    /**
+     * Aplica as barras do sistema: imersivo, mas NUNCA suprimindo o teclado.
+     *
+     * Com o teclado ABERTO as barras ficam visíveis de propósito — escondê-las
+     * (fullscreen) é justamente o que impede o IME de subir em várias versões do
+     * Android. Com o teclado FECHADO, escondemos tudo (modo cinema).
+     */
+    private void aplicarBarras() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
             androidx.core.view.WindowInsetsControllerCompat c =
                     androidx.core.view.WindowCompat.getInsetsController(getWindow(), getWindow().getDecorView());
-            c.hide(androidx.core.view.WindowInsetsCompat.Type.systemBars());
-            c.setSystemBarsBehavior(
-                    androidx.core.view.WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE);
+            if (tecladoVisivel) {
+                c.show(androidx.core.view.WindowInsetsCompat.Type.systemBars());
+            } else {
+                c.setSystemBarsBehavior(
+                        androidx.core.view.WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE);
+                c.hide(androidx.core.view.WindowInsetsCompat.Type.systemBars());
+            }
             return;
         }
-        getWindow().getDecorView().setSystemUiVisibility(
-                View.SYSTEM_UI_FLAG_LAYOUT_STABLE
-                        | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
-                        | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
-                        | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
-                        | View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY);
+        int flags = View.SYSTEM_UI_FLAG_LAYOUT_STABLE
+                | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
+                | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
+                | View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY;
+        // HIDE_NAVIGATION (e o fullscreen) suprimem o IME: só com o teclado fechado.
+        if (!tecladoVisivel) {
+            flags |= View.SYSTEM_UI_FLAG_HIDE_NAVIGATION;
+        }
+        getWindow().getDecorView().setSystemUiVisibility(flags);
+    }
+
+    /**
+     * Escuta a geometria da janela para saber quando o teclado (IME) abre/fecha.
+     * É o que mantém as duas coisas juntas: tela cheia de TV e teclado utilizável.
+     */
+    private void instalarMonitorDoTeclado() {
+        final View decor = getWindow().getDecorView();
+        decor.getViewTreeObserver().addOnGlobalLayoutListener(() -> {
+            Rect area = new Rect();
+            decor.getWindowVisibleDisplayFrame(area);
+            boolean visivel = decor.getHeight() - area.height() > ALTURA_MINIMA_TECLADO;
+            if (visivel == tecladoVisivel) return;
+            tecladoVisivel = visivel;
+            aplicarBarras();
+            // O D-pad precisa continuar chegando ao site depois do teclado
+            // abrir/fechar — sem isso o controle remoto "desaparece".
+            if (webView != null) webView.requestFocus();
+        });
     }
 
     /**
@@ -359,6 +429,16 @@ public class MainActivity extends Activity {
      */
     private void abrirTeclado() {
         if (webView == null) return;
+        // O IME precisa de espaço: o modo de redimensionamento tem de estar
+        // definido ANTES do pedido, senão ele é pedido e nada aparece.
+        getWindow().setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE
+                | WindowManager.LayoutParams.SOFT_INPUT_STATE_ALWAYS_VISIBLE);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            // Caminho oficial (Android 11+): pede o IME ao controlador de insets.
+            androidx.core.view.WindowInsetsControllerCompat c =
+                    androidx.core.view.WindowCompat.getInsetsController(getWindow(), getWindow().getDecorView());
+            c.show(androidx.core.view.WindowInsetsCompat.Type.ime());
+        }
         webView.requestFocus();
         try {
             InputMethodManager imm =
