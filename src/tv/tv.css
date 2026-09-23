@@ -743,7 +743,9 @@
 /* Slot da linha: largura previsível para o card dentro do carrossel. */
 .tv-row-slot {
   flex: 0 0 auto;
-  width: clamp(118px, 10.4vw, 268px);
+  /* Largura do card nas LINHAS (carrosséis). Era 10.4vw (133px em 1280),
+     pequeno demais para TV à distância — agora acompanha a grade (~6/linha). */
+  width: clamp(150px, 14.2vw, 330px);
 }
 
 /* Linha horizontal: rola dentro da própria linha (nunca quebra o layout). */
@@ -1551,13 +1553,15 @@
 /* 720p e telas pequenas: cards e textos menores, mais linhas visíveis. */
 @media (max-height: 780px) {
   .tv-hero { height: 38vh; }
-  .tv-grid { grid-template-columns: repeat(auto-fill, minmax(102px, 1fr)); }
+  .tv-grid { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); }
+  .tv-row-slot { width: clamp(140px, 16vw, 240px); }
   .tv-header-user { max-width: 15vw; }
 }
 
 /* Telas muito largas (4K / 21:9): aproveita a área extra. */
 @media (min-width: 2200px) {
   .tv-grid { grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); }
+  .tv-row-slot { width: clamp(230px, 12vw, 420px); }
   .tv-hero { height: 46vh; }
 }
 
