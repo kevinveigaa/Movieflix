@@ -87,7 +87,7 @@ export function DownloadAppPage() {
                 className="inline-flex items-center gap-3 rounded-2xl bg-purple-600 px-8 py-4 text-lg font-semibold text-white shadow-lg shadow-purple-600/30 transition hover:bg-purple-500"
               >
                 <Download className="h-6 w-6" />
-                BAIXAR MOVIEFLIX TV
+                BAIXAR APP MOVIEFLIX TV
               </a>
               <div className="flex items-center gap-2 rounded-xl border border-white/10 bg-white p-2">
                 <QRCodeSVG value={TV_APK_ABSOLUTE_URL} size={64} level="M" bgColor="#ffffff" fgColor="#0a0a0f" title="MovieFlix TV APK" />

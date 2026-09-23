@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!--
+      Tema do MovieFlix TV: fundo exatamente igual ao do site (#0a0a0f),
+      sem barra de ação — o app é uma tela cheia de TV que hospeda o site.
+    -->
+    <style name="Theme.MovieFlixTV" parent="@android:style/Theme.Material.NoActionBar">
+        <item name="android:windowActionBar">false</item>
+        <item name="android:windowNoTitle">true</item>
+        <item name="android:windowBackground">#0a0a0f</item>
+        <item name="android:colorBackground">#0a0a0f</item>
+        <item name="android:statusBarColor">#0a0a0f</item>
+        <item name="android:navigationBarColor">#0a0a0f</item>
+        <item name="android:windowContentTransitions">true</item>
+    </style>
+</resources>

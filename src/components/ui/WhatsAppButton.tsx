@@ -22,7 +22,6 @@ export function WhatsAppButton({
   href,
   children,
   className,
-  disabled,
   'aria-label': ariaLabel,
 }: {
   href: string;
