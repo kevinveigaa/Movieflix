@@ -606,12 +606,14 @@
 .tv-hero-star { color: #fbbf24; }
 
 .tv-hero-desc {
-  font-size: clamp(12px, 1.5vh, 23px);
+  font-size: clamp(12px, 1.45vh, 22px);
   line-height: 1.45;
   color: #c2c2cc;
   margin: 0 0 1.8vh;
+  /* Sinopse contida: em TV, texto denso na largura toda é ilegível à distância. */
+  max-width: 46vw;
   display: -webkit-box;
-  -webkit-line-clamp: 2;
+  -webkit-line-clamp: 3;
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
@@ -765,7 +767,10 @@
   gap: 1.5vh 1.05vw;
   /* Responsiva: mais títulos por linha conforme a largura real da TV.
      Em 16:9 isso dá ~6–7 cards por linha (não mais 4 gigantes). */
-  grid-template-columns: repeat(auto-fill, minmax(clamp(112px, 10.2vw, 260px), 1fr));
+  /* ~6 cards por linha em 16:9 (medido em 1920x1080 com a rail lateral).
+     A versão anterior (minmax 112px/10.2vw) gerava 8 cards pequenos demais
+     para a distância de visualização de uma TV. */
+  grid-template-columns: repeat(auto-fill, minmax(clamp(150px, 14.2vw, 330px), 1fr));
 }
 
 /* "Carregar mais" da grade (paginação por blocos — o catálogo tem ~18 mil

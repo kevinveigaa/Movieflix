@@ -10,7 +10,6 @@ import {
   Crown,
   User,
   LogOut,
-  LogIn,
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { TvMark } from './TvBrand';
@@ -148,18 +147,7 @@ export function TvSidebar() {
             <LogOut className="tv-rail-icon" aria-hidden="true" />
             <span className="tv-rail-label">Sair</span>
           </button>
-        ) : (
-          <button
-            type="button"
-            data-tv-focusable
-            tabIndex={0}
-            className="tv-rail-item"
-            onClick={() => navigate('/tv/login')}
-          >
-            <LogIn className="tv-rail-icon" aria-hidden="true" />
-            <span className="tv-rail-label">Entrar</span>
-          </button>
-        )}
+        ) : null}
       </div>
 
       {/* Nome do usuário (identifica a conta ativa, como no mobile). */}
