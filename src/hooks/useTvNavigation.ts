@@ -224,7 +224,31 @@ export function useTvNavigation() {
       // dono do foco e do teclado: a navegação espacial não toca em nada. Antes,
       // as setas/OK eram consumidos aqui (fase de captura) antes de chegar ao
       // campo — o foco "saía" e não dava para digitar.
-      if (emFormularioTv()) return;
+      if (emFormularioTv()) {
+        // O formulário de TV é dono das SETAS (o D-pad anda entre os campos e o
+        // teclado na tela), mas o OK é a EXCEÇÃO: é o gesto que sobe o teclado da
+        // TV. Antes esta linha devolvia cedo para QUALQUER tecla — inclusive o OK —
+        // então o ramo abaixo, que PEDE o teclado (`abrirTecladoDaTv`), era
+        // INALCANÇÁVEL no login: o campo recebia foco, o teclado não subia de
+        // propósito e a digitação ficava impossível.
+        if (acaoDaTecla(e) === "ok") {
+          const campo = document.activeElement as HTMLInputElement | null;
+          if (ehCampoDeTexto(campo)) {
+            e.preventDefault();
+            if (campo && campo.dataset.mfTecladoOk !== "1") {
+              // A marca vai DEPOIS do blur+focus de propósito: o "piscar" dispara
+              // focusin e o handler de foco limpa a marca de quem não está ativo
+              // — marcar antes faria o próximo OK pedir o teclado de novo (o
+              // piscar do IME). Uma vez por entrada no campo basta.
+              reabrirFocoDeTexto(campo);
+              campo.dataset.mfTecladoOk = "1";
+              abrirTecladoDaTv();
+            }
+            return;
+          }
+        }
+        return;
+      }
 
       // ── CAMPO DE TEXTO (login/busca) ───────────────────────────────────────
       // Com um campo de texto focado, TODA tecla que produz caractere (letras,

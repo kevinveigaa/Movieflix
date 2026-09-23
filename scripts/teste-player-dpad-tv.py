@@ -738,6 +738,100 @@ async def main() -> int:
             await page.keyboard.press("Escape")
             await page.wait_for_timeout(300)
 
+            # ══ [10B] LOGIN: o campo de E-MAIL mantém o foco e o TECLADO sobe ══
+            #
+            # CAUSA RAIZ (relato: "ao navegar até o campo de e-mail o teclado abre
+            # e sai sozinho, não dá para escrever"): o OK num campo de texto movia
+            # o foco para o OUTRO campo (e-mail → senha) em ~1 ms e o pedido de
+            # teclado (`mostrarTeclado`, na ponte nativa) era INALCANÇÁVEL no
+            # login — o ramo que o chamava ficava depois de um `return` que
+            # valia para todas as teclas dentro de `[data-tv-form]`.
+            #
+            # Este bloco prova o comportamento pelo CONTROLE (D-pad + OK), com a
+            # ponte nativa ESPIADA para ver o pedido de teclado acontecer.
+            print("\n[10B] Login: o campo de E-MAIL mantém o foco e o teclado é pedido")
+            plogin = await nav.new_page(viewport={"width": 1920, "height": 1080})
+            plogin.on("pageerror", lambda e: erros.append(str(e)))
+            await instalar_stubs(plogin)
+            # A espiã é instalada DEPOIS dos stubs de propósito: os scripts
+            # iniciais rodam na ordem em que foram adicionados, então este é o
+            # último e enxerga a ponte que o site usa. Ele também LIMPA a sessão
+            # que o stub criou — o harness de player precisa de um usuário
+            # autenticado, mas aqui queremos a TELA DE LOGIN de verdade (com
+            # sessão, `/tv/login` redireciona para `/tv/perfil`).
+            await plogin.add_init_script(
+                """(function () {
+                    try {
+                        Object.keys(localStorage)
+                            .filter(function (k) {
+                                return k.indexOf('sb-') === 0 && k.indexOf('auth-token') >= 0;
+                            })
+                            .forEach(function (k) { localStorage.removeItem(k); });
+                    } catch (e) {}
+                    window.__mfTeclados = 0;
+                    var base = window.MovieFlixApp || {};
+                    window.MovieFlixApp = Object.assign({}, base, {
+                        isApp: function () { return true; },
+                        plataforma: function () { return 'tv'; },
+                        mostrarTeclado: function () { window.__mfTeclados++; },
+                    });
+                    window.MovieFlixAndroid = window.MovieFlixApp;
+                })();"""
+            )
+            await plogin.goto(
+                f"http://127.0.0.1:{PORTA}/?tv=1#/tv/login", wait_until="domcontentloaded"
+            )
+            await plogin.wait_for_timeout(3000)
+
+            async def ativo_login() -> dict:
+                return await plogin.evaluate(
+                    """() => {
+                        const el = document.activeElement;
+                        return el ? { tag: el.tagName, tipo: el.getAttribute('type'),
+                                      form: !!el.closest('[data-tv-form]') } : { tag: null };
+                    }"""
+                )
+
+            a = await ativo_login()
+            checar(
+                a["tag"] == "INPUT" and a["tipo"] == "email",
+                f"foco inicial no campo de E-MAIL (ativo={a['tag']}/{a['tipo']})",
+            )
+
+            await plogin.keyboard.press("Enter")   # OK do controle no campo
+            await plogin.wait_for_timeout(250)
+            a = await ativo_login()
+            checar(
+                a["tipo"] == "email",
+                f"após o OK o foco CONTINUA no e-mail (ativo={a['tag']}/{a['tipo']})",
+            )
+            checar(
+                await plogin.evaluate("() => window.__mfTeclados") >= 1,
+                "o TECLADO foi pedido à camada nativa (mostrarTeclado) no OK",
+            )
+            await plogin.wait_for_timeout(900)
+            a = await ativo_login()
+            checar(a["tipo"] == "email", f"o foco não sai sozinho após 1s (ativo={a['tipo']})")
+
+            await plogin.keyboard.type("teste@movieflix.tv")
+            await plogin.wait_for_timeout(250)
+            v = await plogin.evaluate("() => document.querySelector('input[type=email]').value")
+            checar(v == "teste@movieflix.tv", f"o texto digitado aparece no E-MAIL (valor={v!r})")
+
+            await plogin.keyboard.press("ArrowDown")
+            await plogin.wait_for_timeout(250)
+            a = await ativo_login()
+            checar(a["tipo"] == "password", f"↓ levou o foco para a SENHA (ativo={a['tipo']})")
+            await plogin.keyboard.press("Enter")   # OK no campo de senha
+            await plogin.wait_for_timeout(250)
+            a = await ativo_login()
+            checar(a["tipo"] == "password", f"o OK NÃO rouba o foco da senha (ativo={a['tipo']})")
+            await plogin.keyboard.type("senha123")
+            await plogin.wait_for_timeout(250)
+            v = await plogin.evaluate("() => document.querySelector('input[type=password]').value")
+            checar(v == "senha123", f"o texto digitado aparece na SENHA (valor={v!r})")
+            await plogin.close()
+
             # ── [11] ZERO ERROS DE JAVASCRIPT ────────────────────────────────
             print("\n[11] Nenhum erro de JavaScript ao operar o player")
             checar(not erros, f"nenhum erro de JS (erros={erros[:3]})")

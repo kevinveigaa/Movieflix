@@ -4,6 +4,7 @@ import { Mail, Lock, AlertCircle, Loader2, ChevronLeft, Keyboard } from 'lucide-
 import { useAuth } from '@/context/AuthContext';
 import { TvMark } from './TvBrand';
 import { TvKeyboard } from './TvKeyboard';
+import { abrirTecladoDaTv } from '@/lib/tecladoTv';
 import { cn } from '@/lib/cn';
 
 /**
@@ -193,9 +194,20 @@ export function TvLoginPage() {
         return;
       }
       if (confirma) {
+        // OK/ENTER num campo de texto: SOBE O TECLADO DA TV e MANTÉM o foco no
+        // campo. Antes o OK movia o foco para o OUTRO campo (e-mail → senha) em
+        // ~1 ms: o campo confirmado perdia o foco no mesmo instante, o teclado
+        // era re-alvo/fechado e não sobrava tempo de digitar — exatamente o
+        // "o teclado abre e sai sozinho" relatado.
         e.preventDefault();
-        if (campo === 'email') focarCampo('senha');
-        else void entrar();
+        const alvo = campo === 'email' ? emailRef.current : senhaRef.current;
+        alvo?.focus({ preventScroll: true });
+        if (alvo && alvo.dataset.mfTecladoOk !== '1') {
+          alvo.dataset.mfTecladoOk = '1';
+          abrirTecladoDaTv();
+        }
+        // Atalho preservado: OK na SENHA com os dois campos já preenchidos entra.
+        if (campo === 'senha' && email.trim() && senha) void entrar();
       }
     };
   }
