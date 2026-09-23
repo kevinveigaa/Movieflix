@@ -1,56 +1,62 @@
+import { useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useCatalogFavorites } from '@/hooks/useFavorite';
 import { TvPosterCard } from './TvPosterCard';
-import type { TvItem } from './tvUi';
+import { paraTvItem, type TvItem } from './tvUi';
 
 /**
- * TvMyListPage — Minha Lista (favoritos) em grade para TV.
- * Reutiliza o hook de favoritos do site (mesma conta, mesma lista).
+ * TvMyListPage — Minha Lista (favoritos) na TV.
+ *
+ * Usa `useCatalogFavorites()` — o MESMO hook do site, lendo a MESMA tabela
+ * `favorites` da MESMA conta. A TV não tem lista separada: favoritar na TV
+ * aparece no site/Mobile e vice-versa.
  */
 
 export function TvMyListPage() {
   const navigate = useNavigate();
   const favs = useCatalogFavorites();
 
-  if (favs.isLoading) {
+  const items = useMemo<TvItem[]>(
+    () => (favs.items ?? []).map(({ movie }) => paraTvItem(movie)),
+    [favs.items],
+  );
+
+  const abrir = (item: TvItem) => navigate(`/tv/titulo/${item.id}`);
+
+  if (favs.isLoading && items.length === 0) {
     return (
       <div className="tv-page">
-        <div className="tv-loading">
-          <div className="tv-loading-spinner" />
-          <p>Carregando sua lista…</p>
+        <div className="tv-page-center">
+          <div className="tv-loading">
+            <div className="tv-loading-spinner" />
+            <p>Carregando sua lista...</p>
+          </div>
         </div>
       </div>
     );
   }
 
-  const items: TvItem[] = (favs.items ?? []).map(({ movie }) => ({
-    id: movie.id,
-    title: movie.title,
-    poster: movie.poster_url,
-    backdrop: movie.backdrop_url,
-    year: movie.year,
-    quality: movie.quality,
-    vote: movie.vote_average,
-    category: movie.category,
-    duration: movie.duration,
-    type: movie.type === 'series' ? 'series' : 'movie',
-  }));
-
   return (
     <div className="tv-page">
-      <h1 className="tv-page-title">Minha Lista</h1>
+      <h1 className="tv-page-title">
+        Minha Lista
+        <span className="tv-section-count">({items.length})</span>
+      </h1>
+
       {items.length === 0 ? (
-        <div className="tv-error">
+        <div className="tv-error tv-error-muted">
           <h2>Sua lista está vazia</h2>
-          <p>Navegue pelo catálogo e adicione títulos à Minha Lista.</p>
-          <button data-tv-focusable tabIndex={0} className="tv-btn" onClick={() => navigate('/tv/filmes')}>
-            Explorar filmes
-          </button>
+          <p>Abra um título e use “Minha Lista” para salvar. A mesma lista aparece no site e no app.</p>
+          <div className="tv-error-actions">
+            <button data-tv-focusable tabIndex={0} className="tv-btn tv-btn-primary" onClick={() => navigate('/tv/filmes')}>
+              Explorar filmes
+            </button>
+          </div>
         </div>
       ) : (
         <div className="tv-grid">
-          {items.map((item, i) => (
-            <TvPosterCard key={item.id} item={item} index={i} />
+          {items.map((item) => (
+            <TvPosterCard key={`${item.type}-${item.id}`} item={item} onAbrir={abrir} />
           ))}
         </div>
       )}

@@ -1,16 +1,20 @@
 import { useMemo, useState } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useMovies } from '@/hooks/useMovies';
 import { TvPosterCard } from './TvPosterCard';
 import { cn } from '@/lib/cn';
-import type { TvItem } from './tvUi';
+import { categoriasDe, chunk, paraTvItem, type TvItem } from './tvUi';
 
 /**
- * TvCatalogPage — grid de catálogo (Filmes / Séries) em grade 6×N.
+ * TvCatalogPage — grade de catálogo (Filmes / Séries).
  *
- * - Filtro superior por categoria (linha de chips navegável ← →).
- * - Ordenação: Recentes / Populares / A-Z / Z-A.
- * - Grade com data-tv-focusable: o useTvNavigation resolve ↑↓←→
- *   espacialmente (a grade é a área principal de navegação).
+ * Dados: `useMovies('movie' | 'tv')` — a MESMA fonte do site e do app Mobile.
+ * Nada de JSON paralelo da TV.
+ *
+ * PERFORMANCE (correção do catálogo que não aparecia): o catálogo real tem
+ * ~18 mil filmes. Renderizar todos os cards de uma vez travava a UI da TV.
+ * Aqui a grade é renderizada em BLOCOS (60 por vez) e o usuário (controle na
+ * mão) carrega o próximo bloco quando quiser.
  */
 
 type SortMode = 'recentes' | 'populares' | 'az' | 'za';
@@ -22,27 +26,35 @@ const SORTS: { id: SortMode; label: string }[] = [
   { id: 'za', label: 'Z-A' },
 ];
 
+const POR_BLOCO = 60;
+
 export function TvCatalogPage({ mode }: { mode: 'movie' | 'series' }) {
+  const navigate = useNavigate();
+  const [params, setParams] = useSearchParams();
   const movies = useMovies(mode === 'movie' ? 'movie' : 'tv');
-  const [cat, setCat] = useState<string>('Todas');
-  const [sort, setSort] = useState<SortMode>('recentes');
+  const [sort, setSort] = useState<SortMode>(mode === 'movie' ? 'recentes' : 'populares');
+  const [blocos, setBlocos] = useState(1);
 
-  const all = useMemo(() => (movies.data ?? []) as TvItem[], [movies.data]);
+  const cat = params.get('categoria') ?? 'Todas';
 
-  const cats = useMemo(() => {
-    const set = new Set<string>();
-    for (const m of all) {
-      for (const c of (m.category || '').split(',')) {
-        const t = c.trim();
-        if (t) set.add(t);
-      }
-    }
-    return ['Todas', ...Array.from(set).sort((a, b) => a.localeCompare(b, 'pt-BR'))];
-  }, [all]);
+  /** Mapeamento do catálogo real para o modelo da UI (mesmos campos do site). */
+  const all = useMemo<TvItem[]>(
+    () => (movies.data ?? []).map(paraTvItem),
+    [movies.data],
+  );
+
+  const cats = useMemo(() => ['Todas', ...categoriasDe(all)], [all]);
 
   const items = useMemo(() => {
     let list = all;
-    if (cat !== 'Todas') list = list.filter((m) => (m.category || '').split(',').map((c) => c.trim()).includes(cat));
+    if (cat !== 'Todas') {
+      list = list.filter((m) =>
+        (m.category || '')
+          .split(',')
+          .map((c) => c.trim())
+          .includes(cat),
+      );
+    }
     switch (sort) {
       case 'recentes':
         return [...list].sort((a, b) => Number(b.year || 0) - Number(a.year || 0));
@@ -55,12 +67,24 @@ export function TvCatalogPage({ mode }: { mode: 'movie' | 'series' }) {
     }
   }, [all, cat, sort]);
 
+  const visiveis = useMemo(() => chunk(items, POR_BLOCO).slice(0, blocos).flat(), [items, blocos]);
+  const temMais = visiveis.length < items.length;
+
+  const abrir = (item: TvItem) => navigate(`/tv/titulo/${item.id}`);
+  const trocarCat = (c: string) => {
+    setBlocos(1);
+    if (c === 'Todas') setParams({});
+    else setParams({ categoria: c });
+  };
+
   if (movies.isLoading && !movies.data) {
     return (
       <div className="tv-page">
-        <div className="tv-loading">
-          <div className="tv-loading-spinner" />
-          <p>Carregando {mode === 'movie' ? 'filmes' : 'séries'}…</p>
+        <div className="tv-page-center">
+          <div className="tv-loading">
+            <div className="tv-loading-spinner" />
+            <p>Carregando {mode === 'movie' ? 'filmes' : 'séries'} do catálogo MovieFlix...</p>
+          </div>
         </div>
       </div>
     );
@@ -68,9 +92,12 @@ export function TvCatalogPage({ mode }: { mode: 'movie' | 'series' }) {
 
   return (
     <div className="tv-page">
-      <h1 className="tv-page-title">{mode === 'movie' ? 'Filmes' : 'Séries'}</h1>
+      <h1 className="tv-page-title">
+        {mode === 'movie' ? 'Filmes' : 'Séries'}
+        <span className="tv-section-count">({items.length})</span>
+      </h1>
 
-      {/* Filtro de categoria */}
+      {/* Categorias (dados reais do catálogo). */}
       <div className="tv-chips">
         {cats.map((c) => (
           <button
@@ -78,14 +105,14 @@ export function TvCatalogPage({ mode }: { mode: 'movie' | 'series' }) {
             data-tv-focusable
             tabIndex={0}
             className={cn('tv-chip', cat === c && 'tv-chip-ativo')}
-            onClick={() => setCat(c)}
+            onClick={() => trocarCat(c)}
           >
             {c}
           </button>
         ))}
       </div>
 
-      {/* Ordenação */}
+      {/* Ordenação. */}
       <div className="tv-chips">
         {SORTS.map((s) => (
           <button
@@ -93,7 +120,10 @@ export function TvCatalogPage({ mode }: { mode: 'movie' | 'series' }) {
             data-tv-focusable
             tabIndex={0}
             className={cn('tv-chip', sort === s.id && 'tv-chip-ativo')}
-            onClick={() => setSort(s.id)}
+            onClick={() => {
+              setBlocos(1);
+              setSort(s.id);
+            }}
           >
             {s.label}
           </button>
@@ -101,16 +131,31 @@ export function TvCatalogPage({ mode }: { mode: 'movie' | 'series' }) {
       </div>
 
       {items.length === 0 ? (
-        <div className="tv-error">
+        <div className="tv-error tv-error-muted">
           <h2>Nada encontrado</h2>
           <p>Nenhum título nessa categoria.</p>
         </div>
       ) : (
-        <div className="tv-grid">
-          {items.map((item, i) => (
-            <TvPosterCard key={item.id} item={item} index={i} />
-          ))}
-        </div>
+        <>
+          <div className="tv-grid">
+            {visiveis.map((item) => (
+              <TvPosterCard key={`${item.type}-${item.id}`} item={item} onAbrir={abrir} />
+            ))}
+          </div>
+
+          {temMais ? (
+            <div className="tv-load-more">
+              <button
+                data-tv-focusable
+                tabIndex={0}
+                className="tv-btn tv-btn-ghost"
+                onClick={() => setBlocos((b) => b + 1)}
+              >
+                Carregar mais ({visiveis.length} de {items.length})
+              </button>
+            </div>
+          ) : null}
+        </>
       )}
     </div>
   );

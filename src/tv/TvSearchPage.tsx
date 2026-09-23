@@ -3,70 +3,76 @@ import { useNavigate } from 'react-router-dom';
 import { useMovies } from '@/hooks/useMovies';
 import { TvPosterCard } from './TvPosterCard';
 import { cn } from '@/lib/cn';
-import type { TvItem } from './tvUi';
+import { chunk, normalizar, paraTvItem, type TvItem } from './tvUi';
 
 /**
- * TvSearchPage — busca com teclado virtual na tela.
+ * TvSearchPage — busca por controle remoto.
  *
- * - Linha do termo (grande), teclado QWERTY em grade 10×3 + backspace/espaço.
- * - Navegação ← → ↑ ↓ pelo teclado; OK digita a tecla; Voltar sai da busca.
- * - Resultados em grade (filtrados por título, em tempo real).
- * - Suporta teclado físico (input real escondido recebe foco? não —
- *   o campo é exibido e focado, e as teclas de letras digitam direto).
+ * Duas formas de digitar, ambas sem toque na tela:
+ *  1. TECLADO VIRTUAL na tela (navegável com ← → ↑ ↓ e OK) — funciona em
+ *     qualquer TV Box, sem depender do teclado do sistema.
+ *  2. TECLADO FÍSICO / do controle com teclado, digitando direto no campo.
+ *
+ * A busca roda sobre o MESMO catálogo do site/Mobile (useMovies) e usa a mesma
+ * normalização (sem acentos, minúsculo).
  */
 
-const LINHAS = [
+const LINHAS: string[][] = [
   ['Q', 'W', 'E', 'R', 'T', 'Y', 'U', 'I', 'O', 'P'],
   ['A', 'S', 'D', 'F', 'G', 'H', 'J', 'K', 'L', 'Ç'],
-  ['Z', 'X', 'C', 'V', 'B', 'N', 'M', ' ', '⌫', 'OK'],
+  ['Z', 'X', 'C', 'V', 'B', 'N', 'M', ' ', '⌫', 'LIMPAR'],
 ];
 
-const normalize = (s: string) =>
-  s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+const POR_BLOCO = 60;
 
 export function TvSearchPage() {
   const navigate = useNavigate();
   const movies = useMovies();
   const [query, setQuery] = useState('');
-  const [focused, setFocused] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const results = useMemo(() => {
-    const all = (movies.data ?? []) as TvItem[];
-    const q = normalize(query.trim());
+  const todos = useMemo<TvItem[]>(
+    () => (movies.data ?? []).map(paraTvItem),
+    [movies.data],
+  );
+
+  const resultados = useMemo(() => {
+    const q = normalizar(query);
     if (!q) return [];
-    return all.filter((m) => normalize(m.title).includes(q)).slice(0, 60);
-  }, [movies.data, query]);
+    return todos.filter((m) => normalizar(m.title).includes(q));
+  }, [todos, query]);
+
+  const visiveis = useMemo(() => chunk(resultados, POR_BLOCO)[0] ?? [], [resultados]);
 
   const digitar = (k: string) => {
     if (k === '⌫') {
       setQuery((q) => q.slice(0, -1));
       return;
     }
-    if (k === 'OK') {
-      inputRef.current?.focus();
+    if (k === 'LIMPAR') {
+      setQuery('');
       return;
     }
     setQuery((q) => (q + k).slice(0, 60));
   };
 
+  const abrir = (item: TvItem) => navigate(`/tv/titulo/${item.id}`);
+
   return (
     <div className="tv-page">
-      <h1 className="tv-page-title">Pesquisar</h1>
+      <h1 className="tv-page-title">Buscar</h1>
 
-      {/* Campo de busca (físico) */}
       <input
         ref={inputRef}
         value={query}
         onChange={(e) => setQuery(e.target.value)}
-        onFocus={() => setFocused(true)}
-        onBlur={() => setFocused(false)}
-        placeholder="Digite o nome do filme ou série…"
+        placeholder="Digite o nome do filme ou série..."
         className="tv-search-input"
         data-tv-focusable
+        tabIndex={0}
+        aria-label="Campo de busca"
       />
 
-      {/* Teclado virtual */}
       <div className="tv-keyboard">
         {LINHAS.map((linha, li) => (
           <div key={li} className="tv-keyboard-row">
@@ -75,11 +81,7 @@ export function TvSearchPage() {
                 key={k}
                 data-tv-focusable
                 tabIndex={0}
-                className={cn(
-                  'tv-key',
-                  k === ' ' && 'tv-key-space',
-                  (k === '⌫' || k === 'OK') && 'tv-key-fn',
-                )}
+                className={cn('tv-key', k === ' ' && 'tv-key-space', (k === '⌫' || k === 'LIMPAR') && 'tv-key-fn')}
                 onClick={() => digitar(k)}
               >
                 {k}
@@ -90,29 +92,43 @@ export function TvSearchPage() {
       </div>
 
       <div className="tv-search-hint">
-        {focused ? 'Use o teclado físico para digitar' : 'Navegue com ← → e pressione OK para digitar'}
+        Navegue com ← → ↑ ↓ e pressione OK para digitar — ou use o teclado do controle.
+      </div>
+
+      <div className="tv-load-more">
+        <button
+          data-tv-focusable
+          tabIndex={0}
+          className="tv-btn tv-btn-primary"
+          onClick={() => inputRef.current?.focus()}
+        >
+          Focar o campo de busca
+        </button>
       </div>
 
       {query.trim() ? (
-        results.length === 0 ? (
-          <div className="tv-error">
+        resultados.length === 0 ? (
+          <div className="tv-error tv-error-muted">
             <h2>Nada encontrado</h2>
             <p>Nenhum título com “{query}”.</p>
           </div>
         ) : (
-          <div className="tv-grid">
-            {results.map((item, i) => (
-              <TvPosterCard key={item.id} item={item} index={i} />
-            ))}
-          </div>
+          <>
+            <p className="tv-search-hint">
+              {resultados.length} {resultados.length === 1 ? 'resultado' : 'resultados'}
+              {resultados.length > POR_BLOCO ? ` — mostrando os ${POR_BLOCO} primeiros` : ''}
+            </p>
+            <div className="tv-grid">
+              {visiveis.map((item) => (
+                <TvPosterCard key={`${item.type}-${item.id}`} item={item} onAbrir={abrir} />
+              ))}
+            </div>
+          </>
         )
       ) : (
         <div className="tv-error tv-error-muted">
           <h2>Busque pelo título</h2>
-          <p>Ex.: “Avatar”, “Vingadores”, “Stranger Things”…</p>
-          <button data-tv-focusable tabIndex={0} className="tv-btn" onClick={() => navigate('/tv/filmes')}>
-            Ver catálogo completo
-          </button>
+          <p>Ex.: “Avatar”, “Vingadores”, “Stranger Things”...</p>
         </div>
       )}
     </div>

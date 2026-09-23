@@ -1,827 +1,1253 @@
-/* ============================================================
-   MovieFlix TV — interface dedicada para Android TV / Google TV /
-   TV Box. Fonte grande, alto contraste, foco vermelho visível,
-   navegação 100% por controle remoto (useTvNavigation global).
-   ============================================================ */
+/* ═══════════════════════════════════════════════════════════════════════════
+ * MovieFlix TV — folha de estilo da experiência de televisão.
+ *
+ * IDENTIDADE: a MESMA do Mobile/Web. Os tokens abaixo são os tokens reais do
+ * site (tailwind.config.js → brand / roxo / ink):
+ *   vermelho  brand-500 #ff2d2d · brand-600 #DF0A15
+ *   roxo      roxo-500  #8b5cf6 · roxo-600  #7c3aed
+ *   preto     ink-950   #0a0a0f
+ * Gradiente da marca: vermelho → roxo (usado em botões primários, badges e
+ * anéis de foco — exatamente como no Mobile/Web).
+ *
+ * Tudo é dimensionado em unidades relativas à ALTURA da tela (vh/vmin) para
+ * funcionar em 720p, 1080p e 4K sem cards gigantes nem conteúdo cortado.
+ * ═══════════════════════════════════════════════════════════════════════════ */
 
-/* ---- Splash ---- */
+:root {
+  --mf-red-500: #ff2d2d;
+  --mf-red-600: #df0a15;
+  --mf-red-700: #b30d13;
+  --mf-purple-400: #a485fc;
+  --mf-purple-500: #8b5cf6;
+  --mf-purple-600: #7c3aed;
+  --mf-ink-950: #0a0a0f;
+  --mf-ink-900: #12121a;
+  --mf-ink-800: #1a1a24;
+  --mf-text: #f4f4f6;
+  --mf-muted: #a1a1ad;
+  --mf-grad: linear-gradient(135deg, #df0a15 0%, #7c3aed 100%);
+  --mf-grad-soft: linear-gradient(135deg, rgba(223, 10, 21, 0.9) 0%, rgba(124, 58, 237, 0.9) 100%);
+}
+
+/* ── Base ─────────────────────────────────────────────────────────────── */
+
+.tv-shell,
 .tv-splash {
   position: fixed;
   inset: 0;
-  z-index: 9999;
+  background: var(--mf-ink-950);
+  color: var(--mf-text);
+  font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  overflow: hidden;
+}
+
+.tv-shell {
+  display: flex;
+  flex-direction: row;
+}
+
+/* ── Splash ───────────────────────────────────────────────────────────── */
+
+.tv-splash {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: radial-gradient(ellipse at center, #1a1030 0%, #0a0a0f 70%);
-  animation: tv-splash-out 0.5s ease 0.9s forwards;
+  z-index: 5000;
+  background: radial-gradient(ellipse at 50% 45%, rgba(124, 58, 237, 0.22) 0%, var(--mf-ink-950) 68%);
+  animation: tv-splash-out 0.4s ease 0.9s forwards;
 }
+
 @keyframes tv-splash-out {
   to { opacity: 0; visibility: hidden; }
 }
+
 .tv-splash-logo {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 18px;
-}
-.tv-splash-mark {
-  width: 96px;
-  height: 96px;
-  border-radius: 24px;
-  background: linear-gradient(135deg, #7c3aed 0%, #dc2626 100%);
-  color: #fff;
-  font-family: 'Bebas Neue', 'Arial Narrow', sans-serif;
-  font-size: 44px;
-  font-weight: 700;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  letter-spacing: 1px;
-  box-shadow: 0 0 40px rgba(124, 58, 237, 0.5);
-}
-.tv-splash-text {
-  color: #fff;
-  font-size: 34px;
-  font-weight: 700;
-  letter-spacing: 2px;
-}
-.tv-splash-text em {
-  color: #a78bfa;
-  font-style: normal;
-  font-size: 22px;
-  vertical-align: middle;
+  gap: 2.2vh;
 }
 
-/* ---- Shell (menu lateral + conteúdo) ---- */
-.tv-shell {
-  display: flex;
-  height: 100vh;
-  overflow: hidden;
-  background: #0a0a0f;
+.tv-splash-img {
+  height: 13vh;
+  width: auto;
+  object-fit: contain;
+  filter: drop-shadow(0 0 3vh rgba(223, 10, 21, 0.45));
 }
-.tv-menu {
-  width: 300px;
-  min-width: 300px;
-  height: 100%;
-  display: flex;
-  flex-direction: column;
-  background: #12121a;
-  border-right: 1px solid rgba(255, 255, 255, 0.07);
-  padding: 28px 16px 20px;
-  gap: 8px;
-  overflow-y: auto;
+
+.tv-splash-tag {
+  height: 4.4vh;
+  width: auto;
+  opacity: 0.95;
 }
-.tv-menu-logo {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 10px 12px 20px;
-  cursor: pointer;
-}
-.tv-menu-mark {
-  width: 44px;
-  height: 44px;
-  border-radius: 12px;
-  background: linear-gradient(135deg, #7c3aed 0%, #dc2626 100%);
-  color: #fff;
-  font-weight: 700;
-  font-size: 18px;
+
+/* ── Cabeçalho (substitui o antigo menu lateral escuro) ───────────────── */
+
+.tv-header {
+  position: sticky;
+  top: 0;
+  z-index: 60;
   display: flex;
   align-items: center;
-  justify-content: center;
+  gap: 1.6vw;
+  padding: 1.5vh 1.8vw;
+  background: linear-gradient(180deg, rgba(10, 10, 15, 0.97) 0%, rgba(10, 10, 15, 0.82) 70%, rgba(10, 10, 15, 0) 100%);
+  backdrop-filter: blur(6px);
 }
-.tv-menu-title {
-  color: #fff;
-  font-size: 22px;
-  font-weight: 700;
-  letter-spacing: 1px;
-}
-.tv-menu-title em {
-  color: #a78bfa;
-  font-style: normal;
-  font-size: 15px;
-}
-.tv-menu-nav {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  flex: 1;
-}
-.tv-menu-item {
+
+.tv-header-logo {
+  flex: 0 0 auto;
   display: flex;
   align-items: center;
-  gap: 14px;
-  width: 100%;
-  padding: 16px 18px;
-  border-radius: 12px;
-  background: transparent;
-  border: 1px solid transparent;
-  color: #c8c8d2;
-  font-size: 22px;
-  font-weight: 600;
-  text-align: left;
-  cursor: pointer;
-  transition: background 0.15s ease, color 0.15s ease;
-}
-.tv-menu-item:hover {
-  background: rgba(255, 255, 255, 0.04);
-}
-.tv-menu-item-ativo {
-  background: rgba(124, 58, 237, 0.18);
-  color: #fff;
-  border-color: rgba(124, 58, 237, 0.35);
-}
-.tv-menu-icon {
-  width: 26px;
-  height: 26px;
-  flex-shrink: 0;
-}
-.tv-menu-footer {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  border-top: 1px solid rgba(255, 255, 255, 0.07);
-  padding-top: 14px;
-}
-.tv-menu-user {
-  padding: 12px 18px;
-  font-size: 18px;
-  color: #8a8a96;
-  cursor: pointer;
+  padding: 0.5vh 0.5vw;
   border-radius: 10px;
+  border: 2px solid transparent;
+  outline: none;
+  cursor: pointer;
 }
+
+.tv-header-logo-img {
+  height: clamp(26px, 4vh, 64px);
+  width: auto;
+  object-fit: contain;
+}
+
+.tv-header-logo.tv-focus,
+.tv-header-logo:focus-visible {
+  border-color: #fff;
+  box-shadow: 0 0 0 3px rgba(223, 10, 21, 0.4);
+}
+
+.tv-header-nav {
+  display: flex;
+  align-items: center;
+  gap: 0.5vw;
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.tv-header-right {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 0.5vw;
+}
+
+.tv-header-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5vw;
+  padding: 1.05vh 1vw;
+  border: 2px solid transparent;
+  border-radius: 999px;
+  background: transparent;
+  color: #ceceD8;
+  font-size: clamp(12px, 1.45vh, 23px);
+  font-weight: 700;
+  white-space: nowrap;
+  cursor: pointer;
+  outline: none;
+  transition: background 0.14s ease, color 0.14s ease;
+}
+
+.tv-header-item:hover { color: #fff; background: rgba(255, 255, 255, 0.06); }
+
+/* Item ativo: sublinhado + texto vermelho da marca (não roxo genérico). */
+.tv-header-item-ativo {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.07);
+  box-shadow: inset 0 -3px 0 0 var(--mf-red-600);
+}
+
+.tv-header-item-assinante { color: #ffd479; }
+
+.tv-header-item.tv-focus,
+.tv-header-item:focus-visible {
+  border-color: #fff;
+  background: var(--mf-grad-soft);
+  color: #fff;
+  box-shadow: 0 0 0 3px rgba(223, 10, 21, 0.38), 0 8px 22px rgba(0, 0, 0, 0.5);
+}
+
+.tv-header-icon {
+  width: clamp(15px, 1.9vh, 28px);
+  height: clamp(15px, 1.9vh, 28px);
+  flex: 0 0 auto;
+}
+
+.tv-header-user {
+  max-width: 11vw;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ── Conteúdo ─────────────────────────────────────────────────────────── */
 
 .tv-content {
-  flex: 1;
+  flex: 1 1 auto;
+  min-width: 0;
   height: 100%;
   overflow-y: auto;
   overflow-x: hidden;
-  background: #0a0a0f;
+  scrollbar-width: none;
 }
-.tv-content::-webkit-scrollbar {
-  width: 10px;
-}
-.tv-content::-webkit-scrollbar-thumb {
-  background: #2a2a35;
-  border-radius: 6px;
-}
+.tv-content::-webkit-scrollbar { width: 0; height: 0; }
 
-/* ---- Página / seções ---- */
 .tv-page {
-  padding: 28px 36px 48px;
+  padding: 2.2vh 1.8vw 6vh;
   min-height: 100%;
 }
-.tv-page-home {
-  padding-top: 20px;
-}
+
 .tv-page-center {
   display: flex;
   align-items: center;
   justify-content: center;
-}
-.tv-page-title {
-  font-size: 40px;
-  font-weight: 800;
-  color: #fff;
-  letter-spacing: 0.5px;
-  margin-bottom: 20px;
-}
-.tv-hero {
-  padding: 20px 0 10px;
-}
-.tv-hero-title {
-  font-size: 52px;
-  font-weight: 800;
-  color: #fff;
-  letter-spacing: 1px;
-}
-.tv-hero-title em {
-  color: #a78bfa;
-  font-style: normal;
-}
-.tv-hero-sub {
-  font-size: 22px;
-  color: #9a9aa6;
-  margin-top: 6px;
-}
-.tv-section {
-  margin-bottom: 34px;
-}
-.tv-section-title {
-  font-size: 28px;
-  font-weight: 700;
-  color: #eee;
-  margin-bottom: 14px;
-  padding-left: 2px;
+  min-height: 92vh;
 }
 
-/* ---- Linhas horizontais / grade ---- */
+.tv-page-title {
+  font-size: clamp(22px, 3.3vh, 54px);
+  font-weight: 800;
+  letter-spacing: -0.015em;
+  margin: 0 0 1.8vh;
+  color: #fff;
+}
+
+/* ── Hero ─────────────────────────────────────────────────────────────── */
+
+/* Compacto de propósito: o usuário precisa enxergar as primeiras linhas de
+   filmes/séries SEM rolar (o Hero antigo ocupava a tela inteira). */
+.tv-hero {
+  position: relative;
+  height: 42vh;
+  min-height: 240px;
+  margin: -2.2vh -1.8vw 2.6vh;
+  padding: 0 3vw;
+  display: flex;
+  align-items: flex-end;
+  overflow: hidden;
+  background: var(--mf-ink-900);
+  transition: background-image 0.5s ease;
+}
+
+.tv-hero-bg {
+  position: absolute;
+  inset: 0;
+  background-size: cover;
+  background-position: center 22%;
+  transform: scale(1.02);
+}
+
+.tv-hero-shade {
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(90deg, rgba(10, 10, 15, 0.97) 0%, rgba(10, 10, 15, 0.72) 42%, rgba(10, 10, 15, 0.18) 100%),
+    linear-gradient(0deg, var(--mf-ink-950) 4%, rgba(10, 10, 15, 0) 62%);
+}
+
+.tv-hero-inner {
+  position: relative;
+  z-index: 2;
+  padding-bottom: 2.8vh;
+  max-width: 56vw;
+}
+
+.tv-hero-badges {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.9vh 0.6vw;
+  margin-bottom: 1.2vh;
+}
+
+.tv-hero-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35vw;
+  padding: 0.5vh 0.7vw;
+  border-radius: 8px;
+  font-size: clamp(10px, 1.25vh, 20px);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  background: rgba(255, 255, 255, 0.12);
+  color: #fff;
+}
+
+.tv-hero-badge-destaque { background: var(--mf-grad); }
+
+.tv-hero-badge-dublado {
+  background: rgba(5, 150, 105, 0.92);
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.tv-hero-title {
+  font-size: clamp(24px, 4.4vh, 72px);
+  font-weight: 800;
+  line-height: 1.02;
+  letter-spacing: -0.02em;
+  margin: 0 0 1vh;
+  color: #fff;
+  text-shadow: 0 4px 24px rgba(0, 0, 0, 0.75);
+}
+
+.tv-hero-meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.9vw;
+  font-size: clamp(12px, 1.5vh, 24px);
+  color: #d5d5dd;
+  font-weight: 600;
+  margin-bottom: 1.1vh;
+}
+
+.tv-hero-star { color: #fbbf24; }
+
+.tv-hero-desc {
+  font-size: clamp(12px, 1.5vh, 23px);
+  line-height: 1.45;
+  color: #c2c2cc;
+  margin: 0 0 1.8vh;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.tv-hero-actions {
+  display: flex;
+  align-items: center;
+  gap: 1vw;
+  flex-wrap: wrap;
+}
+
+/* ── Botões ───────────────────────────────────────────────────────────── */
+
+.tv-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.6vw;
+  padding: 1.25vh 1.8vw;
+  border: 2px solid transparent;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.12);
+  color: #fff;
+  font-size: clamp(13px, 1.5vh, 24px);
+  font-weight: 700;
+  cursor: pointer;
+  outline: none;
+  white-space: nowrap;
+  transition: transform 0.14s ease, background 0.14s ease, box-shadow 0.14s ease;
+}
+
+/* Botão PRIMÁRIO — gradiente vermelho→roxo, idêntico ao .btn-primary do site. */
+.tv-btn-primary {
+  background: var(--mf-grad);
+  box-shadow: 0 12px 34px rgba(223, 10, 21, 0.32);
+}
+
+.tv-btn-ghost {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.35);
+}
+
+.tv-btn-lg { padding: 1.55vh 2.3vw; }
+
+.tv-btn.tv-focus,
+.tv-btn:focus-visible {
+  border-color: #fff;
+  transform: scale(1.05);
+  box-shadow: 0 0 0 4px rgba(223, 10, 21, 0.5), 0 14px 34px rgba(0, 0, 0, 0.6);
+}
+
+.tv-btn-ativo {
+  background: var(--mf-grad);
+}
+
+.tv-icon { width: clamp(15px, 1.9vh, 28px); height: clamp(15px, 1.9vh, 28px); }
+.tv-icon-sm { width: clamp(12px, 1.5vh, 22px); height: clamp(12px, 1.5vh, 22px); }
+.tv-icon-lg { width: clamp(30px, 5vh, 76px); height: clamp(30px, 5vh, 76px); }
+.tv-spin { animation: tv-spin 1s linear infinite; }
+@keyframes tv-spin { to { transform: rotate(360deg); } }
+
+/* ── Seções e linhas horizontais ──────────────────────────────────────── */
+
+.tv-section { margin-bottom: 2.6vh; }
+
+.tv-section-title {
+  display: flex;
+  align-items: center;
+  gap: 0.7vw;
+  font-size: clamp(15px, 2.1vh, 34px);
+  font-weight: 800;
+  color: #fff;
+  margin: 0 0 1.1vh;
+  letter-spacing: -0.01em;
+}
+
+/* Marca vermelha antes do título — reforça a identidade em cada linha. */
+.tv-section-title::before {
+  content: '';
+  width: 0.28vw;
+  min-width: 4px;
+  height: clamp(14px, 2vh, 30px);
+  border-radius: 999px;
+  background: var(--mf-grad);
+}
+
+.tv-section-count {
+  font-size: clamp(11px, 1.3vh, 20px);
+  font-weight: 600;
+  color: var(--mf-muted);
+}
+
+/* "Ver todos" — link de seção, focável pelo controle, com o vermelho da marca. */
+.tv-section-link {
+  margin-left: auto;
+  padding: 0.8vh 1vw;
+  border: 2px solid transparent;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.07);
+  color: #d8d8e2;
+  font-size: clamp(11px, 1.3vh, 20px);
+  font-weight: 700;
+  cursor: pointer;
+  outline: none;
+}
+
+.tv-section-link.tv-focus,
+.tv-section-link:focus-visible {
+  border-color: #fff;
+  background: var(--mf-grad);
+  color: #fff;
+  box-shadow: 0 0 0 3px rgba(223, 10, 21, 0.38);
+}
+
+/* Slot da linha: largura previsível para o card dentro do carrossel. */
+.tv-row-slot {
+  flex: 0 0 auto;
+  width: clamp(118px, 10.4vw, 268px);
+}
+
+/* Linha horizontal: rola dentro da própria linha (nunca quebra o layout). */
 .tv-row {
   display: flex;
-  gap: 18px;
+  gap: 1.05vw;
   overflow-x: auto;
-  padding: 6px 2px 18px;
+  overflow-y: hidden;
+  padding: 0.6vh 0.2vw 1.4vh;
+  scrollbar-width: none;
   scroll-behavior: smooth;
 }
-.tv-row::-webkit-scrollbar {
-  height: 8px;
-}
-.tv-row::-webkit-scrollbar-thumb {
-  background: #2a2a35;
-  border-radius: 6px;
-}
+.tv-row::-webkit-scrollbar { height: 0; }
+
+.tv-row .tv-card { flex: 0 0 auto; }
+
+/* ── Grade ────────────────────────────────────────────────────────────── */
+
 .tv-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
-  gap: 22px 18px;
-  padding: 6px 2px 30px;
+  gap: 1.5vh 1.05vw;
+  /* Responsiva: mais títulos por linha conforme a largura real da TV.
+     Em 16:9 isso dá ~6–7 cards por linha (não mais 4 gigantes). */
+  grid-template-columns: repeat(auto-fill, minmax(clamp(112px, 10.2vw, 260px), 1fr));
 }
 
-/* ---- Card ---- */
-.tv-card {
-  width: 190px;
-  flex-shrink: 0;
-  cursor: pointer;
-  border-radius: 12px;
-  padding: 4px;
-  transition: transform 0.15s ease;
+/* "Carregar mais" da grade (paginação por blocos — o catálogo tem ~18 mil
+   filmes; renderizar tudo de uma vez travaria a TV). */
+.tv-load-more {
+  display: flex;
+  justify-content: center;
+  padding: 2.4vh 0 1vh;
 }
+
+/* Bloco de temporadas/episódios na página de detalhes. */
+.tv-seasons-block {
+  margin-top: 3.4vh;
+  padding-top: 2.4vh;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+/* ── Card ─────────────────────────────────────────────────────────────── */
+
+.tv-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  border-radius: 12px;
+  outline: none;
+  cursor: pointer;
+  background: transparent;
+  border: 2px solid transparent;
+  padding: 0;
+  text-align: left;
+  transition: transform 0.16s ease;
+}
+
 .tv-card-poster {
   position: relative;
-  aspect-ratio: 2/3;
+  width: 100%;
+  aspect-ratio: 2 / 3;
   border-radius: 12px;
   overflow: hidden;
-  background: #16161f;
-  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.5);
+  background: var(--mf-ink-800);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.45);
+  border: 1px solid rgba(255, 255, 255, 0.09);
 }
+
 .tv-card-poster img {
   width: 100%;
   height: 100%;
   object-fit: cover;
+  display: block;
 }
+
+/* Fallback quando não há poster: marca da casa, nunca caixa vazia. */
 .tv-card-placeholder {
   width: 100%;
   height: 100%;
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #3a3a48;
-  font-size: 34px;
+  background: linear-gradient(150deg, #1b1b26 0%, #0e0e16 100%);
+  color: rgba(255, 255, 255, 0.22);
+  font-size: clamp(18px, 3vh, 46px);
   font-weight: 800;
+  letter-spacing: 0.06em;
 }
+
+/* Selo "Dublado PT-BR" — mesma linguagem do card do site (verde, canto sup. esq.). */
+.tv-card-dublado {
+  position: absolute;
+  top: 0.7vh;
+  left: 0.35vw;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2vw;
+  padding: 0.35vh 0.4vw;
+  border-radius: 6px;
+  background: rgba(5, 150, 105, 0.94);
+  color: #fff;
+  font-size: clamp(8px, 1.02vh, 15px);
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+}
+
 .tv-card-quality {
   position: absolute;
-  top: 8px;
-  left: 8px;
-  background: rgba(10, 10, 15, 0.85);
-  color: #a78bfa;
-  font-size: 13px;
-  font-weight: 700;
-  padding: 3px 8px;
+  top: 0.7vh;
+  right: 0.35vw;
+  padding: 0.35vh 0.4vw;
   border-radius: 6px;
-  letter-spacing: 0.5px;
-}
-.tv-card-rating {
-  position: absolute;
-  top: 8px;
-  right: 8px;
-  background: rgba(10, 10, 15, 0.85);
-  color: #fbbf24;
-  font-size: 14px;
-  font-weight: 700;
-  padding: 3px 8px;
-  border-radius: 6px;
-}
-.tv-card-index {
-  position: absolute;
-  bottom: 8px;
-  right: 10px;
-  color: rgba(255, 255, 255, 0.85);
-  font-size: 30px;
+  background: rgba(0, 0, 0, 0.74);
+  color: #fff;
+  font-size: clamp(8px, 1vh, 15px);
   font-weight: 800;
-  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.8);
+  letter-spacing: 0.03em;
 }
+
+.tv-card-play {
+  position: absolute;
+  bottom: 0.8vh;
+  left: 0.35vw;
+  width: clamp(22px, 3.2vh, 46px);
+  height: clamp(22px, 3.2vh, 46px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: var(--mf-grad);
+  color: #fff;
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.5);
+}
+
+.tv-card-fav {
+  position: absolute;
+  bottom: 0.8vh;
+  right: 0.35vw;
+  width: clamp(22px, 3.2vh, 46px);
+  height: clamp(22px, 3.2vh, 46px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.62);
+  border: none;
+  color: #fff;
+  cursor: pointer;
+  outline: none;
+}
+
+.tv-card-fav-ativo {
+  background: var(--mf-grad);
+}
+
+.tv-card-fav.tv-focus,
+.tv-card-fav:focus-visible {
+  box-shadow: 0 0 0 3px rgba(223, 10, 21, 0.6);
+}
+
+.tv-card-progress {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 4px;
+  background: rgba(0, 0, 0, 0.66);
+}
+
+.tv-card-progress span {
+  display: block;
+  height: 100%;
+  background: var(--mf-grad);
+}
+
+/* Sombra inferior só quando o card está em foco/exposto (mantém o pôster limpo). */
+.tv-card-veil {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(0deg, rgba(0, 0, 0, 0.72) 0%, rgba(0, 0, 0, 0) 46%);
+  opacity: 0;
+  transition: opacity 0.16s ease;
+  pointer-events: none;
+}
+
 .tv-card-title {
-  font-size: 17px;
-  font-weight: 600;
-  color: #e8e8ee;
-  margin-top: 10px;
+  margin-top: 0.8vh;
+  font-size: clamp(11px, 1.35vh, 21px);
+  font-weight: 700;
   line-height: 1.25;
-  white-space: nowrap;
+  color: #fff;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
   overflow: hidden;
-  text-overflow: ellipsis;
 }
+
 .tv-card-meta {
-  font-size: 14px;
-  color: #8a8a96;
-  margin-top: 3px;
+  margin-top: 0.25vh;
+  font-size: clamp(9px, 1.15vh, 18px);
+  color: var(--mf-muted);
+  font-weight: 600;
+  display: -webkit-box;
+  -webkit-line-clamp: 1;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
 
-/* ---- Foco TV (sobreposto ao foco global, mais forte) ---- */
-.tv-nav .tv-card:focus,
-.tv-nav [data-tv-card]:focus,
-.tv-nav .tv-card.tv-focus {
-  outline: none !important;
-  border-radius: 12px;
+/* FOCO do card — anel vermelho/branco + gradiente da marca. Nunca o retângulo
+   azul do sistema: é o mesmo vocabulário visual do Mobile. */
+.tv-card.tv-focus,
+.tv-card:focus-visible {
+  transform: scale(1.06);
+  border-color: transparent;
+}
+
+.tv-card.tv-focus .tv-card-poster,
+.tv-card:focus-visible .tv-card-poster {
+  border-color: #fff;
   box-shadow:
-    0 0 0 2.5px rgba(230, 0, 0, 0.95),
-    0 0 20px rgba(230, 0, 0, 0.4);
-  transform: scale(1.04);
-  z-index: 40;
+    0 0 0 4px rgba(223, 10, 21, 0.85),
+    0 0 34px rgba(124, 58, 237, 0.55),
+    0 16px 34px rgba(0, 0, 0, 0.6);
 }
 
-/* ---- Chips (filtros) ---- */
+.tv-card.tv-focus .tv-card-veil,
+.tv-card:focus-visible .tv-card-veil {
+  opacity: 1;
+}
+
+.tv-card.tv-focus .tv-card-title,
+.tv-card:focus-visible .tv-card-title {
+  color: #fff;
+  text-shadow: 0 0 18px rgba(223, 10, 21, 0.6);
+}
+
+/* Barras de rolagem dentro das linhas ficam ocultas, mas a rolagem existe. */
+.tv-row-hint {
+  font-size: clamp(10px, 1.2vh, 18px);
+  color: var(--mf-muted);
+  margin-top: -0.8vh;
+}
+
+/* ── Chips (categorias / ordenação) ───────────────────────────────────── */
+
 .tv-chips {
   display: flex;
-  gap: 12px;
   flex-wrap: wrap;
-  margin-bottom: 16px;
-}
-.tv-chip {
-  padding: 12px 22px;
-  border-radius: 999px;
-  background: #16161f;
-  border: 1.5px solid rgba(255, 255, 255, 0.1);
-  color: #c8c8d2;
-  font-size: 18px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
-}
-.tv-chip-ativo {
-  background: rgba(124, 58, 237, 0.25);
-  border-color: #7c3aed;
-  color: #fff;
+  gap: 0.85vh 0.6vw;
+  margin-bottom: 1.4vh;
 }
 
-/* ---- Busca ---- */
-.tv-search-input {
-  width: 100%;
-  max-width: 900px;
-  padding: 20px 24px;
-  font-size: 26px;
-  border-radius: 14px;
-  background: #12121a;
-  border: 2px solid rgba(255, 255, 255, 0.12);
-  color: #fff;
-  margin-bottom: 22px;
-}
-.tv-search-input::placeholder {
-  color: #5a5a66;
-}
-.tv-keyboard {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  margin-bottom: 26px;
-  max-width: 1100px;
-}
-.tv-keyboard-row {
-  display: flex;
-  gap: 10px;
-  justify-content: center;
-}
-.tv-key {
-  width: 88px;
-  height: 60px;
-  border-radius: 12px;
-  background: #1a1a24;
-  border: 1.5px solid rgba(255, 255, 255, 0.09);
-  color: #fff;
-  font-size: 22px;
+.tv-chip {
+  padding: 0.95vh 1.15vw;
+  border-radius: 999px;
+  border: 2px solid rgba(255, 255, 255, 0.18);
+  background: rgba(255, 255, 255, 0.05);
+  color: #d3d3dc;
+  font-size: clamp(11px, 1.35vh, 21px);
   font-weight: 700;
   cursor: pointer;
-  transition: background 0.12s ease;
-}
-.tv-key-space {
-  width: 400px;
-}
-.tv-key-fn {
-  background: #241a3a;
-  border-color: rgba(124, 58, 237, 0.4);
-  color: #c4b5fd;
-}
-.tv-search-hint {
-  font-size: 16px;
-  color: #6a6a76;
-  margin-bottom: 18px;
+  outline: none;
+  white-space: nowrap;
+  transition: background 0.14s ease, color 0.14s ease;
 }
 
-/* ---- Detalhes ---- */
+.tv-chip-ativo {
+  background: var(--mf-grad);
+  border-color: transparent;
+  color: #fff;
+}
+
+.tv-chip.tv-focus,
+.tv-chip:focus-visible {
+  border-color: #fff;
+  background: rgba(223, 10, 21, 0.3);
+  color: #fff;
+  box-shadow: 0 0 0 3px rgba(223, 10, 21, 0.35);
+}
+
+/* ── Estados (loading / erro / vazio) ─────────────────────────────────── */
+
+.tv-loading,
+.tv-error {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1.6vh;
+  text-align: center;
+  padding: 6vh 4vw;
+  color: var(--mf-text);
+}
+
+.tv-loading-spinner {
+  width: clamp(30px, 5vh, 70px);
+  height: clamp(30px, 5vh, 70px);
+  border-radius: 999px;
+  border: 4px solid rgba(255, 255, 255, 0.14);
+  border-top-color: var(--mf-red-500);
+  border-right-color: var(--mf-purple-500);
+  animation: tv-spin 0.9s linear infinite;
+}
+
+.tv-loading p,
+.tv-error p {
+  font-size: clamp(12px, 1.55vh, 24px);
+  color: var(--mf-muted);
+  margin: 0;
+  max-width: 62vw;
+}
+
+.tv-error h2 {
+  font-size: clamp(17px, 2.6vh, 40px);
+  font-weight: 800;
+  margin: 0;
+  color: #fff;
+}
+
+.tv-error-muted h2 { color: #d7d7e0; }
+
+.tv-error-actions {
+  display: flex;
+  gap: 1vw;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+/* ── Detalhes ─────────────────────────────────────────────────────────── */
+
 .tv-page-detail {
   position: relative;
   padding: 0;
+  min-height: 100%;
 }
+
 .tv-detail-backdrop {
   position: absolute;
   inset: 0;
+  height: 66vh;
   background-size: cover;
-  background-position: top;
-  opacity: 0.28;
-  z-index: 0;
+  background-position: center 20%;
 }
+
 .tv-detail-overlay {
   position: absolute;
   inset: 0;
-  background: linear-gradient(180deg, rgba(10, 10, 15, 0.55) 0%, rgba(10, 10, 15, 0.92) 70%, #0a0a0f 100%);
-  z-index: 1;
+  background:
+    linear-gradient(0deg, var(--mf-ink-950) 12%, rgba(10, 10, 15, 0.72) 46%, rgba(10, 10, 15, 0.35) 100%),
+    linear-gradient(90deg, rgba(10, 10, 15, 0.96) 0%, rgba(10, 10, 15, 0.55) 55%, rgba(10, 10, 15, 0.2) 100%);
 }
+
 .tv-detail-content {
   position: relative;
   z-index: 2;
-  padding: 26px 36px 48px;
+  padding: 2.6vh 2.4vw 6vh;
 }
+
 .tv-detail-main {
   display: flex;
-  gap: 34px;
-  margin-top: 22px;
+  gap: 2.4vw;
+  align-items: flex-start;
+  margin-top: 3vh;
 }
+
 .tv-detail-poster {
-  width: 300px;
-  min-width: 300px;
-  aspect-ratio: 2/3;
-  border-radius: 16px;
+  flex: 0 0 auto;
+  width: clamp(140px, 15vw, 340px);
+  aspect-ratio: 2 / 3;
+  border-radius: 14px;
   overflow: hidden;
-  background: #16161f;
-  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.6);
+  background: var(--mf-ink-800);
+  box-shadow: 0 22px 50px rgba(0, 0, 0, 0.65), 0 0 0 1px rgba(255, 255, 255, 0.09);
 }
-.tv-detail-poster img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-.tv-detail-info {
-  flex: 1;
-  padding-top: 8px;
-}
+
+.tv-detail-poster img { width: 100%; height: 100%; object-fit: cover; display: block; }
+
+.tv-detail-info { flex: 1 1 auto; min-width: 0; padding-top: 0.6vh; }
+
 .tv-detail-title {
-  font-size: 46px;
+  font-size: clamp(23px, 4vh, 64px);
   font-weight: 800;
+  line-height: 1.05;
+  letter-spacing: -0.02em;
+  margin: 0 0 1.2vh;
   color: #fff;
-  line-height: 1.1;
-  text-shadow: 0 3px 16px rgba(0, 0, 0, 0.6);
 }
+
 .tv-detail-meta {
   display: flex;
-  align-items: center;
-  gap: 14px;
-  font-size: 20px;
-  color: #b8b8c4;
-  margin-top: 12px;
   flex-wrap: wrap;
+  align-items: center;
+  gap: 0.9vw;
+  font-size: clamp(12px, 1.55vh, 25px);
+  font-weight: 700;
+  color: #d3d3dc;
+  margin-bottom: 1.1vh;
 }
+
 .tv-detail-rating {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
+  gap: 0.3vw;
   color: #fbbf24;
-  font-weight: 700;
 }
+
 .tv-detail-cats {
-  font-size: 19px;
-  color: #a78bfa;
-  margin-top: 10px;
-  font-weight: 600;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5vw;
+  font-size: clamp(11px, 1.35vh, 21px);
+  color: #b9b9c6;
+  margin-bottom: 1.4vh;
 }
+
 .tv-detail-desc {
-  font-size: 20px;
+  font-size: clamp(12px, 1.55vh, 24px);
   line-height: 1.55;
-  color: #c4c4d0;
-  margin-top: 14px;
-  max-width: 900px;
+  color: #cbcbd6;
+  margin: 0 0 2.2vh;
+  max-width: 62vw;
+  display: -webkit-box;
+  -webkit-line-clamp: 5;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
+
 .tv-detail-actions {
   display: flex;
-  gap: 16px;
-  margin-top: 26px;
   flex-wrap: wrap;
-}
-.tv-detail-warn {
-  margin-top: 18px;
-  font-size: 18px;
-  color: #fbbf24;
-  max-width: 700px;
-  line-height: 1.4;
+  align-items: center;
+  gap: 1vw;
 }
 
-/* ---- Botões TV ---- */
-.tv-btn {
-  display: inline-flex;
+.tv-detail-warn {
+  margin-top: 1.6vh;
+  font-size: clamp(11px, 1.35vh, 21px);
+  color: #f0b0b4;
+  max-width: 58vw;
+}
+
+/* Temporadas / episódios (séries). */
+.tv-seasons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.7vw;
+  margin-bottom: 1.6vh;
+}
+
+.tv-episodes {
+  display: grid;
+  gap: 1.2vh 0.9vw;
+  grid-template-columns: repeat(auto-fill, minmax(clamp(210px, 21vw, 440px), 1fr));
+}
+
+.tv-episode {
+  display: flex;
+  align-items: center;
+  gap: 0.8vw;
+  padding: 1.1vh 0.9vw;
+  border-radius: 12px;
+  border: 2px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.05);
+  color: #e8e8ee;
+  font-size: clamp(11px, 1.4vh, 22px);
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+  outline: none;
+}
+
+.tv-episode-num {
+  flex: 0 0 auto;
+  width: clamp(26px, 3.6vh, 52px);
+  height: clamp(26px, 3.6vh, 52px);
+  display: flex;
   align-items: center;
   justify-content: center;
-  gap: 10px;
-  padding: 14px 26px;
-  border-radius: 12px;
-  background: #7c3aed;
-  border: 1.5px solid transparent;
-  color: #fff;
-  font-size: 20px;
-  font-weight: 700;
-  cursor: pointer;
-  transition: background 0.15s ease, transform 0.12s ease;
-}
-.tv-btn:hover {
-  background: #8b4df5;
-}
-.tv-btn-primary {
-  background: #dc2626;
-}
-.tv-btn-primary:hover {
-  background: #ef3030;
-}
-.tv-btn-ghost {
-  background: rgba(255, 255, 255, 0.07);
-  border-color: rgba(255, 255, 255, 0.16);
-}
-.tv-btn-ghost:hover {
+  border-radius: 999px;
   background: rgba(255, 255, 255, 0.12);
-}
-.tv-btn-lg {
-  padding: 18px 34px;
-  font-size: 24px;
-  border-radius: 14px;
-}
-.tv-btn-ativo {
-  background: rgba(220, 38, 38, 0.25);
-  border-color: #dc2626;
-}
-.tv-btn-back {
-  padding: 12px 20px;
-  font-size: 18px;
-}
-.tv-icon {
-  width: 22px;
-  height: 22px;
-}
-.tv-icon-sm {
-  width: 18px;
-  height: 18px;
-}
-.tv-icon-lg {
-  width: 34px;
-  height: 34px;
-}
-.tv-icon-brand {
-  color: #a78bfa;
-}
-.tv-spin {
-  animation: tv-rotate 1s linear infinite;
-}
-@keyframes tv-rotate {
-  to { transform: rotate(360deg); }
+  font-weight: 800;
+  font-size: clamp(11px, 1.45vh, 22px);
 }
 
-/* ---- Player TV ---- */
-.tv-page-player {
+.tv-episode-atual .tv-episode-num { background: var(--mf-grad); color: #fff; }
+
+/* Estado real do episódio no histórico do usuário (visto / em andamento). */
+.tv-episode-status {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3vw;
+  font-size: clamp(9px, 1.15vh, 18px);
+  font-weight: 800;
+  color: var(--mf-purple-400);
+  white-space: nowrap;
+}
+
+.tv-episode-status-ok { color: #34d399; }
+
+.tv-episode-prog {
+  display: block;
+  height: 4px;
+  margin-top: 0.7vh;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.18);
+  overflow: hidden;
+}
+
+.tv-episode-prog span {
+  display: block;
+  height: 100%;
+  background: var(--mf-grad);
+}
+
+.tv-episode.tv-focus,
+.tv-episode:focus-visible {
+  border-color: #fff;
+  background: rgba(223, 10, 21, 0.24);
+  box-shadow: 0 0 0 3px rgba(223, 10, 21, 0.35);
+}
+
+/* ── Busca ────────────────────────────────────────────────────────────── */
+
+.tv-search-input {
+  width: 100%;
+  max-width: 62vw;
+  padding: 1.5vh 1.4vw;
+  border-radius: 12px;
+  border: 2px solid rgba(255, 255, 255, 0.16);
+  background: rgba(255, 255, 255, 0.06);
+  color: #fff;
+  font-size: clamp(14px, 1.9vh, 30px);
+  font-weight: 700;
+  outline: none;
+  margin-bottom: 1.8vh;
+}
+
+.tv-search-input.tv-focus,
+.tv-search-input:focus {
+  border-color: #fff;
+  box-shadow: 0 0 0 3px rgba(223, 10, 21, 0.4);
+}
+
+.tv-keyboard {
   display: flex;
   flex-direction: column;
-  height: 100%;
-  padding: 16px 24px 20px;
+  gap: 0.8vh;
+  margin-bottom: 1.6vh;
+  align-items: center;
 }
+
+.tv-keyboard-row {
+  display: flex;
+  gap: 0.5vw;
+  justify-content: center;
+}
+
+.tv-key {
+  min-width: clamp(34px, 4.6vh, 72px);
+  height: clamp(34px, 4.6vh, 72px);
+  padding: 0 0.5vw;
+  border-radius: 10px;
+  border: 2px solid rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.07);
+  color: #fff;
+  font-size: clamp(12px, 1.6vh, 26px);
+  font-weight: 800;
+  cursor: pointer;
+  outline: none;
+}
+
+.tv-key-space { min-width: clamp(120px, 16vh, 240px); }
+.tv-key-fn { background: rgba(223, 10, 21, 0.3); }
+
+.tv-key.tv-focus,
+.tv-key:focus-visible {
+  border-color: #fff;
+  background: var(--mf-grad);
+  color: #fff;
+  box-shadow: 0 0 0 3px rgba(223, 10, 21, 0.4);
+}
+
+.tv-search-hint {
+  text-align: center;
+  font-size: clamp(10px, 1.25vh, 19px);
+  color: var(--mf-muted);
+  margin-bottom: 1.8vh;
+}
+
+/* ── Player ───────────────────────────────────────────────────────────── */
+
+.tv-page-player {
+  position: relative;
+  padding: 0;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background: #000;
+  overflow: hidden;
+}
+
+/* Barra de topo discreta: marca + título. Some junto com os controles. */
 .tv-player-top {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 20;
   display: flex;
   align-items: center;
-  gap: 20px;
-  margin-bottom: 12px;
+  gap: 1.2vw;
+  padding: 1.8vh 1.6vw 4vh;
+  background: linear-gradient(180deg, rgba(0, 0, 0, 0.85) 0%, rgba(0, 0, 0, 0) 100%);
+  pointer-events: none;
+  transition: opacity 0.25s ease, transform 0.25s ease;
 }
+
+/* Logo OFICIAL no player (nunca a palavra "MOVIEFLIX" escrita). */
+.tv-player-logo {
+  height: clamp(22px, 3.4vh, 54px);
+  width: auto;
+  object-fit: contain;
+  opacity: 0.95;
+}
+
 .tv-player-title {
-  font-size: 24px;
+  font-size: clamp(13px, 1.7vh, 27px);
   font-weight: 700;
   color: #fff;
+  text-shadow: 0 2px 12px rgba(0, 0, 0, 0.8);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
+
+.tv-player-sub {
+  font-size: clamp(10px, 1.25vh, 19px);
+  color: #c9c9d4;
+  font-weight: 600;
+}
+
 .tv-player-box {
   position: relative;
-  flex: 1;
+  flex: 1 1 auto;
   min-height: 0;
-  border-radius: 14px;
-  overflow: hidden;
   background: #000;
+  outline: none;
+  border: 3px solid transparent;
+  transition: border-color 0.18s ease, box-shadow 0.18s ease;
 }
-.tv-player-frame {
-  width: 100%;
-  height: 100%;
-  border: 0;
-  display: block;
+
+/* Foco no player = anel da marca (não o azul do sistema). */
+.tv-player-box.tv-focus,
+.tv-player-box:focus-visible {
+  border-color: var(--mf-red-600);
+  box-shadow: inset 0 0 0 1px rgba(124, 58, 237, 0.6), 0 0 32px rgba(223, 10, 21, 0.4);
 }
-.tv-player-error {
+
+/* Player limpo: durante a reprodução os controles ficam ocultos. */
+.tv-player-chrome {
   position: absolute;
   inset: 0;
+  z-index: 25;
   display: flex;
   flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 16px;
-  background: rgba(10, 10, 15, 0.92);
-  color: #fff;
-  font-size: 20px;
-  z-index: 5;
-}
-.tv-player-mode-badge {
-  margin-top: 12px;
-  padding: 12px 18px;
-  border-radius: 10px;
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  color: #8a8a96;
-  font-size: 16px;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-.tv-player-mode-ativo {
-  background: rgba(124, 58, 237, 0.15);
-  border-color: rgba(124, 58, 237, 0.4);
-  color: #c4b5fd;
+  justify-content: space-between;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.25s ease, visibility 0.25s ease;
+  pointer-events: none;
+  padding: 0;
 }
 
-/* ---- Assinatura TV ---- */
-.tv-sub-status {
-  max-width: 900px;
-  background: linear-gradient(135deg, rgba(124, 58, 237, 0.12), rgba(10, 10, 15, 0.6));
-  border: 1px solid rgba(124, 58, 237, 0.3);
-  border-radius: 18px;
-  padding: 30px;
+.tv-player-chrome-visible {
+  opacity: 1;
+  visibility: visible;
 }
-.tv-sub-status-head {
+
+.tv-player-chrome-top {
+  padding: 1.8vh 1.6vw 5vh;
+  background: linear-gradient(180deg, rgba(0, 0, 0, 0.88) 0%, rgba(0, 0, 0, 0) 100%);
   display: flex;
   align-items: center;
-  gap: 18px;
+  gap: 1.1vw;
 }
-.tv-sub-status-head h2 {
-  font-size: 28px;
-  font-weight: 800;
+
+.tv-player-chrome-bottom {
+  padding: 5vh 1.6vw 2.2vh;
+  background: linear-gradient(0deg, rgba(0, 0, 0, 0.9) 0%, rgba(0, 0, 0, 0) 100%);
+}
+
+.tv-player-controls {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1.4vw;
+}
+
+.tv-player-ctrl {
+  width: clamp(40px, 6.2vh, 92px);
+  height: clamp(40px, 6.2vh, 92px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background: rgba(255, 255, 255, 0.14);
   color: #fff;
+  cursor: pointer;
+  outline: none;
+  transition: transform 0.14s ease, background 0.14s ease;
 }
-.tv-sub-plan {
-  font-size: 19px;
-  color: #a78bfa;
-  margin-top: 4px;
+
+.tv-player-ctrl-main {
+  width: clamp(52px, 8vh, 118px);
+  height: clamp(52px, 8vh, 118px);
+  background: var(--mf-grad);
+  box-shadow: 0 12px 34px rgba(223, 10, 21, 0.4);
 }
-.tv-sub-status-meta {
+
+.tv-player-ctrl.tv-focus,
+.tv-player-ctrl:focus-visible {
+  border-color: #fff;
+  transform: scale(1.09);
+  box-shadow: 0 0 0 4px rgba(223, 10, 21, 0.55);
+}
+
+.tv-player-ctrl-icon {
+  width: clamp(18px, 2.7vh, 44px);
+  height: clamp(18px, 2.7vh, 44px);
+}
+
+.tv-player-bar {
+  margin-top: 1.6vh;
   display: flex;
-  gap: 34px;
-  margin-top: 22px;
-  flex-wrap: wrap;
-}
-.tv-sub-meta-item {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-.tv-sub-meta-label {
-  font-size: 15px;
-  color: #8a8a96;
-  text-transform: uppercase;
-  letter-spacing: 1px;
-}
-.tv-sub-meta-value {
-  font-size: 24px;
+  align-items: center;
+  gap: 1vw;
+  font-size: clamp(10px, 1.3vh, 20px);
   font-weight: 700;
-  color: #fff;
-}
-.tv-sub-ok {
-  color: #4ade80;
-}
-.tv-sub-aviso {
-  margin-top: 20px;
-  padding: 16px 20px;
-  border-radius: 12px;
-  background: rgba(251, 191, 36, 0.1);
-  border: 1px solid rgba(251, 191, 36, 0.3);
-  color: #fbbf24;
-  font-size: 19px;
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  line-height: 1.4;
-}
-.tv-sub-aviso-urgente {
-  background: rgba(220, 38, 38, 0.12);
-  border-color: rgba(220, 38, 38, 0.35);
-  color: #fca5a5;
-}
-.tv-sub-empty {
-  text-align: center;
-  padding: 50px 20px;
-  color: #fff;
-}
-.tv-sub-empty h2 {
-  font-size: 30px;
-  font-weight: 800;
-  margin-top: 16px;
-}
-.tv-sub-empty p {
-  font-size: 20px;
-  color: #9a9aa6;
-  margin: 10px 0 24px;
-}
-.tv-plans {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-  gap: 22px;
-  margin-top: 30px;
-  max-width: 1100px;
-}
-.tv-plan {
-  background: #12121a;
-  border: 1.5px solid rgba(255, 255, 255, 0.09);
-  border-radius: 16px;
-  padding: 26px;
-  display: flex;
-  flex-direction: column;
-}
-.tv-plan-skeleton {
-  height: 280px;
-  background: #16161f;
-}
-.tv-plan-name {
-  font-size: 24px;
-  font-weight: 800;
-  color: #fff;
-}
-.tv-plan-price {
-  font-size: 36px;
-  font-weight: 800;
-  color: #a78bfa;
-  margin-top: 10px;
-}
-.tv-plan-price span {
-  font-size: 16px;
-  color: #8a8a96;
-  font-weight: 500;
-}
-.tv-plan-features {
-  list-style: none;
-  margin: 18px 0 22px;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  flex: 1;
-}
-.tv-plan-features li {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  font-size: 17px;
-  color: #c8c8d2;
-}
-.tv-sub-note {
-  margin-top: 28px;
-  font-size: 16px;
-  color: #6a6a76;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  max-width: 900px;
-  line-height: 1.5;
+  color: #e6e6ee;
 }
 
-/* ---- Loading / erro ---- */
-.tv-loading {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 16px;
-  padding: 60px 20px;
-  color: #c8c8d2;
-  font-size: 20px;
+.tv-player-track {
+  flex: 1 1 auto;
+  height: clamp(5px, 0.7vh, 11px);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.24);
+  overflow: hidden;
 }
-.tv-loading-spinner {
-  width: 44px;
-  height: 44px;
-  border-radius: 50%;
-  border: 4px solid rgba(124, 58, 237, 0.2);
-  border-top-color: #7c3aed;
-  animation: tv-rotate 0.9s linear infinite;
+
+.tv-player-track span {
+  display: block;
+  height: 100%;
+  background: var(--mf-grad);
 }
-.tv-error {
+
+.tv-player-hint {
+  margin-top: 1.1vh;
   text-align: center;
-  padding: 46px 20px;
-  color: #fff;
-  display: flex;
-  flex-direction: column;
+  font-size: clamp(9px, 1.15vh, 18px);
+  color: #b9b9c6;
+  font-weight: 600;
+}
+
+/* Badge do modo "controle do player" (long-press OK). */
+.tv-player-mode-badge {
+  position: absolute;
+  right: 1.4vw;
+  bottom: 2.2vh;
+  z-index: 30;
+  display: inline-flex;
   align-items: center;
-  gap: 14px;
+  gap: 0.5vw;
+  padding: 0.9vh 1vw;
+  border-radius: 999px;
+  background: rgba(10, 10, 15, 0.86);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  color: #d6d6e0;
+  font-size: clamp(9px, 1.15vh, 18px);
+  font-weight: 700;
+  transition: opacity 0.2s ease;
 }
-.tv-error h2 {
-  font-size: 28px;
-  font-weight: 800;
+
+.tv-player-mode-ativo {
+  background: var(--mf-grad);
+  color: #fff;
+  border-color: transparent;
 }
-.tv-error p {
-  font-size: 19px;
-  color: #9a9aa6;
-  max-width: 560px;
-  line-height: 1.5;
+
+/* ── Responsividade por resolução real (720p / 1080p / 4K) ─────────────── */
+
+/* 720p e telas pequenas: cards e textos menores, mais linhas visíveis. */
+@media (max-height: 780px) {
+  .tv-hero { height: 38vh; }
+  .tv-grid { grid-template-columns: repeat(auto-fill, minmax(102px, 1fr)); }
+  .tv-header-user { max-width: 15vw; }
 }
-.tv-error-muted {
-  opacity: 0.8;
+
+/* Telas muito largas (4K / 21:9): aproveita a área extra. */
+@media (min-width: 2200px) {
+  .tv-grid { grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); }
+  .tv-hero { height: 46vh; }
 }
-.tv-error-actions {
-  display: flex;
-  gap: 14px;
-  margin-top: 8px;
+
+/* ── Acessibilidade / movimento reduzido ──────────────────────────────── */
+
+@media (prefers-reduced-motion: reduce) {
+  .tv-card,
+  .tv-btn,
+  .tv-chip,
+  .tv-player-ctrl,
+  .tv-player-chrome,
+  .tv-player-top { transition: none; }
+  .tv-loading-spinner { animation-duration: 2s; }
 }
