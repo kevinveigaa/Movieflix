@@ -14,7 +14,16 @@ import java.util.concurrent.Executors
 
 /**
  * Catalogo em GRADE (Filmes ou Series) com filtro por categoria.
- * Grade navegavel pelo D-pad; a coluna e calculada pela largura real da tela.
+ *
+ * Grade navegavel pelo D-pad; as colunas sao calculadas pela largura REAL da
+ * tela (720p/1080p/4K).
+ *
+ * PAGINACAO (correcao do bug de catalogo): o catalogo MovieFlix tem ~18.000
+ * filmes e ~8.000 series. Montar todos os cards de uma vez criava dezenas de
+ * milhares de Views + dezenas de milhares de requisicoes de imagem, travando a
+ * UI thread: a grade ficava em branco. Agora montamos UMA pagina por vez
+ * (CatalogoJanela.TAMANHO_PAGINA), como o site faz, e carregamos a proxima ao
+ * chegar ao fim da rolagem ou pelo botao do controle remoto.
  */
 class CatalogActivity : BaseTvActivity() {
 
@@ -22,8 +31,14 @@ class CatalogActivity : BaseTvActivity() {
     private lateinit var grade: GridLayout
     private lateinit var filtros: LinearLayout
     private lateinit var tituloView: TextView
+    private lateinit var botaoMais: TextView
+    private lateinit var scroll: ScrollView
     private var tipo = "filme"
     private var categoriaAtual: String? = null
+
+    /** Lista completa do filtro atual e quantos itens ja foram montados. */
+    private var itensFiltrados: List<Movie> = emptyList()
+    private var exibidos = 0
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -50,13 +65,29 @@ class CatalogActivity : BaseTvActivity() {
         scrollFiltros.addView(filtros)
         raiz.addView(scrollFiltros)
 
-        val scroll = ScrollView(this).apply { isVerticalScrollBarEnabled = false }
+        scroll = ScrollView(this).apply { isVerticalScrollBarEnabled = false }
         grade = GridLayout(this).apply {
             columnCount = 6
             setPadding(resources.getDimensionPixelSize(R.dimen.content_pad), TvUi.dp(this@CatalogActivity, 6), resources.getDimensionPixelSize(R.dimen.content_pad), TvUi.dp(this@CatalogActivity, 30))
         }
         scroll.addView(grade)
         raiz.addView(scroll, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f))
+
+        // Carrega mais uma pagina ao chegar perto do fim da grade.
+        scroll.setOnScrollChangeListener { _, _, scrollY, _, _ ->
+            val alturaConteudo = scroll.getChildAt(0)?.height ?: 0
+            if (alturaConteudo - (scrollY + scroll.height) < TvUi.dp(this, 400)) carregarMais()
+        }
+
+        // "Carregar mais" tambem acessivel pelo controle remoto (nao depende de rolagem).
+        botaoMais = TvUi.botao(this, if (tipo == "serie") "Carregar mais series" else "Carregar mais filmes")
+        botaoMais.layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
+            leftMargin = resources.getDimensionPixelSize(R.dimen.content_pad)
+            bottomMargin = TvUi.dp(this@CatalogActivity, 24)
+        }
+        botaoMais.setOnClickListener { carregarMais() }
+        botaoMais.visibility = View.GONE
+        raiz.addView(botaoMais)
 
         conteudo(raiz)
     }
@@ -98,22 +129,52 @@ class CatalogActivity : BaseTvActivity() {
             val base = if (tipo == "serie") CatalogRepository.series(this) else CatalogRepository.filmes(this)
             val itens = categoriaAtual?.let { c -> base.filter { it.categorias.contains(c) } } ?: base
             val ordenados = itens.sortedByDescending { it.anoNumerico }
-            runOnUiThread { preencherGrade(ordenados) }
+            runOnUiThread {
+                itensFiltrados = ordenados
+                exibidos = 0
+                grade.removeAllViews()
+                atualizarColunas()
+                injetarPagina()
+                grade.post { if (grade.childCount > 0) grade.getChildAt(0).requestFocus() }
+            }
         }
     }
 
-    private fun preencherGrade(itens: List<Movie>) {
-        grade.removeAllViews()
-        val colunas = 6
-        grade.columnCount = colunas
-        for (m in itens) {
+    /** Colunas da grade calculadas pela largura REAL da tela. */
+    private fun atualizarColunas() {
+        val card = resources.getDimensionPixelSize(R.dimen.card_width)
+        val vao = resources.getDimensionPixelSize(R.dimen.card_gutter)
+        val pad = resources.getDimensionPixelSize(R.dimen.content_pad)
+        grade.columnCount = CatalogoJanela.colunas(resources.displayMetrics.widthPixels, card, vao, pad * 2)
+    }
+
+    /** Adiciona SOMENTE a proxima pagina de cards (nunca o catalogo inteiro). */
+    private fun injetarPagina() {
+        val fim = (exibidos + CatalogoJanela.TAMANHO_PAGINA).coerceAtMost(itensFiltrados.size)
+        for (i in exibidos until fim) {
+            val m = itensFiltrados[i]
             val card = TvUi.card(this, m.poster_url.ifBlank { m.backdrop_url }, m.title, m.qualidade()) {
                 startActivity(Intent(this, DetailsActivity::class.java).putExtra("movie_id", m.id))
             }
             grade.addView(card)
         }
-        grade.post { if (grade.childCount > 0) grade.getChildAt(0).requestFocus() }
+        exibidos = fim
+        botaoMais.text = if (tipo == "serie") "Carregar mais series" else "Carregar mais filmes"
+        botaoMais.visibility = if (CatalogoJanela.temMais(itensFiltrados.size, exibidos)) View.VISIBLE else View.GONE
+    }
+
+    private fun carregarMais() {
+        if (!CatalogoJanela.temMais(itensFiltrados.size, exibidos)) {
+            botaoMais.visibility = View.GONE
+            return
+        }
+        injetarPagina()
     }
 
     override fun focoPadrao(): View? = if (::grade.isInitialized && grade.childCount > 0) grade.getChildAt(0) else null
+
+    override fun onDestroy() {
+        super.onDestroy()
+        executor.shutdownNow()
+    }
 }

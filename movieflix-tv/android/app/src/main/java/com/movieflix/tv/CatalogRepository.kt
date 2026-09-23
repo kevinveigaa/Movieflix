@@ -59,7 +59,7 @@ object CatalogRepository {
         return all(ctx)
             .filter { it.title.lowercase().contains(t) || it.categorias.any { c -> c.lowercase().contains(t) } }
             .sortedByDescending { it.vote_average }
-            .take(300)
+            .take(CatalogoJanela.MAX_RESULTADOS_BUSCA)
     }
 
     fun porId(ctx: Context, id: String): Movie? = all(ctx).firstOrNull { it.id == id }
@@ -90,12 +90,26 @@ object CatalogRepository {
     private fun lerAssets(ctx: Context): List<Movie>? = try {
         val filmes = ctx.assets.open("filmes.json").bufferedReader().use { it.readText() }
         val series = ctx.assets.open("series.json").bufferedReader().use { it.readText() }
-        decodificarTolerante(filmes) + decodificarTolerante(series)
-    } catch (_: Exception) { null }
+        val lista = decodificarTolerante(filmes) + decodificarTolerante(series)
+        // Log do volume real carregado: catalogo vazio/incompleto deixa de ser
+        // um erro silencioso (nunca engolir a causa do bug).
+        android.util.Log.i(
+            "CatalogRepository",
+            "catalogo carregado: ${lista.size} itens " +
+                "(filmes=${lista.count { !it.ehSerie }} series=${lista.count { it.ehSerie }})",
+        )
+        lista
+    } catch (e: Exception) {
+        android.util.Log.e("CatalogRepository", "falha ao ler os assets do catalogo", e)
+        null
+    }
 
     private fun lerArquivo(f: File): List<Movie>? = try {
         decodificarTolerante(f.readText())
-    } catch (_: Exception) { null }
+    } catch (e: Exception) {
+        android.util.Log.e("CatalogRepository", "falha ao ler o cache de disco", e)
+        null
+    }
 
     /** Decodifica tolerante: itens invalidos sao descartados, nao derrubam tudo. */
     private fun decodificarTolerante(texto: String): List<Movie> {

@@ -316,9 +316,14 @@ class HomeActivity : BaseTvActivity() {
         val melhores = CatalogRepository.melhorAvaliados(this)
         if (melhores.isNotEmpty()) conteudoColuna.addView(secao("Melhor avaliados", melhores, index++))
 
-        for (cat in CatalogRepository.categorias(this).take(10)) {
+        var linhasCategoria = 0
+        for (cat in CatalogRepository.categorias(this)) {
+            if (linhasCategoria >= CatalogoJanela.MAX_LINHAS_CATEGORIA) break
             val itens = CatalogRepository.porCategoria(this, cat)
-            if (itens.size >= 4) conteudoColuna.addView(secao(cat, itens, index++))
+            if (itens.size >= 4) {
+                conteudoColuna.addView(secao(cat, itens, index++))
+                linhasCategoria++
+            }
         }
 
         if (focoInicial == null) {
@@ -352,7 +357,7 @@ class HomeActivity : BaseTvActivity() {
         col.addView(TvUi.tituloSecao(this, titulo))
 
         val linha = TvUi.linha(this)
-        for (m in itens) {
+        for (m in itens.take(CatalogoJanela.MAX_POR_LINHA)) {
             val card = TvUi.card(this, m.poster_url.ifBlank { m.backdrop_url }, m.title, m.qualidade()) { abrirDetalhes(m) }
             card.setOnLongClickListener { alternarFavorito(m); true }
             linha.addView(card)
