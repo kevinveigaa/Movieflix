@@ -1,5 +1,5 @@
 import { Suspense, useEffect, type ReactNode } from 'react';
-import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
 import { instalarBloqueioAnuncios } from '@/lib/antiAds';
 import { TvLayout } from './TvLayout';
@@ -13,6 +13,21 @@ import { TvMyListPage } from './TvMyListPage';
 import { TvContinueWatchingPage } from './TvContinueWatchingPage';
 import { TvLoading } from './TvStates';
 
+/**
+ * TvApp — aplicação MovieFlix TV.
+ *
+ * É a MESMA aplicação MovieFlix (mesma marca, mesma conta, mesmo backend,
+ * mesmo catálogo, mesmos planos, mesmos favoritos, mesmo histórico), com a
+ * interface adaptada para televisão.
+ *
+ * ROTEAMENTO: o App usa HashRouter, então a TV vive em `#/tv` (não `/tv`).
+ * Aqui resolvemos a sub-rota por `useLocation()` em vez de aninhar um <Routes>
+ * — o roteamento aninhado dependia do prefixo do segmento pai e não casava de
+ * forma confiável. A tabela abaixo é explícita e determinística.
+ */
+
+const SUB_ROTAS = ['filmes', 'series', 'pesquisa', 'minha-lista', 'continuar', 'assinatura', 'titulo', 'assistir'];
+
 function RequireAuthTv({ children }: { children: ReactNode }) {
   const { user, loading } = useAuth();
   if (loading) return <TvLoading label="Verificando sessão..." />;
@@ -20,69 +35,62 @@ function RequireAuthTv({ children }: { children: ReactNode }) {
   return <>{children}</>;
 }
 
-/**
- * TvApp — aplicação MovieFlix TV (rotas /tv/*).
- *
- * É a MESMA aplicação MovieFlix (mesma marca, mesma conta, mesmo backend,
- * mesmo catálogo, mesmos planos, mesmos favoritos, mesmo histórico), com a
- * interface adaptada para televisão:
- *  - cabeçalho horizontal com a logo OFICIAL do MovieFlix;
- *  - Home com destaque, Continuar assistindo, Em alta, Lançamentos, Filmes,
- *    Séries e linhas de categoria;
- *  - grades com cards menores (mais títulos por tela) e foco pela marca;
- *  - busca com teclado virtual, detalhes com temporadas/episódios e player;
- *  - navegação 100% por controle remoto (useTvNavigation global do App);
- *  - bloqueio silencioso de popups/redirects (antiAds).
- *
- * Rotas de título: /tv/titulo/:id (detalhes) e /tv/assistir/:id (player).
- */
 export function TvApp() {
-  const location = useLocation();
+  const { pathname } = useLocation();
 
+  // Bloqueio silencioso de popups/redirects de anúncio (camada JS).
   useEffect(() => {
     const limpar = instalarBloqueioAnuncios();
     return () => limpar();
   }, []);
 
+  // "" (raiz da TV) ou os segmentos depois de /tv
+  const resto = pathname.replace(/^\/tv\/?/, '');
+  const seg = resto.split('/').filter(Boolean);
+  const raiz = seg[0];
+  const id = seg[1];
+
+  let pagina: ReactNode;
+  if (!raiz) {
+    pagina = <TvHomePage />;
+  } else if (raiz === 'filmes') {
+    pagina = <TvCatalogPage mode="movie" />;
+  } else if (raiz === 'series') {
+    pagina = <TvCatalogPage mode="series" />;
+  } else if (raiz === 'pesquisa') {
+    pagina = <TvSearchPage />;
+  } else if (raiz === 'titulo' && id) {
+    pagina = <TvDetailPage id={id} />;
+  } else if (raiz === 'assistir' && id) {
+    pagina = <TvPlayerPage id={id} />;
+  } else if (raiz === 'minha-lista') {
+    pagina = (
+      <RequireAuthTv>
+        <TvMyListPage />
+      </RequireAuthTv>
+    );
+  } else if (raiz === 'continuar') {
+    pagina = (
+      <RequireAuthTv>
+        <TvContinueWatchingPage />
+      </RequireAuthTv>
+    );
+  } else if (raiz === 'assinatura') {
+    pagina = (
+      <RequireAuthTv>
+        <TvSubscriptionPage />
+      </RequireAuthTv>
+    );
+  } else if (SUB_ROTAS.includes(raiz)) {
+    // Sub-rota conhecida sem id (ex.: /tv/titulo) → volta para a Home.
+    pagina = <TvHomePage />;
+  } else {
+    pagina = <TvHomePage />;
+  }
+
   return (
     <TvLayout>
-      <Suspense fallback={<TvLoading label="Carregando..." />}>
-        <Routes location={location}>
-          <Route path="/tv" element={<TvHomePage />} />
-          <Route path="/tv/filmes" element={<TvCatalogPage mode="movie" />} />
-          <Route path="/tv/series" element={<TvCatalogPage mode="series" />} />
-          <Route path="/tv/pesquisa" element={<TvSearchPage />} />
-          <Route path="/tv/titulo/:id" element={<TvDetailPage />} />
-          <Route path="/tv/assistir/:id" element={<TvPlayerPage />} />
-          <Route
-            path="/tv/assinatura"
-            element={
-              <RequireAuthTv>
-                <TvSubscriptionPage />
-              </RequireAuthTv>
-            }
-          />
-          <Route
-            path="/tv/minha-lista"
-            element={
-              <RequireAuthTv>
-                <TvMyListPage />
-              </RequireAuthTv>
-            }
-          />
-          <Route
-            path="/tv/continuar"
-            element={
-              <RequireAuthTv>
-                <TvContinueWatchingPage />
-              </RequireAuthTv>
-            }
-          />
-          {/* Compatibilidade com links antigos de detalhe. */}
-          <Route path="/tv/detalhe/:type/:id" element={<TvDetailPage />} />
-          <Route path="*" element={<Navigate to="/tv" replace />} />
-        </Routes>
-      </Suspense>
+      <Suspense fallback={<TvLoading label="Carregando..." />}>{pagina}</Suspense>
     </TvLayout>
   );
 }

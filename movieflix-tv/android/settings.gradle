@@ -1,24 +1,9 @@
 /*
- * MovieFlix TV 4.0.0 — projeto Gradle independente.
+ * MovieFlix TV 4.0.1 — projeto Gradle independente.
  *
- * Módulo único (:app) em Kotlin + AndroidX/Leanback. Nada aqui é compartilhado
- * com o app mobile (android/), que permanece intocado.
+ * Módulo único (:app): um shell Android TV que carrega a EXPERIÊNCIA TV do site
+ * oficial do MovieFlix. Nada aqui é compartilhado com o app mobile (android/),
+ * que permanece intocado.
  */
-pluginManagement {
-    repositories {
-        google()
-        mavenCentral()
-        gradlePluginPortal()
-    }
-}
-
-dependencyResolutionManagement {
-    repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
-    repositories {
-        google()
-        mavenCentral()
-    }
-}
-
 rootProject.name = "MovieFlixTV"
 include ':app'

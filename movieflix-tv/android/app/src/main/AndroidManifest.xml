@@ -1,34 +1,53 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!--
+  MovieFlix TV 4.0.1 — shell Android TV.
+
+  O app É o MovieFlix: carrega a experiência de televisão do site oficial
+  (https://movieflix-bszf.onrender.com/#/tv) dentro do WebView. Mesma conta,
+  mesmo backend/Supabase, mesmo catálogo, mesmos planos, mesmos favoritos e
+  mesmo histórico do mobile e do site — nada de catálogo paralelo.
+
+  É um app de Android TV: exige Leanback e NÃO exige touchscreen (controle
+  remoto). Fora do AppLayout do site (a experiência TV vive fora da Navbar e do
+  Footer), em landscape.
+-->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
+    <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
 
-    <!-- App NATIVO de Android TV: exige Leanback e NAO exige touchscreen (controle remoto). -->
+    <!-- App de TV: Leanback obrigatório, toque NÃO obrigatório. -->
     <uses-feature
         android:name="android.software.leanback"
         android:required="true" />
     <uses-feature
         android:name="android.hardware.touchscreen"
         android:required="false" />
+    <uses-feature
+        android:name="android.hardware.screen.landscape"
+        android:required="false" />
 
     <application
-        android:name=".TvApp"
         android:allowBackup="true"
         android:banner="@drawable/tv_banner"
         android:icon="@mipmap/ic_launcher"
         android:label="@string/app_name"
+        android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
         android:usesCleartextTraffic="false"
-        android:theme="@style/Theme.MovieFlixTv"
+        android:theme="@style/AppTheme"
         tools:targetApi="34">
 
         <activity
-            android:name=".SplashActivity"
+            android:name=".MainActivity"
             android:exported="true"
+            android:label="@string/app_name"
+            android:launchMode="singleTask"
             android:screenOrientation="landscape"
-            android:theme="@style/Theme.MovieFlixTv">
+            android:configChanges="orientation|keyboardHidden|keyboard|screenSize|locale|smallestScreenSize|screenLayout|uiMode|navigation|density|fontScale">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
@@ -38,23 +57,5 @@
                 <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
             </intent-filter>
         </activity>
-
-        <activity android:name=".LoginActivity" android:exported="false" android:screenOrientation="landscape" />
-        <activity android:name=".ProfilesActivity" android:exported="false" android:screenOrientation="landscape" />
-        <activity android:name=".HomeActivity" android:exported="false" android:screenOrientation="landscape" />
-        <activity android:name=".CatalogActivity" android:exported="false" android:screenOrientation="landscape" />
-        <activity android:name=".SearchActivity" android:exported="false" android:screenOrientation="landscape" />
-        <activity android:name=".DetailsActivity" android:exported="false" android:screenOrientation="landscape" />
-        <activity android:name=".MyListActivity" android:exported="false" android:screenOrientation="landscape" />
-        <activity android:name=".HistoryActivity" android:exported="false" android:screenOrientation="landscape" />
-        <activity android:name=".AccountActivity" android:exported="false" android:screenOrientation="landscape" />
-        <activity android:name=".PaywallActivity" android:exported="false" android:screenOrientation="landscape" />
-        <activity android:name=".SettingsActivity" android:exported="false" android:screenOrientation="landscape" />
-
-        <activity
-            android:name=".PlayerActivity"
-            android:exported="false"
-            android:screenOrientation="landscape"
-            android:configChanges="orientation|screenSize|keyboardHidden|navigation|uiMode" />
     </application>
 </manifest>

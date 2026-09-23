@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">MovieFlix TV</string>
-    <string name="tv_suporte">Suporte WhatsApp 55 11 94375-0307</string>
+    <!-- EXPERIÊNCIA TV no site oficial: a MESMA fonte de dados do mobile/web. -->
+    <string name="tv_url">https://movieflix-bszf.onrender.com/#/tv</string>
 </resources>

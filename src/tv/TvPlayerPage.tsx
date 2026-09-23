@@ -48,8 +48,9 @@ import { cn } from '@/lib/cn';
  * ordenada) — em filme, o controle nunca é mostrado.
  */
 
-export function TvPlayerPage() {
-  const { id } = useParams();
+export function TvPlayerPage({ id: idProp }: { id?: string } = {}) {
+  const { id: idParam } = useParams();
+  const id = idProp ?? idParam;
   const [params] = useSearchParams();
   const navigate = useNavigate();
   const movies = useMovies();

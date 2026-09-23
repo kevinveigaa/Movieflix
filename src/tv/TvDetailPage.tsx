@@ -32,8 +32,9 @@ import { cn } from '@/lib/cn';
  * temporada e episódio na URL.
  */
 
-export function TvDetailPage() {
-  const { id } = useParams();
+export function TvDetailPage({ id: idProp }: { id?: string } = {}) {
+  const { id: idParam } = useParams();
+  const id = idProp ?? idParam;
   const navigate = useNavigate();
   const movies = useMovies();
   const { user, subscription } = useAuth();

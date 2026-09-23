@@ -1,40 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Identidade visual MovieFlix TV — tokens com os MESMOS nomes e valores do site
-     (tailwind.config.js). Preto premium (ink-950) + VERMELHO DA MARCA
-     (brand-600 #DF0A15) como acento principal + VIOLETA (roxo-600 #7C3AED)
-     como apoio / fim do gradiente vermelho->violeta. Nada de paleta nova. -->
 <resources>
-    <!-- Superficies (ink-950 / ink-900 / ink-800) -->
-    <color name="mf_black">#050505</color>
-    <color name="mf_surface">#0A0A0F</color>
-    <color name="mf_surface_light">#16161F</color>
-    <color name="mf_surface_strong">#241B33</color>
-
-    <!-- MARCA MovieFlix (brand-*) — acento PRINCIPAL da TV -->
-    <color name="mf_red">#DF0A15</color>
-    <color name="mf_red_light">#FF2D2D</color>
-    <color name="mf_red_dark">#A30000</color>
-    <color name="mf_magenta">#E01E5A</color>
-
-    <!-- Apoio violeta (roxo-*) — fim do gradiente da marca -->
-    <color name="mf_purple">#7C3AED</color>
-    <color name="mf_purple_light">#A78BFA</color>
-    <color name="mf_indigo">#5B42F3</color>
-
-    <!-- Texto -->
-    <color name="mf_white">#FFFFFF</color>
-    <color name="mf_gray">#A3A3A3</color>
-    <color name="mf_gray_light">#D4D4D8</color>
-    <color name="mf_border">#3A3A44</color>
-
-    <!-- Selo Dublado PT-BR / nota / erro -->
-    <color name="mf_green">#059669</color>
-    <color name="mf_gold">#FBBF24</color>
-    <color name="mf_error">#F87171</color>
-
-    <!-- Scrims / overlays -->
-    <color name="mf_scrim_bottom">#E6050505</color>
-    <color name="mf_scrim_mid">#99050505</color>
-    <color name="mf_overlay_card">#CC05050A</color>
-    <color name="mf_transparent">#00000000</color>
+    ﻿<!-- Cores da MARCA MovieFlix (as MESMAS do site/app). -->
+    <color name="moviePrimary">#DF0A15</color>
+    <color name="moviePrimaryDark">#B30D13</color>
+    <color name="movieAccent">#DF0A15</color>
+    <color name="movieRoxo">#7C3AED</color>
+    <color name="background_dark">#0A0A0F</color>
+    <color name="bg_card">#1A1A24</color>
+    <color name="text_primary">#FFFFFF</color>
+    <color name="text_secondary">#A1A1AD</color>
 </resources>

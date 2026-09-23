@@ -116,9 +116,15 @@ function AppRoutes() {
             <Route path="/minha-assinatura" element={<RequireAuth><SubscriptionPage /></RequireAuth>} />
             <Route path="/admin" element={<RequireAuth><AdminPage /></RequireAuth>} />
             <Route path="/admin/series/:seriesId" element={<RequireAuth><AdminSeriesPage /></RequireAuth>} />
-            {/* MovieFlix TV — interface dedicada para Android TV / Google TV / TV Box */}
-            <Route path="/tv/*" element={<TvApp />} />
           </Route>
+          {/*
+            MovieFlix TV — interface dedicada para Android TV / Google TV / TV Box.
+            Fica FORA do <AppLayout/>: a TV não pode herdar a Navbar nem o Footer
+            do site (seria o layout web ampliado). Duas rotas porque `/tv/*` não
+            casa com a barra final, e `/tv` sozinho cairia no catch-all.
+          */}
+          <Route path="/tv" element={<TvApp />} />
+          <Route path="/tv/*" element={<TvApp />} />
           <Route path="/login" element={<LoginPage />} />
           <Route path="/cadastro" element={<SignupPage />} />
           <Route path="/recuperar-senha" element={<ForgotPasswordPage />} />

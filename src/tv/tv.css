@@ -25,8 +25,8 @@
   --mf-ink-800: #1a1a24;
   --mf-text: #f4f4f6;
   --mf-muted: #a1a1ad;
-  --mf-grad: linear-gradient(135deg, #df0a15 0%, #7c3aed 100%);
-  --mf-grad-soft: linear-gradient(135deg, rgba(223, 10, 21, 0.9) 0%, rgba(124, 58, 237, 0.9) 100%);
+  --mf-grad: linear-gradient(135deg, #ff2d2d 0%, #df0a15 46%, #7c3aed 100%);
+  --mf-grad-soft: linear-gradient(135deg, rgba(223, 10, 21, 0.92) 0%, rgba(223, 10, 21, 0.82) 45%, rgba(124, 58, 237, 0.9) 100%);
 }
 
 /* ── Base ─────────────────────────────────────────────────────────────── */
@@ -107,9 +107,15 @@
 }
 
 .tv-header-logo-img {
-  height: clamp(26px, 4vh, 64px);
+  /* A logo oficial é o ícone quadrado da marca (símbolo M + wordmark MOVIEFLIX
+     dentro dele). Altura maior para o wordmark continuar legível na distância
+     de uma TV. */
+  height: clamp(28px, 4.6vh, 72px);
   width: auto;
+  max-width: 22vw;
   object-fit: contain;
+  object-position: left center;
+  display: block;
 }
 
 .tv-header-logo.tv-focus,
@@ -346,10 +352,22 @@
   transition: transform 0.14s ease, background 0.14s ease, box-shadow 0.14s ease;
 }
 
-/* Botão PRIMÁRIO — gradiente vermelho→roxo, idêntico ao .btn-primary do site. */
-.tv-btn-primary {
-  background: var(--mf-grad);
-  box-shadow: 0 12px 34px rgba(223, 10, 21, 0.32);
+/* Botão de play do card: núcleo VERMELHO da marca (o roxo fica só na borda
+   do gradiente) — o pôster não pode parecer um app roxo. */
+.tv-card-play {
+  position: absolute;
+  bottom: 0.8vh;
+  left: 0.35vw;
+  width: clamp(22px, 3.2vh, 46px);
+  height: clamp(22px, 3.2vh, 46px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: var(--mf-red-600);
+  border: 1px solid rgba(124, 58, 237, 0.55);
+  color: #fff;
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.5), 0 0 12px rgba(223, 10, 21, 0.4);
 }
 
 .tv-btn-ghost {
@@ -622,7 +640,7 @@
 
 .tv-card-title {
   margin-top: 0.8vh;
-  font-size: clamp(11px, 1.35vh, 21px);
+  font-size: clamp(12px, 1.55vh, 24px);
   font-weight: 700;
   line-height: 1.25;
   color: #fff;
@@ -634,13 +652,20 @@
 
 .tv-card-meta {
   margin-top: 0.25vh;
-  font-size: clamp(9px, 1.15vh, 18px);
+  font-size: clamp(10px, 1.28vh, 20px);
   color: var(--mf-muted);
   font-weight: 600;
   display: -webkit-box;
   -webkit-line-clamp: 1;
   -webkit-box-orient: vertical;
   overflow: hidden;
+}
+
+/* Botão PRIMÁRIO — gradiente vermelho→roxo com o VERMELHO dominante,
+   igual ao botão principal do site. */
+.tv-btn-primary {
+  background: var(--mf-grad);
+  box-shadow: 0 12px 34px rgba(223, 10, 21, 0.38);
 }
 
 /* FOCO do card — anel vermelho/branco + gradiente da marca. Nunca o retângulo
