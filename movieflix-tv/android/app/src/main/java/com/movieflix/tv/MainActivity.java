@@ -846,9 +846,26 @@ public class MainActivity extends Activity {
                 } else {
                     tipo = "togglePlay";
                 }
-                webView.evaluateJavascript(
-                        "window.dispatchEvent(new CustomEvent('mf-media-key',{detail:'" + tipo + "'}));",
-                        null);
+                // ══════════════════════════════════════════════════════════════════
+                // SEEK CONTÍNUO (5.0.1) — "segurar para frente/para trás".
+                //
+                // O Android REPETE o ACTION_DOWN enquanto a tecla permanece
+                // pressionada. Para ⏪/⏩ isso é exatamente o que queremos: cada
+                // repetição é mais um passo de seek, então segurar o botão do
+                // controle avança/retrocede progressivamente e soltar para o
+                // movimento. Essa era a parte que faltava do pedido do usuário
+                // ("ao pressionar e SEGURAR para frente, a reprodução avança
+                // progressivamente").
+                //
+                // Para as demais teclas de mídia a repetição é INDESEJADA: um
+                // play/pause segurado ficaria alternando sem parar. Só a
+                // PRIMEIRA pulsação age.
+                // ══════════════════════════════════════════════════════════════════
+                if (TvConfig.repeticaoDeMidiaAceita(code, event.getRepeatCount())) {
+                    webView.evaluateJavascript(
+                            "window.dispatchEvent(new CustomEvent('mf-media-key',{detail:'" + tipo + "'}));",
+                            null);
+                }
             }
             // Consome a tecla para não sair do app por engano.
             return true;

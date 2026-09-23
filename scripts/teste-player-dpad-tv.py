@@ -469,6 +469,275 @@ async def main() -> int:
             e = await estado(page)
             checar(e["controlesVisiveis"], "os controles continuam abertos depois do auto-hide")
 
+            # ══════════════════════════════════════════════════════════════════════
+            # [10A] CORREÇÃO 5.0.1 — PAUSAR / RETOMAR / AVANÇAR / RETROCEDER
+            #
+            # O relato foi: "os controles da barra inferior do player NÃO respondem
+            # ao controle remoto (D-pad) — os essenciais que não funcionam são
+            # pausar, retomar, avançar e retroceder".
+            #
+            # Cada um deles é provado aqui pelo CAMINHO DO CONTROLE REMOTO, sem
+            # nenhum clique de mouse:
+            #   • pausar/retomar   → PLAY/PAUSE do controle (`mf-media-key`), que é o
+            #     caminho que o shell nativo usa depois da correção;
+            #   • avançar/retroceder SEGURANDO → seek CONTÍNUO (o gesto que faltava);
+            #   • o OK do controle acionando o botão FOCADO da barra, com foco visível.
+            # ══════════════════════════════════════════════════════════════════════
+            page = await nav.new_page(viewport={"width": 1920, "height": 1080})
+            page.on("pageerror", lambda e: erros.append(str(e)))
+            await instalar_stubs(page)
+            await page.goto(URL, wait_until="domcontentloaded")
+            await page.wait_for_selector("[data-tv-player-box]", timeout=20000)
+            await page.wait_for_timeout(2500)
+
+            async def midia_key(tipo: str) -> None:
+                """Uma tecla de MÍDIA do controle (é o evento que o shell nativo emite)."""
+                await page.evaluate(
+                    "(t) => window.dispatchEvent(new CustomEvent('mf-media-key', {detail: t}))",
+                    tipo,
+                )
+                await page.wait_for_timeout(180)
+
+            async def tecla_codigo(code: int, evento: str = "keydown", repeticao: bool = False) -> None:
+                """
+                Tecla CRUA do controle: só o keyCode, como o Android TV entrega.
+                `key` vem como 'Unidentified' — é o que acontece na TV de verdade.
+                """
+                await page.evaluate(
+                    """([code, tipo, rep]) => {
+                        const ev = new KeyboardEvent(tipo, {bubbles: true, cancelable: true, repeat: rep});
+                        Object.defineProperty(ev, 'keyCode', {get: () => code});
+                        Object.defineProperty(ev, 'which', {get: () => code});
+                        Object.defineProperty(ev, 'key', {get: () => 'Unidentified'});
+                        window.dispatchEvent(ev);
+                    }""",
+                    [code, evento, repeticao],
+                )
+
+            # O embed é de outra origem: o stub devolve (eco) o comando que recebeu.
+            await page.evaluate(
+                """() => {
+                    window.__mfEcoAll = [];
+                    window.addEventListener('message', (ev) => {
+                        if (ev.data && ev.data.mfEco) window.__mfEcoAll.push(ev.data.mfEco);
+                    });
+                }"""
+            )
+
+            async def conta(termo: str) -> int:
+                return await page.evaluate(
+                    """(n) => (window.__mfEcoAll || []).filter(
+                        (m) => JSON.stringify(m).includes(n)).length""",
+                    termo,
+                )
+
+            async def zera() -> None:
+                await page.evaluate("() => { window.__mfEcoAll = []; }")
+
+            # ── [10A.1] PAUSAR e RETOMAR pelo PLAY/PAUSE do controle ─────────────
+            print("\n[10A.1] Player: PAUSAR e RETOMAR pelo controle remoto")
+            await midia_key("togglePlay")
+            e = await estado(page)
+            checar("Pausado" in (e["aviso"] or ""), f"⏸ PAUSOU pelo controle (aviso={e['aviso']!r})")
+            checar(await conta("pause") >= 1, "o comando 'pause' chegou ao player")
+
+            await midia_key("togglePlay")
+            e = await estado(page)
+            checar("Reproduzindo" in (e["aviso"] or ""), f"▶ RETOMOU pelo controle (aviso={e['aviso']!r})")
+            checar(await conta("play") >= 1, "o comando 'play' chegou ao player")
+
+            await midia_key("togglePlay")
+            await midia_key("togglePlay")
+            checar(
+                "Reproduzindo" in ((await estado(page))["aviso"] or ""),
+                "pausar → retomar → pausar → retomar volta mesmo a reproduzir",
+            )
+
+            # ── [10A.2] O OK ACIONA O BOTÃO FOCADO, COM FOCO VISÍVEL ────────────
+            print("\n[10A.2] Player: ↓ põe o FOCO num botão e o OK o aciona")
+            await page.evaluate("() => document.querySelector('[data-tv-player-box]').focus()")
+            await page.wait_for_timeout(300)
+            await page.keyboard.press("ArrowDown")
+            await page.wait_for_timeout(450)
+            e = await estado(page)
+            checar(e["controlesVisiveis"], "↓ abriu a barra de controles")
+
+            foco = await page.evaluate(
+                """() => {
+                    const a = document.activeElement;
+                    const r = a ? a.getBoundingClientRect() : null;
+                    return {
+                        tag: a ? a.tagName : null,
+                        naBarra: !!a && !!a.closest?.('.tv-player-controls'),
+                        rotulo: a && a.getAttribute ? a.getAttribute('aria-label') : null,
+                        visivel: !!r && r.width > 0 && r.height > 0,
+                    };
+                }"""
+            )
+            checar(foco["tag"] == "BUTTON", f"o elemento ativo é um BUTTON ({foco['tag']})")
+            checar(foco["naBarra"], f"o FOCO está num botão da BARRA ({foco['rotulo']!r})")
+            checar(foco["visivel"], "o botão focado está VISÍVEL na tela (requisito do controle)")
+
+            # "Foco visível" = o botão focado está DESTACADO em relação aos outros.
+            destaque = await page.evaluate(
+                """() => {
+                    const barra = document.querySelector('.tv-player-controls');
+                    const botoes = Array.from(barra.querySelectorAll('button'));
+                    const ativo = document.activeElement;
+                    const outro = botoes.find((b) => b !== ativo);
+                    const ler = (el) => {
+                        if (!el) return null;
+                        const cs = getComputedStyle(el);
+                        return [cs.outlineStyle, cs.outlineWidth, cs.outlineColor,
+                                cs.boxShadow, cs.transform, cs.backgroundColor,
+                                cs.borderColor, cs.scale, cs.opacity].join('|');
+                    };
+                    return {ativo: ler(ativo), outro: ler(outro)};
+                }"""
+            )
+            checar(
+                destaque["ativo"] is not None and destaque["ativo"] != destaque["outro"],
+                "o botão focado está DESTACADO dos demais (foco sempre visível)",
+            )
+
+            # AVANÇAR pelo OK, com o botão focado.
+            await page.evaluate(
+                """() => { const b = document.querySelector('[aria-label^="Avançar"]'); if (b) b.focus(); }"""
+            )
+            await zera()
+            await page.keyboard.press("Enter")
+            await page.wait_for_timeout(400)
+            checar(await conta("seekFwd") >= 1, "o OK acionou o botão AVANÇAR focado")
+
+            # RETROCEDER pelo OK, com o botão focado.
+            await page.evaluate(
+                """() => { const b = document.querySelector('[aria-label^="Retroceder"]'); if (b) b.focus(); }"""
+            )
+            await zera()
+            await page.keyboard.press("Enter")
+            await page.wait_for_timeout(400)
+            checar(await conta("seekBack") >= 1, "o OK acionou o botão RETROCEDER focado")
+
+            # DPAD_CENTER (23) e NUMPAD_ENTER (66) são o MESMO OK em TVs diferentes.
+            for code, nome in ((23, "DPAD_CENTER (23)"), (66, "NUMPAD_ENTER (66) do TV Box")):
+                await page.evaluate(
+                    """() => { const b = document.querySelector('[aria-label^="Avançar"]'); if (b) b.focus(); }"""
+                )
+                await zera()
+                await tecla_codigo(code)
+                await page.wait_for_timeout(120)
+                await tecla_codigo(code, "keyup")
+                await page.wait_for_timeout(400)
+                checar(await conta("seekFwd") >= 1, f"{nome} aciona o botão focado igual ao OK")
+
+            # ── [10A.3] SEEK CONTÍNUO: SEGURAR avança/retrocede progressivamente ─
+            print("\n[10A.3] Player: SEGURAR ⏩/⏪ avança/retrocede progressivamente")
+            await page.evaluate("() => document.querySelector('[data-tv-player-box]').focus()")
+            await page.wait_for_timeout(4600)  # auto-hide: estado de reprodução normal
+            e = await estado(page)
+            checar(not e["controlesVisiveis"], "controles fechados (estado normal de reprodução)")
+            checar(e["focoNoPlayer"], "o foco está no player, pronto para o seek")
+
+            # ── (a) ←/→ SEGURADAS: SEEK CONTÍNUO dirigido pelo próprio player ──
+            # Vem PRIMEIRO: as teclas de MÍDIA do bloco (b) ABREM a barra de
+            # controles (`mf-media-key` chama `mostrarControles`), e com a barra
+            # aberta as setas NAVEGAM o foco em vez de fazer seek — de propósito.
+            # Medir o seek depois delas seria medir o caminho errado.
+            await zera()
+            await page.keyboard.down("ArrowRight")
+            await page.wait_for_timeout(1400)
+            await page.keyboard.up("ArrowRight")
+            n_segurou = await conta("seekFwd")
+            checar(n_segurou >= 3, f"→ SEGURADO avança progressivamente ({n_segurou} passos em 1,4s)")
+
+            await page.wait_for_timeout(1000)
+            n_parou = await conta("seekFwd")
+            checar(n_parou == n_segurou, f"ao SOLTAR o movimento PARA ({n_segurou} → {n_parou})")
+
+            await zera()
+            await page.keyboard.down("ArrowLeft")
+            await page.wait_for_timeout(1400)
+            await page.keyboard.up("ArrowLeft")
+            n_volta = await conta("seekBack")
+            checar(n_volta >= 3, f"← SEGURADO retrocede progressivamente ({n_volta} passos em 1,4s)")
+
+            # O auto-repeat do TECLADO não pode dobrar o passo: um evento marcado
+            # como repetição (`e.repeat`) NÃO dispara passo nenhum — quem cadencia
+            # o movimento é o intervalo do próprio player.
+            await zera()
+            for _ in range(3):
+                await tecla_codigo(39, "keydown", repeticao=True)
+            await page.wait_for_timeout(300)
+            n_rep = await conta("seekFwd")
+            checar(n_rep == 0, f"um keydown de REPETIÇÃO não dispara passo extra ({n_rep} passos)")
+
+            # ── (b) ⏩/⏪ SEGURADOS: a REPETIÇÃO do Android vira passos de seek ──
+            # O Android repete o ACTION_DOWN enquanto a tecla está pressionada, e o
+            # shell emite um `mf-media-key` por repetição. É o gesto "segurar para
+            # frente/para trás" no botão do controle remoto.
+            await zera()
+            for _ in range(5):
+                await midia_key("seekFwd")
+            n_fwd = await conta("seekFwd")
+            checar(n_fwd >= 5, f"⏩ SEGURADO avança em passos REPETIDOS ({n_fwd} passos)")
+
+            await zera()
+            for _ in range(5):
+                await midia_key("seekBack")
+            n_back = await conta("seekBack")
+            checar(n_back >= 5, f"⏪ SEGURADO retrocede em passos REPETIDOS ({n_back} passos)")
+
+            # ── [10A.4] REGRESSÃO: o que já funcionava continua funcionando ─────
+            print("\n[10A.4] Player: mudo/volume e configurações continuam OK pelo controle")
+            await page.evaluate("() => document.querySelector('[data-tv-player-box]').focus()")
+            await page.wait_for_timeout(250)
+            await page.evaluate(
+                """() => {
+                    window.__mfMudo2 = false; window.__mfVol2 = 50;
+                    window.MovieFlixApp = Object.assign(window.MovieFlixApp || {}, {
+                      ajustarVolume: (d) => { window.__mfVol2 = Math.min(100, Math.max(0, window.__mfVol2 + d)); },
+                      definirVolume: (v) => { window.__mfVol2 = v; },
+                      definirMudo: (m) => { window.__mfMudo2 = m; },
+                      lerVolume: () => window.__mfVol2,
+                      lerMudo: () => window.__mfMudo2,
+                    });
+                }"""
+            )
+            await tecla_codigo(164)
+            await page.wait_for_timeout(320)
+            checar(
+                await page.evaluate("() => window.__mfMudo2") is True,
+                "🔇 MUDO continua funcionando pelo controle (sem regressão)",
+            )
+            await tecla_codigo(164)
+            await page.wait_for_timeout(320)
+            checar(
+                await page.evaluate("() => window.__mfMudo2") is False,
+                "🔊 desmutar continua funcionando (sem regressão)",
+            )
+            await tecla_codigo(24)
+            await page.wait_for_timeout(320)
+            checar(
+                await page.evaluate("() => window.__mfVol2") == 55,
+                "o VOLUME + continua funcionando pelo controle (sem regressão)",
+            )
+
+            # O bloco de mídia acima ABRIU a barra de controles: volta ao estado
+            # normal de reprodução (barra fechada) antes de testar o ↑ — com a
+            # barra aberta a seta navega o foco, que é o comportamento correto.
+            await page.evaluate("() => document.querySelector('[data-tv-player-box]').focus()")
+            await page.wait_for_timeout(4700)
+            checar(
+                not (await estado(page))["controlesVisiveis"],
+                "os controles fecharam sozinhos antes do teste do ↑ (auto-hide)",
+            )
+
+            await page.keyboard.press("ArrowUp")
+            await page.wait_for_timeout(500)
+            checar((await estado(page))["configAberto"], "↑ ainda abre as CONFIGURAÇÕES (sem regressão)")
+            await page.keyboard.press("Escape")
+            await page.wait_for_timeout(300)
+
             # ── [11] ZERO ERROS DE JAVASCRIPT ────────────────────────────────
             print("\n[11] Nenhum erro de JavaScript ao operar o player")
             checar(not erros, f"nenhum erro de JS (erros={erros[:3]})")

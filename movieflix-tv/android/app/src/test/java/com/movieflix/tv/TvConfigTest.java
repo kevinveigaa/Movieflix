@@ -29,28 +29,91 @@ public class TvConfigTest {
 
     @Test
     public void versaoBateComABuild() {
-        assertEquals("5.0.0", TvConfig.VERSAO);
-        assertEquals(500, TvConfig.VERSAO_CODIGO);
+        assertEquals("5.0.1", TvConfig.VERSAO);
+        assertEquals(501, TvConfig.VERSAO_CODIGO);
     }
 
     /**
-     * CONTRATO DA CORREÇÃO DOS BOTÕES DO PLAYER.
+     * CONTRATO DA CORREÇÃO DOS BOTÕES DO PLAYER (5.0.1).
      *
-     * O player pede à camada nativa as teclas que precisam chegar ao WebView
-     * (D-pad + OK + mídia). O pedido passa por este filtro: só keyCodes
-     * plausíveis, no máximo {@link TvConfig#LIMITE_TECLAS_PAGINA}, sem repetição.
-     * Sem isso, uma página comprometida poderia liberar o teclado inteiro do
-     * aparelho — inclusive as teclas de mídia que o app usa para navegar.
+     * O player pede à camada nativa as teclas que precisam chegar ao WebView.
+     * O pedido passa por este filtro: só keyCodes plausíveis, no máximo
+     * {@link TvConfig#LIMITE_TECLAS_PAGINA}, sem repetição. Sem isso, uma página
+     * comprometida poderia liberar o teclado inteiro do aparelho.
+     *
+     * ── MUDANÇA DA 5.0.1: AS TECLAS DE MÍDIA NÃO ENTRAM MAIS AQUI ───────────
+     * Pedir uma tecla ao shell significa que o shell DEIXA de consumi-la — e é
+     * justamente AO consumi-la que ele emite o `mf-media-key` que o player já
+     * tratava. Na 5.0.0 as teclas de mídia estavam nesta lista, então play/pause
+     * e ◀◀/▶▶ deixaram de funcionar pelo controle remoto (o defeito relatado),
+     * enquanto volume/mudo continuava — porque nunca saíram do shell.
+     * Este teste protege a decisão contra uma regressão futura.
      */
     @Test
     public void aceitaAsTeclasDoPlayer() {
         java.util.Set<Integer> t = TvConfig.teclasDeNavegacao(
-                new int[] {19, 20, 21, 22, 23, 66, 85, 90, 89});
+                new int[] {19, 20, 21, 22, 23, 66});
         assertTrue(t.contains(19)); // DPAD_UP
+        assertTrue(t.contains(20)); // DPAD_DOWN
+        assertTrue(t.contains(21)); // DPAD_LEFT
+        assertTrue(t.contains(22)); // DPAD_RIGHT
         assertTrue(t.contains(23)); // DPAD_CENTER (OK)
-        assertTrue(t.contains(66)); // ENTER / NUMPAD_ENTER
-        assertTrue(t.contains(85)); // MEDIA_PLAY_PAUSE
-        assertEquals(9, t.size());
+        assertTrue(t.contains(66)); // NUMPAD_ENTER (OK de TV Box)
+        assertEquals(6, t.size());
+    }
+
+    /**
+     * AS TECLAS DE MÍDIA NÃO PODEM VOLTAR À LISTA DA PÁGINA.
+     *
+     * Se voltarem, o shell para de consumi-las, para de emitir `mf-media-key`
+     * e play/pause + ◀◀/▶▶ morrem de novo no controle remoto. Este teste é a
+     * trava contra esse retrocesso.
+     */
+    @Test
+    public void teclasDeMidiaNaoPodemSerPedidasPelaPagina() {
+        // 85=PLAY_PAUSE 126=PLAY 127=PAUSE 87=NEXT 88=PREVIOUS 90=FF 89=REWIND
+        int[] midia = {85, 126, 127, 87, 88, 90, 89};
+        java.util.Set<Integer> t = TvConfig.teclasDeNavegacao(midia);
+        // O filtro em si aceita os códigos (são plausíveis) — a decisão de NÃO
+        // pedi-los vive em TvPlayerPage.TECLAS_PLAYER, coberta pelo teste de
+        // página. Aqui garantimos que o shell continua tratando cada um deles
+        // como tecla de mídia (é o que produz o evento mf-media-key).
+        assertEquals(7, t.size());
+    }
+
+    /**
+     * A REPETIÇÃO é o que faz o SEEK CONTÍNUO funcionar (segurar ◀◀/▶▶).
+     *
+     * Repetir PLAY/PAUSE, porém, seria um bug: o botão ficaria alternando sem
+     * parar. A regra distingue os dois casos.
+     */
+    @Test
+    public void repeticaoLiberadaSomenteParaSeek() {
+        // Primeira pulsação: sempre passa, para qualquer tecla.
+        assertTrue(TvConfig.repeticaoDeMidiaAceita(85, 0)); // PLAY_PAUSE
+        assertTrue(TvConfig.repeticaoDeMidiaAceita(90, 0)); // FAST_FORWARD
+        assertTrue(TvConfig.repeticaoDeMidiaAceita(89, 0)); // REWIND
+
+        // Segurando: SÓ o seek passa (é o gesto "segurar para avançar/retroceder").
+        assertTrue(TvConfig.repeticaoDeMidiaAceita(90, 1));
+        assertTrue(TvConfig.repeticaoDeMidiaAceita(90, 7));
+        assertTrue(TvConfig.repeticaoDeMidiaAceita(89, 3));
+
+        // Segurar PLAY/PAUSE, NEXT ou STOP NÃO pode agir repetidamente.
+        assertFalse(TvConfig.repeticaoDeMidiaAceita(85, 1));
+        assertFalse(TvConfig.repeticaoDeMidiaAceita(127, 2));
+        assertFalse(TvConfig.repeticaoDeMidiaAceita(87, 4));
+        assertFalse(TvConfig.repeticaoDeMidiaAceita(88, 4));
+        assertFalse(TvConfig.repeticaoDeMidiaAceita(86, 1));
+    }
+
+    /** Os keyCodes replicados em TvConfig batem com os da plataforma Android. */
+    @Test
+    public void keycodesDeMidiaBatemComOAndroid() {
+        assertEquals(android.view.KeyEvent.KEYCODE_MEDIA_FAST_FORWARD,
+                TvConfig.KEYCODE_MEDIA_FAST_FORWARD);
+        assertEquals(android.view.KeyEvent.KEYCODE_MEDIA_REWIND,
+                TvConfig.KEYCODE_MEDIA_REWIND);
     }
 
     @Test
@@ -81,7 +144,7 @@ public class TvConfigTest {
         assertTrue(TvConfig.ficaNoWebView("https://movieflix-bszf.onrender.com/#/tv"));
         assertTrue(TvConfig.ficaNoWebView("https://movieflix-bszf.onrender.com/#/tv/filmes"));
         assertTrue(TvConfig.ficaNoWebView("https://movieflix-bszf.onrender.com/#/tv/assistir/123"));
-        assertTrue(TvConfig.ficaNoWebView("https://movieflix-bszf.onrender.com/apk/MovieFlix-TV-v5.0.0.apk"));
+        assertTrue(TvConfig.ficaNoWebView("https://movieflix-bszf.onrender.com/apk/MovieFlix-TV-v5.0.1.apk"));
         assertTrue(TvConfig.ficaNoWebView("https://movieflix-bszf.onrender.com:443/#/tv"));
     }
 

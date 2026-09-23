@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    ﻿<!-- Cores da MARCA MovieFlix (as MESMAS do site/app). -->
+    <!-- Cores da MARCA MovieFlix (as MESMAS do site/app). -->
     <color name="moviePrimary">#DF0A15</color>
     <color name="moviePrimaryDark">#B30D13</color>
     <color name="movieAccent">#DF0A15</color>

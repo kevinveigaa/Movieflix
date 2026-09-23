@@ -37,11 +37,11 @@ public final class TvConfig {
     public static final String TV_URL = "https://" + HOST_OFICIAL + "/#/tv";
 
     /** Marcador de versão no User-Agent. */
-    public static final String TV_UA_SUFIXO = " MovieFlixTV/5.0.0";
+    public static final String TV_UA_SUFIXO = " MovieFlixTV/5.0.1";
 
     /** Versão do produto (deve espelhar o build.gradle). */
-    public static final String VERSAO = "5.0.0";
-    public static final int VERSAO_CODIGO = 500;
+    public static final String VERSAO = "5.0.1";
+    public static final int VERSAO_CODIGO = 501;
 
     /**
      * Teto de teclas que a PÁGINA pode pedir para receber
@@ -111,6 +111,40 @@ public final class TvConfig {
             if (c > 0 && c <= 300) aceitas.add(c);
         }
         return aceitas;
+    }
+
+    /**
+     * KeyCodes de MÍDIA do Android (android.view.KeyEvent).
+     *
+     * Duplicados aqui de propósito: TvConfig é Java PURO (sem Android) para
+     * poder ser verificado por testes de JVM. Os valores são os mesmos da
+     * plataforma e há teste garantindo isso.
+     */
+    public static final int KEYCODE_MEDIA_FAST_FORWARD = 90;
+    public static final int KEYCODE_MEDIA_REWIND = 89;
+
+    /**
+     * A REPETIÇÃO de uma tecla de mídia deve ser repassada à página?
+     *
+     * ── CORREÇÃO 5.0.1 (relato: "pausar, retomar, avançar e retroceder não
+     * respondem ao controle remoto") ──────────────────────────────
+     * O Android REPETE o ACTION_DOWN enquanto a tecla permanece pressionada, e
+     * essa repetição tem significados OPOSTOS conforme a tecla:
+     *
+     *  • ◀◀ / ▶▶ (MEDIA_REWIND / MEDIA_FAST_FORWARD): a repetição É o SEEK
+     *    CONTÍNUO — cada repetição é mais um passo, então SEGURAR o botão
+     *    avança/retrocede progressivamente e soltar para o movimento. É o gesto
+     *    que o usuário pediu ("ao pressionar e SEGURAR para frente, a reprodução
+     *    avana progressivamente").
+     *  • PLAY/PAUSE, NEXT/PREVIOUS, STOP: repetir seria ERRADO — um play/pause
+     *    segurado ficaria alternando sem parar. Só a PRIMEIRA pulsacão age.
+     *
+     * Fica aqui para ser coberto por teste de JVM: é a regra que decide se o
+     * gesto de SEGURAR funciona.
+     */
+    public static boolean repeticaoDeMidiaAceita(int keyCode, int repeatCount) {
+        if (repeatCount <= 0) return true; // primeira pulsacão: sempre passa
+        return keyCode == KEYCODE_MEDIA_FAST_FORWARD || keyCode == KEYCODE_MEDIA_REWIND;
     }
 
     /** O host pertence a um domínio do provedor de vídeo? */

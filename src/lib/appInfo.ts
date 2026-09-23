@@ -72,16 +72,18 @@ export const APK_SIZE_MB = '10.4 MB';
  */
 export const TV_APP_INFO = {
   name: 'MovieFlix TV',
-  version: '5.0.0',
-  versionCode: 500,
+  version: '5.0.1',
+  versionCode: 501,
   /** Arquivo do APK TV em public/apk/ (mesma pasta servida em /apk/) */
-  apkFileName: 'MovieFlix-TV-v5.0.0.apk',
-  /** Tamanho exibido (sincronizado com public/apk/MovieFlix-TV-v5.0.0.apk) */
+  apkFileName: 'MovieFlix-TV-v5.0.1.apk',
+  /** Tamanho exibido (sincronizado com public/apk/MovieFlix-TV-v5.0.1.apk) */
   sizeMB: '5.3 MB',
   package: 'com.movieflix.tv',
   releaseDate: '2026-09-23',
   changelog: [
-    'CONTROLE REMOTO: os botões do player voltaram a responder ao D-pad — play/pause, avançar/retroceder 10s, barra de progresso, legendas, áudio, próximo episódio e sair funcionam pelo controle remoto',
+    'CONTROLE REMOTO (correção): pausar, retomar, avançar e retroceder agora respondem de verdade ao controle remoto — o PLAY/PAUSE do controle voltou a funcionar',
+    'CONTROLE REMOTO (correção): SEGURAR as setas ←/→ ou os botões ⏪/⏩ faz a reprodução avançar/retroceder PROGRESSIVAMENTE; ao soltar, o movimento para',
+    'CONTROLE REMOTO (correção): com os controles abertos, as setas movem o foco entre os botões e o OK (ou o botão central do TV Box) aciona o botão focado — o foco fica sempre visível',
     'Interface TV reconstruída: cabeçalho horizontal com a logo oficial, fundo preto e o vermelho da marca (fim do visual roxo genérico)',
     'Cards redesenhados e menores — cerca de 6 a 8 títulos por linha em 16:9, no lugar de poucos cards gigantes',
     'Home preenchida com dados reais: destaque, Continuar assistindo, Em alta, Lançamentos, Filmes, Séries e categorias',

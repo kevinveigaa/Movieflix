@@ -80,6 +80,89 @@ const AUTO_HIDE_MS = 4000;
 /** Passo do seek pelo controle remoto, em segundos. */
 const PASSO_SEEK = 10;
 
+/** Intervalo do SEEK CONTÍNUO enquanto a tecla permanece pressionada (ms). */
+const PASSO_CONTINUO_MS = 350;
+
+/**
+ * Tecla DIRECIONAL do controle remoto.
+ *
+ * Aceita tanto os nomes do navegador quanto os keyCodes crus do Android TV / TV
+ * Box (19-22), porque muitas TVs entregam `e.key === 'Unidentified'`.
+ */
+function direcaoDaTecla(e: KeyboardEvent): 'left' | 'right' | 'up' | 'down' | null {
+  const k = e.key;
+  const c = e.keyCode || e.which;
+  if (k === 'ArrowLeft' || k === 'Left' || c === 37 || c === 21) return 'left';
+  if (k === 'ArrowRight' || k === 'Right' || c === 39 || c === 22) return 'right';
+  if (k === 'ArrowUp' || k === 'Up' || c === 38 || c === 19) return 'up';
+  if (k === 'ArrowDown' || k === 'Down' || c === 40 || c === 20) return 'down';
+  return null;
+}
+
+/**
+ * OK / ENTER / SELECIONAR do controle remoto.
+ *
+ * Inclui NUMPAD_ENTER (66) de propósito: é o keyCode que a maioria dos TV Box
+ * envia no botão central, e ele ficava de FORA das listas de teclas — um dos
+ * motivos de o OK "não fazer nada" sobre os botões do player.
+ */
+function ehOkDoControle(e: KeyboardEvent): boolean {
+  const k = e.key;
+  const c = e.keyCode || e.which;
+  return (
+    k === 'Enter' || k === 'OK' || k === 'Select' || c === 13 || c === 23 || c === 32 || c === 66
+  );
+}
+
+/**
+ * Teclas de MÍDIA do controle remoto (play/pause, ⏪, ⏩, próximo, anterior).
+ *
+ * CAUSA RAIZ (relato: "pausar/retomar/avançar/retroceder não respondem ao
+ * controle remoto"): estas teclas estão em `TECLAS_PLAYER`, ou seja, a página as
+ * PEDE ao shell nativo para que cheguem ao WebView como `keydown` — e, por isso
+ * mesmo, o shell deixa de emitir o evento `mf-media-key` para elas (o shell só
+ * emite esse evento para as teclas que ele mesmo consome, como VOLUME/MUDO).
+ * Só que este handler não conhecia os keyCodes de mídia: a tecla chegava à
+ * página e era simplesmente IGNORADA. Era o caso exato do botão PLAY/PAUSE e
+ * dos botões ⏪/⏩ do controle — enquanto o volume/mudo continuava funcionando,
+ * porque aqueles o shell consome e avisa pelo `mf-media-key` (tratado em
+ * `onMediaKey`).
+ *
+ * Aqui as duas pontas se encontram: a página passa a tratar os keyCodes de
+ * mídia que ela mesma pediu, e o evento `mf-media-key` continua valendo para o
+ * que o shell consome. Cada tecla tem UM único caminho — nunca os dois.
+ *
+ * O keyCode só é aceito quando `e.key` NÃO é um caractere digitável: assim a
+ * letra "u" do teclado de um computador (keyCode 85) nunca é confundida com o
+ * botão PLAY/PAUSE de um controle.
+ */
+function teclaDeMidia(
+  e: KeyboardEvent,
+): 'togglePlay' | 'seekFwd' | 'seekBack' | 'next' | 'prev' | 'stop' | null {
+  const k = e.key;
+  if (k === 'MediaPlayPause' || k === 'PlayPause' || k === 'MediaPlay' || k === 'MediaPause') {
+    return 'togglePlay';
+  }
+  if (k === 'MediaFastForward') return 'seekFwd';
+  if (k === 'MediaRewind') return 'seekBack';
+  if (k === 'MediaTrackNext') return 'next';
+  if (k === 'MediaTrackPrevious') return 'prev';
+  if (k === 'MediaStop') return 'stop';
+
+  // Android TV / TV Box: `e.key` costuma chegar como "Unidentified" e apenas o
+  // keyCode identifica a tecla.
+  const semCaractere = !k || k.length > 1;
+  if (!semCaractere) return null;
+  const c = e.keyCode || e.which;
+  if (c === 85 || c === 126 || c === 127) return 'togglePlay';
+  if (c === 90) return 'seekFwd';
+  if (c === 89) return 'seekBack';
+  if (c === 87) return 'next';
+  if (c === 88) return 'prev';
+  if (c === 86) return 'stop';
+  return null;
+}
+
 /**
  * TECLAS QUE A CAMADA NATIVA PRECISA "SOLTAR" PARA A PÁGINA.
  *
@@ -100,14 +183,25 @@ const TECLAS_PLAYER = [
   21, // DPAD_LEFT
   22, // DPAD_RIGHT
   23, // DPAD_CENTER (OK)
-  66, // ENTER / NUMPAD_ENTER (OK de vários TV Box)
-  85, // MEDIA_PLAY_PAUSE
-  126, // MEDIA_PLAY
-  127, // MEDIA_PAUSE
-  87, // MEDIA_NEXT
-  88, // MEDIA_PREVIOUS
-  90, // MEDIA_FAST_FORWARD
-  89, // MEDIA_REWIND
+  66, // NUMPAD_ENTER (OK de vários TV Box)
+  // ── AS TECLAS DE MÍDIA **NÃO** ENTRAM AQUI (correção da 5.0.1) ─────────────
+  //
+  // CAUSA RAIZ de "pausar, retomar, avançar e retroceder não respondem ao
+  // controle remoto": na 5.0.0 as teclas de mídia foram incluídas nesta lista.
+  // Pedir uma tecla ao shell significa que o shell DEIXA de consumi-la — e é
+  // justamente AO consumi-la que ele emite o evento `mf-media-key` que o player
+  // já tratava (`onMediaKey`). Com a tecla liberada, ela passou a chegar à
+  // página como um `keydown` cru (e o Chromium do WebView nem sempre converte
+  // MEDIA_* em evento de teclado), e o handler da página não conhecia aqueles
+  // keyCodes: a tecla morria no caminho, sem play/pause e sem seek.
+  // O volume/mudo continuou funcionando porque NUNCA saiu do shell — é o shell
+  // que ajusta o áudio do aparelho e avisa a página por `mf-media-key`.
+  //
+  // Fix: esta lista volta a conter APENAS o que a página precisa receber como
+  // telado (D-pad + OK). As teclas de mídia retornam ao caminho que já
+  // funcionava (shell consome → `mf-media-key`). Cada tecla passa a ter UM
+  // único caminho — nunca os dois —, então não há ação dupla.
+  //
   // BACK NÃO entra: o shell já tem a hierarquia de Voltar (fechar controles →
   // voltar ao detalhe) e mantê-la nativa preserva o comportamento atual.
 ];
@@ -248,12 +342,23 @@ export function TvPlayerPage({ id: idProp }: { id?: string } = {}) {
     }
   }, []);
 
+  /**
+   * Alterna play/pause.
+   *
+   * O estado é lido por REF (`emReproducaoRef`) em vez do atualizador funcional
+   * do `useState`: o `mostrarAviso` abaixo dá o feedback na tela (⏸/▶) e não
+   * pode ser chamado dentro do atualizador — o React pode executá-lo duas vezes
+   * em StrictMode e o aviso apareceria/desapareceria em dobro.
+   */
+  const emReproducaoRef = useRef(true);
+
   const alternarPlay = useCallback(() => {
-    setEmReproducao((v) => {
-      comandarPlayer(v ? 'pause' : 'play');
-      return !v;
-    });
-  }, [comandarPlayer]);
+    const proximoEstado = !emReproducaoRef.current;
+    emReproducaoRef.current = proximoEstado;
+    setEmReproducao(proximoEstado);
+    comandarPlayer(proximoEstado ? 'play' : 'pause');
+    mostrarAviso(proximoEstado ? '▶ Reproduzindo' : '⏸ Pausado');
+  }, [comandarPlayer, mostrarAviso]);
 
   /** Seek pelo controle: avança/retrocede e mostra o passo no aviso. */
   const seek = useCallback(
@@ -262,6 +367,40 @@ export function TvPlayerPage({ id: idProp }: { id?: string } = {}) {
       mostrarAviso(frente ? `⏩ +${PASSO_SEEK}s` : `⏪ −${PASSO_SEEK}s`);
     },
     [comandarPlayer, mostrarAviso],
+  );
+
+  /**
+   * SEEK CONTÍNUO — "segurar para frente/para trás".
+   *
+   * CAUSA RAIZ (relato: "avançar e retroceder não respondem ao controle"): o
+   * seek era UM passo por pulsação e não havia nenhum tratamento da REPETIÇÃO
+   * da tecla. Segurar ⏪/⏩ (ou ←/→) não produzia movimento contínuo — que é o
+   * comportamento esperado de um controle remoto de TV.
+   *
+   * Agora a primeira pulsação dá o passo imediatamente e, enquanto a tecla
+   * continuar pressionada, o passo se REPETE a cada `PASSO_CONTINUO_MS`; o
+   * `keyup` (ou o blur, ou a saída da tela) interrompe o movimento.
+   *
+   * O intervalo é dirigido por NÓS, e não pelo auto-repeat do teclado, porque o
+   * auto-repeat varia por fabricante de TV Box — assim o comportamento é o
+   * mesmo em qualquer aparelho (e é verificável por teste automatizado).
+   */
+  const segurarRef = useRef<number | null>(null);
+
+  const pararSegurar = useCallback(() => {
+    if (segurarRef.current !== null) {
+      window.clearInterval(segurarRef.current);
+      segurarRef.current = null;
+    }
+  }, []);
+
+  const iniciarSegurar = useCallback(
+    (frente: boolean) => {
+      pararSegurar();
+      seek(frente);
+      segurarRef.current = window.setInterval(() => seek(frente), PASSO_CONTINUO_MS);
+    },
+    [seek, pararSegurar],
   );
 
   /** Volume pelo controle (áudio do aparelho pela ponte nativa). */
@@ -446,6 +585,36 @@ export function TvPlayerPage({ id: idProp }: { id?: string } = {}) {
       );
     }
 
+    /**
+     * O foco está DENTRO da barra de controles (num dos botões dela)?
+     *
+     * A barra é IRMÃ da caixa do vídeo, não filha: por isso `focoNoPlayer()` é
+     * falso com o foco num botão da barra, e a decisão precisa ser feita aqui.
+     */
+    function focoNaBarra(): boolean {
+      const ativo = document.activeElement as HTMLElement | null;
+      return !!ativo && !!ativo.closest?.('.tv-player-controls');
+    }
+
+    /** Botões VISÍVEIS da barra, na ordem em que aparecem na tela. */
+    function botoesDaBarra(): HTMLButtonElement[] {
+      const barra = document.querySelector('.tv-player-controls');
+      if (!barra) return [];
+      return Array.from(barra.querySelectorAll<HTMLButtonElement>('button')).filter(
+        (b) => b.getBoundingClientRect().width > 0,
+      );
+    }
+
+    /** Move o foco entre os botões da barra (Δ = −1 ou +1), em ciclo. */
+    function moverFocoBarra(delta: number) {
+      const lista = botoesDaBarra();
+      if (lista.length === 0) return;
+      const atual = document.activeElement as HTMLElement | null;
+      const i = atual ? lista.indexOf(atual as HTMLButtonElement) : -1;
+      const base = i < 0 ? 0 : (i + delta + lista.length) % lista.length;
+      lista[base]?.focus({ preventScroll: true });
+    }
+
     /** Teclas de mídia do controle (emitidas pelo shell como `mf-media-key`). */
     function onMediaKey(e: Event) {
       const tipo = (e as CustomEvent<string>).detail;
@@ -518,6 +687,38 @@ export function TvPlayerPage({ id: idProp }: { id?: string } = {}) {
         return;
       }
 
+      // ── TECLAS DE MÍDIA DO CONTROLE (play/pause, ⏪, ⏩, próximo) ──────────
+      //
+      // CAUSA RAIZ: ver `teclaDeMidia` no topo do arquivo. Estas teclas estão em
+      // `TECLAS_PLAYER`, então o shell as entrega ao WebView como `keydown` e
+      // NÃO emite `mf-media-key` para elas — mas este handler não conhecia os
+      // keyCodes de mídia, e a tecla era IGNORADA. É o defeito exato de "pausar,
+      // retomar, avançar e retroceder não respondem ao controle": o botão
+      // PLAY/PAUSE e as teclas ⏪/⏩ do controle não faziam nada, enquanto
+      // volume/mudo (consumidos pelo shell) continuavam funcionando.
+      //
+      // Aqui a tecla passa a agir de verdade, e ⏪/⏩ SEGURADAS fazem seek
+      // contínuo (mesmo mecanismo do ←/→: `iniciarSegurar`).
+      const midia = teclaDeMidia(e);
+      if (midia) {
+        e.preventDefault();
+        e.stopPropagation();
+        if (midia === 'togglePlay') {
+          alternarPlay();
+        } else if (midia === 'seekFwd') {
+          if (!e.repeat) iniciarSegurar(true);
+        } else if (midia === 'seekBack') {
+          if (!e.repeat) iniciarSegurar(false);
+        } else if (midia === 'next') {
+          if (proximo) proximoEpisodio();
+        } else if (midia === 'prev') {
+          seek(false);
+        } else if (midia === 'stop') {
+          voltar();
+        }
+        return;
+      }
+
       // ── BACK hierárquico ─────────────────────────────────────────────────
       if (ehBack) {
         e.preventDefault();
@@ -529,6 +730,62 @@ export function TvPlayerPage({ id: idProp }: { id?: string } = {}) {
 
       // ── Painel de configurações aberto: a navegação dele cuida das teclas ─
       if (estadosRef.current.config) return;
+
+      // ══════════════════════════════════════════════════════════════════════
+      // CAUSA RAIZ DO RELATO ("pausar/retomar/avançar/retroceder não respondem
+      // ao controle remoto, embora respondam ao clique") — 5.0.1.
+      //
+      // A barra de controles é IRMÃ da caixa do vídeo (não filha dela). Com a
+      // barra ABERTA e o foco num dos botões, este handler tratava o foco como
+      // se ele estivesse "no player" e:
+      //   • as SETAS caíam em `if (estadosRef.current.controles) return;` — o
+      //     foco não andava, então era impossível sair do play/pause e alcançar
+      //     ⏪ / ⏩ pela navegação por controle;
+      //   • o OK era engolido pelo temporizador de long-press (pin), com o
+      //     `return` logo abaixo — o botão focado NUNCA era acionado;
+      //   • o NUMPAD_ENTER (66) do botão central de TV Box não constava de
+      //     nenhuma lista de OK — o OK simplesmente não existia para a página.
+      // Como o clique do mouse aciona o `onClick` direto, os mesmos botões
+      // funcionavam no navegador e pareciam mortos no controle remoto.
+      //
+      // CORREÇÃO (mínima e cirúrgica, só dentro do player):
+      //   • o foco andando dentro da barra → as setas movem o foco entre os
+      //     botões (se a navegação espacial global já o moveu, não agimos de
+      //     novo: nada de passo duplo);
+      //   • o OK aciona o botão focado — e, num botão de avançar/retroceder,
+      //     SEGURAR o OK liga o seek contínuo (solta e para);
+      //   • NUMPAD_ENTER (66) passa a ser reconhecido como OK.
+      // Fora da barra nada muda: com o foco no vídeo, ←/→/↑/↓ seguem com o
+      // comportamento de sempre (seek, configurações, abrir os controles).
+      // ══════════════════════════════════════════════════════════════════════
+      if (focoNaBarra()) {
+        // A navegação espacial global (registrada antes) já tratou a tecla?
+        // Então não agimos de novo — evita mover o foco duas vezes ou disparar
+        // um clique duplo.
+        if (e.defaultPrevented) return;
+
+        const dir = direcaoDaTecla(e);
+        if (dir) {
+          e.preventDefault();
+          e.stopPropagation();
+          moverFocoBarra(dir === 'left' || dir === 'up' ? -1 : 1);
+          return;
+        }
+
+        if (ehOkDoControle(e)) {
+          const alvo = document.activeElement as HTMLElement | null;
+          if (alvo && alvo.tagName === 'BUTTON') {
+            e.preventDefault();
+            e.stopPropagation();
+            const sentido = alvo.dataset.tvSeek;
+            if (sentido === 'fwd') iniciarSegurar(true);
+            else if (sentido === 'back') iniciarSegurar(false);
+            else alvo.click();
+          }
+          return;
+        }
+        return;
+      }
 
       // ── OK: pulso rápido mostra a barra; long-press pina/solta ────────────
       if (ehOk(e)) {
@@ -561,8 +818,18 @@ export function TvPlayerPage({ id: idProp }: { id?: string } = {}) {
         return;
       }
 
-      // ── Setas: com a barra ABERTA elas navegam os botões (fluxo normal) ───
-      if (estadosRef.current.controles) return;
+      // ── Setas com a barra ABERTA mas o foco FORA dela ─────────────────────
+      // Devolve o foco ao controle principal da barra. O foco é SEMPRE visível
+      // (requisito do controle remoto): o usuário nunca fica sem saber onde está
+      // e nunca precisa de um clique no escuro para "voltar" aos controles.
+      if (estadosRef.current.controles) {
+        if (direcaoDaTecla(e)) {
+          e.preventDefault();
+          e.stopPropagation();
+          (ctrlMainRef.current ?? botoesDaBarra()[0])?.focus({ preventScroll: true });
+        }
+        return;
+      }
 
       // Com o foco FORA do player, as setas pertencem à navegação da página.
       if (!focoNoPlayer()) return;
@@ -572,16 +839,20 @@ export function TvPlayerPage({ id: idProp }: { id?: string } = {}) {
       const cima = k === 'ArrowUp' || k === 'Up' || c === 38 || c === 19;
       const baixo = k === 'ArrowDown' || k === 'Down' || c === 40 || c === 20;
 
+      // SEEK CONTÍNUO: a 1ª pulsação retrocede/avança e, se a tecla continuar
+      // pressionada, o movimento prossegue até soltar (ver `iniciarSegurar`).
+      // O auto-repeat do teclado é ignorado de propósito — quem cadencia o
+      // passo é o nosso intervalo, igual em qualquer aparelho.
       if (esquerda) {
         e.preventDefault();
         e.stopPropagation();
-        seek(false);
+        if (!e.repeat) iniciarSegurar(false);
         return;
       }
       if (direita) {
         e.preventDefault();
         e.stopPropagation();
-        seek(true);
+        if (!e.repeat) iniciarSegurar(true);
         return;
       }
       if (cima) {
@@ -600,6 +871,9 @@ export function TvPlayerPage({ id: idProp }: { id?: string } = {}) {
 
     function onKeyUp(e: KeyboardEvent) {
       if (ehOk(e)) cancelarLongo();
+      // Soltar a tecla PARA o seek contínuo (o OK solto para o seek dos
+      // botões ⏪/⏩ da barra e ⏪/⏩/←/→ segurados no vídeo).
+      if (direcaoDaTecla(e) || ehOkDoControle(e) || teclaDeMidia(e)) pararSegurar();
     }
 
     window.addEventListener('mf-media-key', onMediaKey as EventListener);
@@ -610,6 +884,7 @@ export function TvPlayerPage({ id: idProp }: { id?: string } = {}) {
       window.removeEventListener('keydown', onKeyDown, true);
       window.removeEventListener('keyup', onKeyUp, true);
       cancelarLongo();
+      pararSegurar();
     };
   }, [
     pronto,
@@ -622,6 +897,8 @@ export function TvPlayerPage({ id: idProp }: { id?: string } = {}) {
     abrirConfig,
     tratarVoltar,
     seek,
+    iniciarSegurar,
+    pararSegurar,
     mudarVolume,
     alternarMudo,
     mostrarAviso,
@@ -792,6 +1069,7 @@ export function TvPlayerPage({ id: idProp }: { id?: string } = {}) {
               data-tv-focusable
               tabIndex={controles ? 0 : -1}
               className="tv-player-ctrl"
+              data-tv-seek="back"
               aria-label={`Retroceder ${PASSO_SEEK} segundos`}
               onClick={() => seek(false)}
             >
@@ -818,6 +1096,7 @@ export function TvPlayerPage({ id: idProp }: { id?: string } = {}) {
               data-tv-focusable
               tabIndex={controles ? 0 : -1}
               className="tv-player-ctrl"
+              data-tv-seek="fwd"
               aria-label={`Avançar ${PASSO_SEEK} segundos`}
               onClick={() => seek(true)}
             >
