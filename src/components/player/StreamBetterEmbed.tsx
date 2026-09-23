@@ -34,9 +34,20 @@ import { ehEmbedStreamBetter } from '@/lib/streamEmbed';
 export function StreamBetterEmbed({
   embedUrl,
   onBack,
+  /**
+   * Montar a barra inferior com o botão de tela cheia DESTE componente?
+   *
+   * Na TV o botão é desenhado pela própria página do player
+   * (`src/tv/TvPlayerPage.tsx`), que é quem controla o D-pad. Deixar os DOIS na
+   * tela exibia dois botões de tela cheia — e o de baixo, sem `data-tv-focusable`,
+   * era inalcançável pelo controle remoto. No mobile/site o padrão `true`
+   * continua valendo: nada muda lá.
+   */
+  mostrarTelaCheia = true,
 }: {
   embedUrl: string;
   onBack?: () => void;
+  mostrarTelaCheia?: boolean;
 }) {
   const onBackRef = useRef(onBack);
   onBackRef.current = onBack;
@@ -179,7 +190,10 @@ export function StreamBetterEmbed({
         onLoad={() => setStatus('player')}
       />
 
-      {/* Barra de controle inferior do MovieFlix — botão de tela cheia. */}
+      {/* Barra de controle inferior do MovieFlix — botão de tela cheia.
+          Na TV ela NÃO é montada (`mostrarTelaCheia={false}`): o único botão de
+          tela cheia é o do TvPlayerPage, alcançável pelo controle remoto. */}
+      {mostrarTelaCheia && (
       <div className="pointer-events-none absolute inset-x-0 bottom-0 z-20 flex items-center justify-end bg-gradient-to-t from-black/70 via-black/20 to-transparent px-3 pb-2.5 pt-8">
         <button
           type="button"
@@ -191,6 +205,7 @@ export function StreamBetterEmbed({
           {isFullscreen ? <Minimize className="h-4 w-4" /> : <Maximize className="h-4 w-4" />}
         </button>
       </div>
+      )}
     </div>
   );
 }

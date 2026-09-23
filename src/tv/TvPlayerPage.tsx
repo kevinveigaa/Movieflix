@@ -417,7 +417,11 @@ export function TvPlayerPage({ id: idProp }: { id?: string } = {}) {
       <div className="tv-player-box" data-tv-player-box ref={frameRef} tabIndex={0}>
         {/* O vídeo ocupa a tela inteira; nada fica sobre ele além da barra (quando aberta). */}
         <div ref={iframeWrapRef} className="tv-player-embed">
-          <StreamBetterEmbed key={src} embedUrl={src} onBack={voltar} />
+          {/* `mostrarTelaCheia={false}`: na TV o ÚNICO botão de tela cheia é o da
+              barra de controles abaixo (alcançável pelo D-pad). O do embed
+              aparecia como um SEGUNDO botão — o "botão duplicado" relatado —
+              e ainda era inalcançável pelo controle remoto. */}
+          <StreamBetterEmbed key={src} embedUrl={src} onBack={voltar} mostrarTelaCheia={false} />
         </div>
 
         {/* Superfície clicável: um OK mostra os controles (o iframe continua

@@ -77,7 +77,7 @@ export const TV_APP_INFO = {
   /** Arquivo do APK TV em public/apk/ (mesma pasta servida em /apk/) */
   apkFileName: 'MovieFlix-TV-v4.0.1.apk',
   /** Tamanho exibido (sincronizado com public/apk/MovieFlix-TV-v4.0.1.apk) */
-  sizeMB: '5.3 MB',
+  sizeMB: '7.8 MB',
   package: 'com.movieflix.tv',
   releaseDate: '2026-09-23',
   changelog: [
@@ -92,6 +92,9 @@ export const TV_APP_INFO = {
     'PLAYER: fim do redirecionamento de anúncio e da saída para fora do app — o embed do provedor e a verificação Cloudflare permanecem dentro da TV, como no mobile',
     'PLAYER: interagir (OK, setas ou toque) nunca mais fecha a reprodução — abre/fecha os controles e nada mais',
     'PLAYER: BACK hierárquico — 1ª pulsação fecha os controles, 2ª volta aos detalhes; o app nunca fecha sozinho',
+    'PLAYER: botão de tela cheia duplicado removido — agora existe apenas UM botão, alcançável pelo controle remoto (o do embed, fora do D-pad, saiu)',
+    'PLAYER: o passo "Abrir link" do provedor é acionado automaticamente assim que aparece — antes o usuário ficava preso na tela intermediária, porque na TV não existe o toque que o mobile usa',
+    'LOGIN: digitação restaurada pela TV — o campo abre o teclado da própria TV (Android TV / Google TV) ao apertar OK, e a tecla deixa de ser capturada como navegação',
   ],
   platforms: ['Android TV', 'Google TV', 'TV Box'],
 } as const;

@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { ehTelaDeTv } from "@/lib/tv";
+import { abrirTecladoDaTv, ehCampoDeTexto, reabrirFocoDeTexto } from "@/lib/tecladoTv";
 
 /**
  * Navegação espacial por controle remoto / teclado (TV, TV Box, Android TV Box).
@@ -203,6 +204,21 @@ export function useTvNavigation() {
       // navegava de página no meio da reprodução — o "saiu do player" relatado.
       if (e.defaultPrevented) return;
 
+      // ── CAMPO DE TEXTO (login/busca) ───────────────────────────────────────
+      // Com um campo de texto focado, TODA tecla que produz caractere (letras,
+      // números, símbolos, espaço) segue DIRETO para o campo: nenhuma delas é
+      // interceptada nem recebe preventDefault. Era isso que impedia de digitar
+      // no login da TV — a navegação espacial tratava a digitação como
+      // navegação. Só continuamos a tratar as teclas de CONTROLE (setas, OK,
+      // Voltar), que têm comportamento próprio dentro de um campo.
+      if (ehCampoDeTexto(document.activeElement)) {
+        const controle =
+          acaoDaTecla(e) !== null ||
+          e.keyCode === 19 || e.keyCode === 20 || e.keyCode === 21 || e.keyCode === 22 ||
+          e.keyCode === 23 || e.keyCode === 4 || e.keyCode === 13 || e.keyCode === 8;
+        if (!controle) return; // tecla de digitação → vai para o campo
+      }
+
       const acao = acaoDaTecla(e);
       if (!acao) return;
 
@@ -261,7 +277,22 @@ export function useTvNavigation() {
           }
           return;
         }
-        if (digitando) return; // deixa o form enviar normalmente
+        if (digitando) {
+          // Campo de texto focado. O PRIMEIRO OK precisa ser um gesto do
+          // usuário: é o que faz o teclado da TV subir de verdade (foco
+          // programático NÃO abre o IME do Android — era o "não consigo
+          // digitar" relatado). Depois disso a tecla segue o fluxo normal, para
+          // o "Enter/OK" do teclado da TV enviar/avançar como o esperado.
+          const campo = ativo as HTMLElement & HTMLInputElement;
+          if (campo.dataset.mfTecladoOk !== '1') {
+            e.preventDefault();
+            campo.dataset.mfTecladoOk = '1';
+            if (ehCampoDeTexto(ativo)) reabrirFocoDeTexto(campo);
+            abrirTecladoDaTv();
+            return;
+          }
+          return; // teclado já pedido: deixa o campo/IME cuidar da tecla
+        }
         if (ativo.tagName === "A" || ativo.tagName === "BUTTON" || ativo.hasAttribute("data-tv-focusable")) {
           e.preventDefault();
           ativo.click();
@@ -318,6 +349,13 @@ export function useTvNavigation() {
       limparFocoVisual();
       const ativo = document.activeElement as HTMLElement | null;
       if (ativo && ativo !== document.body) ativo.classList.add("tv-focus");
+      // Campo de texto focado: pede o teclado da TV já na entrada do campo
+      // (nas TVs que aceitam, o teclado abre sem nem precisar do OK).
+      if (ehCampoDeTexto(ativo)) abrirTecladoDaTv();
+      // Ao SAIR de um campo, o "primeiro OK" volta a valer nos demais.
+      document.querySelectorAll<HTMLElement>('[data-mf-teclado-ok]').forEach((el) => {
+        if (el !== document.activeElement) delete el.dataset.mfTecladoOk;
+      });
     }
 
     // Fase de captura: garante que a navegação funcione mesmo quando um

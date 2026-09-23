@@ -20,8 +20,14 @@ import android.webkit.WebResourceRequest;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
+import android.view.inputmethod.InputMethodManager;
 import android.widget.FrameLayout;
 import android.widget.Toast;
+
+import androidx.webkit.WebViewCompat;
+import androidx.webkit.WebViewFeature;
+
+import java.util.Collections;
 
 /**
  * MovieFlix TV 4.0.1 — shell de Android TV / Google TV / TV Box.
@@ -116,15 +122,18 @@ public class MainActivity extends Activity {
 
         // TV: tela sempre acesa e sem barra de status (experiência de cinema).
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
-            getWindow().getDecorView().setSystemUiVisibility(
-                    View.SYSTEM_UI_FLAG_LAYOUT_STABLE
-                            | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
-                            | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
-                            | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
-                            | View.SYSTEM_UI_FLAG_FULLSCREEN
-                            | View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY);
-        }
+        // EXPERIÊNCIA TELA CHEIA — com uma ressalva importante: NÃO usamos
+        // SYSTEM_UI_FLAG_FULLSCREEN/FLAG_FULLSCREEN.
+        //
+        // CAUSA RAIZ do bug "no login da TV não dá mais para digitar": com
+        // FLAG_FULLSCREEN ativa, o Android NÃO exibe o teclado virtual (IME) —
+        // limitação conhecida da plataforma. Como o teclado on-screen da TV é
+        // a única forma de digitar com o controle remoto, mantínhamos o campo
+        // com foco, mas o teclado nunca subia.
+        // A barra de navegação continua escondida (immersive sticky) e o
+        // conteúdo continua usando a tela toda (LAYOUT_FULLSCREEN) — só o
+        // "esconder a status bar por cima do IME" foi removido.
+        aplicarModoImersivo();
 
         setContentView(R.layout.activity_main);
 
@@ -200,6 +209,10 @@ public class MainActivity extends Activity {
         PonteNativa ponte = new PonteNativa();
         webView.addJavascriptInterface(ponte, "MovieFlixApp");
         webView.addJavascriptInterface(ponte, "MovieFlixAndroid");
+
+        // Aciona sozinho o botão "Abrir link" do passo intermediário do
+        // provedor (ver instalarAutoclickAbrirLink).
+        instalarAutoclickAbrirLink(webView);
 
         webView.setWebViewClient(new WebViewClient() {
             @Override
@@ -283,6 +296,9 @@ public class MainActivity extends Activity {
                     WebView.WebViewTransport transport = (WebView.WebViewTransport) resultMsg.obj;
                     WebView nova = new WebView(MainActivity.this);
                     copiarConfiguracao(view, nova);
+                    // A janela nova recebe o MESMO autoclick (o passo "Abrir link"
+                    // pode abrir em janela nova).
+                    instalarAutoclickAbrirLink(nova);
                     nova.setWebViewClient(new WebViewClient() {
                         @Override
                         public boolean shouldOverrideUrlLoading(WebView v, WebResourceRequest request) {
@@ -305,6 +321,101 @@ public class MainActivity extends Activity {
                 return false;
             }
         });
+    }
+
+    /**
+     * Mantém a tela cheia de TV SEM bloquear o teclado virtual.
+     *
+     * A partir do Android 11 usamos o controlador de insets moderno (sem
+     * `FLAG_FULLSCREEN`); abaixo disso, os flags legados de "immersive sticky"
+     * SEM `SYSTEM_UI_FLAG_FULLSCREEN` — que é justamente o flag que impede o
+     * IME de aparecer.
+     */
+    private void aplicarModoImersivo() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            androidx.core.view.WindowCompat.setDecorFitsSystemWindows(getWindow(), false);
+            androidx.core.view.WindowInsetsControllerCompat c =
+                    androidx.core.view.WindowCompat.getInsetsController(getWindow(), getWindow().getDecorView());
+            c.hide(androidx.core.view.WindowInsetsCompat.Type.systemBars());
+            c.setSystemBarsBehavior(
+                    androidx.core.view.WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE);
+            return;
+        }
+        getWindow().getDecorView().setSystemUiVisibility(
+                View.SYSTEM_UI_FLAG_LAYOUT_STABLE
+                        | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
+                        | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
+                        | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
+                        | View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY);
+    }
+
+    /**
+     * Abre o TECLADO DA TV (IME) para o campo de texto do site.
+     *
+     * O site pede isso pela ponte (`MovieFlixApp.mostrarTeclado`) quando o
+     * usuário aperta OK num campo de login/busca. `showSoftInput` precisa do
+     * WebView com foco e não funciona em modo fullscreen — por isso as duas
+     * coisas andam juntas (ver aplicarModoImersivo).
+     */
+    private void abrirTeclado() {
+        if (webView == null) return;
+        webView.requestFocus();
+        try {
+            InputMethodManager imm =
+                    (InputMethodManager) getSystemService(android.content.Context.INPUT_METHOD_SERVICE);
+            if (imm != null) imm.showSoftInput(webView, InputMethodManager.SHOW_IMPLICIT);
+        } catch (Exception e) {
+            // Sem teclado disponível (ex.: TV sem IME): a digitação segue
+            // funcionando pelo teclado físico do controle, se houver.
+        }
+    }
+
+    /**
+     * PASSO INTERMEDIÁRIO DO PROVEDOR — clique automático.
+     *
+     * O embed do provedor às vezes mostra uma tela "Só mais um passo" com um
+     * botão "Abrir link" que PRECISA ser acionado antes de o vídeo começar. Ele
+     * vive DENTRO do iframe do provedor (outra origem), então o site não tem
+     * como tocá-lo e, numa TV, não existe o "clique" que o mobile faz com o
+     * dedo. Sem isso o usuário fica preso na tela intermediária.
+     *
+     * A injeção é do tipo DOCUMENT_START (androidx.webkit): roda ANTES do
+     * script da página, em TODOS os frames (inclusive o do provedor), e apenas
+     * CLICA o botão. Ela não esconde nada, não cria botão falso e não toca em
+     * nenhum elemento do Cloudflare/Turnstile — o desafio de verificação
+     * continua exatamente como está (o texto dele não casa com "Abrir link").
+     *
+     * Onde a plataforma não suporta, o app simplesmente não injeta: nada quebra.
+     */
+    private static final String SCRIPT_AUTOCLICK =
+            "(function(){"
+            + " if (window.__mfAutoAbrirLink) return; window.__mfAutoAbrirLink = true;"
+            + " var RE = /^\\s*(abrir link|abrir o link|clique aqui|continuar)\\s*[>\\u00bb\\u2192]*\\s*$/i;"
+            + " var cliques = 0, ultimo = 0;"
+            + " function alvo(el){ if(!el) return false; if(!el.getBoundingClientRect) return false;"
+            + "   var t=(el.textContent||'').replace(/\\s+/g,' ').trim();"
+            + "   if(!t || t.length > 30 || !RE.test(t)) return false;"
+            + "   var r=el.getBoundingClientRect(); if(r.width<8||r.height<8) return false;"
+            + "   return true; }"
+            + " function tentar(){ if(cliques >= 3) return;"
+            + "   var agora=Date.now(); if(agora-ultimo<700) return;"
+            + "   var lista=document.querySelectorAll('button,a,[role=button],[class*=btn],[class*=bot]');"
+            + "   for(var i=0;i<lista.length;i++){ var el=lista[i]; if(!alvo(el)) continue;"
+            + "     ultimo=agora; cliques++; try{ el.click(); }catch(e){} return; } }"
+            + " try{ new MutationObserver(tentar).observe(document.documentElement,{childList:true,subtree:true,characterData:true}); }catch(e){}"
+            + " var id=setInterval(function(){ tentar(); if(cliques>=3) clearInterval(id); }, 400);"
+            + " try{ tentar(); }catch(e){}"
+            + "})();";
+
+    private void instalarAutoclickAbrirLink(WebView alvo) {
+        if (alvo == null) return;
+        try {
+            if (!WebViewFeature.isFeatureSupported(WebViewFeature.DOCUMENT_START_SCRIPT)) return;
+            WebViewCompat.addDocumentStartJavaScript(
+                    alvo, SCRIPT_AUTOCLICK, Collections.singleton("*"));
+        } catch (Exception e) {
+            // Plataforma sem suporte: o usuário ainda pode acionar pelo controle.
+        }
     }
 
     /** Copia as configurações essenciais do WebView principal para uma janela nova. */
@@ -567,6 +678,17 @@ public class MainActivity extends Activity {
             runOnUiThread(() -> abrirIntent(
                     new Intent(Intent.ACTION_VIEW, Uri.parse(alvo)),
                     "WhatsApp não instalado nesta TV"));
+        }
+
+        /**
+         * Abre o teclado virtual da TV para o campo de texto que está focado no
+         * site. Chamado pelo `src/lib/tecladoTv.ts` quando o usuário aperta OK
+         * num campo de login/busca — sem isso o campo recebia foco, mas o
+         * teclado nunca subia e a digitação ficava impossível.
+         */
+        @JavascriptInterface
+        public void mostrarTeclado() {
+            runOnUiThread(MainActivity.this::abrirTeclado);
         }
 
         /** Abre uma URL no navegador externo (sai do WebView). */
