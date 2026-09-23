@@ -1,8 +1,10 @@
-// Top-level build file — MovieFlix TV 4.0.1.
-//
-// O MovieFlix TV é a ADAPTAÇÃO PARA TV DO MESMO MOVIEFLIX:
-// um shell nativo (WebView) que carrega o site oficial e ativa a interface
-// de TV que o próprio site já contém em src/tv/*.
+// Build raiz do MovieFlix TV — apenas declara os plugins usados pelo módulo :app.
 plugins {
     id 'com.android.application' version '8.2.1' apply false
+    id 'org.jetbrains.kotlin.android' version '1.9.22' apply false
+    id 'org.jetbrains.kotlin.plugin.serialization' version '1.9.22' apply false
+}
+
+tasks.register('clean', Delete) {
+    delete rootProject.buildDir
 }

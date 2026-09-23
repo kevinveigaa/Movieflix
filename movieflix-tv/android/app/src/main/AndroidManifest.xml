@@ -5,8 +5,7 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
 
-    <!-- Android TV / Google TV / TV Box: exige leanback e dispensa touchscreen
-         (toda a navegação é por controle remoto D-pad). -->
+    <!-- App NATIVO de Android TV: exige Leanback e NAO exige touchscreen (controle remoto). -->
     <uses-feature
         android:name="android.software.leanback"
         android:required="true" />
@@ -15,44 +14,47 @@
         android:required="false" />
 
     <application
+        android:name=".TvApp"
         android:allowBackup="true"
+        android:banner="@drawable/tv_banner"
         android:icon="@mipmap/ic_launcher"
-        android:roundIcon="@mipmap/ic_launcher"
-        android:banner="@mipmap/tv_banner"
         android:label="@string/app_name"
         android:supportsRtl="true"
         android:usesCleartextTraffic="false"
-        android:theme="@style/Theme.MovieFlixTV"
+        android:theme="@style/Theme.MovieFlixTv"
         tools:targetApi="34">
 
         <activity
-            android:name=".MainActivity"
+            android:name=".SplashActivity"
             android:exported="true"
-            android:launchMode="singleTask"
             android:screenOrientation="landscape"
-            android:configChanges="orientation|keyboardHidden|keyboard|screenSize|smallestScreenSize|screenLayout|uiMode|navigation|density"
-            android:theme="@style/Theme.MovieFlixTV">
-
-            <!-- Launcher de celular/tablet (para instalar também num TV Box Android comum) -->
+            android:theme="@style/Theme.MovieFlixTv">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
-
-            <!-- Launcher de Android TV / Google TV (leanback) -->
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
             </intent-filter>
-
-            <!-- Deep link: movieflix://tv/... — o app abre o site já no
-                 conteúdo escolhido (mesmo esquema do app Mobile). -->
-            <intent-filter>
-                <action android:name="android.intent.action.VIEW" />
-                <category android:name="android.intent.category.DEFAULT" />
-                <category android:name="android.intent.category.BROWSABLE" />
-                <data android:scheme="movieflix" />
-            </intent-filter>
         </activity>
+
+        <activity android:name=".LoginActivity" android:exported="false" android:screenOrientation="landscape" />
+        <activity android:name=".ProfilesActivity" android:exported="false" android:screenOrientation="landscape" />
+        <activity android:name=".HomeActivity" android:exported="false" android:screenOrientation="landscape" />
+        <activity android:name=".CatalogActivity" android:exported="false" android:screenOrientation="landscape" />
+        <activity android:name=".SearchActivity" android:exported="false" android:screenOrientation="landscape" />
+        <activity android:name=".DetailsActivity" android:exported="false" android:screenOrientation="landscape" />
+        <activity android:name=".MyListActivity" android:exported="false" android:screenOrientation="landscape" />
+        <activity android:name=".HistoryActivity" android:exported="false" android:screenOrientation="landscape" />
+        <activity android:name=".AccountActivity" android:exported="false" android:screenOrientation="landscape" />
+        <activity android:name=".PaywallActivity" android:exported="false" android:screenOrientation="landscape" />
+        <activity android:name=".SettingsActivity" android:exported="false" android:screenOrientation="landscape" />
+
+        <activity
+            android:name=".PlayerActivity"
+            android:exported="false"
+            android:screenOrientation="landscape"
+            android:configChanges="orientation|screenSize|keyboardHidden|navigation|uiMode" />
     </application>
 </manifest>
