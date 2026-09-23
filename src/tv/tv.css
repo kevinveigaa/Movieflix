@@ -456,11 +456,21 @@
 
 .tv-player-tap-oculto { display: none; }
 
-/* Overlay (topo + controles): existe sempre, mas invisível até o OK. */
+/* Barra de controles do player: UMA única superfície, ancorada no RODAPÉ.
+
+   CAUSA RAIZ (relato: "remover os botões exibidos na parte de cima do player"):
+   a versão anterior montava DUAS superfícies concorrentes sobre o vídeo — uma
+   barra de topo (marca + título, `.tv-player-top`) e a barra de controles
+   embaixo — e ainda havia um botão de pause próprio do embed. Agora existe só
+   esta barra, no rodapé; nada fica solto em cima do vídeo, e o título vive
+   DENTRO da barra, como identidade (não como botão). */
 .tv-player-overlay {
   position: absolute;
   inset: 0;
   z-index: 25;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
   opacity: 0;
   pointer-events: none;
   transition: opacity 0.22s ease;
@@ -469,12 +479,15 @@
 .tv-player-overlay-ativo { opacity: 1; }
 .tv-player-overlay-ativo .tv-player-controls { pointer-events: auto; }
 
+/* Barra PINADA (segurar OK): não desaparece sozinha — é o "modo controle". */
+.tv-player-overlay-fixo {
+  transition: none;
+}
+
+/* Dica de uso: agora vive DENTRO da barra (não é mais uma linha absoluta
+   colada no rodapé da tela), então acompanha os controles ao abrir/fechar. */
 .tv-player-dica {
-  position: absolute;
-  bottom: 1.4vh;
-  left: 0;
-  right: 0;
-  margin: 0;
+  margin: 1.1vh 0 0;
   text-align: center;
   color: #c9c9d4;
   font-size: clamp(10px, 1.22vh, 18px);
@@ -1411,11 +1424,18 @@
   transition: border-color 0.18s ease, box-shadow 0.18s ease;
 }
 
-/* Foco no player = anel da marca (não o azul do sistema). */
+/* SEM borda vermelha no vídeo.
+
+   CAUSA RAIZ (relato: "a borda vermelha ao redor do vídeo está feia"): o foco no
+   contêiner do player pintava uma moldura de 3px em vermelho CHEIO
+   (`border-color: var(--mf-red-600)`) em volta de todo o vídeo. O foco precisa
+   ser visível, mas emoldurar a área de imagem é feio e atrapalha a imersão.
+   Agora o indicador é um fio interno quase imperceptível — e, na prática, quem
+   diz onde o controle está é a própria barra de controles. */
 .tv-player-box.tv-focus,
 .tv-player-box:focus-visible {
-  border-color: var(--mf-red-600);
-  box-shadow: inset 0 0 0 1px rgba(124, 58, 237, 0.6), 0 0 32px rgba(223, 10, 21, 0.4);
+  border-color: rgba(255, 255, 255, 0.06);
+  box-shadow: none;
 }
 
 /* Player limpo: durante a reprodução os controles ficam ocultos. */
@@ -1678,4 +1698,279 @@
 /* Telas estreitas: campos empilhados. */
 @media (max-width: 900px) {
   .tv-login-campos { grid-template-columns: 1fr; }
+}
+
+/* ══════════════════════════════════════════════════════════════════════════════
+   BOTÃO DE TECLADO NA TELA (login da TV)
+   ══════════════════════════════════════════════════════════════════════════════
+
+   O teclado na tela agora fica OCULTO por padrão, e quem o abre é este botão.
+   Ele fica na MESMA linha dos campos (o grid de 2 colunas deixa uma terceira
+   posição livre) e é pequeno de propósito: é um atalho, não a ação principal do
+   formulário — a ação principal é o "Entrar". */
+
+.tv-login-teclado-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.7vh;
+  align-self: end;
+  height: clamp(38px, 5.6vh, 62px);
+  padding: 0 1.4vw;
+  border-radius: 12px;
+  border: 2px solid rgba(255, 255, 255, 0.18);
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+  font-size: clamp(11px, 1.45vh, 21px);
+  font-weight: 700;
+  cursor: pointer;
+  outline: none;
+  transition: transform 0.14s ease, background 0.14s ease, border-color 0.14s ease;
+}
+
+.tv-login-teclado-btn.tv-focus,
+.tv-login-teclado-btn:focus-visible {
+  border-color: #fff;
+  background: rgba(255, 255, 255, 0.18);
+  transform: scale(1.04);
+  box-shadow: 0 0 0 3px rgba(223, 10, 21, 0.5);
+}
+
+/* Teclado ABERTO: o botão vira o "desligar" — mesma linguagem do item ativo. */
+.tv-login-teclado-btn-ativo {
+  background: var(--mf-grad);
+  border-color: transparent;
+}
+
+.tv-login-teclado-btn-txt {
+  white-space: nowrap;
+}
+
+/* Com o rótulo visível, o grid precisa comportar 3 colunas em telas largas. */
+@media (min-width: 901px) {
+  .tv-login-campos { grid-template-columns: 1fr 1fr auto; }
+}
+
+/* ── Abas do teclado (ABC / 123 / #+&) ───────────────────────────────────────
+   O teclado anterior tinha UMA grade só, misturando letras, dígitos e simbologia
+   — e ficava incompleto. As abas são botões focáveis como qualquer tecla, então
+   o D-pad alcança e troca o conjunto sem sair do teclado. */
+.tv-keyboard-abas {
+  margin-bottom: 0.2vh;
+}
+
+.tv-key-aba {
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  background: rgba(255, 255, 255, 0.1);
+}
+
+/* Agrupa as linhas da aba ativa (o "corpo" do teclado). */
+.tv-keyboard-grade {
+  display: flex;
+  flex-direction: column;
+  gap: 0.7vh;
+  align-items: center;
+}
+
+/* ══════════════════════════════════════════════════════════════════════════════
+   BARRA ÚNICA DE CONTROLES DO PLAYER (rodapé)
+   ══════════════════════════════════════════════════════════════════════════════
+
+   Antes havia uma barra de TOPO fixa (marca + título) sobre o vídeo. O usuário
+   pediu que os botões de cima saíssem — e a barra de topo era o principal
+   ofensor (podia ser lida como "botões na parte de cima"). Agora só existe este
+   bloco, no rodapé, com o título como identidade à esquerda. */
+
+.tv-player-barra {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  padding: 3vh 1.8vw 2vh;
+  background: linear-gradient(0deg, rgba(0, 0, 0, 0.94) 0%, rgba(0, 0, 0, 0.72) 55%, rgba(0, 0, 0, 0) 100%);
+}
+
+/* Título + marca: identidade dentro da barra (nunca botões soltos no topo). */
+.tv-player-identidade {
+  display: flex;
+  align-items: center;
+  gap: 1.1vw;
+  margin-bottom: 1.6vh;
+  min-width: 0;
+}
+
+.tv-player-identidade-txt {
+  min-width: 0;
+}
+
+.tv-player-barra .tv-player-title {
+  font-size: clamp(13px, 1.7vh, 27px);
+}
+
+/* Linha de controles: botões grandes, alcançáveis a distância. */
+.tv-player-barra .tv-player-controls {
+  flex-wrap: wrap;
+}
+
+/* Passo do seek desenhado dentro do próprio botão (-10 / +10). */
+.tv-player-ctrl-passo {
+  position: absolute;
+  font-size: clamp(8px, 1vh, 15px);
+  font-weight: 800;
+  transform: translateY(38%);
+  pointer-events: none;
+}
+
+.tv-player-ctrl {
+  position: relative;
+}
+
+/* Botão de estado ligado (ex.: MUDO ativo). */
+.tv-player-ctrl-ativo {
+  background: var(--mf-grad);
+  box-shadow: 0 0 0 3px rgba(223, 10, 21, 0.5);
+}
+
+/* Aviso curto sobreposto (volume / seek) — feedback sem poluir o vídeo. */
+.tv-player-toast {
+  position: absolute;
+  top: 3vh;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 40;
+  padding: 1.1vh 1.6vw;
+  border-radius: 999px;
+  background: rgba(10, 10, 15, 0.88);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  color: #fff;
+  font-size: clamp(11px, 1.5vh, 22px);
+  font-weight: 700;
+  pointer-events: none;
+}
+
+/* ══════════════════════════════════════════════════════════════════════════════
+   PAINEL DE CONFIGURAÇÕES DO PLAYER (D-pad)
+   ══════════════════════════════════════════════════════════════════════════════
+
+   Aberto por ↑ (com o foco no player) ou pelo botão de engrenagem. Todos os
+   controles são focáveis pelo D-pad e o BACK fecha o painel antes de qualquer
+   outra coisa (ver tratarVoltar no TvPlayerPage). */
+
+.tv-config {
+  position: absolute;
+  inset: 0;
+  z-index: 45;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 3vh 3vw;
+  background: rgba(0, 0, 0, 0.72);
+  backdrop-filter: blur(6px);
+}
+
+.tv-config-caixa {
+  width: min(86vw, 1100px);
+  max-height: 88vh;
+  overflow-y: auto;
+  padding: 2.4vh 2.2vw;
+  border-radius: 18px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: linear-gradient(160deg, rgba(20, 20, 28, 0.98), rgba(10, 10, 15, 0.98));
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.7);
+}
+
+.tv-config-topo {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1vw;
+  margin-bottom: 1.6vh;
+}
+
+.tv-config-titulo {
+  font-size: clamp(15px, 2.1vh, 32px);
+  font-weight: 800;
+  color: #fff;
+  margin: 0;
+}
+
+.tv-config-linha {
+  display: flex;
+  align-items: center;
+  gap: 1.4vw;
+  padding: 1.3vh 0;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.tv-config-rotulo {
+  flex: 0 0 clamp(90px, 11vw, 200px);
+  font-size: clamp(12px, 1.6vh, 24px);
+  font-weight: 700;
+  color: #d6d6e0;
+}
+
+.tv-config-acoes {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.9vw;
+}
+
+.tv-config-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: clamp(38px, 5.4vh, 66px);
+  height: clamp(38px, 5.4vh, 66px);
+  padding: 0 1.1vw;
+  border-radius: 12px;
+  border: 2px solid rgba(255, 255, 255, 0.16);
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+  font-size: clamp(13px, 1.8vh, 26px);
+  font-weight: 800;
+  cursor: pointer;
+  outline: none;
+  transition: transform 0.14s ease, background 0.14s ease, border-color 0.14s ease;
+}
+
+.tv-config-btn-larga {
+  min-width: 0;
+  font-size: clamp(11px, 1.5vh, 22px);
+}
+
+.tv-config-btn.tv-focus,
+.tv-config-btn:focus-visible {
+  border-color: #fff;
+  background: rgba(255, 255, 255, 0.18);
+  transform: scale(1.05);
+  box-shadow: 0 0 0 3px rgba(223, 10, 21, 0.5);
+}
+
+.tv-config-btn-ativo {
+  background: var(--mf-grad);
+  border-color: transparent;
+}
+
+.tv-config-valor {
+  min-width: clamp(52px, 6vw, 120px);
+  text-align: center;
+  font-size: clamp(12px, 1.6vh, 24px);
+  font-weight: 800;
+  color: #fff;
+}
+
+.tv-config-dica {
+  margin: 1.6vh 0 0;
+  font-size: clamp(10px, 1.25vh, 19px);
+  color: var(--mf-muted);
+  text-align: center;
+}
+
+/* 720p: o painel precisa caber sem rolar. */
+@media (max-height: 780px) {
+  .tv-config-caixa { padding: 1.8vh 1.8vw; }
+  .tv-config-linha { padding: 1vh 0; }
+  .tv-player-barra { padding: 2vh 1.6vw 1.4vh; }
+  .tv-player-identidade { margin-bottom: 1.1vh; }
 }

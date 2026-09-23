@@ -4,12 +4,18 @@ import {
   ArrowLeft,
   Maximize,
   Minimize,
+  RotateCcw,
+  RotateCw,
   SkipForward,
   X,
   Loader2,
   AlertCircle,
   Pause,
   Play,
+  Settings,
+  Volume1,
+  Volume2,
+  VolumeX,
 } from 'lucide-react';
 import { useMovies } from '@/hooks/useMovies';
 import { useAuth } from '@/context/AuthContext';
@@ -21,6 +27,13 @@ import {
 } from '@/lib/strembetter';
 import { StreamBetterEmbed } from '@/components/player/StreamBetterEmbed';
 import { TvMark } from './TvBrand';
+import {
+  ajustarVolume,
+  definirMudo,
+  lerMudo,
+  lerVolume,
+  volumeNativoDisponivel,
+} from '@/lib/volumeTv';
 import { cn } from '@/lib/cn';
 
 /**
@@ -33,33 +46,39 @@ import { cn } from '@/lib/cn';
  * carregamos. A proteção contra popups/redirects/anúncios é o antiAds global
  * (`src/lib/antiAds.ts`), com Cloudflare/Turnstile preservados.
  *
- * ── PLAYER LIMPO (experiência de TV) ────────────────────────────────────────
- * Durante a reprodução NENHUMA barra fica sobre o vídeo. Os controles aparecem
- * quando o usuário aperta OK (ou uma tecla de mídia) e desaparecem sozinhos
- * depois de ~4s de inatividade. O vídeo ocupa a tela inteira — não há barra
- * fixa como na versão anterior.
+ * ── O QUE FOI CORRIGIDO NESTA VERSÃO (relato do usuário) ─────────────────────
+ *  a) NÃO HÁ MAIS BOTÕES SOLTOS NO TOPO. A versão anterior desenhava uma barra
+ *     de topo sobre o vídeo (marca + título) e a barra de controles embaixo —
+ *     duas superfícies concorrentes na tela. Agora existe UMA barra única, no
+ *     rodapé, com o título discreto à esquerda e os controles à direita. Nada
+ *     fica solto sobre o vídeo.
+ *  b) SEEK PELO CONTROLE: ← retrocede 10s e → avança 10s, com o passo à vista.
+ *     Funciona com o foco no player (controles fechados), que é o estado normal
+ *     durante a reprodução. Também há os botões ⟲ / ⟳ na barra.
+ *  c) CONFIGURAÇÕES DO PLAYER pelo controle: ↑ (controles fechados) ou o botão
+ *     de engrenagem abrem o painel, navegável só com o D-pad.
+ *  d) VOLUME pelo controle: as teclas +/− do controle aumentam/diminuem e 🔇
+ *     muta/desmuta. O ajuste vai pelo AudioManager do aparelho (ponte nativa),
+ *     porque o vídeo vive num iframe de OUTRA origem — mexer em `video.volume`
+ *     ali dentro é impossível e um botão assim seria decorativo. Com um player
+ *     HLS NATIVO do MovieFlix, o volume cai no `<video>` direto.
+ *  e) SEM BORDA VERMELHA ao redor do vídeo (a regra de CSS do foco foi
+ *     removida). O indicador de foco agora é discreto e vive na barra.
+ *  f) TUDO ACIONADO PELO CONTROLE DENTRO DO APP: o shell Android repassa as
+ *     teclas de mídia como `mf-media-key` e as de D-pad como keydown normal;
+ *     ambos os caminhos estão tratados aqui.
  *
- * ── TECLAS DE MÍDIA DO CONTROLE REMOTO ──────────────────────────────────────
- * O shell Android (MainActivity) converte as teclas de mídia do controle no
- * evento `mf-media-key` e nós o escutamos:
- *   togglePlay → play/pause        next → próximo episódio (quando existe)
- *   seekFwd/seekBack → ±10s        stop → sai da reprodução
- * Essas ações são repassadas ao player embutido por `postMessage` (o canal
- * padrão de comunicação com o embed do provedor) e refletidas nos controles
- * desta tela. O provider continua sendo o dono da reprodução — não inventamos
- * um player paralelo.
- *
- * ── "PRÓXIMO EPISÓDIO" ──────────────────────────────────────────────────────
- * Só aparece para SÉRIE e SOMENTE quando existe um próximo episódio real com
- * fonte no catálogo (`episodes_available` ordenado). Em filme, nunca é mostrado.
- *
- * ── BACK ────────────────────────────────────────────────────────────────────
- * Hierarquia: 1º sai dos controles (se abertos) → 2º volta para os DETALHES.
- * Nunca fecha o app de surpresa.
+ * ── HIERARQUIA DO BACK (nunca fecha o app de surpresa) ───────────────────────
+ *  1º painel de configurações aberto  → fecha o painel;
+ *  2º controles abertos               → fecha os controles;
+ *  3º volta para os DETALHES do título.
  */
 
 /** Tempo de inatividade antes de esconder os controles (ms). */
 const AUTO_HIDE_MS = 4000;
+
+/** Passo do seek pelo controle remoto, em segundos. */
+const PASSO_SEEK = 10;
 
 export function TvPlayerPage({ id: idProp }: { id?: string } = {}) {
   const { id: idParam } = useParams();
@@ -73,12 +92,27 @@ export function TvPlayerPage({ id: idProp }: { id?: string } = {}) {
   const iframeWrapRef = useRef<HTMLDivElement>(null);
   const autoHideRef = useRef<number | null>(null);
 
-  /** Controles visíveis (nunca ficam abertos durante a reprodução). */
+  /** Controles visíveis (nunca ficam abertos durante a reprodução, salvo pin). */
   const [controles, setControles] = useState(false);
+  /** Controles PINADOS (segurar OK): não somem sozinhos. */
+  const [fixo, setFixo] = useState(false);
+  /** Painel de configurações do player aberto? */
+  const [config, setConfig] = useState(false);
   /** Controle principal (play/pause) — recebe o foco quando a barra abre. */
   const ctrlMainRef = useRef<HTMLButtonElement>(null);
   /** Estado otimista de play/pause para o ícone do controle. */
   const [emReproducao, setEmReproducao] = useState(true);
+  /** Recria o embed ("Recarregar player") sem duplicar iframes. */
+  const [recarga, setRecarga] = useState(0);
+
+  /** Volume da mídia do aparelho (0–100) e mudo — lidos da ponte nativa. */
+  const [volume, setVolume] = useState<number>(() => lerVolume() ?? 50);
+  const [mudo, setMudo] = useState<boolean>(() => lerMudo() ?? false);
+  /** O aparelho expõe o volume da mídia ao site? (independe do navegador) */
+  const temVolume = volumeNativoDisponivel() || typeof lerVolume() === 'number';
+  /** Aviso curto sobreposto (feedback de volume/seek/sem volume). */
+  const [aviso, setAviso] = useState<string | null>(null);
+  const avisoRef = useRef<number | null>(null);
 
   const movie = useMemo(
     () => (movies.data ?? []).find((m) => String(m.id) === String(id)) ?? null,
@@ -140,10 +174,22 @@ export function TvPlayerPage({ id: idProp }: { id?: string } = {}) {
     navigate(`/tv/assistir/${movie.id}?temporada=${proximo.season}&episodio=${proximo.episode}`);
   }, [proximo, movie, navigate]);
 
+  /** Mostra um aviso curto sobreposto (feedback das ações do controle). */
+  const mostrarAviso = useCallback((texto: string) => {
+    setAviso(texto);
+    if (avisoRef.current !== null) window.clearTimeout(avisoRef.current);
+    avisoRef.current = window.setTimeout(() => setAviso(null), 1400);
+  }, []);
+
   /**
    * Envia um comando para o player embutido. Os embeds de provedor escutam
    * `postMessage` na janela do iframe; enviamos o formato genérico que os
    * players HTML5 (e o próprio StreamBetter) reconhecem, de forma tolerante.
+   *
+   * IMPORTANTE — HONESTIDADE: se o provedor não aceitar comandos externos (é
+   * comum, por segurança), o comando NÃO faz efeito. Por isso o seek também é
+   * oferecido pelos controles nativos do embed, e o volume é resolvido pelo
+   * áudio do APARELHO (que funciona de verdade em qualquer provedor).
    */
   const comandarPlayer = useCallback((acao: 'play' | 'pause' | 'toggle' | 'seekFwd' | 'seekBack') => {
     const iframe = iframeWrapRef.current?.querySelector('iframe');
@@ -163,18 +209,54 @@ export function TvPlayerPage({ id: idProp }: { id?: string } = {}) {
     });
   }, [comandarPlayer]);
 
+  /** Seek pelo controle: avança/retrocede e mostra o passo no aviso. */
+  const seek = useCallback(
+    (frente: boolean) => {
+      comandarPlayer(frente ? 'seekFwd' : 'seekBack');
+      mostrarAviso(frente ? `⏩ +${PASSO_SEEK}s` : `⏪ −${PASSO_SEEK}s`);
+    },
+    [comandarPlayer, mostrarAviso],
+  );
+
+  /** Volume pelo controle (áudio do aparelho pela ponte nativa). */
+  const mudarVolume = useCallback(
+    (delta: number) => {
+      const ok = ajustarVolume(delta);
+      if (!ok) {
+        mostrarAviso('Volume indisponível — use o volume da TV');
+        return;
+      }
+      const novo = lerVolume();
+      if (typeof novo === 'number') setVolume(novo);
+      else setVolume((v) => Math.min(100, Math.max(0, v + delta)));
+      const m = lerMudo();
+      if (typeof m === 'boolean') setMudo(m);
+      mostrarAviso(delta > 0 ? `🔊 ${typeof novo === 'number' ? novo : 'Volume'}%` : `🔉 Volume`);
+    },
+    [mostrarAviso],
+  );
+
+  const alternarMudo = useCallback(() => {
+    const alvo = !mudo;
+    if (!definirMudo(alvo)) {
+      mostrarAviso('Mudo indisponível — use o volume da TV');
+      return;
+    }
+    setMudo(alvo);
+    mostrarAviso(alvo ? '🔇 Mudo' : '🔊 Som');
+  }, [mudo, mostrarAviso]);
+
   /**
    * Mostra os controles e (re)agenda o auto-hide.
    *
    * O foco vai para o controle principal (play/pause): sem isso o D-pad podia
    * cair em qualquer botão da barra — inclusive no de sair — e um OK "de
-   * interação" acabava fechando o player (bug relatado).
+   * interação" acabava fechando o player.
    */
   const mostrarControles = useCallback(() => {
     setControles(true);
     if (autoHideRef.current !== null) window.clearTimeout(autoHideRef.current);
     autoHideRef.current = window.setTimeout(() => setControles(false), AUTO_HIDE_MS);
-    // Foco previsível: sempre no play/pause quando a barra abre.
     window.setTimeout(() => {
       try {
         ctrlMainRef.current?.focus({ preventScroll: true });
@@ -188,6 +270,8 @@ export function TvPlayerPage({ id: idProp }: { id?: string } = {}) {
     if (autoHideRef.current !== null) window.clearTimeout(autoHideRef.current);
     autoHideRef.current = null;
     setControles(false);
+    setFixo(false);
+    document.documentElement.classList.remove('tv-in-player');
     // Devolve o foco à superfície do player (o D-pad continua aqui).
     try {
       frameRef.current?.focus({ preventScroll: true });
@@ -196,41 +280,62 @@ export function TvPlayerPage({ id: idProp }: { id?: string } = {}) {
     }
   }, []);
 
+  const abrirConfig = useCallback(() => {
+    setConfig(true);
+    if (autoHideRef.current !== null) window.clearTimeout(autoHideRef.current);
+    setControles(true);
+    window.setTimeout(() => {
+      document.querySelector<HTMLElement>('[data-tv-config-panel] [data-tv-focusable]')?.focus({
+        preventScroll: true,
+      });
+    }, 30);
+  }, []);
+
+  const fecharConfig = useCallback(() => {
+    setConfig(false);
+    try {
+      frameRef.current?.focus({ preventScroll: true });
+    } catch {
+      /* ignora */
+    }
+  }, []);
+
   /**
-   * BACK hierárquico do player. Fonte única da decisão (usada pela tecla e pela
-   * camada nativa do Android TV):
-   *   1º com os controles abertos  → fecha os controles e permanece no player;
-   *   2º com os controles fechados → volta para os DETALHES.
+   * BACK hierárquico do player. Fonte única da decisão:
+   *   1º painel de configurações → fecha o painel;
+   *   2º controles abertos       → fecha os controles;
+   *   3º volta para os DETALHES.
    * Em nenhum caso fecha o app de surpresa.
-   *
-   * @returns true quando a pulsação foi consumida aqui.
    */
   const tratarVoltar = useCallback((): boolean => {
-    if (controlesRef.current) {
+    if (config) {
+      fecharConfig();
+      return true;
+    }
+    if (controles) {
       esconderControles();
       return true;
     }
     voltar();
     return true;
-  }, [esconderControles, voltar]);
+  }, [config, fecharConfig, controles, esconderControles, voltar]);
 
-  // O estado dos controles precisa ser legível dentro de listeners antigos sem
-  // recriá-los a cada mudança.
-  const controlesRef = useRef(false);
-  controlesRef.current = controles;
+  // O estado precisa ser legível dentro de listeners sem recriá-los a cada mudança.
+  const estadosRef = useRef({ controles, fixo, config });
+  estadosRef.current = { controles, fixo, config };
 
-  // Informa a camada nativa (Android TV) se o BACK deve fechar os controles
-  // antes de navegar — lido de forma SÍNCRONA pelo onBackPressed do shell.
+  // Informa a camada nativa (Android TV) se o BACK deve fechar algo antes de
+  // navegar — lido de forma SÍNCRONA pelo onBackPressed do shell.
   useEffect(() => {
     const ponte = (window as unknown as {
       MovieFlixAndroid?: { setControlesAbertos?: (v: boolean) => void };
     }).MovieFlixAndroid;
     try {
-      ponte?.setControlesAbertos?.(controles);
+      ponte?.setControlesAbertos?.(controles || config);
     } catch {
       /* fora do app nativo: nada a fazer */
     }
-  }, [controles]);
+  }, [controles, config]);
 
   // O shell nativo pede o fechamento dos controles (1ª pulsação de BACK).
   useEffect(() => {
@@ -243,87 +348,233 @@ export function TvPlayerPage({ id: idProp }: { id?: string } = {}) {
 
   useEffect(() => () => {
     if (autoHideRef.current !== null) window.clearTimeout(autoHideRef.current);
+    if (avisoRef.current !== null) window.clearTimeout(avisoRef.current);
   }, []);
 
   /** Só faz sentido quando há assinante e fonte real de vídeo. */
   const pronto = Boolean(user) && assinante && Boolean(src);
 
   /**
-   * Teclas de mídia do controle remoto (emitidas pelo shell Android como o
-   * evento `mf-media-key`) + OK/BACK do player.
+   * CONTROLES PELO CONTROLE REMOTO.
+   *
+   * Dois contextos, sem ambiguidade:
+   *  • CONTROLES FECHADOS (o estado normal durante a reprodução) — o foco está
+   *    no player e as setas operam o VÍDEO: ← → fazem seek, ↑ abre as
+   *    configurações e ↓ abre a barra. É o que o usuário pediu ("avançar e
+   *    retroceder o filme pelo controle").
+   *  • CONTROLES ABERTOS — as setas movem o foco entre os botões da barra (a
+   *    navegação espacial global faz isso) e OK aciona o botão focado. Aqui não
+   *    interceptamos nada além do BACK, para não atropelar a navegação.
+   *
+   * As teclas de VOLUME (24/25/164) são sempre nossas: nenhum outro componente
+   * da TV usa volume, e elas precisam chegar ao áudio do aparelho.
    */
   useEffect(() => {
     if (!pronto) return;
 
+    function focoNoPlayer(): boolean {
+      const ativo = document.activeElement as HTMLElement | null;
+      if (!ativo) return false;
+      return (
+        ativo.tagName === 'IFRAME' ||
+        ativo.tagName === 'VIDEO' ||
+        !!ativo.closest?.('[data-tv-player-box]')
+      );
+    }
+
+    /** Teclas de mídia do controle (emitidas pelo shell como `mf-media-key`). */
     function onMediaKey(e: Event) {
       const tipo = (e as CustomEvent<string>).detail;
-      mostrarControles();
+      if (!estadosRef.current.controles) mostrarControles();
       if (tipo === 'togglePlay') alternarPlay();
       else if (tipo === 'next') {
-        // Só troca de episódio quando existe próximo real (série).
         if (proximo) proximoEpisodio();
       } else if (tipo === 'stop') voltar();
-      else if (tipo === 'seekFwd') comandarPlayer('seekFwd');
-      else if (tipo === 'seekBack') comandarPlayer('seekBack');
+      else if (tipo === 'seekFwd') seek(true);
+      else if (tipo === 'seekBack') seek(false);
+      else if (tipo === 'volUp' || tipo === 'volDown') {
+        // A camada nativa JÁ ajustou o volume da mídia (é ela o dono). Aqui só
+        // lemos o novo valor e mostramos o feedback na tela — sem ajustar duas
+        // vezes, que faria o volume andar em passos dobrados.
+        const v = lerVolume();
+        if (typeof v === 'number') setVolume(v);
+        const m = lerMudo();
+        if (typeof m === 'boolean') setMudo(m);
+        mostrarAviso(tipo === 'volUp' ? '🔊 Volume +' : '🔉 Volume −');
+      } else if (tipo === 'mute') {
+        const m = lerMudo();
+        if (typeof m === 'boolean') setMudo(m);
+        mostrarAviso(m ? '🔇 Mudo' : '🔊 Som');
+      }
+    }
+
+    // ---- Long-press do OK (~1s): PINAR/SOLTAR a barra de controles --------
+    let timerLongo: number | null = null;
+    let disparouLongo = false;
+
+    function cancelarLongo() {
+      if (timerLongo !== null) {
+        window.clearTimeout(timerLongo);
+        timerLongo = null;
+      }
+      disparouLongo = false;
+    }
+
+    function ehOk(e: KeyboardEvent): boolean {
+      const k = e.key;
+      const c = e.keyCode || e.which;
+      return k === 'Enter' || k === 'OK' || k === 'Select' || c === 13 || c === 23 || c === 32;
     }
 
     function onKeyDown(e: KeyboardEvent) {
       const k = e.key;
       const c = e.keyCode || e.which;
 
-      // OK / Enter (13, 23, 32): alterna os controles. Nunca sai do modo sozinho.
-      const ehOk = k === 'Enter' || k === 'OK' || k === 'Select' || c === 13 || c === 23 || c === 32;
-      // BACK (4 Tizen/Android TV, 8, 27, 461 webOS, 10009 Samsung).
-      const ehBack = k === 'GoBack' || k === 'BrowserBack' || k === 'Escape' || k === 'Backspace'
-        || c === 4 || c === 8 || c === 27 || c === 461 || c === 10009;
+      const ehBack =
+        k === 'GoBack' || k === 'BrowserBack' || k === 'XF86Back' || k === 'Escape' ||
+        k === 'Backspace' || c === 4 || c === 8 || c === 27 || c === 461 || c === 10009;
 
-      if (ehOk) {
+      // ── VOLUME: sempre nosso (24/25 = volume, 164 = mudo; 179/85 = play) ──
+      if (c === 24 || k === 'AudioVolumeUp') {
         e.preventDefault();
         e.stopPropagation();
-        // BACK é hierárquico: 1º fecha os controles, depois sai.
-        if (controles) alternarPlay();
-        else mostrarControles();
+        mudarVolume(+5);
+        return;
+      }
+      if (c === 25 || k === 'AudioVolumeDown') {
+        e.preventDefault();
+        e.stopPropagation();
+        mudarVolume(-5);
+        return;
+      }
+      if (c === 164 || k === 'AudioVolumeMute') {
+        e.preventDefault();
+        e.stopPropagation();
+        alternarMudo();
         return;
       }
 
+      // ── BACK hierárquico ─────────────────────────────────────────────────
       if (ehBack) {
-        // Hierarquia do player: fecha os controles (1ª) → volta aos detalhes (2ª).
         e.preventDefault();
         e.stopPropagation();
+        cancelarLongo();
         tratarVoltar();
         return;
       }
 
-      // Com os controles abertos, as setas laterais buscam ±10s.
-      if (controles && (k === 'ArrowLeft' || c === 37 || c === 21)) {
-        e.preventDefault();
-        comandarPlayer('seekBack');
-        mostrarControles();
-      } else if (controles && (k === 'ArrowRight' || c === 39 || c === 22)) {
-        e.preventDefault();
-        comandarPlayer('seekFwd');
-        mostrarControles();
+      // ── Painel de configurações aberto: a navegação dele cuida das teclas ─
+      if (estadosRef.current.config) return;
+
+      // ── OK: pulso rápido mostra a barra; long-press pina/solta ────────────
+      if (ehOk(e)) {
+        const st = estadosRef.current;
+        if (!st.controles) {
+          // Só tratamos o OK quando o foco está no player; se o foco está num
+          // botão da página, o fluxo normal (clique) deve valer.
+          if (!focoNoPlayer()) return;
+          if (!timerLongo && !disparouLongo) {
+            timerLongo = window.setTimeout(() => {
+              timerLongo = null;
+              disparouLongo = true;
+              e.preventDefault();
+              e.stopPropagation();
+              // Segurar OK = modo CONTROLE DO PLAYER (barra fixa, setas no vídeo).
+              document.documentElement.classList.add('tv-in-player');
+              setControles(true);
+              setFixo(true);
+              if (autoHideRef.current !== null) window.clearTimeout(autoHideRef.current);
+              autoHideRef.current = null;
+              try {
+                frameRef.current?.focus({ preventScroll: true });
+              } catch {
+                /* ignora */
+              }
+            }, 1000);
+          }
+          return;
+        }
+        return;
       }
+
+      // ── Setas: com a barra ABERTA elas navegam os botões (fluxo normal) ───
+      if (estadosRef.current.controles) return;
+
+      // Com o foco FORA do player, as setas pertencem à navegação da página.
+      if (!focoNoPlayer()) return;
+
+      const esquerda = k === 'ArrowLeft' || k === 'Left' || c === 37 || c === 21;
+      const direita = k === 'ArrowRight' || k === 'Right' || c === 39 || c === 22;
+      const cima = k === 'ArrowUp' || k === 'Up' || c === 38 || c === 19;
+      const baixo = k === 'ArrowDown' || k === 'Down' || c === 40 || c === 20;
+
+      if (esquerda) {
+        e.preventDefault();
+        e.stopPropagation();
+        seek(false);
+        return;
+      }
+      if (direita) {
+        e.preventDefault();
+        e.stopPropagation();
+        seek(true);
+        return;
+      }
+      if (cima) {
+        e.preventDefault();
+        e.stopPropagation();
+        abrirConfig();
+        return;
+      }
+      if (baixo) {
+        e.preventDefault();
+        e.stopPropagation();
+        mostrarControles();
+        return;
+      }
+    }
+
+    function onKeyUp(e: KeyboardEvent) {
+      if (ehOk(e)) cancelarLongo();
     }
 
     window.addEventListener('mf-media-key', onMediaKey as EventListener);
     window.addEventListener('keydown', onKeyDown, true);
+    window.addEventListener('keyup', onKeyUp, true);
     return () => {
       window.removeEventListener('mf-media-key', onMediaKey as EventListener);
       window.removeEventListener('keydown', onKeyDown, true);
+      window.removeEventListener('keyup', onKeyUp, true);
+      cancelarLongo();
     };
   }, [
     pronto,
-    controles,
     proximo,
     proximoEpisodio,
     voltar,
     alternarPlay,
     mostrarControles,
     esconderControles,
-    comandarPlayer,
+    abrirConfig,
     tratarVoltar,
+    seek,
+    mudarVolume,
+    alternarMudo,
+    mostrarAviso,
   ]);
+
+  // Foco inicial: o player, para o D-pad já operar o vídeo ao entrar.
+  useEffect(() => {
+    if (!pronto) return;
+    const t = window.setTimeout(() => {
+      try {
+        frameRef.current?.focus({ preventScroll: true });
+      } catch {
+        /* ignora */
+      }
+    }, 250);
+    return () => window.clearTimeout(t);
+  }, [pronto, recarga]);
 
   // Aviso do episódio atual (só em série).
   const epLabel = ehSerie
@@ -413,15 +664,18 @@ export function TvPlayerPage({ id: idProp }: { id?: string } = {}) {
 
   return (
     <div className="tv-page tv-page-player">
-      {/* O vídeo ocupa a tela. Nenhuma barra fixa sobre ele. */}
+      {/* O vídeo ocupa a tela. NENHUM botão solto no topo. */}
       <div className="tv-player-box" data-tv-player-box ref={frameRef} tabIndex={0}>
-        {/* O vídeo ocupa a tela inteira; nada fica sobre ele além da barra (quando aberta). */}
         <div ref={iframeWrapRef} className="tv-player-embed">
           {/* `mostrarTelaCheia={false}`: na TV o ÚNICO botão de tela cheia é o da
               barra de controles abaixo (alcançável pelo D-pad). O do embed
-              aparecia como um SEGUNDO botão — o "botão duplicado" relatado —
-              e ainda era inalcançável pelo controle remoto. */}
-          <StreamBetterEmbed key={src} embedUrl={src} onBack={voltar} mostrarTelaCheia={false} />
+              aparecia como um SEGUNDO botão — o "botão duplicado" relatado. */}
+          <StreamBetterEmbed
+            key={`${src}-${recarga}`}
+            embedUrl={src}
+            onBack={voltar}
+            mostrarTelaCheia={false}
+          />
         </div>
 
         {/* Superfície clicável: um OK mostra os controles (o iframe continua
@@ -435,102 +689,301 @@ export function TvPlayerPage({ id: idProp }: { id?: string } = {}) {
         />
       </div>
 
-      {/*
-        Cabeçalho + controle: quando ESCONDIDOS ficam inalcançáveis pelo D-pad
-        (`data-tv-hidden` remove todos de dentro da navegação espacial). Sem isso
-        um OK "de interação" podia cair no botão de SAIR e fechar o player —
-        era exatamente o bug relatado.
-      */}
+      {/* Aviso curto (volume / seek) — feedback sem poluir o vídeo. */}
+      {aviso ? (
+        <div className="tv-player-toast" role="status">
+          {aviso}
+        </div>
+      ) : null}
+
+      {/* ── UMA barra única, no rodapé. Nada solto no topo. ────────────────── */}
       <div
-        className={cn('tv-player-overlay', controles && 'tv-player-overlay-ativo')}
+        className={cn('tv-player-overlay', controles && 'tv-player-overlay-ativo', fixo && 'tv-player-overlay-fixo')}
         aria-hidden={!controles}
         data-tv-hidden={!controles || undefined}
       >
-        <div className="tv-player-top">
-          {/* Símbolo "M" da marca — nunca a palavra MOVIEFLIX escrita. */}
-          <TvMark className="tv-player-logo" />
-          <div>
-            <div className="tv-player-title">{movie.title}</div>
-            {epLabel ? <div className="tv-player-sub">Episódio {epLabel}</div> : null}
+        <div className="tv-player-barra">
+          {/* Título discreto à esquerda (não é botão, não é uma barra de topo). */}
+          <div className="tv-player-identidade">
+            <TvMark className="tv-player-logo" />
+            <div className="tv-player-identidade-txt">
+              <div className="tv-player-title">{movie.title}</div>
+              {epLabel ? <div className="tv-player-sub">Episódio {epLabel}</div> : null}
+            </div>
           </div>
-        </div>
 
-        <div className="tv-player-controls">
-          <button
-            data-tv-focusable
-            tabIndex={controles ? 0 : -1}
-            className="tv-player-ctrl"
-            aria-label="Voltar"
-            onClick={voltar}
-          >
-            <ArrowLeft className="tv-player-ctrl-icon" />
-          </button>
-
-          <button
-            ref={ctrlMainRef}
-            data-tv-focusable
-            tabIndex={controles ? 0 : -1}
-            className="tv-player-ctrl tv-player-ctrl-main"
-            aria-label={emReproducao ? 'Pausar' : 'Reproduzir'}
-            onClick={alternarPlay}
-          >
-            {emReproducao ? (
-              <Pause className="tv-player-ctrl-icon" fill="currentColor" />
-            ) : (
-              <Play className="tv-player-ctrl-icon" fill="currentColor" />
-            )}
-          </button>
-
-          {/* Próximo episódio: SÓ para série e SÓ quando existe próximo real. */}
-          {ehSerie && proximo ? (
+          <div className="tv-player-controls">
             <button
               data-tv-focusable
               tabIndex={controles ? 0 : -1}
               className="tv-player-ctrl"
-              aria-label="Próximo episódio"
-              onClick={proximoEpisodio}
+              aria-label="Voltar aos detalhes"
+              onClick={voltar}
             >
-              <SkipForward className="tv-player-ctrl-icon" fill="currentColor" />
+              <ArrowLeft className="tv-player-ctrl-icon" />
             </button>
-          ) : null}
 
-          <button
-            data-tv-focusable
-            tabIndex={controles ? 0 : -1}
-            className="tv-player-ctrl"
-            aria-label="Tela cheia"
-            onClick={() => {
-              const el = frameRef.current;
-              if (!el) return;
-              if (document.fullscreenElement) document.exitFullscreen().catch(() => undefined);
-              else el.requestFullscreen?.().catch(() => undefined);
-            }}
-          >
-            {typeof document !== 'undefined' && document.fullscreenElement ? (
-              <Minimize className="tv-player-ctrl-icon" />
-            ) : (
-              <Maximize className="tv-player-ctrl-icon" />
-            )}
-          </button>
+            {/* SEEK pelo controle: ←/→ quando o foco está no player. */}
+            <button
+              data-tv-focusable
+              tabIndex={controles ? 0 : -1}
+              className="tv-player-ctrl"
+              aria-label={`Retroceder ${PASSO_SEEK} segundos`}
+              onClick={() => seek(false)}
+            >
+              <RotateCcw className="tv-player-ctrl-icon" />
+              <span className="tv-player-ctrl-passo">{PASSO_SEEK}</span>
+            </button>
 
-          {/* Botão "Sair" explícito. (O antigo botão "Informações" chamava
-              voltar() — um controle que fechava o player era justamente o que
-              não podia existir.) */}
-          <button
-            data-tv-focusable
-            tabIndex={controles ? 0 : -1}
-            className="tv-player-ctrl"
-            aria-label="Sair da reprodução"
-            onClick={voltar}
-          >
-            <X className="tv-player-ctrl-icon" />
-          </button>
+            <button
+              ref={ctrlMainRef}
+              data-tv-focusable
+              tabIndex={controles ? 0 : -1}
+              className="tv-player-ctrl tv-player-ctrl-main"
+              aria-label={emReproducao ? 'Pausar' : 'Reproduzir'}
+              onClick={alternarPlay}
+            >
+              {emReproducao ? (
+                <Pause className="tv-player-ctrl-icon" fill="currentColor" />
+              ) : (
+                <Play className="tv-player-ctrl-icon" fill="currentColor" />
+              )}
+            </button>
+
+            <button
+              data-tv-focusable
+              tabIndex={controles ? 0 : -1}
+              className="tv-player-ctrl"
+              aria-label={`Avançar ${PASSO_SEEK} segundos`}
+              onClick={() => seek(true)}
+            >
+              <RotateCw className="tv-player-ctrl-icon" />
+              <span className="tv-player-ctrl-passo">{PASSO_SEEK}</span>
+            </button>
+
+            {/* Próximo episódio: SÓ para série e SÓ quando existe próximo real. */}
+            {ehSerie && proximo ? (
+              <button
+                data-tv-focusable
+                tabIndex={controles ? 0 : -1}
+                className="tv-player-ctrl"
+                aria-label="Próximo episódio"
+                onClick={proximoEpisodio}
+              >
+                <SkipForward className="tv-player-ctrl-icon" fill="currentColor" />
+              </button>
+            ) : null}
+
+            {/* Volume: as teclas +/− do controle são o caminho principal; estes
+                botões repetem a ação para quem prefere navegar pela barra. */}
+            <button
+              data-tv-focusable
+              tabIndex={controles ? 0 : -1}
+              className="tv-player-ctrl"
+              aria-label="Diminuir volume"
+              onClick={() => mudarVolume(-5)}
+            >
+              <Volume1 className="tv-player-ctrl-icon" />
+            </button>
+            <button
+              data-tv-focusable
+              tabIndex={controles ? 0 : -1}
+              className={cn('tv-player-ctrl', mudo && 'tv-player-ctrl-ativo')}
+              aria-label={mudo ? 'Ativar som' : 'Silenciar'}
+              aria-pressed={mudo}
+              onClick={alternarMudo}
+            >
+              <VolumeX className="tv-player-ctrl-icon" />
+            </button>
+            <button
+              data-tv-focusable
+              tabIndex={controles ? 0 : -1}
+              className="tv-player-ctrl"
+              aria-label="Aumentar volume"
+              onClick={() => mudarVolume(+5)}
+            >
+              <Volume2 className="tv-player-ctrl-icon" />
+            </button>
+
+            <button
+              data-tv-focusable
+              tabIndex={controles ? 0 : -1}
+              className="tv-player-ctrl"
+              aria-label="Configurações do player"
+              onClick={abrirConfig}
+            >
+              <Settings className="tv-player-ctrl-icon" />
+            </button>
+
+            <button
+              data-tv-focusable
+              tabIndex={controles ? 0 : -1}
+              className="tv-player-ctrl"
+              aria-label="Tela cheia"
+              onClick={() => {
+                const el = frameRef.current;
+                if (!el) return;
+                if (document.fullscreenElement) document.exitFullscreen().catch(() => undefined);
+                else el.requestFullscreen?.().catch(() => undefined);
+              }}
+            >
+              {typeof document !== 'undefined' && document.fullscreenElement ? (
+                <Minimize className="tv-player-ctrl-icon" />
+              ) : (
+                <Maximize className="tv-player-ctrl-icon" />
+              )}
+            </button>
+
+            <button
+              data-tv-focusable
+              tabIndex={controles ? 0 : -1}
+              className="tv-player-ctrl"
+              aria-label="Sair da reprodução"
+              onClick={voltar}
+            >
+              <X className="tv-player-ctrl-icon" />
+            </button>
+          </div>
+
+          <p className="tv-player-dica">
+            {temVolume
+              ? '← −10s · → +10s · ↑ configurações · ↓ controles · +/− volume · segure OK para fixar'
+              : '← −10s · → +10s · ↑ configurações · ↓ controles · volume pela TV · segure OK para fixar'}
+          </p>
         </div>
-
-        <p className="tv-player-dica">
-          OK mostra os controles · BACK fecha os controles e depois volta aos detalhes
-        </p>
       </div>
+
+      {/* ── CONFIGURAÇÕES DO PLAYER (D-pad) ─────────────────────────────────── */}
+      {config ? (
+        <div className="tv-config" data-tv-config-panel role="dialog" aria-label="Configurações do player">
+          <div className="tv-config-caixa">
+            <div className="tv-config-topo">
+              <h2 className="tv-config-titulo">Configurações do player</h2>
+              <button
+                data-tv-focusable
+                data-tv-initial-focus
+                tabIndex={0}
+                className="tv-player-ctrl"
+                aria-label="Fechar configurações"
+                onClick={fecharConfig}
+              >
+                <X className="tv-player-ctrl-icon" />
+              </button>
+            </div>
+
+            <div className="tv-config-linha">
+              <span className="tv-config-rotulo">Volume</span>
+              <div className="tv-config-acoes">
+                <button
+                  data-tv-focusable
+                  tabIndex={0}
+                  className="tv-config-btn"
+                  aria-label="Diminuir volume"
+                  onClick={() => mudarVolume(-5)}
+                >
+                  −
+                </button>
+                <span className="tv-config-valor">
+                  {mudo ? 'Mudo' : `${volume}%`}
+                </span>
+                <button
+                  data-tv-focusable
+                  tabIndex={0}
+                  className="tv-config-btn"
+                  aria-label="Aumentar volume"
+                  onClick={() => mudarVolume(+5)}
+                >
+                  +
+                </button>
+                <button
+                  data-tv-focusable
+                  tabIndex={0}
+                  className={cn('tv-config-btn', mudo && 'tv-config-btn-ativo')}
+                  aria-label={mudo ? 'Ativar som' : 'Silenciar'}
+                  aria-pressed={mudo}
+                  onClick={alternarMudo}
+                >
+                  <VolumeX className="tv-icon-sm" />
+                </button>
+              </div>
+            </div>
+
+            <div className="tv-config-linha">
+              <span className="tv-config-rotulo">Reprodução</span>
+              <div className="tv-config-acoes">
+                <button
+                  data-tv-focusable
+                  tabIndex={0}
+                  className="tv-config-btn tv-config-btn-larga"
+                  onClick={() => {
+                    setRecarga((r) => r + 1);
+                    fecharConfig();
+                    mostrarAviso('Player recarregado');
+                  }}
+                >
+                  Recarregar player
+                </button>
+                <button
+                  data-tv-focusable
+                  tabIndex={0}
+                  className="tv-config-btn tv-config-btn-larga"
+                  onClick={() => {
+                    alternarPlay();
+                    mostrarAviso(emReproducao ? 'Pausado' : 'Reproduzindo');
+                  }}
+                >
+                  {emReproducao ? 'Pausar' : 'Reproduzir'}
+                </button>
+                {ehSerie && proximo ? (
+                  <button
+                    data-tv-focusable
+                    tabIndex={0}
+                    className="tv-config-btn tv-config-btn-larga"
+                    onClick={proximoEpisodio}
+                  >
+                    Próximo episódio
+                  </button>
+                ) : null}
+              </div>
+            </div>
+
+            <div className="tv-config-linha">
+              <span className="tv-config-rotulo">Tela</span>
+              <div className="tv-config-acoes">
+                <button
+                  data-tv-focusable
+                  tabIndex={0}
+                  className="tv-config-btn tv-config-btn-larga"
+                  onClick={() => {
+                    const el = frameRef.current;
+                    if (!el) return;
+                    if (document.fullscreenElement) document.exitFullscreen().catch(() => undefined);
+                    else el.requestFullscreen?.().catch(() => undefined);
+                  }}
+                >
+                  {typeof document !== 'undefined' && document.fullscreenElement
+                    ? 'Sair da tela cheia'
+                    : 'Tela cheia'}
+                </button>
+                <button
+                  data-tv-focusable
+                  tabIndex={0}
+                  className="tv-config-btn tv-config-btn-larga"
+                  onClick={voltar}
+                >
+                  Sair da reprodução
+                </button>
+              </div>
+            </div>
+
+            <p className="tv-config-dica">
+              Controle remoto: ← −10s · → +10s · ↑ configurações · ↓ controles · BACK fecha esta
+              janela. As fontes, a qualidade e as legendas são controladas pelo próprio player do
+              provedor.
+            </p>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

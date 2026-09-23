@@ -6,6 +6,7 @@ import android.content.ActivityNotFoundException;
 import android.content.Intent;
 import android.graphics.Bitmap;
 import android.graphics.Rect;
+import android.media.AudioManager;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
@@ -451,6 +452,19 @@ public class MainActivity extends Activity {
     }
 
     /**
+     * Avisa o site de uma ação de volume já executada por esta camada.
+     *
+     * O site NÃO ajusta o volume de novo — ele apenas atualiza o indicador na
+     * tela ("🔊 60%") e relê o valor pela ponte. Um dono só do volume.
+     */
+    private void avisarSite(String tipo) {
+        if (webView == null) return;
+        webView.evaluateJavascript(
+                "window.dispatchEvent(new CustomEvent('mf-media-key',{detail:'" + tipo + "'}));",
+                null);
+    }
+
+    /**
      * PASSO INTERMEDIÁRIO DO PROVEDOR — clique automático.
      *
      * O embed do provedor às vezes mostra uma tela "Só mais um passo" com um
@@ -576,6 +590,85 @@ public class MainActivity extends Activity {
     }
 
     /**
+     * VOLUME — controlado pelo app, não pelo `<video>`.
+     *
+     * CAUSA RAIZ (relato: "aumentar e diminuir o volume, mutar e desmutar pelo
+     * controle remoto"): na TV a reprodução vive no embed OFICIAL do provedor,
+     * dentro de um IFRAME de OUTRA ORIGEM. A política de mesma origem impede o
+     * site de tocar em `video.volume` ali dentro — qualquer botão de volume no
+     * site seria DECORATIVO. O que funciona de verdade (e é o que todo app de TV
+     * faz) é ajustar a STREAM DE MÍDIA do aparelho pelo AudioManager.
+     *
+     * O site chama esta camada pela ponte (`MovieFlixApp.ajustarVolume`), e as
+     * teclas de volume do controle passam por aqui também (ver dispatchKeyEvent):
+     * um único dono do volume, sem dois caminhos corrigindo a mesma coisa.
+     */
+    private void ajustarVolumeMidia(int delta) {
+        try {
+            AudioManager som = (AudioManager) getSystemService(AUDIO_SERVICE);
+            if (som == null) return;
+            int direcao = delta >= 0 ? AudioManager.ADJUST_RAISE : AudioManager.ADJUST_LOWER;
+            som.adjustStreamVolume(AudioManager.STREAM_MUSIC, direcao, 0);
+        } catch (Exception e) {
+            // Aparelho sem AudioManager utilizável: o site avisa que o volume é
+            // da TV (não fingimos que o botão funcionou).
+        }
+    }
+
+    /** Define o volume da mídia em percentual absoluto (0–100). */
+    private void definirVolumeMidia(int percentual) {
+        try {
+            AudioManager som = (AudioManager) getSystemService(AUDIO_SERVICE);
+            if (som == null) return;
+            int max = som.getStreamMaxVolume(AudioManager.STREAM_MUSIC);
+            int alvo = Math.round(max * Math.min(100, Math.max(0, percentual)) / 100f);
+            som.setStreamVolume(AudioManager.STREAM_MUSIC, alvo, 0);
+        } catch (Exception e) {
+            /* ignora */
+        }
+    }
+
+    /** Liga/desliga o mudo da mídia (o desmute volta ao volume anterior do sistema). */
+    private boolean alternarMudoMidia() {
+        try {
+            AudioManager som = (AudioManager) getSystemService(AUDIO_SERVICE);
+            if (som == null) return false;
+            som.adjustStreamVolume(
+                    AudioManager.STREAM_MUSIC,
+                    som.isStreamMute(AudioManager.STREAM_MUSIC)
+                            ? AudioManager.ADJUST_UNMUTE
+                            : AudioManager.ADJUST_MUTE,
+                    0);
+            return true;
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    /** Volume atual da mídia em percentual (0–100), ou -1 quando indisponível. */
+    private int volumeMidia() {
+        try {
+            AudioManager som = (AudioManager) getSystemService(AUDIO_SERVICE);
+            if (som == null) return -1;
+            int max = som.getStreamMaxVolume(AudioManager.STREAM_MUSIC);
+            if (max <= 0) return -1;
+            return Math.round(som.getStreamVolume(AudioManager.STREAM_MUSIC) * 100f / max);
+        } catch (Exception e) {
+            return -1;
+        }
+    }
+
+    /** A mídia está no mudo? */
+    private boolean mudoMidia() {
+        try {
+            AudioManager som = (AudioManager) getSystemService(AUDIO_SERVICE);
+            return som != null && som.isStreamMute(AudioManager.STREAM_MUSIC);
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    /**
      * BACK hierárquico — nunca fecha o app de surpresa:
      *  1) se há vídeo em tela cheia, sai da tela cheia;
      *  2) se a página tem histórico, volta uma rota (o site trata o resto:
@@ -634,6 +727,36 @@ public class MainActivity extends Activity {
         }
 
         int code = event.getKeyCode();
+
+        // ── VOLUME PELO CONTROLE REMOTO ────────────────────────────────────────
+        // Estas teclas são do MovieFlix: ajustamos a stream de MÍDIA (o que o
+        // usuário ouve) e avisamos o site para ele mostrar o feedback na tela.
+        // Consumimos a tecla para haver UM único dono do volume — sem o sistema
+        // e o app corrigindo a mesma coisa em passos diferentes.
+        if (event.getAction() == KeyEvent.ACTION_DOWN) {
+            if (code == KeyEvent.KEYCODE_VOLUME_UP) {
+                ajustarVolumeMidia(+5);
+                avisarSite("volUp");
+                return true;
+            }
+            if (code == KeyEvent.KEYCODE_VOLUME_DOWN) {
+                ajustarVolumeMidia(-5);
+                avisarSite("volDown");
+                return true;
+            }
+            if (code == KeyEvent.KEYCODE_VOLUME_MUTE) {
+                alternarMudoMidia();
+                avisarSite("mute");
+                return true;
+            }
+        }
+        if (event.getAction() == KeyEvent.ACTION_UP
+                && (code == KeyEvent.KEYCODE_VOLUME_UP
+                    || code == KeyEvent.KEYCODE_VOLUME_DOWN
+                    || code == KeyEvent.KEYCODE_VOLUME_MUTE)) {
+            return true;
+        }
+
         boolean midia = code == KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE
                 || code == KeyEvent.KEYCODE_MEDIA_PLAY
                 || code == KeyEvent.KEYCODE_MEDIA_PAUSE
@@ -769,6 +892,43 @@ public class MainActivity extends Activity {
         @JavascriptInterface
         public void mostrarTeclado() {
             runOnUiThread(MainActivity.this::abrirTeclado);
+        }
+
+        /**
+         * Ajusta o VOLUME da mídia em `delta` pontos percentuais (ex.: +5/-5).
+         * Chamado pelo `src/lib/volumeTv.ts` quando o usuário aciona o volume
+         * pela barra de controles do player.
+         */
+        @JavascriptInterface
+        public void ajustarVolume(int delta) {
+            runOnUiThread(() -> ajustarVolumeMidia(delta));
+        }
+
+        /** Define o volume da mídia em percentual absoluto (0–100). */
+        @JavascriptInterface
+        public void definirVolume(int percentual) {
+            runOnUiThread(() -> definirVolumeMidia(percentual));
+        }
+
+        /** Liga/desliga o mudo da mídia. */
+        @JavascriptInterface
+        public void definirMudo(boolean mudo) {
+            runOnUiThread(() -> {
+                boolean atual = mudoMidia();
+                if (atual != mudo) alternarMudoMidia();
+            });
+        }
+
+        /** Volume atual da mídia em percentual (0–100); -1 quando indisponível. */
+        @JavascriptInterface
+        public int lerVolume() {
+            return volumeMidia();
+        }
+
+        /** A mídia está no mudo? */
+        @JavascriptInterface
+        public boolean lerMudo() {
+            return mudoMidia();
         }
 
         /** Abre uma URL no navegador externo (sai do WebView). */

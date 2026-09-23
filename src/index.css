@@ -160,13 +160,20 @@
 }
 
 /* Player embutido (iframe/vídeo): quando o modo CONTROLE DO PLAYER está ativo,
-   mostra um anel fino ao redor do player (indica onde o controle está). */
+   NÃO desenhamos mais um anel vermelho ao redor do vídeo.
+
+   CAUSA RAIZ (relato: "a borda vermelha ao redor do vídeo está feia"): esta
+   regra pintava uma moldura vermelha de 2px + halo de 22px em volta do
+   contêiner do player sempre que o modo de controle estava ativo, e ela usava
+   `!important` — por isso escapava de qualquer outra tentativa de estilo e
+   aparecia por cima do vídeo. Em tela cheia, uma moldura na borda virou
+   justamente "uma borda vermelha feia" aos olhos do usuário.
+
+   O indicador de que o controle está no player agora é a BARRA de controles
+   (que aparece com o OK) — dentro da composição, sem emoldurar o vídeo. */
 .tv-nav.tv-in-player [data-tv-player-box] {
-  box-shadow:
-    0 0 0 2px rgba(230, 0, 0, 0.85),
-    0 0 22px rgba(230, 0, 0, 0.4) !important;
-  border-radius: 0.75rem;
-  transition: box-shadow 0.2s ease;
+  box-shadow: none !important;
+  border-radius: 0;
 }
 
 /* Modo "dentro do player": o anel sai do iframe para não poluir o vídeo. */

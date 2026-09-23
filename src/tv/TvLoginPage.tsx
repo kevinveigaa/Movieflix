@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Mail, Lock, AlertCircle, Loader2, ChevronLeft } from 'lucide-react';
+import { Mail, Lock, AlertCircle, Loader2, ChevronLeft, Keyboard } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { TvMark } from './TvBrand';
 import { TvKeyboard } from './TvKeyboard';
@@ -14,8 +14,8 @@ import { cn } from '@/lib/cn';
  * vivem sob o AppLayout (Navbar no topo + Footer). Agora o login acontece DENTRO
  * de `/tv/login`, com a mesma conta/Supabase e a mesma função `signIn`.
  *
- * CAUSA RAIZ 2 — FOCO E DIGITAÇÃO (a que este arquivo corrige): o formulário
- * dependia de dois mecanismos que NÃO funcionam juntos numa TV:
+ * CAUSA RAIZ 2 — FOCO E DIGITAÇÃO: o formulário dependia de dois mecanismos que
+ * NÃO funcionam juntos numa TV:
  *   a) a navegação espacial global (useTvNavigation) intercepta TODAS as setas e
  *      o OK em fase de CAPTURA — ao focar um campo, as setas eram consumidas
  *      pela navegação e não chegavam ao campo (parecia que "o foco saía");
@@ -25,12 +25,24 @@ import { cn } from '@/lib/cn';
  *
  * CORREÇÃO (três camadas, nenhuma dependente de IME):
  *   1. o formulário marca-se com `data-tv-form`; com um CAMPO DE TEXTO focado
- *      dentro dele, o `useTvNavigation` não intercepta mais nada (o formulário é
- *      dono do foco). Foco e digitação param de ser "roubados".
+ *      dentro dele, o `useTvNavigation` não intercepta mais nada (o formulário
+ *      é dono do foco). Foco e digitação param de ser "roubados".
  *   2. há um TECLADO NA TELA (TvKeyboard) navegável SÓ com o D-pad — a digitação
  *      funciona em qualquer TV Box, com ou sem IME.
  *   3. o plano de foco do D-pad é explícito: e-mail → senha → teclado → Entrar,
  *      com ↑ voltando — sem perda de foco em nenhum passo.
+ *
+ * ── O QUE MUDOU NESTA VERSÃO (relato: "o teclado aparece sozinho e está
+ *    faltando caractere") ─────────────────────────────────────────────────────
+ *   • O TECLADO AGORA FICA OCULTO POR PADRÃO (`tecladoAberto = false`). Ele não
+ *     ocupa mais a tela ao abrir o login — só aparece quando o usuário pede.
+ *   • Há um BOTÃO PEQUENO E DISCRETO (ícone de teclado) ao lado dos campos, na
+ *     mesma linha, alcançável pelo D-pad, que ABRE e FECHA o teclado. O rótulo
+ *     muda com o estado, então o usuário sabe o que o botão faz.
+ *   • O teclado passou a ter TODOS os caracteres (abas Letras/Números/Símbolos);
+ *     o detalhe está documentado no TvKeyboard.
+ *   • Com o teclado fechado, ↓ vai de E-mail para Senha e de Senha para Entrar;
+ *     com o teclado aberto, ↓ de Senha leva ao teclado. ↑ sempre volta.
  *
  * O teclado físico/do controle continua funcionando direto no campo (onChange).
  */
@@ -50,10 +62,16 @@ export function TvLoginPage() {
   const [enviando, setEnviando] = useState(false);
   /** Campo que recebe o que o teclado na tela digita. */
   const [campoAtivo, setCampoAtivo] = useState<Campo>('email');
+  /**
+   * O teclado na tela está aberto? COMEÇA FECHADO — o teclado não deve aparecer
+   * sozinho ao abrir o login; quem decide é o usuário, pelo botão de teclado.
+   */
+  const [tecladoAberto, setTecladoAberto] = useState(false);
 
   const emailRef = useRef<HTMLInputElement>(null);
   const senhaRef = useRef<HTMLInputElement>(null);
   const tecladoRef = useRef<HTMLDivElement>(null);
+  const btnTecladoRef = useRef<HTMLButtonElement>(null);
 
   // Já autenticado: segue para a seleção de perfil / Home da TV.
   useEffect(() => {
@@ -67,11 +85,40 @@ export function TvLoginPage() {
     alvo?.focus({ preventScroll: true });
   }, []);
 
-  /** Leva o foco para a PRIMEIRA tecla do teclado na tela. */
+  /**
+   * Leva o foco para a PRIMEIRA LETRA do teclado na tela.
+   *
+   * Cuidado com o seletor: a barra de ABAS (ABC / 123 / #+& / Fechar) também
+   * carrega `data-tv-key`, então um `querySelector('[data-tv-key]')` genérico
+   * focava o botão da ABA — e o usuário teria de descer para chegar às letras.
+   * A grade tem a sua própria marca (`tv-keyboard-grade`), e é nela que o foco
+   * deve cair: quem abriu o teclado quer DIGITAR.
+   */
   const focarTeclado = useCallback(() => {
-    const primeira = tecladoRef.current?.querySelector<HTMLButtonElement>('[data-tv-key]');
+    const primeira = tecladoRef.current?.querySelector<HTMLButtonElement>(
+      '.tv-keyboard-grade [data-tv-key]',
+    );
     primeira?.focus({ preventScroll: true });
   }, []);
+
+  /**
+   * Abre/fecha o teclado na tela. Ao abrir, o foco vai para a primeira tecla; ao
+   * fechar, volta para o campo ativo (nunca fica sem foco — na TV isso faria o
+   * controle remoto "sumir").
+   */
+  const alternarTeclado = useCallback(() => {
+    setTecladoAberto((aberto) => {
+      const proximo = !aberto;
+      window.setTimeout(() => {
+        if (proximo) focarTeclado();
+        else {
+          const alvo = campoAtivo === 'email' ? emailRef.current : senhaRef.current;
+          alvo?.focus({ preventScroll: true });
+        }
+      }, 40);
+      return proximo;
+    });
+  }, [campoAtivo, focarTeclado]);
 
   const digitar = useCallback(
     (t: string) => {
@@ -120,9 +167,9 @@ export function TvLoginPage() {
    * Teclas DENTRO dos campos. Com um campo de texto focado, a navegação
    * espacial global sai de cena (ver useTvNavigation), então o formulário
    * define o caminho do D-pad:
-   *   ↓  e-mail → senha → teclado na tela
+   *   ↓  e-mail → senha → (teclado, se aberto) → Entrar
    *   ↑  volta (senha → e-mail)
-   *   OK/Enter  avança; no campo de senha, entra
+   *   OK/Enter  avançava; no campo de senha, entra
    * ← → continuam movendo o cursor dentro do texto (comportamento nativo).
    */
   function teclasDoCampo(campo: Campo) {
@@ -136,7 +183,8 @@ export function TvLoginPage() {
       if (desce) {
         e.preventDefault();
         if (campo === 'email') focarCampo('senha');
-        else focarTeclado();
+        else if (tecladoAberto) focarTeclado();
+        else btnTecladoRef.current?.focus({ preventScroll: true });
         return;
       }
       if (sobe) {
@@ -224,26 +272,60 @@ export function TvLoginPage() {
                 />
               </span>
             </label>
+
+            {/* Botão PEQUENO e DISCRETO que abre/fecha o teclado na tela. Fica na
+                mesma linha dos campos e é alcançável pelo D-pad: sem ele o
+                usuário não teria como pedir o teclado numa TV sem IME. */}
+            <button
+              ref={btnTecladoRef}
+              type="button"
+              data-tv-focusable
+              data-tv-keyboard-toggle
+              tabIndex={0}
+              aria-pressed={tecladoAberto}
+              aria-label={tecladoAberto ? 'Fechar o teclado na tela' : 'Abrir o teclado na tela'}
+              title={tecladoAberto ? 'Fechar o teclado' : 'Abrir o teclado'}
+              onClick={alternarTeclado}
+              className={cn('tv-login-teclado-btn', tecladoAberto && 'tv-login-teclado-btn-ativo')}
+            >
+              <Keyboard className="tv-icon-sm" aria-hidden="true" />
+              <span className="tv-login-teclado-btn-txt">
+                {tecladoAberto ? 'Fechar' : 'Teclado'}
+              </span>
+            </button>
           </div>
 
-          <div ref={tecladoRef} className="tv-login-teclado-wrap">
-            <TvKeyboard
-              onTecla={digitar}
-              onApagar={apagar}
-              onLimpar={limpar}
-              onEntrar={() => void entrar()}
-            />
-          </div>
-
-          <p className="tv-login-dica">
-            Digite com as ← → ↑ ↓ e OK no teclado acima — ou use o teclado do controle remoto.
-          </p>
+          {/* O teclado SÓ existe no DOM quando o usuário o abre (oculto por padrão). */}
+          {tecladoAberto ? (
+            <div ref={tecladoRef} className="tv-login-teclado-wrap">
+              <TvKeyboard
+                onTecla={digitar}
+                onApagar={apagar}
+                onLimpar={limpar}
+                onEntrar={() => void entrar()}
+                onFechar={alternarTeclado}
+              />
+            </div>
+          ) : (
+            <p className="tv-login-dica">
+              Use o teclado do controle remoto — ou abra o teclado na tela no botão acima.
+            </p>
+          )}
 
           <button
             type="submit"
             disabled={enviando}
             data-tv-focusable
             tabIndex={0}
+            onKeyDown={(e) => {
+              // ↑ do botão Entrar devolve o foco à senha, para o D-pad nunca
+              // ficar "preso" no último elemento do formulário.
+              const c = e.nativeEvent.keyCode || e.nativeEvent.which;
+              if (e.key === 'ArrowUp' || e.key === 'Up' || c === 38 || c === 19) {
+                e.preventDefault();
+                focarCampo('senha');
+              }
+            }}
             className="tv-btn tv-btn-primary tv-btn-lg tv-login-entrar"
           >
             {enviando ? <Loader2 className="tv-icon-sm tv-spin" /> : null}
