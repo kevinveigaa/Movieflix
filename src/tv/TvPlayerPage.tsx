@@ -5,7 +5,7 @@ import {
   Maximize,
   Minimize,
   SkipForward,
-  Info,
+  X,
   Loader2,
   AlertCircle,
   Pause,
@@ -75,6 +75,8 @@ export function TvPlayerPage({ id: idProp }: { id?: string } = {}) {
 
   /** Controles visíveis (nunca ficam abertos durante a reprodução). */
   const [controles, setControles] = useState(false);
+  /** Controle principal (play/pause) — recebe o foco quando a barra abre. */
+  const ctrlMainRef = useRef<HTMLButtonElement>(null);
   /** Estado otimista de play/pause para o ícone do controle. */
   const [emReproducao, setEmReproducao] = useState(true);
 
@@ -161,18 +163,83 @@ export function TvPlayerPage({ id: idProp }: { id?: string } = {}) {
     });
   }, [comandarPlayer]);
 
-  /** Mostra os controles e (re)agenda o auto-hide. */
+  /**
+   * Mostra os controles e (re)agenda o auto-hide.
+   *
+   * O foco vai para o controle principal (play/pause): sem isso o D-pad podia
+   * cair em qualquer botão da barra — inclusive no de sair — e um OK "de
+   * interação" acabava fechando o player (bug relatado).
+   */
   const mostrarControles = useCallback(() => {
     setControles(true);
     if (autoHideRef.current !== null) window.clearTimeout(autoHideRef.current);
     autoHideRef.current = window.setTimeout(() => setControles(false), AUTO_HIDE_MS);
+    // Foco previsível: sempre no play/pause quando a barra abre.
+    window.setTimeout(() => {
+      try {
+        ctrlMainRef.current?.focus({ preventScroll: true });
+      } catch {
+        /* o foco é opcional: a barra funciona mesmo sem ele */
+      }
+    }, 0);
   }, []);
 
   const esconderControles = useCallback(() => {
     if (autoHideRef.current !== null) window.clearTimeout(autoHideRef.current);
     autoHideRef.current = null;
     setControles(false);
+    // Devolve o foco à superfície do player (o D-pad continua aqui).
+    try {
+      frameRef.current?.focus({ preventScroll: true });
+    } catch {
+      /* ignora */
+    }
   }, []);
+
+  /**
+   * BACK hierárquico do player. Fonte única da decisão (usada pela tecla e pela
+   * camada nativa do Android TV):
+   *   1º com os controles abertos  → fecha os controles e permanece no player;
+   *   2º com os controles fechados → volta para os DETALHES.
+   * Em nenhum caso fecha o app de surpresa.
+   *
+   * @returns true quando a pulsação foi consumida aqui.
+   */
+  const tratarVoltar = useCallback((): boolean => {
+    if (controlesRef.current) {
+      esconderControles();
+      return true;
+    }
+    voltar();
+    return true;
+  }, [esconderControles, voltar]);
+
+  // O estado dos controles precisa ser legível dentro de listeners antigos sem
+  // recriá-los a cada mudança.
+  const controlesRef = useRef(false);
+  controlesRef.current = controles;
+
+  // Informa a camada nativa (Android TV) se o BACK deve fechar os controles
+  // antes de navegar — lido de forma SÍNCRONA pelo onBackPressed do shell.
+  useEffect(() => {
+    const ponte = (window as unknown as {
+      MovieFlixAndroid?: { setControlesAbertos?: (v: boolean) => void };
+    }).MovieFlixAndroid;
+    try {
+      ponte?.setControlesAbertos?.(controles);
+    } catch {
+      /* fora do app nativo: nada a fazer */
+    }
+  }, [controles]);
+
+  // O shell nativo pede o fechamento dos controles (1ª pulsação de BACK).
+  useEffect(() => {
+    function fechar() {
+      esconderControles();
+    }
+    window.addEventListener('mf-fechar-controles', fechar);
+    return () => window.removeEventListener('mf-fechar-controles', fechar);
+  }, [esconderControles]);
 
   useEffect(() => () => {
     if (autoHideRef.current !== null) window.clearTimeout(autoHideRef.current);
@@ -220,12 +287,10 @@ export function TvPlayerPage({ id: idProp }: { id?: string } = {}) {
       }
 
       if (ehBack) {
-        if (controles) {
-          e.preventDefault();
-          e.stopPropagation();
-          esconderControles();
-        }
-        // Controles fechados: deixa o BACK seguir a hierarquia normal (TvApp).
+        // Hierarquia do player: fecha os controles (1ª) → volta aos detalhes (2ª).
+        e.preventDefault();
+        e.stopPropagation();
+        tratarVoltar();
         return;
       }
 
@@ -257,6 +322,7 @@ export function TvPlayerPage({ id: idProp }: { id?: string } = {}) {
     mostrarControles,
     esconderControles,
     comandarPlayer,
+    tratarVoltar,
   ]);
 
   // Aviso do episódio atual (só em série).
@@ -349,6 +415,7 @@ export function TvPlayerPage({ id: idProp }: { id?: string } = {}) {
     <div className="tv-page tv-page-player">
       {/* O vídeo ocupa a tela. Nenhuma barra fixa sobre ele. */}
       <div className="tv-player-box" data-tv-player-box ref={frameRef} tabIndex={0}>
+        {/* O vídeo ocupa a tela inteira; nada fica sobre ele além da barra (quando aberta). */}
         <div ref={iframeWrapRef} className="tv-player-embed">
           <StreamBetterEmbed key={src} embedUrl={src} onBack={voltar} />
         </div>
@@ -364,8 +431,17 @@ export function TvPlayerPage({ id: idProp }: { id?: string } = {}) {
         />
       </div>
 
-      {/* Barra de topo + controles: existem no DOM apenas quando abertos. */}
-      <div className={cn('tv-player-overlay', controles && 'tv-player-overlay-ativo')} aria-hidden={!controles}>
+      {/*
+        Cabeçalho + controle: quando ESCONDIDOS ficam inalcançáveis pelo D-pad
+        (`data-tv-hidden` remove todos de dentro da navegação espacial). Sem isso
+        um OK "de interação" podia cair no botão de SAIR e fechar o player —
+        era exatamente o bug relatado.
+      */}
+      <div
+        className={cn('tv-player-overlay', controles && 'tv-player-overlay-ativo')}
+        aria-hidden={!controles}
+        data-tv-hidden={!controles || undefined}
+      >
         <div className="tv-player-top">
           {/* Símbolo "M" da marca — nunca a palavra MOVIEFLIX escrita. */}
           <TvMark className="tv-player-logo" />
@@ -387,6 +463,7 @@ export function TvPlayerPage({ id: idProp }: { id?: string } = {}) {
           </button>
 
           <button
+            ref={ctrlMainRef}
             data-tv-focusable
             tabIndex={controles ? 0 : -1}
             className="tv-player-ctrl tv-player-ctrl-main"
@@ -432,19 +509,22 @@ export function TvPlayerPage({ id: idProp }: { id?: string } = {}) {
             )}
           </button>
 
+          {/* Botão "Sair" explícito. (O antigo botão "Informações" chamava
+              voltar() — um controle que fechava o player era justamente o que
+              não podia existir.) */}
           <button
             data-tv-focusable
             tabIndex={controles ? 0 : -1}
             className="tv-player-ctrl"
-            aria-label="Informações"
+            aria-label="Sair da reprodução"
             onClick={voltar}
           >
-            <Info className="tv-player-ctrl-icon" />
+            <X className="tv-player-ctrl-icon" />
           </button>
         </div>
 
         <p className="tv-player-dica">
-          OK mostra os controles · BACK sai dos controles e depois volta aos detalhes
+          OK mostra os controles · BACK fecha os controles e depois volta aos detalhes
         </p>
       </div>
     </div>

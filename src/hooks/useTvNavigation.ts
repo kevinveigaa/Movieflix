@@ -198,6 +198,11 @@ export function useTvNavigation() {
     }
 
     function onKeyDown(e: KeyboardEvent) {
+      // Um handler mais específico (ex.: o player, que precisa fechar os
+      // controles antes de sair) já tratou a tecla. Sem esta guarda o BACK
+      // navegava de página no meio da reprodução — o "saiu do player" relatado.
+      if (e.defaultPrevented) return;
+
       const acao = acaoDaTecla(e);
       if (!acao) return;
 

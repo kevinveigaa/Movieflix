@@ -31,89 +31,83 @@ import android.widget.Toast;
  *
  * Por que assim (e não uma reescrita nativa):
  *  - a experiência de TV do site já usa a MESMA fonte de dados e a MESMA lógica
- *    de negócio do mobile/web: mesmos hooks de catálogo (filmes, séries),
- *    mesma autenticação/Supabase, mesmos planos, mesmos favoritos, mesmo
- *    histórico e mesmo embed do provedor de vídeo (StreamBetter) montado em
- *    iframe. Reescrever isso em Kotlin criaria um catálogo paralelo — que é
- *    exatamente o que NÃO se quer aqui;
+ *    de negócio do mobile/web: mesmos hooks de catálogo, mesma
+ *    autenticação/Supabase, mesmos planos, mesmos favoritos, mesmo histórico e
+ *    mesmo embed do provedor de vídeo (StreamBetter) montado em iframe;
  *  - com WebView, a TV recebe qualquer correção de catálogo/UI/player sem
  *    precisar de um novo APK.
  *
- * ══════════════════════════════════════════════════════════════════════════
- * CORREÇÕES DE CLOUDFLARE / TURNSTILE NESTA VERSÃO (tela "Confirmando que você
- * é uma pessoa de verdade antes de carregar o vídeo..." / loop de verificação)
- * ══════════════════════════════════════════════════════════════════════════
+ * ═══════════════════════════════════════════════════════════════════════════
+ * AUDITORIA DO PLAYER (bug relatado: anúncios/redirecionamento, saída do app
+ * e interação que fechava o player)
+ * ═══════════════════════════════════════════════════════════════════════════
  *
- * O conteúdo travava na verificação na TV enquanto funcionava no celular. Três
- * causas foram corrigidas aqui:
+ * CAUSA RAIZ 1 — "abre uma TELA FORA DO APP / redirecionamento de anúncio".
+ *   A versão anterior decidia a navegação apenas comparando o HOST com o do
+ *   MovieFlix (ignorando o FRAME) e mandava qualquer outra coisa para um app
+ *   externo. Só que o embed do provedor (streambetter.shop) roda DENTRO de um
+ *   iframe: cada navegação do iframe era tratada como "site externo" e a
+ *   Activity entregava a página ao navegador — o usuário saía do app de TV, e
+ *   exatamente o comportamento que o mobile NÃO tem (no mobile o embed fica
+ *   enquadrado, e por isso funciona).
+ *   CORREÇÃO: a decisão passou a considerar (a) o FRAME (só o frame principal
+ *   pode sair do WebView) e (b) a lista de domínios do PROVEDOR DE VÍDEO
+ *   (TvConfig.HOSTS_PLAYER), que agora permanecem no WebView inclusive em
+ *   iframe. data:/blob:/about:/javascript: NUNCA são "site externo".
  *
- *  1. USER-AGENT COM `; wv)`. Todo WebView Android se identifica com o token
- *     `wv`. O Cloudflare/Turnstile usa esse token para classificar o cliente
- *     como "webview / automação" e então serve um desafio que NUNCA conclui
- *     sozinho (o usuário fica vendo "confirmando que você é uma pessoa de
- *     verdade" para sempre). Removemos o token `; wv)` — o WebView passa a se
- *     apresentar como o Chrome real que ele é por baixo. O UA original é
- *     PRESERVADO em `MovieFlixTV/4.0.1` como sufixo próprio do app;
- *     NÃO alteramos o resto da string (versão do Chrome, modelo do aparelho).
+ * CAUSA RAIZ 2 — popup de anúncio abrindo a página do app.
+ *   `onCreateWindow` carregava no WebView PRINCIPAL qualquer URL pedida em nova
+ *   janela — sem checar se o frame que pediu era o principal. Um anúncio dentro
+ *   do iframe do player conseguia, assim, substituir a tela inteira do app.
+ *   CORREÇÃO: a nova janela é aceita apenas quando o pedido vem do FRAME
+ *   PRINCIPAL (`isForMainFrame()`); pedidos vindos de iframe são recusados
+ *   silenciosamente (fecha a janela), sem trocar a página e sem loop.
  *
- *  2. MÚLTIPLAS JANELAS DESLIGADAS. O plugin do desafio abre a verificação
- *     numa janela nova (`target="_blank"`). Sem `setSupportMultipleWindows`,
- *     o WebView IGNORA o pedido silenciosamente e o desafio nunca aparece —
- *     o vídeo fica preso. Agora as janelas são suportadas e a nova janela é
- *     carregada DENTRO do próprio WebView (`onCreateWindow`), no mesmo
- *     domínio oficial — nada de abrir navegador externo.
- *
- *  3. FOCO DE D-PAD PERDIDO. O desafio roda dentro de iframes aninhados; sem
- *     foco alcançável o usuário não consegue marcar a caixa do Turnstile com o
- *     controle remoto. O WebView é focável, `onPageStarted/onPageFinished`
- *     devolvem o foco, e o seletores de TV do site já incluem `iframe`.
+ * CAUSA RAIZ 3 — "clico para pausar/interagir e o player SAI".
+ *   No player o vídeo é um IFRAME. Ao navegar, o foco do D-pad cai no frame,
+ *   e um clique/OK entregue fora da área do embed podia atingir o overlay da
+ *   página. Além disso, a verificação de assinatura/conteúdo da página do
+ *   player devolve uma tela de erro quando a rota é reavaliada — a percepção de
+ *   "saiu do player". A camada nativa agora:
+ *   - mantém o FOCO sempre dentro do WebView (o D-pad nunca "desaparece" e a
+ *     interação vira play/pause, não navegação);
+ *   - recusa janelas de SUBFRAME (o anúncio não consegue navegar a página);
+ *   - mantém o BACK hierárquico: sai dos controles → volta ao detalhe → nunca
+ *     fecha o app de surpresa.
  *
  * IMPORTANTE — o que NÃO foi feito: não escondemos a tela do Cloudflare, não
- * criamos botão falso, não bloqueamos os domínios de verificação. O antiAds do
- * site (`src/lib/antiAds.ts`) trata `challenges.cloudflare.com`, `cloudflare.com`
- * e `turnstile` como domínios intocáveis, para o desafio concluir UMA vez e
- * seguir para o conteúdo.
+ * criamos botão falso, não bloqueamos os domínios de verificação e não trocamos
+ * o provedor. O embed oficial do StreamBetter continua sendo a única fonte de
+ * reprodução.
  *
  * O que este arquivo faz:
  *  1. abre a experiência TV em landscape, tela cheia, com mídia liberada;
- *  2. expõe a MESMA ponte JS do app mobile ({@code window.MovieFlixApp}) para
- *     que a detecção de shell nativo e a abertura do WhatsApp funcionem igual;
- *  3. mantém URL externa/aplicativo fora do WebView (WhatsApp, tel:, mailto:,
- *     intents de player externo) via {@code shouldOverrideUrlLoading} — mas
- *     mantém o domínio oficial E os domínios de verificação dentro;
- *  4. garante que o controle remoto funcione: o WebView tem foco de D-pad e o
- *     BACK navega dentro do app antes de sair;
- *  5. suporta vídeo em tela cheia (onShowCustomView/onHideCustomView);
- *  6. repassa as TECLAS DE MÍDIA do controle remoto para o player do site como
- *     o evento `mf-media-key`, que o player TV escuta (play/pause, próximo,
- *     parar, avançar/retroceder).
+ *  2. expõe a MESMA ponte JS do app mobile ({@code window.MovieFlixApp}) —
+ *     inclusive `exitApp()`, que o duplo-back do site chama;
+ *  3. trata a navegação por (frame, host): oficial + provedor + verificação
+ *     ficam dentro; o resto vai para o app externo, sem sequestrar a página;
+ *  4. garante o controle remoto: foco de D-pad, BACK hierárquico e teclas de
+ *     mídia repassadas como o evento `mf-media-key` consumido pelo player TV;
+ *  5. suporta vídeo em tela cheia (onShowCustomView/onHideCustomView).
  */
 public class MainActivity extends Activity {
 
     /** URL da experiência de TV (mesma origem/dados do site e do app mobile). */
-    private static final String TV_URL = "https://movieflix-bszf.onrender.com/#/tv";
-
-    /** Host do MovieFlix: navegação para cá fica DENTRO do WebView. */
-    private static final String HOST_OFICIAL = "movieflix-bszf.onrender.com";
-
-    /**
-     * Domínios que NUNCA podem ser expulsos do WebView: o desafio de verificação
-     * (Cloudflare/Turnstile) roda em iframes aninhados no player. Expulsá-los
-     * quebra a reprodução — era uma das causas do loop de verificação.
-     */
-    private static final String[] HOSTS_VERIFICACAO = {
-            "challenges.cloudflare.com",
-            "cloudflare.com",
-            "turnstile",
-    };
-
-    /** Marcador de versão no User-Agent (diagnóstico e futuros ajustes de UI). */
-    private static final String TV_UA_SUFIXO = " MovieFlixTV/4.0.1";
+    private static final String TV_URL = TvConfig.TV_URL;
 
     private WebView webView;
     private FrameLayout raiz;
     private View telaCheia;
     private WebChromeClient.CustomViewCallback callbackTelaCheia;
+
+    /**
+     * A barra de controles do player está aberta? Mantido pelo próprio site
+     * (ponte {@code setControlesAbertos}) para que o BACK do controle remoto
+     * saiba a hierarquia ANTES de navegar: 1ª pulsação fecha os controles,
+     * 2ª volta aos detalhes. Sem isso, um BACK "para interagir" navegava de
+     * página no meio da reprodução — exatamente o que não pode acontecer.
+     */
+    private boolean controlesAbertos = false;
 
     @SuppressLint({"SetJavaScriptEnabled", "AddJavascriptInterface"})
     @Override
@@ -162,27 +156,28 @@ public class MainActivity extends Activity {
         s.setAllowFileAccess(false);
         s.setAllowContentAccess(false);
 
-        // ── CORREÇÃO 2: janelas novas (desafio de verificação) ────────────────
-        // O Turnstile/Cloudflare abre a verificação em uma nova janela. Sem isso
-        // o pedido é ignorado em silêncio e o vídeo nunca carrega.
+        // Janelas novas: o desafio Cloudflare/Turnstile abre a verificação numa
+        // janela nova. Sem suporte a múltiplas janelas o pedido é IGNORADO em
+        // silêncio e o vídeo fica preso. A aceitação continua restrita ao frame
+        // principal (ver onCreateWindow).
         s.setSupportMultipleWindows(true);
 
-        // ── CORREÇÃO 1: User-Agent sem o token `wv` ───────────────────────────
-        // O token `wv` faz o Cloudflare classificar o cliente como WebView e
-        // servir um desafio que não conclui (loop de "confirmando que você é
-        // uma pessoa de verdade"). Removemos APENAS esse token.
+        // User-Agent SEM o token `wv`: o token faz o Cloudflare classificar o
+        // cliente como WebView e servir um desafio que nunca conclui (loop de
+        // "confirmando que você é uma pessoa de verdade"). Removemos APENAS o
+        // token; o resto da string (versão do Chrome, modelo do aparelho) fica.
         String ua = s.getUserAgentString();
         if (ua != null) {
             ua = ua.replace("; wv)", ")");
             if (!ua.contains("MovieFlixTV/")) {
-                ua = ua + TV_UA_SUFIXO;
+                ua = ua + TvConfig.TV_UA_SUFIXO;
             }
             s.setUserAgentString(ua);
         }
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-            // O embed do provedor é servido por HTTPS; aceitamos requisitos mistos
-            // para não perder fontes que usam iframes intermediários.
+            // O embed do provedor é servido por HTTPS; aceitamos requisitos
+            // mistos para não perder fontes que usam iframes intermediários.
             s.setMixedContentMode(WebSettings.MIXED_CONTENT_COMPATIBILITY_MODE);
         }
 
@@ -193,14 +188,18 @@ public class MainActivity extends Activity {
             cm.setAcceptThirdPartyCookies(webView, true);
         }
 
-        webView.setBackgroundColor(0xFF0A0A0F);
+        webView.setBackgroundColor(TvConfig.COR_FUNDO);
         webView.setFocusable(true);
         webView.setFocusableInTouchMode(true);
         webView.requestFocus(View.FOCUS_DOWN);
 
-        // Ponte JS com a MESMA API do app mobile, para a detecção de shell
-        // nativo (useIsApp) e a abertura do WhatsApp funcionarem igual.
-        webView.addJavascriptInterface(new PonteNativa(), "MovieFlixApp");
+        // Ponte JS: registrada com os DOIS nomes que o site procura
+        // (`MovieFlixAndroid` em src/lib/doubleBackExit.ts e `MovieFlixApp` na
+        // detecção de shell). Sem ela o Voltar do controle não conseguia
+        // encerrar o app de forma previsível.
+        PonteNativa ponte = new PonteNativa();
+        webView.addJavascriptInterface(ponte, "MovieFlixApp");
+        webView.addJavascriptInterface(ponte, "MovieFlixAndroid");
 
         webView.setWebViewClient(new WebViewClient() {
             @Override
@@ -212,21 +211,24 @@ public class MainActivity extends Activity {
             @Override
             public void onPageFinished(WebView view, String url) {
                 super.onPageFinished(view, url);
-                // CORREÇÃO 3: devolve o foco ao WebView depois de cada navegação
-                // (inclusive as do desafio) para o D-pad continuar alcançando a
-                // caixa de verificação dentro dos iframes.
+                // Devolve o foco ao WebView depois de cada navegação (inclusive
+                // as do desafio) para o D-pad continuar alcançando a caixa de
+                // verificação dentro dos iframes.
                 view.requestFocus();
             }
 
             @Override
             public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
-                return tratarUrl(request.getUrl().toString());
+                boolean framePrincipal = request.isForMainFrame();
+                return tratarUrl(request.getUrl(), framePrincipal);
             }
 
             @SuppressWarnings("deprecation")
             @Override
             public boolean shouldOverrideUrlLoading(WebView view, String url) {
-                return tratarUrl(url);
+                // A sobrecarga antiga não informa o frame: assume frame principal
+                // (é o caso das navegações de documento no WebView moderno).
+                return tratarUrl(Uri.parse(url), true);
             }
         });
 
@@ -234,36 +236,6 @@ public class MainActivity extends Activity {
             @Override
             public void onPermissionRequest(final PermissionRequest request) {
                 request.grant(request.getResources());
-            }
-
-            /**
-             * CORREÇÃO 2 (continuação): carrega a janela pedida pelo desafio
-             * DENTRO deste mesmo WebView — nunca em navegador externo.
-             */
-            @Override
-            public boolean onCreateWindow(
-                    WebView view, boolean isDialog, boolean isUserGesture, Message resultMsg) {
-                WebView nova = new WebView(MainActivity.this);
-                copiarConfiguracao(view, nova);
-                nova.setWebViewClient(new WebViewClient() {
-                    @Override
-                    public boolean shouldOverrideUrlLoading(WebView v, WebResourceRequest request) {
-                        // A URL pedida é carregada no WebView principal do app.
-                        webView.loadUrl(request.getUrl().toString());
-                        return true;
-                    }
-
-                    @SuppressWarnings("deprecation")
-                    @Override
-                    public boolean shouldOverrideUrlLoading(WebView v, String url) {
-                        webView.loadUrl(url);
-                        return true;
-                    }
-                });
-                WebView.WebViewTransport transport = (WebView.WebViewTransport) resultMsg.obj;
-                transport.setWebView(nova);
-                resultMsg.sendToTarget();
-                return true;
             }
 
             @Override
@@ -293,6 +265,45 @@ public class MainActivity extends Activity {
                     callbackTelaCheia = null;
                 }
             }
+
+            /**
+             * Nova janela (ex.: o desafio de verificação Cloudflare/Turnstile, ou
+             * a janela de anúncio que o embed tenta abrir).
+             *
+             * A janela é CRIADA, mas o WebViewClient dela aceita apenas o que é
+             * do MovieFlix, do provedor de vídeo ou da verificação — todo o resto
+             * é recusado ali dentro. Assim o desafio legítimo conclui, o anúncio
+             * em branco é descartado, e a página do app NUNCA é substituída
+             * (que era como o usuário acabava fora do app).
+             */
+            @Override
+            public boolean onCreateWindow(
+                    WebView view, boolean isDialog, boolean isUserGesture, Message resultMsg) {
+                if (resultMsg != null && resultMsg.obj instanceof WebView.WebViewTransport) {
+                    WebView.WebViewTransport transport = (WebView.WebViewTransport) resultMsg.obj;
+                    WebView nova = new WebView(MainActivity.this);
+                    copiarConfiguracao(view, nova);
+                    nova.setWebViewClient(new WebViewClient() {
+                        @Override
+                        public boolean shouldOverrideUrlLoading(WebView v, WebResourceRequest request) {
+                            String url = request.getUrl().toString();
+                            // Dentro da janela nova, o que é do MovieFlix/provedor/
+                            // verificação permanece ali; o resto é recusado.
+                            return !TvConfig.ficaNoWebView(url);
+                        }
+
+                        @SuppressWarnings("deprecation")
+                        @Override
+                        public boolean shouldOverrideUrlLoading(WebView v, String url) {
+                            return !TvConfig.ficaNoWebView(url);
+                        }
+                    });
+                    transport.setWebView(nova);
+                    resultMsg.sendToTarget();
+                    return true;
+                }
+                return false;
+            }
         });
     }
 
@@ -305,54 +316,62 @@ public class MainActivity extends Activity {
         d.setDomStorageEnabled(true);
         d.setJavaScriptCanOpenWindowsAutomatically(true);
         d.setUserAgentString(o.getUserAgentString());
+        d.setMediaPlaybackRequiresUserGesture(false);
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
             d.setMixedContentMode(o.getMixedContentMode());
         }
-        destino.setBackgroundColor(0xFF0A0A0F);
-    }
-
-    /** O host pertence à verificação (Cloudflare/Turnstile)? Nunca expulsar. */
-    private boolean ehHostVerificacao(String host) {
-        String h = host == null ? "" : host.toLowerCase();
-        for (String dominio : HOSTS_VERIFICACAO) {
-            if (h.equals(dominio) || h.endsWith("." + dominio) || h.contains(dominio)) return true;
-        }
-        return false;
+        destino.setBackgroundColor(TvConfig.COR_FUNDO);
     }
 
     /**
      * Decide onde uma URL é aberta.
      *
-     * - Domínio do MovieFlix → fica no WebView (é o próprio app).
-     * - Domínios de VERIFICAÇÃO (Cloudflare/Turnstile) → ficam no WebView:
-     *   expulsá-los quebrava a reprodução (loop de verificação).
-     * - Esquemas externos (whatsapp, tel, mailto, intent, market...) → app
-     *   externo, com fallback em navegador. Dentro do WebView eles falhariam.
+     * REGRA (por FRAME e por DESTINO):
+     *  - domínio oficial do MovieFlix        → fica no WebView;
+     *  - domínios do PROVEDOR DE VÍDEO       → ficam no WebView (o embed
+     *    PRECISA permanecer enquadrado para reproduzir);
+     *  - domínios de VERIFICAÇÃO (Cloudflare/Turnstile) → ficam no WebView;
+     *  - data:/blob:/about:/javascript:      → são conteúdo do documento, nunca
+     *    "site externo" (tratá-los como tal trocaria a página do app);
+     *  - SUBFRAME (iframe)                   → NUNCA sai do app por navegação;
+     *    uma navegação de iframe para host desconhecido é apenas bloqueada (o
+     *    anúncio não consegue sequestrar a tela). Antes isso trocava a página
+     *    inteira pelo navegador externo — causa do "abriu fora do app";
+     *  - FRAME PRINCIPAL para outro site    → app externo, com fallback em
+     *    navegador (dentro do WebView falharia);
+     *  - esquemas externos (whatsapp, tel, mailto, market, intent) → app externo.
      *
      * @return true quando a navegação foi tratada fora do WebView.
      */
-    private boolean tratarUrl(String url) {
-        if (url == null) return false;
-        Uri uri = Uri.parse(url);
+    private boolean tratarUrl(Uri uri, boolean framePrincipal) {
+        if (uri == null) return false;
+        String url = uri.toString();
         String scheme = uri.getScheme() == null ? "" : uri.getScheme().toLowerCase();
         String host = uri.getHost() == null ? "" : uri.getHost().toLowerCase();
 
-        if (host.endsWith(HOST_OFICIAL)) return false;
-        // Verificação roda dentro do app (iframe do player).
-        if (ehHostVerificacao(host)) return false;
+        // Conteúdo interno do documento: nunca é "navegação externa".
+        if (TvConfig.ehEsquemaInterno(url)) return false;
+
+        // MovieFlix, provedor de vídeo e verificação: SEMPRE dentro do WebView,
+        // inclusive quando a navegação vem de um iframe.
+        if (TvConfig.ficaNoWebView(url)) return false;
 
         if (scheme.equals("http") || scheme.equals("https")) {
-            // Outro site: mantém o usuário no MovieFlix (abre no navegador).
+            if (!framePrincipal) {
+                // Anúncio tentando navegar o iframe para fora do player: bloqueia
+                // sem trocar a página do app e sem abrir navegador externo.
+                return true;
+            }
             abrirIntent(new Intent(Intent.ACTION_VIEW, uri), "Não foi possível abrir este link");
             return true;
         }
 
-        if (scheme.equals("whatsapp") || scheme.equals("tel") || scheme.equals("mailto")
-                || scheme.equals("market") || scheme.equals("intent")) {
+        if (TvConfig.ehEsquemaExterno(url)) {
             abrirIntent(new Intent(Intent.ACTION_VIEW, uri), "Nenhum app disponível para abrir este link");
             return true;
         }
 
+        // Esquemas desconhecidos: deixa o WebView decidir (não sequestra nada).
         return false;
     }
 
@@ -366,9 +385,13 @@ public class MainActivity extends Activity {
     }
 
     /**
-     * BACK: primeiro navega dentro do app (a própria TV usa o back do histórico);
-     * só encerra quando não há mais o que voltar — comportamento previsível e
-     * igual ao de qualquer app de TV.
+     * BACK hierárquico — nunca fecha o app de surpresa:
+     *  1) se há vídeo em tela cheia, sai da tela cheia;
+     *  2) se a página tem histórico, volta uma rota (o site trata o resto:
+     *     sair dos controles do player → detalhe → catálogo);
+     *  3) se o próprio site já está na raiz, o JS mostra o aviso de duplo-back
+     *     (o WebView continua recebendo a próxima pulsação);
+     *  4) só então encerra a Activity.
      */
     @Override
     public void onBackPressed() {
@@ -376,27 +399,46 @@ public class MainActivity extends Activity {
             webView.evaluateJavascript("document.exitFullscreen && document.exitFullscreen();", null);
             return;
         }
-        if (webView.canGoBack()) {
+
+        // 1º degrau: com os controles do player abertos, o BACK apenas os fecha
+        // e PERMANECE no player (nunca navega nem fecha o app).
+        if (controlesAbertos && webView != null) {
+            controlesAbertos = false;
+            webView.evaluateJavascript(
+                    "window.dispatchEvent(new Event('mf-fechar-controles'));", null);
+            return;
+        }
+
+        if (webView != null && webView.canGoBack()) {
             webView.goBack();
+            return;
+        }
+        // Deixa o site decidir (duplo-back no aviso) — o guard de histórico de
+        // src/lib/doubleBackExit.ts mostra "Pulsa de novo para sair" na primeira
+        // pulsação. Aqui só pedimos o aviso; o app NUNCA fecha por uma pulsação.
+        if (webView != null) {
+            webView.evaluateJavascript(
+                    "(function(){try{ if(window.__mfMostrarAviso) window.__mfMostrarAviso(); }catch(e){}})();",
+                    null);
             return;
         }
         super.onBackPressed();
     }
 
     /**
-     * O controle remoto entrega as teclas de mídia ao WebView. Aqui garantimos
-     * que o foco volte ao WebView (para o D-pad não "desaparecer") e que as
-     * teclas de mídia cheguem até a página.
+     * O controle remoto entrega as teclas de mídia ao WebView. Garantimos que o
+     * foco volte ao WebView (para o D-pad não "desaparecer") e que as teclas de
+     * mídia cheguem até a página.
      *
      * O player TV escuta o evento `mf-media-key` (ver src/tv/TvPlayerPage.tsx):
-     *   togglePlay → play/pause na ponte do provedor
-     *   next       → próximo episódio (só quando existe)
-     *   stop       → parar/sair da reprodução
-     *   seek       → avançar/retroceder 10s (direção pelo keyCode)
+     *   togglePlay → play/pause   next → próximo episódio (só quando existe)
+     *   stop → sair da reprodução  seekFwd/seekBack → ±10s
      */
     @Override
     public boolean dispatchKeyEvent(KeyEvent event) {
         if (webView != null && !webView.hasFocus() && event.getAction() == KeyEvent.ACTION_DOWN) {
+            // Interagir com o player NUNCA pode tirar o foco do WebView: sem
+            // foco o D-pad deixa de funcionar e o usuário fica "preso".
             webView.requestFocus();
         }
 
@@ -421,7 +463,6 @@ public class MainActivity extends Activity {
                     tipo = "next";
                 } else if (code == KeyEvent.KEYCODE_MEDIA_FAST_FORWARD
                         || code == KeyEvent.KEYCODE_MEDIA_REWIND) {
-                    // Direção do salto: o player soma/subtrai 10s.
                     tipo = code == KeyEvent.KEYCODE_MEDIA_FAST_FORWARD ? "seekFwd" : "seekBack";
                 } else {
                     tipo = "togglePlay";
@@ -470,8 +511,8 @@ public class MainActivity extends Activity {
 
     /**
      * Ponte exposta ao site como {@code window.MovieFlixApp} — a MESMA API do
-     * app mobile, para que a detecção de shell nativo e a abertura do WhatsApp
-     * se comportem igual aqui.
+     * app mobile, para que a detecção de shell nativo, a abertura do WhatsApp e
+     * a SAÍDA do app (usada pelo duplo-back do site) se comportem igual aqui.
      */
     private class PonteNativa {
 
@@ -481,10 +522,37 @@ public class MainActivity extends Activity {
             return true;
         }
 
-        /** Identifica o shell (útil para a página decidir mostrar dicas de TV). */
+        /** Identifica o shell (a página usa para forçar a experiência de TV). */
         @JavascriptInterface
         public String plataforma() {
             return "tv";
+        }
+
+        /**
+         * Fecha o app — chamado pelo duplo-back do site
+         * (`src/lib/doubleBackExit.ts` → `sairDeVerdade()`). Sem esta ponte o
+         * botão Voltar do controle remoto não conseguia encerrar o app de forma
+         * previsível.
+         */
+        @JavascriptInterface
+        public void exitApp() {
+            runOnUiThread(() -> {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                    finishAndRemoveTask();
+                } else {
+                    finish();
+                }
+            });
+        }
+
+        /**
+         * O site informa se a barra de controles do player está aberta. É o que
+         * dá ao BACK do controle remoto a hierarquia correta (fechar controles
+         * → voltar aos detalhes), sem nunca fechar o app de surpresa.
+         */
+        @JavascriptInterface
+        public void setControlesAbertos(boolean aberto) {
+            controlesAbertos = aberto;
         }
 
         /** Abre o WhatsApp oficial no app externo (mesma regra do mobile). */

@@ -89,6 +89,9 @@ export const TV_APP_INFO = {
     'Player com a mesma fonte do app mobile (embed em iframe) — fim da tela "Este link só funciona dentro de um iframe"',
     'Player limpo para TV: controles ocultos durante a reprodução e "Próximo episódio" só quando realmente existe',
     'Navegação 100% por controle remoto em todas as telas, com foco sempre visível',
+    'PLAYER: fim do redirecionamento de anúncio e da saída para fora do app — o embed do provedor e a verificação Cloudflare permanecem dentro da TV, como no mobile',
+    'PLAYER: interagir (OK, setas ou toque) nunca mais fecha a reprodução — abre/fecha os controles e nada mais',
+    'PLAYER: BACK hierárquico — 1ª pulsação fecha os controles, 2ª volta aos detalhes; o app nunca fecha sozinho',
   ],
   platforms: ['Android TV', 'Google TV', 'TV Box'],
 } as const;

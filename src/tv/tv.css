@@ -442,7 +442,8 @@
 
 .tv-player-embed { position: absolute; inset: 0; }
 
-/* Superfície de OK: cobre o vídeo e mostra os controles. */
+/* Superficie de OK: cobre o video e mostra os controles.
+   Interagir aqui NUNCA sai do player: so abre a barra (e o auto-hide a fecha). */
 .tv-player-tap {
   position: absolute;
   inset: 0;
