@@ -2,6 +2,7 @@ import { useEffect, useState, type ReactNode } from 'react';
 import { TvSidebar } from './TvSidebar';
 import { TvMark } from './TvBrand';
 import { cn } from '@/lib/cn';
+import { focoDoUsuario } from './tvElementos';
 
 /**
  * TvLayout — moldura da experiência MovieFlix TV.
@@ -33,13 +34,12 @@ const TENTATIVAS_FOCO = [250, 700, 1300, 2100, 3200];
  * TV)? Nesse caso a recuperação automática de foco NÃO pode agir — ela movia o
  * foco para o elemento inicial enquanto o usuário digitava no login.
  */
-function focoDoUsuario(): boolean {
-  const ativo = document.activeElement as HTMLElement | null;
-  if (!ativo || ativo === document.body) return false;
-  if (ativo.closest?.('[data-tv-form]')) return true;
-  const tag = ativo.tagName;
-  return tag === 'INPUT' || tag === 'TEXTAREA' || ativo.isContentEditable === true;
-}
+/*
+ * `focoDoUsuario` mora em `./tvElementos` porque a navegação espacial precisa da
+ * MESMA definição. A versão anterior só reconhecia INPUT/TEXTAREA: com o foco
+ * numa TECLA do teclado na tela — que não é um campo de texto — a recuperação
+ * automática continuava agindo e roubava o foco no meio da digitação.
+ */
 
 export function TvLayout({ children, imersivo = false }: { children: ReactNode; imersivo?: boolean }) {
   const [splash, setSplash] = useState(true);
@@ -54,6 +54,12 @@ export function TvLayout({ children, imersivo = false }: { children: ReactNode; 
     const timers = TENTATIVAS_FOCO.map((ms) =>
       window.setTimeout(() => {
         // Nunca mexe no foco quando o usuário está num campo de texto/formulário.
+        // Telas que cuidam do PRÓPRIO foco (o login da TV) pedem, por marcação,
+        // que a recuperação automática não aja nelas. É esta recuperação que
+        // roubava o foco enquanto o usuário digitava.
+        if (document.querySelector('[data-tv-sem-autofoco]')) return;
+        // Nunca mexe no foco com o usuário num campo de texto, num formulário de
+        // TV ou numa TECLA do teclado na tela.
         if (focoDoUsuario()) return;
         const ativo = document.activeElement as HTMLElement | null;
         // Só assume o foco se ele se perdeu (ou nunca aconteceu).

@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { ehTelaDeTv } from "@/lib/tv";
 import { abrirTecladoDaTv, ehCampoDeTexto, reabrirFocoDeTexto } from "@/lib/tecladoTv";
+import { dentroDeFormularioTv } from "@/tv/tvElementos";
 
 /**
  * Navegação espacial por controle remoto / teclado (TV, TV Box, Android TV Box).
@@ -166,10 +167,12 @@ function playerModeAtivo(): boolean {
  * "sair sozinho" e a digitao ficava impossvel. Quando o foco est nas TECLAS do
  * teclado na tela (que no so campos de texto), a navegao continua normal.
  */
-function emFormularioTv(): boolean {
-  const ativo = document.activeElement as HTMLElement | null;
-  return !!ativo && ehCampoDeTexto(ativo) && !!ativo.closest?.("[data-tv-form]");
-}
+/*
+ * O teste "estou dentro do formulário de TV?" mora em `@/tv/tvElementos`, junto
+ * com o `focoDoUsuario` usado pela recuperação automática de foco do TvLayout.
+ * Manter UMA definição só é o que impede as duas camadas de divergirem — foi a
+ * divergência entre elas que causou o bug do foco no login da TV.
+ */
 
 /** Sincroniza o estado do modo com o badge/indicador (evento do useTvPlayerControls). */
 function emitirModoPlayer() {
@@ -224,7 +227,16 @@ export function useTvNavigation() {
       // dono do foco e do teclado: a navegação espacial não toca em nada. Antes,
       // as setas/OK eram consumidos aqui (fase de captura) antes de chegar ao
       // campo — o foco "saía" e não dava para digitar.
-      if (emFormularioTv()) return;
+      // O formulário é dono do foco ENQUANTO o foco estiver DENTRO dele — campo
+      // de texto, TECLA do teclado na tela ou botão. Antes a guarda só valia com
+      // um CAMPO DE TEXTO focado: assim que o foco caía numa tecla do teclado na
+      // tela (ou no botão do teclado), a navegação espacial voltava a agir,
+      // consumia o OK/setas em fase de CAPTURA e o foco escapava para a coluna
+      // lateral — o bug relatado. A ÚNICA tecla que continua valendo aqui é o
+      // VOLTAR, para o usuário nunca ficar preso na tela.
+      if (dentroDeFormularioTv(document.activeElement) && acaoDaTecla(e) !== "back") {
+        return;
+      }
 
       // ── CAMPO DE TEXTO (login/busca) ───────────────────────────────────────
       // Com um campo de texto focado, TODA tecla que produz caractere (letras,

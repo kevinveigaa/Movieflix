@@ -32,6 +32,15 @@ import { cn } from '@/lib/cn';
 export interface TvKeyboardProps {
   /** Recebe o caractere a inserir no campo ativo. */
   onTecla: (tecla: string) => void;
+  /**
+   * Para onde o foco vai quando o usuário pede para SAIR do teclado:
+   *  - `cima`    — na primeira linha, `↑` volta ao formulário;
+   *  - `baixo`   — na última linha, `↓` vai à ação do formulário ("Entrar");
+   *  - `escapar` — o Back/Voltar do controle fecha o teclado.
+   * Sem estes retornos o foco cairia no fim do documento ("o foco sumiu"),
+   * que é o efeito mais temido numa TV.
+   */
+  onSair?: (sentido: 'cima' | 'baixo' | 'escapar') => void;
   /** Apaga o último caractere do campo ativo. */
   onApagar: () => void;
   /** Limpa o campo ativo. */
@@ -74,11 +83,21 @@ function ehLetra(t: string): boolean {
   return /^[A-Za-zÇç]$/.test(t);
 }
 
-export function TvKeyboard({ onTecla, onApagar, onLimpar, onEntrar, onFechar }: TvKeyboardProps) {
+export function TvKeyboard({
+  onTecla,
+  onApagar,
+  onLimpar,
+  onEntrar,
+  onFechar,
+  onSair,
+}: TvKeyboardProps) {
   // Começa em minúsculas (e-mail costuma ser minúsculo). ⇧ = uma letra.
   const [maiuscula, setMaiuscula] = useState(false);
   const [aba, setAba] = useState<Aba>('letras');
   const gradeRef = useRef<HTMLDivElement>(null);
+  const raizRef = useRef<HTMLDivElement>(null);
+  const abasRef = useRef<HTMLDivElement>(null);
+  const funcoesRef = useRef<HTMLDivElement>(null);
   const jaPosicionou = useRef(false);
 
   function enviar(t: string) {
@@ -118,10 +137,189 @@ export function TvKeyboard({ onTecla, onApagar, onLimpar, onEntrar, onFechar }: 
     }, 30);
   }
 
+  /**
+   * ── NAVEGAÇÃO POR D-PAD, LINHA A LINHA ─────────────────────────────────────
+   *
+   * CAUSA RAIZ (bug do login da TV): o teclado na tela dependia SÓ da navegação
+   * espacial global do `useTvNavigation` para andar entre as teclas. Como o
+   * formulário de TV (o teclado mora dentro dele) bloqueia a navegação global para
+   * as teclas de digitação não serem interceptadas, o movimento entre as teclas
+   * passou a ser responsabilidade DESTE componente.
+   *
+   * A navegação é determinística: cada LINHA do teclado é percorrida na horizontal
+   * (◀ ▶ com parada nas pontas, sem "vazar" para outra linha) e `▲ ▼` sobem e
+   * descem UMA linha, mantendo a COLUNA aproximada — que é o que o usuário espera
+   * de um teclado de TV.
+   */
+  function linhasDaGrade(): HTMLButtonElement[][] {
+    const grade = gradeRef.current;
+    if (!grade) return [];
+    return Array.from(grade.querySelectorAll<HTMLElement>('.tv-keyboard-row')).map((l) =>
+      Array.from(l.querySelectorAll<HTMLButtonElement>('[data-tv-key]')),
+    );
+  }
+
+  /** Foca um elemento pelo gesto atual (sem blur: o foco nunca fica órfão). */
+  function focar(el: HTMLElement | null | undefined) {
+    el?.focus({ preventScroll: true });
+  }
+
+  /**
+   * Anda na direção pedida. Devolve `true` quando o movimento foi resolvido
+   * DENTRO do teclado — só quando ele devolve `false` a tela externa assume
+   * (voltar ao campo, ir ao "Entrar"), e é aí que a cadeia de foco fecha.
+   */
+  function mover(dir: 'left' | 'right' | 'up' | 'down'): boolean {
+    const ativo = document.activeElement as HTMLElement | null;
+    if (!ativo) return false;
+
+    // Na barra de ABAS (ABC / 123 / #+& / Fechar): ◀ ▶ trocam de aba; ▼ desce
+    // para a grade de letras.
+    if (abasRef.current?.contains(ativo)) {
+      if (dir === 'down') {
+        focar(linhasDaGrade()[0]?.[0]);
+        return true;
+      }
+      const abas = Array.from(
+        abasRef.current.querySelectorAll<HTMLButtonElement>('[data-tv-key]'),
+      );
+      const i = abas.indexOf(ativo as HTMLButtonElement);
+      if (i < 0) return false;
+      if (dir === 'left' && i > 0) {
+        focar(abas[i - 1]);
+        return true;
+      }
+      if (dir === 'right' && i < abas.length - 1) {
+        focar(abas[i + 1]);
+        return true;
+      }
+      return true;
+    }
+
+    // Na linha de FUNÇÕES (Espaço / ⇧ / Apagar / Limpar / Entrar).
+    if (funcoesRef.current?.contains(ativo)) {
+      const funcoes = Array.from(
+        funcoesRef.current.querySelectorAll<HTMLButtonElement>('[data-tv-key]'),
+      );
+      const i = funcoes.indexOf(ativo as HTMLButtonElement);
+      if (i < 0) return false;
+      if (dir === 'left' && i > 0) {
+        focar(funcoes[i - 1]);
+        return true;
+      }
+      if (dir === 'right' && i < funcoes.length - 1) {
+        focar(funcoes[i + 1]);
+        return true;
+      }
+      if (dir === 'up') {
+        const linhas = linhasDaGrade();
+        focar(linhas[linhas.length - 1]?.[0]);
+        return true;
+      }
+      // `down` na última linha sai do teclado → a ação do formulário assume.
+      return false;
+    }
+
+    // Na GRADE de teclas: linha a linha, coluna aproximada.
+    const linhas = linhasDaGrade();
+    let li = -1;
+    let ci = -1;
+    for (let l = 0; l < linhas.length; l++) {
+      const c = linhas[l].indexOf(ativo as HTMLButtonElement);
+      if (c >= 0) {
+        li = l;
+        ci = c;
+        break;
+      }
+    }
+    if (li < 0) return false;
+
+    if (dir === 'left') {
+      if (ci > 0) {
+        focar(linhas[li][ci - 1]);
+        return true;
+      }
+      return true; // ponta esquerda: fica (não vaza para a coluna lateral).
+    }
+    if (dir === 'right') {
+      if (ci < linhas[li].length - 1) {
+        focar(linhas[li][ci + 1]);
+        return true;
+      }
+      return true; // ponta direita: fica.
+    }
+    if (dir === 'up') {
+      if (li > 0) {
+        const destino = linhas[li - 1];
+        focar(destino[Math.min(ci, destino.length - 1)]);
+        return true;
+      }
+      // Primeira linha: sobe para a barra de abas (dentro do próprio teclado).
+      focar(abasRef.current?.querySelector<HTMLButtonElement>('[data-tv-key]'));
+      return true;
+    }
+    // `down`: desce uma linha; na última, vai para a linha de funções; se já
+    // estiver nela, devolve `false` e a AÇÃO do formulário assume o foco.
+    if (li < linhas.length - 1) {
+      const destino = linhas[li + 1];
+      focar(destino[Math.min(ci, destino.length - 1)]);
+      return true;
+    }
+    focar(funcoesRef.current?.querySelector<HTMLButtonElement>('[data-tv-key]'));
+    return true;
+  }
+
+  /**
+   * Teclas do teclado na tela. As SETAS são resolvidas aqui (determinísticas); o
+   * Enter/OK segue o fluxo normal do botão focado; o Escape/Voltar fecha.
+   *
+   * Importante: só consomem a tecla quando o movimento é resolvido DENTRO do
+   * teclado — nas bordas a tecla é repassada à tela externa, que fecha a cadeia.
+   */
+  function teclas(e: React.KeyboardEvent<HTMLDivElement>) {
+    if (e.defaultPrevented) return;
+    const c = e.nativeEvent.keyCode || e.nativeEvent.which;
+    const esq = e.key === 'ArrowLeft' || e.key === 'Left' || c === 37 || c === 21;
+    const dir = e.key === 'ArrowRight' || e.key === 'Right' || c === 39 || c === 22;
+    const cima = e.key === 'ArrowUp' || e.key === 'Up' || c === 38 || c === 19;
+    const baixo = e.key === 'ArrowDown' || e.key === 'Down' || c === 40 || c === 20;
+    const sair = e.key === 'Escape' || e.key === 'GoBack' || c === 27 || c === 4 || c === 461;
+
+    if (sair) {
+      e.preventDefault();
+      e.stopPropagation();
+      onSair?.('escapar');
+      return;
+    }
+    if (!esq && !dir && !cima && !baixo) return;
+
+    const resolvido = mover(esq ? 'left' : dir ? 'right' : cima ? 'up' : 'down');
+    if (resolvido) {
+      e.preventDefault();
+      e.stopPropagation();
+      return;
+    }
+    // Borda: a tela externa fecha a cadeia (campo ativo / botão Entrar).
+    e.preventDefault();
+    e.stopPropagation();
+    onSair?.(cima ? 'cima' : 'baixo');
+  }
+
   return (
-    <div className="tv-login-teclado" role="group" aria-label="Teclado na tela">
+    <div
+      ref={raizRef}
+      className="tv-login-teclado"
+      role="group"
+      aria-label="Teclado na tela"
+      onKeyDown={teclas}
+    >
       {/* Abas: alcançáveis com ← → como qualquer controle (data-tv-focusable). */}
-      <div className="tv-keyboard-row tv-keyboard-abas" role="tablist" aria-label="Tipo de caractere">
+      <div
+        ref={abasRef}
+        className="tv-keyboard-row tv-keyboard-abas"
+        role="tablist"
+        aria-label="Tipo de caractere"
+      >
         {(Object.keys(LINHAS) as Aba[]).map((a) => (
           <button
             key={a}
@@ -171,7 +369,7 @@ export function TvKeyboard({ onTecla, onApagar, onLimpar, onEntrar, onFechar }: 
         ))}
       </div>
 
-      <div className="tv-keyboard-row">
+      <div ref={funcoesRef} className="tv-keyboard-row">
         <button
           type="button"
           data-tv-key="espaco"
