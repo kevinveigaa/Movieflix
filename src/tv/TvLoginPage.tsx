@@ -4,6 +4,7 @@ import { Mail, Lock, AlertCircle, Loader2, ChevronLeft, Keyboard } from 'lucide-
 import { useAuth } from '@/context/AuthContext';
 import { TvMark } from './TvBrand';
 import { TvKeyboard } from './TvKeyboard';
+import { abrirTecladoDaTv, reabrirFocoDeTexto, temPonteDeTeclado } from '@/lib/tecladoTv';
 import { cn } from '@/lib/cn';
 
 /**
@@ -164,13 +165,43 @@ export function TvLoginPage() {
   );
 
   /**
+   * Pede o TECLADO para o campo em edição — é o que o usuário espera ao apertar
+   * OK num campo de texto ("quero digitar aqui").
+   *
+   * São dois caminhos, nesta ordem:
+   *  1. se o APK MovieFlix TV está presente, pedimos o teclado DA PRÓPRIA TV
+   *     pela ponte nativa (`MovieFlixApp.mostrarTeclado`) — é o teclado do
+   *     sistema Android TV / Google TV, largura total e com todos os caracteres;
+   *  2. se não há ponte (navegador de TV Box, WebView sem ponte), abrimos o
+   *     TECLADO NA TELA, que funciona em qualquer aparelho.
+   *
+   * O foco NUNCA sai do campo: reafirmamos o foco nele (sem blur) para o campo
+   * continuar sendo o dono da digitação — antes o OK trocava de campo e o
+   * usuário perdia o e-mail/senha ("coloco o e-mail e ele sai").
+   */
+  const pedirTeclado = useCallback(
+    (campo: Campo) => {
+      const alvo = campo === 'email' ? emailRef.current : senhaRef.current;
+      if (alvo) reabrirFocoDeTexto(alvo);
+      abrirTecladoDaTv();
+      // Sem ponte nativa, o teclado da tela é a única forma de digitar.
+      if (!temPonteDeTeclado()) {
+        setTecladoAberto(true);
+        window.setTimeout(() => focarTeclado(), 40);
+      }
+    },
+    [focarTeclado],
+  );
+
+  /**
    * Teclas DENTRO dos campos. Com um campo de texto focado, a navegação
    * espacial global sai de cena (ver useTvNavigation), então o formulário
    * define o caminho do D-pad:
-   *   ↓  e-mail → senha → (teclado, se aberto) → Entrar
+   *   ↓  e-mail → senha → (teclado, se aberto) → botão do teclado
    *   ↑  volta (senha → e-mail)
-   *   OK/Enter  avançava; no campo de senha, entra
-   * ← → continuam movendo o cursor dentro do texto (comportamento nativo).
+   *   OK abre o TECLADO para digitar (NÃO salta de campo — esse salto era o bug
+   *      relatado, porque o usuário nunca conseguia começar a escrever)
+   *   ← → continuam movendo o cursor dentro do texto (comportamento nativo).
    */
   function teclasDoCampo(campo: Campo) {
     return (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -194,8 +225,8 @@ export function TvLoginPage() {
       }
       if (confirma) {
         e.preventDefault();
-        if (campo === 'email') focarCampo('senha');
-        else void entrar();
+        // OK no campo = pedir o teclado e continuar AQUI, digitando.
+        pedirTeclado(campo);
       }
     };
   }

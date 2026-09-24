@@ -53,7 +53,31 @@ export function TvSearchPage() {
       setQuery('');
       return;
     }
+    // Digitação pelo teclado NA TELA: o campo pode não ser o dono do foco no
+    // momento (as teclas estão focadas). Escrevemos sempre no FIM do texto,
+    // nunca por interpolação do cursor — assim o que o usuário vê no campo é
+    // sempre o que foi digitado, sem "pular" caracteres.
     setQuery((q) => (q + k).slice(0, 60));
+  };
+
+  /**
+   * Devolve o foco ao CAMPO depois de digitar pelo teclado da tela.
+   *
+   * Feito dentro do clique (gesto do usuário) e SEM blur: numa TV Box o foco
+   * programático no campo é o que mantém o teclado do sistema vivo, e tirar o
+   * foco aqui faria o usuário perder o campo no meio da digitação — o bug
+   * relatado ("coloco o e-mail e ele sai").
+   */
+  const focarCampo = () => {
+    const campo = inputRef.current;
+    if (!campo) return;
+    try {
+      campo.focus({ preventScroll: true });
+      const fim = campo.value.length;
+      campo.setSelectionRange(fim, fim);
+    } catch {
+      /* ignora */
+    }
   };
 
   const abrir = (item: TvItem) => navigate(`/tv/titulo/${item.id}`);
@@ -69,6 +93,7 @@ export function TvSearchPage() {
         placeholder="Digite o nome do filme ou série..."
         className="tv-search-input"
         data-tv-focusable
+        data-tv-initial-focus
         tabIndex={0}
         aria-label="Campo de busca"
       />
@@ -82,7 +107,13 @@ export function TvSearchPage() {
                 data-tv-focusable
                 tabIndex={0}
                 className={cn('tv-key', k === ' ' && 'tv-key-space', (k === '⌫' || k === 'LIMPAR') && 'tv-key-fn')}
-                onClick={() => digitar(k)}
+                onClick={() => {
+                  digitar(k);
+                  // O foco volta ao CAMPO a cada tecla (sem blur): o usuário vê
+                  // o texto entrando, as setas ← → movem o cursor, e a TV Box
+                  // mantém o teclado do sistema vivo.
+                  if (k !== '⌫' && k !== 'LIMPAR') focarCampo();
+                }}
               >
                 {k}
               </button>
@@ -92,7 +123,7 @@ export function TvSearchPage() {
       </div>
 
       <div className="tv-search-hint">
-        Navegue com ← → ↑ ↓ e pressione OK para digitar — ou use o teclado do controle.
+        Navegue com ← → ↑ ↓ e pressione OK para digitar — o texto entra no campo enquanto você usa o teclado na tela.
       </div>
 
       <div className="tv-load-more">
@@ -100,7 +131,7 @@ export function TvSearchPage() {
           data-tv-focusable
           tabIndex={0}
           className="tv-btn tv-btn-primary"
-          onClick={() => inputRef.current?.focus()}
+          onClick={focarCampo}
         >
           Focar o campo de busca
         </button>

@@ -95,6 +95,8 @@ export const TV_APP_INFO = {
     'PLAYER: botão de tela cheia duplicado removido — agora existe apenas UM botão, alcançável pelo controle remoto (o do embed, fora do D-pad, saiu)',
     'PLAYER: o passo "Abrir link" do provedor é acionado automaticamente assim que aparece — antes o usuário ficava preso na tela intermediária, porque na TV não existe o toque que o mobile usa',
     'LOGIN: digitação restaurada pela TV — o campo abre o teclado da própria TV (Android TV / Google TV) ao apertar OK, e a tecla deixa de ser capturada como navegação',
+    'LOGIN: correção do foco que escapava — apertar OK no e-mail não pula mais para a senha; o foco permanece no campo para digitar, e o teclado da tela passa a abrir automaticamente quando a TV não tem o teclado do sistema',
+    'PLAYER: avançar/retroceder pelo controle passou a funcionar de verdade — os comandos de seek agora usam os nomes que os players reconhecem (antes eram ignorados em silêncio)',
   ],
   platforms: ['Android TV', 'Google TV', 'TV Box'],
 } as const;

@@ -33,6 +33,29 @@ export function abrirTecladoDaTv(): void {
   }
 }
 
+/**
+ * O app nativo (APK MovieFlix TV) está presente e expõe a ponte do teclado?
+ *
+ * Usado para decidir a ESTRATÉGIA de digitação do login:
+ *  - com a ponte: pedimos o teclado da própria TV (Android TV / Google TV) e
+ *    ele cobre a digitação do sistema;
+ *  - sem a ponte (navegador de TV Box, WebView sem a ponte): abrimos o TECLADO
+ *    NA TELA, que funciona em qualquer aparelho.
+ * Sem essa distinção o usuário ficava sem NENHUMA forma de digitar.
+ */
+export function temPonteDeTeclado(): boolean {
+  try {
+    const w = window as unknown as {
+      MovieFlixApp?: { mostrarTeclado?: () => void };
+      MovieFlixAndroid?: { mostrarTeclado?: () => void };
+    };
+    const ponte = w.MovieFlixApp ?? w.MovieFlixAndroid;
+    return typeof ponte?.mostrarTeclado === 'function';
+  } catch {
+    return false;
+  }
+}
+
 /** O elemento é um campo de texto editável? */
 export function ehCampoDeTexto(el: Element | null): boolean {
   if (!el) return false;
@@ -57,18 +80,36 @@ export function ehCampoDeTexto(el: Element | null): boolean {
 /**
  * Reafirma o foco de um campo de texto dentro de um gesto do usuário.
  *
- * O "piscar" de foco (blur + focus) é o que faz o WebView do Android reenviar
- * o pedido de teclado quando o campo JÁ estava focado — repetir `.focus()` no
- * mesmo elemento é no-op e não abre nada. O cursor é preservado no fim do
- * texto para o usuário continuar digitando de onde parou.
+ * ══════════════════════════════════════════════════════════════════════════════
+ * CAUSA RAIZ DO BUG "coloco o e-mail e ele sai / não dá tempo de digitar":
+ *
+ * Esta função fazia `blur()` + `focus()` para forçar o WebView a reenviar o
+ * pedido de teclado. O `blur()` tira o foco do campo e o `focus()` o devolve —
+ * só que entre os dois dispara `focusout`, e com ele o `onFocusOut` do
+ * `useTvNavigation` LIMPA o destaque e RE-VALIDA o "primeiro OK" (apaga o
+ * `data-mf-teclado-ok`). O efeito visível, exatamente o relatado pelo usuário:
+ *
+ *   usuário chega no campo → aperta OK → o campo "pisca" e o foco cai fora
+ *   (no próximo elemento) → quando ele aperta OK de novo, o ciclo recomeça.
+ *   Resultado: "eu coloco o e-mail, ele sai na hora, não dá nem tempo de digitar".
+ *
+ * A CORREÇÃO: NUNCA tirar o foco. Reafirmar o foco no mesmo elemento (que é
+ * no-op quando ele já está focado — mas mantém o campo como owner do documento)
+ * e reposicionar o cursor no fim, para o usuário continuar digitando de onde
+ * parou. O "flash" de foco não é mais necessário porque o pedido explícito do
+ * IME vai pela ponte nativa (`abrirTecladoDaTv`) e, quando não há IME, o
+ * TECLADO DA TELA (TvKeyboard) cobre a digitação.
+ * ══════════════════════════════════════════════════════════════════════════════
  */
 export function reabrirFocoDeTexto(
   el: HTMLInputElement | HTMLTextAreaElement,
 ): void {
   try {
+    // Sem blur(): o foco NUNCA sai do campo (era o que fazia o usuário perder
+    // o campo ao apertar OK). Se por algum motivo o campo já não é o ativo,
+    // devolvemos o foco a ele — também sem passar por um blur explícito.
+    if (document.activeElement !== el) el.focus({ preventScroll: true });
     const fim = el.value?.length ?? 0;
-    el.blur();
-    el.focus({ preventScroll: true });
     if (typeof el.setSelectionRange === 'function') el.setSelectionRange(fim, fim);
   } catch {
     try {

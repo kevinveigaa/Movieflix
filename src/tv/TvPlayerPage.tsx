@@ -34,6 +34,7 @@ import {
   lerVolume,
   volumeNativoDisponivel,
 } from '@/lib/volumeTv';
+import { enviarComandoPlayer, type AcaoPlayer } from '@/lib/playerCommands';
 import { cn } from '@/lib/cn';
 
 /**
@@ -182,24 +183,19 @@ export function TvPlayerPage({ id: idProp }: { id?: string } = {}) {
   }, []);
 
   /**
-   * Envia um comando para o player embutido. Os embeds de provedor escutam
-   * `postMessage` na janela do iframe; enviamos o formato genérico que os
-   * players HTML5 (e o próprio StreamBetter) reconhecem, de forma tolerante.
+   * Envia um comando para o player embutido.
    *
-   * IMPORTANTE — HONESTIDADE: se o provedor não aceitar comandos externos (é
-   * comum, por segurança), o comando NÃO faz efeito. Por isso o seek também é
-   * oferecido pelos controles nativos do embed, e o volume é resolvido pelo
-   * áudio do APARELHO (que funciona de verdade em qualquer provedor).
+   * A lógica (quais nomes de comando o player reconhece, e o reforço no vídeo
+   * nativo) vive em `@/lib/playerCommands`, junto com a explicação da CAUSA
+   * RAIZ do bug de seek — mantida num módulo puro para poder ser verificada.
+   *
+   * HONESTIDADE: um embed de outra origem pode recusar comandos externos por
+   * segurança. Nesse caso o embed mantém os controles próprios, e o volume
+   * segue resolvido pelo áudio do APARELHO (funciona em qualquer provedor).
    */
-  const comandarPlayer = useCallback((acao: 'play' | 'pause' | 'toggle' | 'seekFwd' | 'seekBack') => {
+  const comandarPlayer = useCallback((acao: AcaoPlayer) => {
     const iframe = iframeWrapRef.current?.querySelector('iframe');
-    if (!iframe?.contentWindow) return;
-    try {
-      iframe.contentWindow.postMessage({ event: 'command', func: acao, args: [] }, '*');
-      iframe.contentWindow.postMessage({ type: 'mf-player-command', command: acao }, '*');
-    } catch {
-      /* o provedor pode não aceitar comandos externos — o embed tem controles próprios */
-    }
+    enviarComandoPlayer(iframe, acao, PASSO_SEEK);
   }, []);
 
   const alternarPlay = useCallback(() => {
