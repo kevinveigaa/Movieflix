@@ -30,9 +30,11 @@ import androidx.webkit.WebViewCompat;
 import androidx.webkit.WebViewFeature;
 
 import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
 
 /**
- * MovieFlix TV 4.0.1 — shell de Android TV / Google TV / TV Box.
+ * MovieFlix TV 4.0.2 — shell de Android TV / Google TV / TV Box.
  *
  * O app É o MovieFlix. Ele carrega a EXPERIÊNCIA DE TELEVISÃO do site oficial
  * ({@code https://movieflix-bszf.onrender.com/#/tv}) dentro de um WebView.
@@ -130,6 +132,9 @@ public class MainActivity extends Activity {
      */
     private boolean tecladoVisivel = false;
 
+    /** Já pedimos uma recarga sem cache nesta execução? (evita loop) */
+    private boolean jaTentouAtualizar = false;
+
     /** Quanto a área visível precisa encolher para considerarmos o IME aberto. */
     private static final int ALTURA_MINIMA_TECLADO = 140;
 
@@ -160,7 +165,20 @@ public class MainActivity extends Activity {
         configurarWebView();
 
         if (savedInstanceState == null) {
-            webView.loadUrl(TV_URL);
+            // ── PRIMEIRA CARGA DO DOCUMENTO: SEMPRE SEM CACHE ──────────────────
+            //
+            // CAUSA RAIZ DO "a correção não chega na TV": o app é um shell que
+            // carrega o site, mas nada forçava o documento principal a ser
+            // revalidado. O WebView guarda o `index.html` (e o bundle que ele
+            // aponta) em cache, então uma TV que já abriu o app uma vez podia
+            // continuar rodando o bundle ANTIGO por dias — mesmo com a correção
+            // já publicada no site. Era isso que fazia a correção do foco
+            // "funcionar no navegador e não no aparelho".
+            //
+            // Aqui o documento inicial é pedido com `no-cache`: o HTML é sempre
+            // revalidado no servidor, e ele aponta para o bundle de hash novo.
+            // Os demais recursos continuam em cache normal (têm hash no nome).
+            recarregarSemCache();
         } else {
             webView.restoreState(savedInstanceState);
         }
@@ -182,6 +200,12 @@ public class MainActivity extends Activity {
         s.setMediaPlaybackRequiresUserGesture(false);
         s.setAllowFileAccess(false);
         s.setAllowContentAccess(false);
+
+        // Cache NORMAL do WebView: os recursos versionados (bundle com hash no
+        // nome) são reaproveitados, então as telas continuam rápidas em TV Box.
+        // A garantia de NOVIDADE fica por conta de `recarregarSemCache()` na
+        // primeira carga e do `verificarVersao()` (ponte abaixo).
+        s.setCacheMode(WebSettings.LOAD_DEFAULT);
 
         // Janelas novas: o desafio Cloudflare/Turnstile abre a verificação numa
         // janela nova. Sem suporte a múltiplas janelas o pedido é IGNORADO em
@@ -824,6 +848,26 @@ public class MainActivity extends Activity {
     }
 
     /**
+     * Recarrega a EXPERIÊNCIA DE TV descartando o cache do DOCUMENTO.
+     *
+     * Ver a explicação em `onCreate` (primeira carga). Os cabeçalhos valem para o
+     * HTML; os recursos que ele referencia têm hash no nome, então continuam
+     * podendo vir do cache — a recarga é rápida, mas sempre pega o bundle novo.
+     */
+    private void recarregarSemCache() {
+        if (webView == null) return;
+        try {
+            Map<String, String> semCache = new HashMap<>();
+            semCache.put("Cache-Control", "no-cache, no-store, must-revalidate");
+            semCache.put("Pragma", "no-cache");
+            webView.loadUrl(TvConfig.TV_URL, semCache);
+        } catch (RuntimeException e) {
+            // Nunca deixar a TV sem tela por causa de uma recarga.
+            webView.loadUrl(TvConfig.TV_URL);
+        }
+    }
+
+    /**
      * Ponte exposta ao site como {@code window.MovieFlixApp} — a MESMA API do
      * app mobile, para que a detecção de shell nativo, a abertura do WhatsApp e
      * a SAÍDA do app (usada pelo duplo-back do site) se comportem igual aqui.
@@ -892,6 +936,34 @@ public class MainActivity extends Activity {
         @JavascriptInterface
         public void mostrarTeclado() {
             runOnUiThread(MainActivity.this::abrirTeclado);
+        }
+
+        /**
+         * O site informa a versão do bundle que ACABOU de carregar. Se ela for
+         * diferente da versão deste shell, o WebView está servindo código ANTIGO
+         * de cache: recarregamos sem cache, UMA vez.
+         *
+         * É a trava que garante que uma correção publicada no site chegue de
+         * fato à TV — o problema que fez a correção do foco funcionar no
+         * navegador e não no aparelho real. A comparação é feita aqui (e não no
+         * site) porque só o lado nativo pode recarregar descartando o cache.
+         */
+        @JavascriptInterface
+        public void verificarVersao(String versaoDoSite) {
+            if (versaoDoSite == null) return;
+            if (versaoDoSite.trim().equals(TvConfig.VERSAO)) return;
+            // Uma única recarga por processo: se o site continuar anunciando
+            // outra versão (ex.: a TV ainda não recebeu o APK novo), não criamos
+            // loop de recarga — a tela continua utilizável.
+            if (jaTentouAtualizar) return;
+            jaTentouAtualizar = true;
+            runOnUiThread(MainActivity.this::recarregarSemCache);
+        }
+
+        /** Força a recarga do bundle mais novo (usado acima e no menu de TV). */
+        @JavascriptInterface
+        public void atualizarApp() {
+            runOnUiThread(MainActivity.this::recarregarSemCache);
         }
 
         /**

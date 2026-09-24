@@ -56,6 +56,36 @@ export function temPonteDeTeclado(): boolean {
   }
 }
 
+/**
+ * Informa ao shell nativo (APK MovieFlix TV) a VERSÃO DO SITE que acabou de
+ * carregar.
+ *
+ * POR QUE ISSO EXISTE (causa raiz do "a correção não chega na TV"):
+ * o app é um WebView do site. O WebView guarda o `index.html` em cache, então
+ * uma TV que já abriu o app podia continuar rodando o bundle ANTIGO por dias —
+ * mesmo com a correção publicada. Era essa a diferença entre "funciona no
+ * navegador" e "não funciona no aparelho": no navegador o bundle era novo, na
+ * TV era o de cache.
+ *
+ * A comparação NÃO pode ser feita aqui: só o lado nativo consegue recarregar
+ * descartando o cache. Então o site só ANUNCIA a sua versão, e o nativo decide
+ * se precisa recarregar (ver `PonteNativa.verificarVersao` no MainActivity).
+ *
+ * Fora do app (navegador de TV Box, site) a chamada é um no-op.
+ */
+export function informarVersaoAoApp(versao: string): void {
+  try {
+    const w = window as unknown as {
+      MovieFlixApp?: { verificarVersao?: (v: string) => void };
+      MovieFlixAndroid?: { verificarVersao?: (v: string) => void };
+    };
+    const ponte = w.MovieFlixApp ?? w.MovieFlixAndroid;
+    ponte?.verificarVersao?.(versao);
+  } catch {
+    /* fora do app nativo: nada a fazer */
+  }
+}
+
 /** O elemento é um campo de texto editável? */
 export function ehCampoDeTexto(el: Element | null): boolean {
   if (!el) return false;

@@ -72,14 +72,14 @@ export const APK_SIZE_MB = '10.4 MB';
  */
 export const TV_APP_INFO = {
   name: 'MovieFlix TV',
-  version: '4.0.1',
-  versionCode: 41,
+  version: '4.0.2',
+  versionCode: 42,
   /** Arquivo do APK TV em public/apk/ (mesma pasta servida em /apk/) */
-  apkFileName: 'MovieFlix-TV-v4.0.1.apk',
-  /** Tamanho exibido (sincronizado com public/apk/MovieFlix-TV-v4.0.1.apk) */
-  sizeMB: '7.8 MB',
+  apkFileName: 'MovieFlix-TV-v4.0.2.apk',
+  /** Tamanho exibido (sincronizado com public/apk/MovieFlix-TV-v4.0.2.apk) */
+  sizeMB: '4.5 MB',
   package: 'com.movieflix.tv',
-  releaseDate: '2026-09-23',
+  releaseDate: '2026-09-24',
   changelog: [
     'Interface TV reconstruída: cabeçalho horizontal com a logo oficial, fundo preto e o vermelho da marca (fim do visual roxo genérico)',
     'Cards redesenhados e menores — cerca de 6 a 8 títulos por linha em 16:9, no lugar de poucos cards gigantes',
@@ -97,7 +97,18 @@ export const TV_APP_INFO = {
     'LOGIN: digitação restaurada pela TV — o campo abre o teclado da própria TV (Android TV / Google TV) ao apertar OK, e a tecla deixa de ser capturada como navegação',
     'LOGIN: correção do foco que escapava — apertar OK no e-mail não pula mais para a senha; o foco permanece no campo para digitar, e o teclado da tela passa a abrir automaticamente quando a TV não tem o teclado do sistema',
     'PLAYER: avançar/retroceder pelo controle passou a funcionar de verdade — os comandos de seek agora usam os nomes que os players reconhecem (antes eram ignorados em silêncio)',
+    'LOGIN: causa raiz do foco que escapava encontrada e corrigida — o login deixou de exibir a barra lateral (era para lá que o foco fugia ao apertar OK), e o formulário passou a ser dono do teclado, das setas e do OK',
+    'LOGIN: OK no campo E-mail/Senha abre o TECLADO NA TELA (faixas ABC / 123 / #+&) e a digitação funciona em qualquer TV Box, mesmo sem teclado de sistema instalado',
+    'LOGIN: Voltar (B) fecha o teclado e devolve o foco ao campo; a navegação do D-pad virou uma cadeia fechada (E-mail → Senha → Teclado → Entrar → Senha), sem o foco sumir',
+    'ATUALIZAÇÃO: o app agora verifica a versão do site ao abrir e recarrega descartando o cache — a correção publicada no site chega à TV sem depender do APK guardar bundle antigo',
   ],
+  /**
+   * Esta versão MUDA a assinatura do APK (a chave de assinatura anterior não
+   * estava disponível), então o Android exige DESINSTALAR a versão antiga antes
+   * de instalar esta. O aviso aparece na página de download para o usuário não
+   * ser surpreendido pelo erro "app não instalado".
+   */
+  precisaDesinstalarAntes: true,
   platforms: ['Android TV', 'Google TV', 'TV Box'],
 } as const;
 

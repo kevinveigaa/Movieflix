@@ -14,6 +14,8 @@ import { TvContinueWatchingPage } from './TvContinueWatchingPage';
 import { TvLoginPage } from './TvLoginPage';
 import { TvAccountPage } from './TvAccountPage';
 import { TvLoading } from './TvStates';
+import { informarVersaoAoApp } from '@/lib/tecladoTv';
+import { TV_APP_INFO } from '@/lib/appInfo';
 
 /**
  * TvApp — aplicação MovieFlix TV.
@@ -65,6 +67,18 @@ export function TvApp() {
   useEffect(() => {
     const limpar = instalarBloqueioAnuncios();
     return () => limpar();
+  }, []);
+
+  /**
+   * ANUNCIA A VERSÃO DO SITE ao shell nativo (APK MovieFlix TV).
+   *
+   * É esta chamada que resolve o "a correção funciona no navegador mas não na
+   * TV": se o WebView estiver rodando um bundle ANTIGO de cache, o lado nativo
+   * compara a versão anunciada com a do APK e recarrega sem cache, UMA vez
+   * (ver `PonteNativa.verificarVersao` no MainActivity). Fora do app é no-op.
+   */
+  useEffect(() => {
+    informarVersaoAoApp(TV_APP_INFO.version);
   }, []);
 
   // "" (raiz da TV) ou os segmentos depois de /tv

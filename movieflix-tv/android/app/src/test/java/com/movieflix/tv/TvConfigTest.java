@@ -29,8 +29,8 @@ public class TvConfigTest {
 
     @Test
     public void versaoBateComABuild() {
-        assertEquals("4.0.1", TvConfig.VERSAO);
-        assertEquals(41, TvConfig.VERSAO_CODIGO);
+        assertEquals("4.0.2", TvConfig.VERSAO);
+        assertEquals(42, TvConfig.VERSAO_CODIGO);
     }
 
     @Test
@@ -38,7 +38,7 @@ public class TvConfigTest {
         assertTrue(TvConfig.ficaNoWebView("https://movieflix-bszf.onrender.com/#/tv"));
         assertTrue(TvConfig.ficaNoWebView("https://movieflix-bszf.onrender.com/#/tv/filmes"));
         assertTrue(TvConfig.ficaNoWebView("https://movieflix-bszf.onrender.com/#/tv/assistir/123"));
-        assertTrue(TvConfig.ficaNoWebView("https://movieflix-bszf.onrender.com/apk/MovieFlix-TV-v4.0.1.apk"));
+        assertTrue(TvConfig.ficaNoWebView("https://movieflix-bszf.onrender.com/apk/MovieFlix-TV-v4.0.2.apk"));
         assertTrue(TvConfig.ficaNoWebView("https://movieflix-bszf.onrender.com:443/#/tv"));
     }
 

@@ -101,6 +101,16 @@ export function DownloadAppPage() {
             celular e do site — o que você assiste em um, continua no outro
             (incluindo <strong className="text-white">continuar assistindo</strong> e o limite de telas do seu plano).
           </p>
+          {TV_APP_INFO.precisaDesinstalarAntes ? (
+            <p className="mt-3 rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-xs leading-relaxed text-amber-100">
+              <strong>Atualizando de uma versão anterior?</strong> Desinstale o
+              MovieFlix TV antigo antes de instalar o v{TV_APP_INFO.version} — esta
+              versão tem uma nova assinatura, e o Android não instala por cima de
+              outra assinatura. Seus dados e sua conta não são afetados (ficam no
+              servidor do MovieFlix), e depois desta atualização os próximos ajustes
+              chegam sozinhos, sem precisar baixar o APK de novo.
+            </p>
+          ) : null}
         </div>
 
         {/* Nota honesta: como o QR funciona por plataforma */}

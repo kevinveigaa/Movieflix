@@ -37,11 +37,11 @@ public final class TvConfig {
     public static final String TV_URL = "https://" + HOST_OFICIAL + "/#/tv";
 
     /** Marcador de versão no User-Agent. */
-    public static final String TV_UA_SUFIXO = " MovieFlixTV/4.0.1";
+    public static final String TV_UA_SUFIXO = " MovieFlixTV/4.0.2";
 
     /** Versão do produto (deve espelhar o build.gradle). */
-    public static final String VERSAO = "4.0.1";
-    public static final int VERSAO_CODIGO = 41;
+    public static final String VERSAO = "4.0.2";
+    public static final int VERSAO_CODIGO = 42;
 
     /** Paleta oficial da marca, idêntica à do site (tailwind.config.js). */
     public static final int COR_VERMELHO = 0xFFDF0A15;
