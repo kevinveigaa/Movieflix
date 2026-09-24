@@ -232,10 +232,17 @@ export function useTvNavigation() {
       // um CAMPO DE TEXTO focado: assim que o foco caía numa tecla do teclado na
       // tela (ou no botão do teclado), a navegação espacial voltava a agir,
       // consumia o OK/setas em fase de CAPTURA e o foco escapava para a coluna
-      // lateral — o bug relatado. A ÚNICA tecla que continua valendo aqui é o
-      // VOLTAR, para o usuário nunca ficar preso na tela.
-      if (dentroDeFormularioTv(document.activeElement) && acaoDaTecla(e) !== "back") {
-        return;
+      // lateral — o bug relatado.
+      //
+      // O VOLTAR também é do formulário quando o TECLADO NA TELA está aberto: é o
+      // gesto natural para FECHAR o teclado (sair da digitação, não da tela).
+      // Sem esta exceção, o Back era consumido AQUI (fase de captura, antes de
+      // qualquer handler do formulário) e navegava para a tela anterior, sem
+      // nunca fechar o teclado. Com o teclado FECHADO o Back continua sendo da
+      // navegação (leva à tela anterior), para o usuário nunca ficar preso.
+      if (dentroDeFormularioTv(document.activeElement)) {
+        const tecladoAberto = !!document.activeElement?.closest?.("[data-tv-teclado-aberto]");
+        if (acaoDaTecla(e) !== "back" || tecladoAberto) return;
       }
 
       // ── CAMPO DE TEXTO (login/busca) ───────────────────────────────────────

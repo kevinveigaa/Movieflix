@@ -120,7 +120,16 @@ export function TvApp() {
   }
 
   return (
-    <TvLayout imersivo={raiz === 'assistir'}>
+    /* TELAS IMERSIVAS (sem a coluna lateral):
+     *  • `assistir` — o player ocupa a tela inteira;
+     *  • `login`    — é uma tela DEDICADA e ANTERIOR ao login. Mostrar ali a
+     *    navegação autenticada (Início/Filmes/Séries/Minha lista...) é ao mesmo
+     *    tempo errado (o usuário ainda não entrou) e a ORIGEM do bug de foco
+     *    relatado: a coluna lateral é o vizinho mais próximo à ESQUERDA do
+     *    formulário, então era para lá que o foco "fugia". Sem a coluna, o foco
+     *    não tem para onde escapar — a navegação do login fecha em si mesma
+     *    (E-mail → Senha → Teclado → Entrar). */
+    <TvLayout imersivo={raiz === 'assistir' || raiz === 'login'}>
       <Suspense fallback={<TvLoading label="Carregando..." />}>{pagina}</Suspense>
     </TvLayout>
   );

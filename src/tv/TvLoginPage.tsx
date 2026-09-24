@@ -112,8 +112,8 @@ export function TvLoginPage() {
   const tecladoRef = useRef<HTMLDivElement>(null);
   const btnTecladoRef = useRef<HTMLButtonElement>(null);
   const btnEntrarRef = useRef<HTMLButtonElement>(null);
-  /** Instante da última mudança de foco feita pelo formulário (anti-repetição). */
-  const ultimaMudancaFoco = useRef(0);
+  /** Instante da última ativação (anti-repetição SÓ para o OK, nunca para as setas). */
+  const ultimaAtivacao = useRef(0);
   /** O foco inicial já foi dado? (uma única vez por montagem) */
   const jaFocouInicial = useRef(false);
 
@@ -141,18 +141,22 @@ export function TvLoginPage() {
   }, []);
 
   /**
-   * Evita que uma única pulsação do controle seja contada duas vezes.
+   * Anti-repetição APENAS para o OK/Enter.
    *
    * O `click` nativo de um elemento focado e o `Enter/OK` do keydown chegam como
-   * duas ativações. Sem esta trava, mover o foco no OK fazia o foco "passar
-   * direto" pelo elemento (era parte do bug relatado). O limite é curto de
-   * propósito: pulsar rápido continua funcionando, e a repetição de uma tecla
-   * PRESA é suprimida.
+   * duas ativações da MESMA pulsação. Sem esta trava, abrir o teclado pelo botão
+   * podia contar duas vezes.
+   *
+   * IMPORTANTE: isto NÃO é aplicado às SETAS. Aplicar o mesmo intervalo às setas
+   * fazia `↓↓` rápido (E-mail → Senha → Teclado) ser engolido — o usuário\aperta
+   * duas vezes e move só uma. Setas de D-pad são eventos discretos: repetir de
+   * verdade só acontece com a tecla PRESA, e nesse caso mover duas posições é o
+   * comportamento esperado de qualquer app de TV.
    */
-  const suprimirRepeticao = useCallback((ms = 250) => {
+  const suprimirAtivacao = useCallback((ms = 250) => {
     const agora = Date.now();
-    if (agora - ultimaMudancaFoco.current < ms) return true;
-    ultimaMudancaFoco.current = agora;
+    if (agora - ultimaAtivacao.current < ms) return true;
+    ultimaAtivacao.current = agora;
     return false;
   }, []);
 
@@ -207,8 +211,15 @@ export function TvLoginPage() {
     alvo?.focus({ preventScroll: true });
   }, [campoAtivo]);
 
-  /** Abre/fecha o teclado pelo botão discreto da mesma linha dos campos. */
+  /**
+   * Abre/fecha o teclado pelo botão discreto da mesma linha dos campos.
+   *
+   * Aqui SIM vale o anti-repetição: um botão focado recebe a ativação por DOIS
+   * caminhos (`click` nativo + `Enter/OK` do keydown), e sem a trava o teclado
+   * abria e fechava na mesma pulsação.
+   */
   const alternarTeclado = useCallback(() => {
+    if (suprimirAtivacao()) return;
     if (tecladoAberto) fecharTeclado();
     else {
       const alvo = campoAtivo === 'email' ? emailRef.current : senhaRef.current;
@@ -216,7 +227,7 @@ export function TvLoginPage() {
       setTecladoAberto(true);
       window.setTimeout(() => focarTeclado(), 40);
     }
-  }, [tecladoAberto, campoAtivo, fecharTeclado, focarTeclado]);
+  }, [tecladoAberto, campoAtivo, fecharTeclado, focarTeclado, suprimirAtivacao]);
 
   const digitar = useCallback(
     (t: string) => {
@@ -262,6 +273,29 @@ export function TvLoginPage() {
   );
 
   /**
+   * VOLTAR (Back do controle) DENTRO DO FORMULÁRIO.
+   *
+   * Quando o teclado na tela está aberto, o Voltar é o gesto natural para
+   * FECHÁ-LO (o usuário sai da digitação, não da tela). Só quando o teclado já
+   * está fechado o Voltar sai do formulário — e aí a navegação global leva o
+   * usuário para a tela anterior, como sempre.
+   *
+   * (Antes, apertar Voltar com o teclado aberto não fazia nada: NENHUM dos
+   * handlers do campo tratava o Back, e o teclado ficava preso aberto.)
+   */
+  function teclasDeVoltar(e: React.KeyboardEvent) {
+    if (e.defaultPrevented) return;
+    const c = e.nativeEvent.keyCode || e.nativeEvent.which;
+    const voltar =
+      e.key === 'Escape' || e.key === 'GoBack' || e.key === 'BrowserBack' ||
+      c === 27 || c === 4 || c === 461;
+    if (!voltar || !tecladoAberto) return;
+    e.preventDefault();
+    e.stopPropagation();
+    fecharTeclado();
+  }
+
+  /**
    * Teclas DENTRO dos campos de texto.
    *
    * Só três teclas têm tratamento próprio: `Enter/OK` (abre o teclado e
@@ -290,7 +324,7 @@ export function TvLoginPage() {
       if (desce) {
         e.preventDefault();
         e.stopPropagation();
-        if (suprimirRepeticao()) return;
+        // SEM debounce nas setas: `↓↓` rápido = E-mail → Senha → Teclado.
         if (campo === 'email') {
           focarCampo('senha');
           return;
@@ -303,7 +337,7 @@ export function TvLoginPage() {
       if (sobe) {
         e.preventDefault();
         e.stopPropagation();
-        if (suprimirRepeticao()) return;
+        // SEM debounce nas setas.
         if (campo === 'senha') focarCampo('email');
         return;
       }
@@ -311,16 +345,31 @@ export function TvLoginPage() {
     };
   }
 
-  /** Teclas no BOTÃO DO TECLADO: ↓ continua a cadeia (teclado na tela ou Entrar). */
+  /**
+   * Teclas no BOTÃO DO TECLADO.
+   *
+   * O OK é tratado EXPLICITAMENTE (e não apenas pela ativação nativa do botão):
+   * numa TV, depender só da ativação nativa do elemento é frágil — o OK do
+   * controle precisa abrir o teclado SEMPRE. `suprimirAtivacao` garante que, se a
+   * ativação nativa TAMBÉM vier, o teclado não abre e fecha na mesma pulsação.
+   */
   function teclasDoBotaoTeclado(e: React.KeyboardEvent<HTMLButtonElement>) {
     if (e.defaultPrevented) return;
     const c = e.nativeEvent.keyCode || e.nativeEvent.which;
     const desce = e.key === 'ArrowDown' || e.key === 'Down' || c === 40 || c === 20;
     const sobe = e.key === 'ArrowUp' || e.key === 'Up' || c === 38 || c === 19;
+    const confirma =
+      e.key === 'Enter' || e.key === 'OK' || e.key === 'Select' || c === 13 || c === 23;
+
+    if (confirma) {
+      e.preventDefault();
+      e.stopPropagation();
+      alternarTeclado();
+      return;
+    }
     if (desce) {
       e.preventDefault();
       e.stopPropagation();
-      if (suprimirRepeticao()) return;
       if (tecladoAberto) focarTeclado();
       else btnEntrarRef.current?.focus({ preventScroll: true });
       return;
@@ -328,7 +377,6 @@ export function TvLoginPage() {
     if (sobe) {
       e.preventDefault();
       e.stopPropagation();
-      if (suprimirRepeticao()) return;
       focarCampo('senha');
     }
   }
@@ -340,7 +388,6 @@ export function TvLoginPage() {
    */
   const sairDoTeclado = useCallback(
     (sentido: 'cima' | 'baixo' | 'escapar') => {
-      if (suprimirRepeticao()) return;
       if (sentido === 'escapar') {
         fecharTeclado();
         return;
@@ -352,10 +399,8 @@ export function TvLoginPage() {
       // `baixo`: sai do teclado e vai à AÇÃO do formulário ("Entrar").
       btnEntrarRef.current?.focus({ preventScroll: true });
     },
-    [campoAtivo, fecharTeclado, focarCampo, suprimirRepeticao],
+    [campoAtivo, fecharTeclado, focarCampo],
   );
-
-  const rotuloTeclado = tecladoAberto ? 'Fechar' : 'Teclado';
 
   return (
     /* `data-tv-sem-autofoco`: a recuperação automática de foco do TvLayout não
@@ -376,7 +421,7 @@ export function TvLoginPage() {
             dentro — campo, tecla do teclado na tela ou botão — a navegação
             espacial global NÃO intercepta teclas (só o Voltar continua ativo).
             É o que impede o foco de escapar para a coluna lateral. */}
-        <div data-tv-form>
+        <div data-tv-form data-tv-teclado-aberto={tecladoAberto ? '' : undefined} onKeyDown={teclasDeVoltar}>
           {/* noValidate: a validação nativa do navegador não é navegável pelo
               controle remoto; validamos aqui e mostramos o aviso na tela. */}
           <form onSubmit={entrar} className="tv-login-form" noValidate>
@@ -455,7 +500,10 @@ export function TvLoginPage() {
                 className={cn('tv-login-teclado-btn', tecladoAberto && 'tv-login-teclado-btn-ativo')}
               >
                 <Keyboard className="tv-icon-sm" aria-hidden="true" />
-                <span className="tv-login-teclado-btn-txt">{rotuloTeclado}</span>
+                {/* Rótulo SEMPRE "Teclado": o botão é o CONTROLE do teclado, e o
+                    "Fechar" de dentro do próprio teclado é a ação de fechar.
+                    Dois botões escritos "Fechar" na mesma tela confundiam. */}
+                <span className="tv-login-teclado-btn-txt">Teclado</span>
               </button>
             </div>
 
@@ -491,7 +539,6 @@ export function TvLoginPage() {
                 if (e.key === 'ArrowUp' || e.key === 'Up' || c === 38 || c === 19) {
                   e.preventDefault();
                   e.stopPropagation();
-                  if (suprimirRepeticao()) return;
                   focarCampo('senha');
                 }
               }}
