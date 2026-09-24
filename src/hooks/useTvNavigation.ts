@@ -1,7 +1,7 @@
 import { useEffect } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { ehTelaDeTv } from "@/lib/tv";
-import { abrirTecladoDaTv, ehCampoDeTexto, reabrirFocoDeTexto } from "@/lib/tecladoTv";
+import { ehCampoDeTexto, pedirTecladoNativo } from "@/lib/tecladoTv";
 import { dentroDeFormularioTv } from "@/tv/tvElementos";
 
 /**
@@ -242,7 +242,12 @@ export function useTvNavigation() {
       // navegação (leva à tela anterior), para o usuário nunca ficar preso.
       if (dentroDeFormularioTv(document.activeElement)) {
         const tecladoAberto = !!document.activeElement?.closest?.("[data-tv-teclado-aberto]");
-        if (acaoDaTecla(e) !== "back" || tecladoAberto) return;
+        // Enquanto o usuário está EDITANDO um campo do formulário, o Voltar
+        // pertence ao formulário/IME (fecha o teclado) — nunca navega para
+        // outra tela. Fora de um campo de texto (ex.: no botão "Entrar"), o
+        // Voltar continua saindo da tela, para o usuário não ficar preso.
+        const editando = ehCampoDeTexto(document.activeElement);
+        if (acaoDaTecla(e) !== "back" || tecladoAberto || editando) return;
       }
 
       // ── CAMPO DE TEXTO (login/busca) ───────────────────────────────────────
@@ -319,17 +324,21 @@ export function useTvNavigation() {
           return;
         }
         if (digitando) {
-          // Campo de texto focado. O PRIMEIRO OK precisa ser um gesto do
-          // usuário: é o que faz o teclado da TV subir de verdade (foco
-          // programático NÃO abre o IME do Android — era o "não consigo
-          // digitar" relatado). Depois disso a tecla segue o fluxo normal, para
-          // o "Enter/OK" do teclado da TV enviar/avançar como o esperado.
-          const campo = ativo as HTMLElement & HTMLInputElement;
-          if (campo.dataset.mfTecladoOk !== '1') {
+          // Campo de texto DENTRO de um formulário de TV (login): o formulário
+          // é o dono do foco e do teclado. FALHA CRÍTICA CORRIGIDA AQUI: antes
+          // esta camada também pedia o teclado do sistema neste mesmo OK, AO
+          // MESMO TEMPO em que o TvLoginPage abria o teclado na tela — dois
+          // donos para a mesma pulsação. Era isso que fazia o teclado da TV
+          // ligar e desligar sozinho e alternar entre os dois teclados.
+          if (dentroDeFormularioTv(ativo)) return;
+          // Fora de um formulário de TV (ex.: busca da TV), o PRIMEIRO OK
+          // continua sendo um gesto do usuário: é o que faz o teclado do
+          // sistema subir de verdade (foco programático não abre o IME do
+          // Android). Depois disso a tecla segue o fluxo normal.
+          if (ativo.dataset.mfTecladoOk !== '1') {
             e.preventDefault();
-            campo.dataset.mfTecladoOk = '1';
-            if (ehCampoDeTexto(ativo)) reabrirFocoDeTexto(campo);
-            abrirTecladoDaTv();
+            ativo.dataset.mfTecladoOk = '1';
+            pedirTecladoNativo();
             return;
           }
           return; // teclado já pedido: deixa o campo/IME cuidar da tecla

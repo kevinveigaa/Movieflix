@@ -1686,6 +1686,51 @@
   margin: 0;
 }
 
+/* ══════════════════════════════════════════════════════════════════════════
+   LOGIN DA TV — TELA IMERSIVA (reconstrução)
+
+   O login NÃO é mais renderizado ao lado da barra lateral (era para lá que o
+   foco fugia ao apertar OK — o vizinho mais próximo do formulário). A rota
+   `/tv/login` passa `imersivo` ao `TvLayout`, então `.tv-nav-rail` não é sequer
+   montada. Estas regras apenas garantem o acabamento da tela imersiva:
+
+   - a coluna ocupa a tela inteira (sem a largura da rail, que não existe);
+   - nada de rolagem horizontal;
+   - com o teclado na tela aberto, o formulário inteiro continua alcançável
+     pelo D-pad (rolagem vertical dentro da própria tela).
+   ══════════════════════════════════════════════════════════════════════════ */
+
+.tv-shell-imersivo .tv-page-login {
+  width: 100%;
+  min-height: 100%;
+  align-items: flex-start;
+  padding-top: 3vh;
+}
+
+.tv-page-login {
+  overflow-x: hidden;
+}
+
+/* Teclado na tela aberto: o formulário pode ser mais alto que a tela, e o
+   usuário precisa descer até a tecla "Entrar" do próprio teclado. */
+.tv-page-login[data-tv-teclado-aberto] {
+  overflow-y: auto;
+}
+
+/* O botão do teclado nunca deve ser o primeiro alvo do foco: quem abre a tela
+   vem para o campo E-mail. Aqui só garantimos que ele seja visível quando
+   focado, para o usuário saber onde está. */
+.tv-login-teclado-btn:focus,
+.tv-login-teclado-btn.tv-focus {
+  outline: none;
+}
+
+/* Rodapé ("Continuar sem entrar"): separado do formulário para o D-pad não
+   confundir com o botão "Entrar". */
+.tv-login-rodape .tv-btn {
+  border: 2px solid rgba(255, 255, 255, 0.16);
+}
+
 /* Alturas pequenas (720p): reduz o cabeçalho para o teclado caber inteiro. */
 @media (max-height: 780px) {
   .tv-page-login .tv-login-marca { margin-bottom: 0.6vh; }

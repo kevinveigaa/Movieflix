@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from 'react';
+import { flushSync } from 'react-dom';
+import { useRef, useState } from 'react';
 import { cn } from '@/lib/cn';
 
 /**
@@ -98,7 +99,6 @@ export function TvKeyboard({
   const raizRef = useRef<HTMLDivElement>(null);
   const abasRef = useRef<HTMLDivElement>(null);
   const funcoesRef = useRef<HTMLDivElement>(null);
-  const jaPosicionou = useRef(false);
 
   function enviar(t: string) {
     if (ehLetra(t)) {
@@ -109,18 +109,16 @@ export function TvKeyboard({
     onTecla(t);
   }
 
-  // Foco inicial na PRIMEIRA LETRA (quem abriu o teclado quer digitar). Só na
-  // montagem: depois disso o foco pertence ao usuário.
-  useEffect(() => {
-    if (jaPosicionou.current) return;
-    jaPosicionou.current = true;
-    const t = window.setTimeout(() => {
-      gradeRef.current
-        ?.querySelector<HTMLButtonElement>('[data-tv-key="Q"]')
-        ?.focus({ preventScroll: true });
-    }, 30);
-    return () => window.clearTimeout(t);
-  }, []);
+  /**
+   * NÃO existe mais foco inicial por `setTimeout` aqui.
+   *
+   * O requisito do dono é que NENHUM timer mexa no foco. Este teclado monta
+   * sempre em consequência de um gesto do usuário (OK no campo ou no botão
+   * Teclado) e quem coloca o foco na primeira tecla é a própria tela de login,
+   * de forma SÍNCRONA (ver `focarPrimeiraTeclaDaTela` no TvLoginPage).
+   * Manter um `setTimeout` aqui só criava uma janela em que o foco podia ser
+   * roubado — e o usuário via o foco "pulando" ao abrir o teclado.
+   */
 
   /**
    * Ao trocar de aba, o botão focado pode deixar de existir (a primeira tecla de
@@ -129,12 +127,16 @@ export function TvKeyboard({
    * do usuário (é isso que mantém o foco vivo no WebView do Android).
    */
   function trocarAba(nova: Aba) {
-    setAba(nova);
-    window.setTimeout(() => {
-      gradeRef.current
-        ?.querySelector<HTMLButtonElement>('[data-tv-key]')
-        ?.focus({ preventScroll: true });
-    }, 30);
+    if (nova === aba) return;
+    // A troca de aba acontece DENTRO do gesto do usuário. `flushSync` aplica a
+    // mudança de layout IMEDIATAMENTE, então o foco pode voltar para a primeira
+    // tecla da nova aba na MESMA pulsação do OK — sem timer e sem janela em que
+    // o foco fica no documento (era o que fazia o D-pad "sumir" ao trocar de
+    // aba e o foco escapar para a lateral).
+    flushSync(() => setAba(nova));
+    gradeRef.current
+      ?.querySelector<HTMLButtonElement>('[data-tv-key]')
+      ?.focus({ preventScroll: true });
   }
 
   /**
@@ -349,7 +351,7 @@ export function TvKeyboard({
         ) : null}
       </div>
 
-      <div ref={gradeRef} className="tv-keyboard-grade">
+      <div ref={gradeRef} className="tv-keyboard-grade" data-tv-keyboard-grade>
         {LINHAS[aba].map((linha, li) => (
           <div key={`${aba}-${li}`} className="tv-keyboard-row">
             {linha.map((t) => (

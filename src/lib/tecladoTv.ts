@@ -1,58 +1,98 @@
 /**
- * MovieFlix TV — teclado da PRÓPRIA TV (Android TV / Google TV).
+ * MovieFlix TV — teclado da PRÓPRIA TV (Android TV / Google TV / TV Box).
  *
- * CAUSA RAIZ do bug relatado "antes dava para digitar no login, agora não":
- * o campo de texto recebia foco por `.focus()` PROGRAMÁTICO (a navegação
- * espacial do D-pad foca o campo para o usuário ver o anel de seleção e saber
- * onde está). Só que, no WebView do Android, um foco programático NÃO é um
- * gesto do usuário — e é justamente o gesto que faz o sistema abrir o teclado
- * virtual. Resultado: o campo ficava com o anel de foco, mas o teclado nunca
- * subia, e a digitação era impossível.
+ * ── O QUE ESTE MÓDULO FAZ (e o que NÃO faz) ─────────────────────────────────
  *
- * A correção tem DUAS camadas, porque uma sozinha não cobre todos os firmwares:
- *  1. `reabrirFocoDeTexto` — reafirma o foco DENTRO do evento de tecla (que É
- *     um gesto do usuário). Um `.focus()` repetido no mesmo elemento é no-op,
- *     por isso o foco "pisca" (blur + focus) para o WebView reenviar o pedido
- *     de teclado.
- *  2. `abrirTecladoDaTv` — pede o teclado EXPLICITAMENTE à camada nativa
- *     (`MovieFlixApp.mostrarTeclado()`), que chama `InputMethodManager`
- *     diretamente. É o caminho mais confiável em TV Box com teclado de sistema.
+ * Ele é apenas a PONTE para o teclado nativo do aparelho. Quem DIGITA é sempre
+ * uma coisa só, nunca as duas:
+ *
+ *  • quando o aparelho TEM teclado de sistema (IME), `pedirTecladoNativo()`
+ *    pede que ele suba — e a digitação vai pelo IME;
+ *  • quando o aparelho NÃO tem IME (muitos TV Box), o `TvLoginPage` abre o
+ *    TECLADO NA TELA (`TvKeyboard`), que não depende de IME nenhum.
+ *
+ * ── CAUSA RAIZ DO BUG "o teclado abre e fecha sozinho / troca de um para o
+ *    outro" (eliminada nesta versão) ─────────────────────────────────────────
+ *
+ * Antes existiam DOIS pedidos de teclado para o mesmo OK, disparados por donos
+ * diferentes:
+ *
+ *  1. `useTvNavigation` pedia o teclado do sistema ao ver o PRIMEIRO OK num
+ *     campo de texto (`campo.dataset.mfTecladoOk`) e ainda chamava
+ *     `reabrirFocoDeTexto` (que numa versão anterior fazia blur()+focus());
+ *  2. o `TvLoginPage` abria o TECLADO NA TELA no mesmo OK.
+ *
+ * Resultado no aparelho real: o teclado do sistema subia, o teclado na tela
+ * aparecia por cima e os dois se alternavam — exatamente o "liga e desliga"
+ * relatado. Agora existe UM dono só: o `TvLoginPage`. A navegação global não
+ * pede, não abre e não fecha teclado nenhum. Para isso a antiga função
+ * `abrirTecladoDaTv()` foi REMOVIDA daqui — não existe mais caminho paralelo.
  */
 
-/** Pede o teclado da TV à camada nativa (quando dentro do app). */
-export function abrirTecladoDaTv(): void {
+/** Forma da ponte nativa exposta pelo APK MovieFlix TV (MainActivity). */
+interface PonteTecladoNativo {
+  mostrarTeclado?: () => void;
+  esconderTeclado?: () => void;
+  verificarVersao?: (versao: string) => void;
+}
+
+/** Obtém a ponte nativa, quando o site está rodando dentro do APK de TV. */
+function ponte(): PonteTecladoNativo | null {
   try {
     const w = window as unknown as {
-      MovieFlixApp?: { mostrarTeclado?: () => void };
-      MovieFlixAndroid?: { mostrarTeclado?: () => void };
+      MovieFlixApp?: PonteTecladoNativo;
+      MovieFlixAndroid?: PonteTecladoNativo;
     };
-    const ponte = w.MovieFlixApp ?? w.MovieFlixAndroid;
-    ponte?.mostrarTeclado?.();
+    return w.MovieFlixApp ?? w.MovieFlixAndroid ?? null;
   } catch {
-    /* fora do app nativo: o teclado do sistema abre sozinho */
+    return null;
   }
 }
 
 /**
- * O app nativo (APK MovieFlix TV) está presente e expõe a ponte do teclado?
+ * O app nativo (APK MovieFlix TV) está presente E tem teclado de sistema?
  *
  * Usado para decidir a ESTRATÉGIA de digitação do login:
- *  - com a ponte: pedimos o teclado da própria TV (Android TV / Google TV) e
- *    ele cobre a digitação do sistema;
+ *  - com a ponte: pedimos o teclado da própria TV (Android TV / Google TV) —
+ *    em aparelhos com IME ele é o caminho confiável;
  *  - sem a ponte (navegador de TV Box, WebView sem a ponte): abrimos o TECLADO
  *    NA TELA, que funciona em qualquer aparelho.
  * Sem essa distinção o usuário ficava sem NENHUMA forma de digitar.
  */
 export function temPonteDeTeclado(): boolean {
+  return typeof ponte()?.mostrarTeclado === 'function';
+}
+
+/**
+ * Pede o teclado NATIVO da TV (IME) para o campo que já está focado.
+ *
+ * O pedido parte SEMPRE de dentro do gesto do usuário (o OK do controle), que
+ * é a condição para o Android abrir o IME. Nada aqui mexe no foco: quem chama
+ * já garantiu que o campo é o `document.activeElement`.
+ *
+ * É no-op fora do app nativo (navegador) — nesse caso, ou o IME do sistema
+ * resolve, ou o teclado na tela cobre a digitação.
+ */
+export function pedirTecladoNativo(): void {
   try {
-    const w = window as unknown as {
-      MovieFlixApp?: { mostrarTeclado?: () => void };
-      MovieFlixAndroid?: { mostrarTeclado?: () => void };
-    };
-    const ponte = w.MovieFlixApp ?? w.MovieFlixAndroid;
-    return typeof ponte?.mostrarTeclado === 'function';
+    ponte()?.mostrarTeclado?.();
   } catch {
-    return false;
+    /* aparelho sem IME: o teclado na tela é a digitação */
+  }
+}
+
+/**
+ * Pede ao shell nativo que ESCONDA o teclado de sistema.
+ *
+ * Usado quando o usuário fecha a digitação (Voltar) ou sai da tela de login —
+ * sem isso o IME podia continuar aberto sobre a tela seguinte. É best-effort:
+ * fora do app é no-op.
+ */
+export function esconderTecladoNativo(): void {
+  try {
+    ponte()?.esconderTeclado?.();
+  } catch {
+    /* ignora */
   }
 }
 
@@ -75,12 +115,7 @@ export function temPonteDeTeclado(): boolean {
  */
 export function informarVersaoAoApp(versao: string): void {
   try {
-    const w = window as unknown as {
-      MovieFlixApp?: { verificarVersao?: (v: string) => void };
-      MovieFlixAndroid?: { verificarVersao?: (v: string) => void };
-    };
-    const ponte = w.MovieFlixApp ?? w.MovieFlixAndroid;
-    ponte?.verificarVersao?.(versao);
+    ponte()?.verificarVersao?.(versao);
   } catch {
     /* fora do app nativo: nada a fazer */
   }
@@ -108,36 +143,19 @@ export function ehCampoDeTexto(el: Element | null): boolean {
 }
 
 /**
- * Reafirma o foco de um campo de texto dentro de um gesto do usuário.
+ * Reafirma o foco de um campo de texto SEM tirá-lo de lá.
  *
- * ══════════════════════════════════════════════════════════════════════════════
- * CAUSA RAIZ DO BUG "coloco o e-mail e ele sai / não dá tempo de digitar":
- *
- * Esta função fazia `blur()` + `focus()` para forçar o WebView a reenviar o
- * pedido de teclado. O `blur()` tira o foco do campo e o `focus()` o devolve —
- * só que entre os dois dispara `focusout`, e com ele o `onFocusOut` do
- * `useTvNavigation` LIMPA o destaque e RE-VALIDA o "primeiro OK" (apaga o
- * `data-mf-teclado-ok`). O efeito visível, exatamente o relatado pelo usuário:
- *
- *   usuário chega no campo → aperta OK → o campo "pisca" e o foco cai fora
- *   (no próximo elemento) → quando ele aperta OK de novo, o ciclo recomeça.
- *   Resultado: "eu coloco o e-mail, ele sai na hora, não dá nem tempo de digitar".
- *
- * A CORREÇÃO: NUNCA tirar o foco. Reafirmar o foco no mesmo elemento (que é
- * no-op quando ele já está focado — mas mantém o campo como owner do documento)
- * e reposicionar o cursor no fim, para o usuário continuar digitando de onde
- * parou. O "flash" de foco não é mais necessário porque o pedido explícito do
- * IME vai pela ponte nativa (`abrirTecladoDaTv`) e, quando não há IME, o
- * TECLADO DA TELA (TvKeyboard) cobre a digitação.
- * ══════════════════════════════════════════════════════════════════════════════
+ * O `blur()+focus()` que esta função já fez um dia era o gatilho do foco
+ * "escapando": entre os dois dispara `focusout`, e o handler global reagia,
+ * limpando o destaque e re-validando o "primeiro OK" — o campo "piscava" e o
+ * foco caía fora. Hoje ela só garante que o campo É o elemento ativo (no-op
+ * quando já é) e devolve o cursor para o fim, para o usuário continuar
+ * digitando de onde parou.
  */
 export function reabrirFocoDeTexto(
   el: HTMLInputElement | HTMLTextAreaElement,
 ): void {
   try {
-    // Sem blur(): o foco NUNCA sai do campo (era o que fazia o usuário perder
-    // o campo ao apertar OK). Se por algum motivo o campo já não é o ativo,
-    // devolvemos o foco a ele — também sem passar por um blur explícito.
     if (document.activeElement !== el) el.focus({ preventScroll: true });
     const fim = el.value?.length ?? 0;
     if (typeof el.setSelectionRange === 'function') el.setSelectionRange(fim, fim);

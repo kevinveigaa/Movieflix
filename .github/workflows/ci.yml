@@ -8,7 +8,7 @@ on:
 
 jobs:
   build:
-    runs-on: ubunt-latest
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -18,3 +18,8 @@ jobs:
       - run: npm ci
       - run: npm run typecheck
       - run: npm run build
+      # Teste headless do login da TV: garante que o foco NÃO sai do campo e que
+      # o OK abre o teclado. Sem ele, uma regressão no foco só apareceria no
+      # aparelho do usuário (foi o que aconteceu nas tentativas anteriores).
+      # Usa o Chrome que o runner ubuntu-latest já traz — nenhum download.
+      - run: npm run test:tv-login -- --shot=/tmp/qa-login-tv.png
