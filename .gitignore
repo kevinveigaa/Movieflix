@@ -50,3 +50,4 @@ ios/.idea/
 qa-login-tv.png
 tools/qa/
 .env.production.local
+public/version.json
