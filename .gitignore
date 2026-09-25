@@ -47,3 +47,6 @@ ios/.idea/
 
 # TypeScript build info
 *.tsbuildinfo
+qa-login-tv.png
+tools/qa/
+.env.production.local
