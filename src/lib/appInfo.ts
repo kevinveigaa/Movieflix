@@ -77,7 +77,7 @@ export const TV_APP_INFO = {
   /** Arquivo do APK TV em public/apk/ (mesma pasta servida em /apk/) */
   apkFileName: 'MovieFlix-TV-v4.0.3.apk',
   /** Tamanho exibido (sincronizado com public/apk/MovieFlix-TV-v4.0.3.apk) */
-  sizeMB: '4.5 MB',
+  sizeMB: '5.6 MB',
   package: 'com.movieflix.tv',
   releaseDate: '2026-09-25',
   changelog: [
