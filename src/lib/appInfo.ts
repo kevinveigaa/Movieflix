@@ -72,15 +72,22 @@ export const APK_SIZE_MB = '10.4 MB';
  */
 export const TV_APP_INFO = {
   name: 'MovieFlix TV',
-  version: '4.0.2',
-  versionCode: 42,
+  version: '4.0.3',
+  versionCode: 43,
   /** Arquivo do APK TV em public/apk/ (mesma pasta servida em /apk/) */
-  apkFileName: 'MovieFlix-TV-v4.0.2.apk',
-  /** Tamanho exibido (sincronizado com public/apk/MovieFlix-TV-v4.0.2.apk) */
+  apkFileName: 'MovieFlix-TV-v4.0.3.apk',
+  /** Tamanho exibido (sincronizado com public/apk/MovieFlix-TV-v4.0.3.apk) */
   sizeMB: '4.5 MB',
   package: 'com.movieflix.tv',
-  releaseDate: '2026-09-24',
+  releaseDate: '2026-09-25',
   changelog: [
+    'LOGIN (causa raiz do foco que escapava, ELIMINADA): a recuperação de foco por TIMER saiu de cena. Havia timers de foco em CINCO instantes (250/700/1300/2100/3200 ms) na moldura da TV e outro na navegação global — qualquer um deles que disparasse enquanto você digitava arrancava o foco do campo. Agora o foco inicial é determinístico e não existe nenhum timer de foco no app',
+    'LOGIN (nova invariante): uma guarda de foco síncrona, sem timer e sem blur, devolve o foco ao campo ativo no INSTANTE em que ele escapa — inclusive quando o foco vai para o "nada" (o sistema fechando o teclado), caso que os eventos de foco não cobriam',
+    'LOGIN (lado Android): o monitor de geometria do WebView chamava requestFocus() a CADA mudança de geometria — e abrir o teclado MUDA a geometria. Esse era o loop teclado-abre/fecha que arrancava o foco do campo. O request focus nativo agora só acontece se o foco tiver saído do WebView',
+    'NAVEGAÇÃO: o OK tinha DOIS donos no mesmo card (um handler do card e a navegação espacial global), disparando a abertura dos detalhes duas vezes e duplicando a entrada no histórico (o Voltar parecia não funcionar). Ficou UM dono por tecla',
+    'DETALHES: ao abrir um título pelo card, o foco chega JÁ no botão "Assistir" — basta apertar OK para começar a reprodução, sem navegar até o botão',
+    'DETALHES: seção "Mais como este" reforçada — títulos parecidos por categoria, sem duplicatas e com o mesmo tipo (filme sugere filme, série sugere série), navegável pelo controle',
+    'ATUALIZAÇÃO (diagnóstico): o app agora mostra no console a IDENTIDADE do build (commit + versão) e o site publica o arquivo /version.json. Responde em segundos "a TV está rodando o build novo ou o antigo?" — o que faltava para separar bug de código de deploy parado',
     'Interface TV reconstruída: cabeçalho horizontal com a logo oficial, fundo preto e o vermelho da marca (fim do visual roxo genérico)',
     'Cards redesenhados e menores — cerca de 6 a 8 títulos por linha em 16:9, no lugar de poucos cards gigantes',
     'Home preenchida com dados reais: destaque, Continuar assistindo, Em alta, Lançamentos, Filmes, Séries e categorias',

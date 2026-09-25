@@ -19,6 +19,25 @@ import { cn } from '@/lib/cn';
  *    navegação da grade com 1 parada por card — o favorito é alternado na
  *    página de Detalhes, como em qualquer app de streaming de TV).
  *
+ * FOCO / OK — O QUE MUDOU NESTA VERSÃO (causa raiz do "OK abre duas telas")
+ * ════════════════════════════════════════════════════════════════════════════
+ * O card tinha um `onKeyDown` PRÓPRIO que chamava `onAbrir(item)` ao ver
+ * Enter/keyCode 23. Só que a navegação espacial global (`useTvNavigation`, em
+ * fase de CAPTURA) já trata o OK de qualquer elemento com `data-tv-focusable`
+ * chamando `ativo.click()`.
+ *
+ * Resultado: DUAS ativações para a MESMA pulsação de OK —
+ *   1. `onKeyDown` do card → `onAbrir(item)` → navega para `/tv/titulo/:id`;
+ *   2. `ativo.click()` da navegação → mais uma navegação.
+ * Como a navegação usa `push`, o histórico ganhava uma entrada duplicada: o
+ * usuário caía nos detalhes e, ao apertar Voltar, voltava para os detalhes de
+ * novo (parecia que o Voltar "não funcionava") — e havia o risco de a segunda
+ * navegação competir com a primeira.
+ *
+ * O `onKeyDown` foi REMOVIDO: o OK tem UM único dono por elemento (o `onClick`,
+ * acionado pela navegação espacial, que é quem já entrega setas + anel de foco).
+ * É a mesma regra que o formulário de login segue ("um dono por tecla").
+ *
  * `memo`: a grade renderiza dezenas de cards; sem isso cada tecla do controle
  * re-renderiza todos os cards.
  */
@@ -47,12 +66,6 @@ export const TvPosterCard = memo(function TvPosterCard({
       role="button"
       aria-label={titulo}
       onClick={() => onAbrir(item)}
-      onKeyDown={(e) => {
-        if (e.key === 'Enter' || e.keyCode === 13 || e.keyCode === 23) {
-          e.preventDefault();
-          onAbrir(item);
-        }
-      }}
     >
       <div className="tv-card-poster">
         {item.poster ? (
@@ -127,7 +140,8 @@ export const TvPosterCard = memo(function TvPosterCard({
               className="tv-icon-sm"
               style={{ width: '1.1vh', height: '1.1vh', display: 'inline', verticalAlign: '-0.1vh', color: '#fbbf24' }}
               fill="currentColor"
-            />{' '}
+            />
+            {' '}
             {ratingLabel(item.vote)}
           </span>
         ) : null}

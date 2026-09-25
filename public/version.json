@@ -1,0 +1,10 @@
+{
+  "app": "MovieFlix",
+  "siteVersion": "4.0.3",
+  "tvAppVersion": "4.0.3",
+  "commit": "01bc29b",
+  "commitFull": "01bc29b96087649830ce77fc2647efc7157a55d7",
+  "branch": "main",
+  "buildTime": "2026-09-25T13:10:29.926Z",
+  "message": "fix(tv): reconstrução completa da tela de login da TV (foco travado, teclado único, tela imersiva)"
+}

@@ -34,7 +34,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 /**
- * MovieFlix TV 4.0.2 — shell de Android TV / Google TV / TV Box.
+ * MovieFlix TV 4.0.3 — shell de Android TV / Google TV / TV Box.
  *
  * O app É o MovieFlix. Ele carrega a EXPERIÊNCIA DE TELEVISÃO do site oficial
  * ({@code https://movieflix-bszf.onrender.com/#/tv}) dentro de um WebView.
@@ -428,6 +428,27 @@ public class MainActivity extends Activity {
     /**
      * Escuta a geometria da janela para saber quando o teclado (IME) abre/fecha.
      * É o que mantém as duas coisas juntas: tela cheia de TV e teclado utilizável.
+     *
+     * ══ CAUSA RAIZ (CORRIGIDA NESTA VERSÃO): O LOOP DO TECLADO ══════════════
+     *
+     * Este método terminava com um `webView.requestFocus()` incondicional. Só que
+     * ABRIR O TECLADO MUDA A GEOMETRIA — que é exatamente o que este listener
+     * observa. O ciclo no aparelho era:
+     *
+     *   usuário aperta OK no campo
+     *     → IME abre            → geometria muda
+     *     → requestFocus()      → foco nativo reafirmado no contêiner
+     *     → o campo do site perde o foco → o IME FECHA
+     *     → geometria muda de novo → … e o ciclo recomeça
+     *
+     * No aparelho isso aparecia como "o teclado pisca / o foco sai do campo antes
+     * de eu digitar" — o sintoma relatado pelo dono, e que nenhuma das três
+     * rodadas anteriores corrigiu porque a causa não estava no JavaScript.
+     *
+     * CORREÇÃO: o foco nativo do WebView só é reafirmado quando ele REALMENTE
+     * saiu do WebView. A transição do IME (o caso comum) não mexe mais no foco.
+     * O foco do WebView já é garantido em onCreate, onResume, onPageStarted,
+     * onPageFinished e no dispatchKeyEvent — não é preciso forçá-lo aqui.
      */
     private void instalarMonitorDoTeclado() {
         final View decor = getWindow().getDecorView();
@@ -438,9 +459,9 @@ public class MainActivity extends Activity {
             if (visivel == tecladoVisivel) return;
             tecladoVisivel = visivel;
             aplicarBarras();
-            // O D-pad precisa continuar chegando ao site depois do teclado
-            // abrir/fechar — sem isso o controle remoto "desaparece".
-            if (webView != null) webView.requestFocus();
+            // Recupera o foco nativo APENAS se ele tiver saído do WebView — nunca
+            // como reação à abertura/fechamento do IME, que é o que criava o loop.
+            if (webView != null && !webView.hasFocus()) webView.requestFocus();
         });
     }
 
@@ -464,7 +485,12 @@ public class MainActivity extends Activity {
                     androidx.core.view.WindowCompat.getInsetsController(getWindow(), getWindow().getDecorView());
             c.show(androidx.core.view.WindowInsetsCompat.Type.ime());
         }
-        webView.requestFocus();
+        // O foco NATIVO tem de estar no WebView (o IME não sobe de outro jeito) —
+        // mas SÓ mexemos nele se ele realmente tiver saído do WebView. Chamar
+        // requestFocus() com o WebView já focado move o foco para o CONTÊINER
+        // nativo e derruba o foco do CAMPO DE TEXTO do site (que é quem recebe a
+        // digitação), além de alimentar o loop teclado-abre/fecha.
+        if (!webView.hasFocus()) webView.requestFocus();
         try {
             InputMethodManager imm =
                     (InputMethodManager) getSystemService(android.content.Context.INPUT_METHOD_SERVICE);
@@ -473,6 +499,31 @@ public class MainActivity extends Activity {
             // Sem teclado disponível (ex.: TV sem IME): a digitação segue
             // funcionando pelo teclado físico do controle, se houver.
         }
+        // Rede de proteção: se o pedido do IME tiver tirado o foco do CAMPO do
+        // site, o campo é reafirmado. NÃO é um timer e não acontece se o foco já
+        // estiver num campo editável (o caso normal).
+        reafirmarCampoDeTexto();
+    }
+
+    /**
+     * Garante que o CAMPO DO SITE está com o foco depois de uma ação nativa.
+     *
+     * O lado web tem a sua própria guarda de foco (ver src/tv/focoTv.ts); esta é
+     * a contraparte nativa da MESMA invariante: o pedido do IME não pode deixar
+     * o foco no contêiner em vez do campo. Só age quando o foco NÃO está num
+     * campo editável — nunca "rouba" o foco de um campo em uso.
+     */
+    private void reafirmarCampoDeTexto() {
+        if (webView == null) return;
+        webView.evaluateJavascript(
+                "(function(){try{"
+                + " var a=document.activeElement;"
+                + " if(a && (a.tagName==='INPUT' || a.tagName==='TEXTAREA' || a.isContentEditable)){"
+                + "   a.focus({preventScroll:true}); return; }"  // já é um campo: só reafirma o próprio
+                + " var c=document.querySelector('[data-tv-form] input, input[type=\\\"email\\\"], input[type=\\\"password\\\"], input[type=\\\"search\\\"]');"
+                + " if(c) c.focus({preventScroll:true});"
+                + "}catch(e){}})();",
+                null);
     }
 
     /**

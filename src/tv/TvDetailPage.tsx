@@ -7,6 +7,7 @@ import { useAuth } from '@/context/AuthContext';
 import { hasActiveSubscription } from '@/context/AuthContext';
 import { useFavoriteByMovieId } from '@/hooks/useFavorite';
 import { TvPosterCard } from './TvPosterCard';
+import { useTvScreenFocus } from './useTvScreenFocus';
 import {
   formatDuration,
   formatYear,
@@ -51,6 +52,22 @@ export function TvDetailPage({ id: idProp }: { id?: string } = {}) {
   const mediaType: MediaType = item?.type === 'series' ? 'tv' : 'movie';
   const fav = useFavoriteByMovieId(id ?? '', mediaType);
 
+  /**
+   * FOCO INICIAL NO BOTÃO DE ASSISTIR (requisito explícito).
+   *
+   * Antes, o foco inicial desta tela dependia de uma corrida: o `TvLayout`
+   * tentava recuperar o foco em 5 timers (250/700/1300/2100/3200 ms) e o
+   * `useTvNavigation` em outro (400 ms) — quem chegasse por último vencia. Na
+   * prática o usuário caía nos detalhes com o foco em qualquer lugar MENOS no
+   * botão de assistir, e precisava navegar até ele.
+   *
+   * Agora o foco é determinístico: `useTvScreenFocus` coloca e reafirma o foco
+   * no elemento marcado, dentro do MESMO commit que monta a tela, e desiste no
+   * instante em que o usuário assume o controle. Nenhum timer de outra camada
+   * disputa mais.
+   */
+  const assistirRef = useTvScreenFocus<HTMLButtonElement>(!!item);
+
   const temporadas = useMemo(() => temporadasDe(movie?.episodes_available), [movie]);
   const [temporadaAtual, setTemporadaAtual] = useState<number | null>(null);
 
@@ -79,14 +96,41 @@ export function TvDetailPage({ id: idProp }: { id?: string } = {}) {
     return map;
   }, [historico.items, id]);
 
+  /**
+   * "Mais como este" — títulos PARECIDOS, com dados reais do catálogo.
+   *
+   * Regras (para a seção ficar útil e não repetitiva):
+   *  • nunca o próprio título;
+   *  • sem duplicatas (a chave é tipo + id do catálogo);
+   *  • casa por QUALQUER categoria do título atual;
+   *  • MESMO TIPO primeiro — abrir um filme sugere filmes, abrir uma série
+   *    sugere séries, e só depois o resto.
+   */
   const relacionados = useMemo<TvItem[]>(() => {
     if (!movie) return [];
-    const cats = (movie.category || '').split(',').map((c) => c.trim()).filter(Boolean);
-    return (movies.data ?? [])
-      .filter((m) => m.id !== movie.id && cats.some((c) => (m.category || '').includes(c)))
-      .slice(0, 30)
-      .map(paraTvItem);
-  }, [movies.data, movie]);
+    const tipoAtual = item?.type ?? 'movie';
+    const cats = (movie.category || '')
+      .split(',')
+      .map((c) => c.trim())
+      .filter(Boolean);
+    if (cats.length === 0) return [];
+
+    const vistos = new Set<string>();
+    const mesmoTipo: TvItem[] = [];
+    const outros: TvItem[] = [];
+
+    for (const m of movies.data ?? []) {
+      if (String(m.id) === String(movie.id)) continue;
+      const rel = paraTvItem(m);
+      const chave = `${rel.type}-${rel.id}`;
+      if (vistos.has(chave)) continue;
+      if (!cats.some((c) => (m.category || '').includes(c))) continue;
+      vistos.add(chave);
+      (rel.type === tipoAtual ? mesmoTipo : outros).push(rel);
+    }
+
+    return [...mesmoTipo, ...outros].slice(0, 24);
+  }, [movies.data, movie, item]);
 
   const abrirPlayer = (temporada?: number, episodio?: number) => {
     if (!user || !assinante) {
@@ -179,6 +223,7 @@ export function TvDetailPage({ id: idProp }: { id?: string } = {}) {
 
             <div className="tv-detail-actions">
               <button
+                ref={assistirRef}
                 data-tv-focusable
                 data-tv-initial-focus
                 tabIndex={0}

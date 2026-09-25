@@ -12,6 +12,7 @@ import {
   reabrirFocoDeTexto,
   temPonteDeTeclado,
 } from '@/lib/tecladoTv';
+import { instalarGuardaDeFoco } from '@/tv/focoTv';
 
 /**
  * TvLoginPage — tela de login do MovieFlix TV, RECONSTRUÍDA DO ZERO.
@@ -216,8 +217,6 @@ export function TvLoginPage() {
   const ultimaAtivacao = useRef(0);
   /** O foco inicial já foi dado? (uma única vez por montagem) */
   const jaFocouInicial = useRef(false);
-  /** Guarda contra reentrância da recuperação de foco. */
-  const recuperando = useRef(false);
 
   const campoDoRef = useCallback(
     (campo: Campo) => (campo === 'email' ? emailRef.current : senhaRef.current),
@@ -315,21 +314,29 @@ export function TvLoginPage() {
    * @param preferido elemento que deve receber o foco, quando informado.
    * @returns true quando foi preciso recuperar o foco.
    */
+  /**
+   * Devolve o foco ao campo ativo SE ele tiver escapado do formulário.
+   *
+   * É o resgate usado DENTRO do próprio gesto do usuário (antes de tratar uma
+   * tecla do controle): se o foco não estiver no formulário, a tecla é do
+   * formulário e não do elemento invasor. `focus()` num elemento já ativo é
+   * no-op, então não há custo quando está tudo certo.
+   *
+   * A GUARDA CONTÍNUA (para o instante em que NENHUMA tecla foi apertada) é
+   * instalada abaixo por `instalarGuardaDeFoco` — os dois compartilham a mesma
+   * noção de "dentro do formulário", que é o que evita os dois divergirem.
+   */
   const recuperarFoco = useCallback((preferido?: HTMLElement | null): boolean => {
     const raiz = raizRef.current;
     if (!raiz) return false;
     const ativo = document.activeElement as HTMLElement | null;
     if (ativo && raiz.contains(ativo)) return false;
-    if (recuperando.current) return false;
     const alvo = preferido ?? campoDoRef(campoAtivoRef.current);
-    if (!alvo) return false;
-    recuperando.current = true;
+    if (!alvo || !alvo.isConnected) return false;
     try {
       alvo.focus({ preventScroll: true });
     } catch {
-      /* ignora */
-    } finally {
-      recuperando.current = false;
+      return false;
     }
     registrar('foco-recuperado', alvo);
     return true;
@@ -352,17 +359,29 @@ export function TvLoginPage() {
    * A GUARDA DO FOCO: se o foco sair do formulário por QUALQUER motivo
    * (script de terceiro, IME do sistema, re-render, etc.), ele volta na hora.
    */
+  /**
+   * A GUARDA DO FOCO — a invariante desta tela, compartilhada em `@/tv/focoTv`.
+   *
+   * Ela observa `focusin`/`focusout` NO DOCUMENTO e devolve o foco ao campo ativo
+   * no INSTANTE em que ele escapa — de forma síncrona, sem `setTimeout`, sem
+   * `blur()` e sem escrever no DOM. Cobre os dois casos que quebravam o login:
+   *  • um elemento fora do formulário recebendo foco (script de terceiro, uma
+   *    re-renderização) — `focusin`, tratado no mesmo evento;
+   *  • o foco indo para o `body` (o sistema fechando o teclado, por exemplo) —
+   *    que NÃO emite `focusin`: coberto pela verificação no microtask seguinte.
+   *
+   * É a tradução literal do requisito "o foco permanece no campo durante toda
+   * a digitação (do início ao fim do login)".
+   */
   useEffect(() => {
     const raiz = raizRef.current;
     if (!raiz) return;
-    const aoMudarFoco = (ev: FocusEvent) => {
-      const alvo = ev.target as HTMLElement | null;
-      if (alvo && raiz.contains(alvo)) return;
-      recuperarFoco();
-    };
-    document.addEventListener('focusin', aoMudarFoco);
-    return () => document.removeEventListener('focusin', aoMudarFoco);
-  }, [recuperarFoco]);
+    return instalarGuardaDeFoco({
+      raiz,
+      alvoPreferido: () => campoDoRef(campoAtivoRef.current),
+      aoRecuperar: (alvo) => registrar('foco-guarda', alvo),
+    });
+  }, [campoDoRef, registrar]);
 
   /** Teclado de sistema fechado ao sair da tela (não vaza para a Home). */
   useEffect(
@@ -779,6 +798,7 @@ export function TvLoginPage() {
                   placeholder="voce@email.com"
                   className="tv-login-input"
                   data-tv-focusable
+                  data-tv-initial-focus
                   tabIndex={0}
                 />
               </span>

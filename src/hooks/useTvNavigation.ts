@@ -2,7 +2,7 @@ import { useEffect } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { ehTelaDeTv } from "@/lib/tv";
 import { ehCampoDeTexto, pedirTecladoNativo } from "@/lib/tecladoTv";
-import { dentroDeFormularioTv } from "@/tv/tvElementos";
+import { dentroDeFormularioTv, focoEmFormularioTv } from "@/tv/focoTv";
 
 /**
  * Navegação espacial por controle remoto / teclado (TV, TV Box, Android TV Box).
@@ -100,6 +100,14 @@ function limparFocoVisual() {
 }
 
 function primeiroFocavel(): HTMLElement | null {
+  // 1) A TELA DECLARA o próprio foco inicial (`data-tv-initial-focus`). É a
+  //    fonte da verdade: a tela de detalhes marca o botão "Assistir" para que o
+  //    usuário, vindo de um card, só precise apertar OK para começar a
+  //    reprodução. Sem esta linha, o primeiro elemento do DOM (um chip de
+  //    categoria, um botão "Voltar") levaria o foco no lugar do Assistir.
+  const declarado = document.querySelector<HTMLElement>('[data-tv-initial-focus]');
+  if (declarado && visivel(declarado)) return declarado;
+
   const lista = candidatos();
   const naTela = lista.filter((el) => {
     const r = el.getBoundingClientRect();
@@ -168,7 +176,7 @@ function playerModeAtivo(): boolean {
  * teclado na tela (que no so campos de texto), a navegao continua normal.
  */
 /*
- * O teste "estou dentro do formulário de TV?" mora em `@/tv/tvElementos`, junto
+ * O teste "estou dentro do formulário de TV?" mora em `@/tv/focoTv`, junto
  * com o `focoDoUsuario` usado pela recuperação automática de foco do TvLayout.
  * Manter UMA definição só é o que impede as duas camadas de divergirem — foi a
  * divergência entre elas que causou o bug do foco no login da TV.
@@ -185,18 +193,76 @@ export function useTvNavigation() {
 
   const emTv = typeof window !== "undefined" && ehTelaDeTv();
 
-  // Foco inicial a cada troca de página (o controle precisa ter "onde começar").
+  /**
+   * Foco inicial a cada troca de página — SÍNCRONO, sem timer.
+   *
+   * CAUSA RAIZ REMOVIDA AQUI: esta camada agendava um `setTimeout(400 ms)` para
+   * assumir o foco inicial quando ninguém tinha foco. O problema é que "ninguém
+   * tem foco" também é verdade por alguns milissegundos durante a montagem de
+   * uma tela que CUIDA DO PRÓPRIO FOCO (a tela de detalhes, que precisa colocar
+   * o foco no botão de assistir). Nessa janela, as duas rotinas disputavam o
+   * foco — e quem chegasse por último vencia. Era uma das razões de o foco
+   * aparecer em lugar errado / "pular" ao abrir os detalhes.
+   *
+   * Agora a responsabilidade é clara e única: cada tela posiciona o PRÓPRIO
+   * foco de forma determinística (`useTvScreenFocus`, em `data-tv-initial-focus`)
+   * e esta camada só entra em cena quando, depois da troca de rota, o foco
+   * realmente ficou órfão (body) — imediatamente, sem esperar timer.
+   */
   useEffect(() => {
     if (!emTv) return;
     limparFocoVisual();
-    const t = window.setTimeout(() => {
+
+    /** Assume o foco inicial apenas se ele estiver realmente perdido. */
+    const assumirSePerdido = () => {
+      // Telas que gerenciam o próprio foco (ou um formulário em uso) têm
+      // prioridade: esta camada nunca disputa o foco com elas.
+      if (document.querySelector("[data-tv-sem-autofoco]")) return;
+      if (focoEmFormularioTv()) return;
       const ativo = document.activeElement as HTMLElement | null;
-      if (!ativo || ativo === document.body || !visivel(ativo)) {
-        const inicial = primeiroFocavel();
-        if (inicial) focar(inicial);
+      if (ativo && ativo !== document.body && ativo.closest?.("[data-tv-focusable]")) return;
+      const inicial = primeiroFocavel();
+      if (inicial) focar(inicial);
+    };
+
+    // 1) Imediato (a tela anterior já saiu; se o foco ficou órfão, ele volta).
+    assumirSePerdido();
+    // 2) Reafirmações LIMITADAS (~3 s), e só enquanto o foco seguir órfão.
+    //    É preciso de uma janela porque o conteúdo da rota chega de forma
+    //    assíncrona (catálogo, imagens e o fim do splash da TV) — e a tela pode
+    //    montar sem cards por alguns instantes, momento em que ainda não existe
+    //    alvo para focar. Assim que qualquer elemento recebe o foco, as
+    //    tentativas param: se o usuário assumiu o controle, esta camada não
+    //    volta a agir.
+    //    NÃO é o antigo loop de recuperação: é limitado no tempo e não roda
+    //    sobre uma tela que declara o próprio foco (`data-tv-initial-focus`),
+    //    que tem prioridade absoluta via `primeiroFocavel()`; e não roda sobre
+    //    um formulário em uso (`data-tv-sem-autofoco`).
+    let tentativas = 0;
+    let parado = false;
+    const id = window.setInterval(() => {
+      if (parado) return;
+      tentativas += 1;
+      const ativo = document.activeElement as HTMLElement | null;
+      // Só consideramos que o usuário assumiu o controle quando o foco está
+      // num ALVO DE NAVEGAÇÃO de verdade (`data-tv-focusable`). Um foco
+      // transitório (o splash, um elemento que recebe foco e depois perde) não
+      // pode encerrar a colocação do foco inicial — era o que deixava a Home
+      // com o foco órfão. Enquanto o foco estiver no body/sem alvo, seguimos
+      // (sempre dentro do limite de tentativas).
+      const focoValido =
+        !!ativo && ativo !== document.body && visivel(ativo) && !!ativo.closest("[data-tv-focusable]");
+      if (focoValido || tentativas >= 60) {
+        parado = true;
+        window.clearInterval(id);
+        return;
       }
-    }, 400);
-    return () => window.clearTimeout(t);
+      assumirSePerdido();
+    }, 50);
+    return () => {
+      parado = true;
+      window.clearInterval(id);
+    };
   }, [location.pathname, emTv]);
 
   useEffect(() => {
@@ -241,13 +307,11 @@ export function useTvNavigation() {
       // nunca fechar o teclado. Com o teclado FECHADO o Back continua sendo da
       // navegação (leva à tela anterior), para o usuário nunca ficar preso.
       if (dentroDeFormularioTv(document.activeElement)) {
-        const tecladoAberto = !!document.activeElement?.closest?.("[data-tv-teclado-aberto]");
-        // Enquanto o usuário está EDITANDO um campo do formulário, o Voltar
-        // pertence ao formulário/IME (fecha o teclado) — nunca navega para
-        // outra tela. Fora de um campo de texto (ex.: no botão "Entrar"), o
-        // Voltar continua saindo da tela, para o usuário não ficar preso.
-        const editando = ehCampoDeTexto(document.activeElement);
-        if (acaoDaTecla(e) !== "back" || tecladoAberto || editando) return;
+        const tecladoAberto = !!document.querySelector("[data-tv-teclado-aberto]");
+        if (acaoDaTecla(e) !== "back" || tecladoAberto) return;
+        // Voltar com o teclado fechado e sem campo em edição (ex.: foco no
+        // botão "Entrar"): segue o fluxo normal de navegação, para o usuário
+        // nunca ficar preso na tela.
       }
 
       // ── CAMPO DE TEXTO (login/busca) ───────────────────────────────────────

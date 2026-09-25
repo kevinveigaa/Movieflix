@@ -2,78 +2,52 @@ import { useEffect, useState, type ReactNode } from 'react';
 import { TvSidebar } from './TvSidebar';
 import { TvMark } from './TvBrand';
 import { cn } from '@/lib/cn';
-import { focoDoUsuario } from './tvElementos';
 
 /**
  * TvLayout — moldura da experiência MovieFlix TV.
  *
- * AUDITORIA / CAUSA RAIZ: a versão anterior usava um CABEÇALHO HORIZONTAL no
- * topo (`.tv-header`), com logo + navegação em linha. O resultado era lido como
- * "barra de navegação de celular/site" e, principalmente, consumia a largura
- * útil: a grade ficava com poucas colunas e os cards grandes.
+ * AUDITORIA / CAUSA RAIZ (versão anterior): a versão anterior usava um CABEÇALHO
+ * HORIZONTAL no topo, que consumia a largura útil e deixava poucas colunas de
+ * cards. Agora a navegação é uma RAIL LATERAL ESQUERDA fixa (padrão de
+ * streaming para TV, com a identidade MovieFlix: item ativo no gradiente
+ * vermelho→roxo e o símbolo "M" oficial no topo).
  *
- * Agora a navegação é uma RAIL LATERAL ESQUERDA fixa (padrão de streaming para
- * TV, mas com a identidade MovieFlix: item ativo no gradiente vermelho→roxo,
- * foco com o anel da marca, símbolo "M" oficial no topo). A área de conteúdo
- * ganha a tela inteira e passa a acomodar mais cards por linha.
+ * FOCO / D-PAD — O QUE MUDOU NESTA VERSÃO (e por que)
+ * ════════════════════════════════════════════════════════════════════════════
+ * Esta moldura mantinha uma RECUPERAÇÃO AUTOMÁTICA DE FOCO por timer, disparada
+ * em CINCO instantes após o splash: 250, 700, 1300, 2100 e 3200 ms.
  *
- * FOCO / D-PAD:
- *  - Ao entrar numa tela, o foco vai para o CONTEÚDO (o destaque/cards), não
- *    para o menu — é o que o usuário espera ao abrir um app de TV.
- *  - Setas ESQUERDA a partir do primeiro elemento de uma linha devolvem o foco
- *    ao item ativo da sidebar, que é sempre alcançável (nada de foco perdido).
- *  - O BACK é tratado por `useTvNavigation` (botão Voltar do controle).
+ * Esse mecanismo era a causa raiz de boa parte do bug "o foco sai do campo
+ * antes de eu digitar":
+ *   • qualquer um desses timers que disparasse enquanto o usuário digitava
+ *     movia o foco para outro elemento (as versões anteriores tentaram conter
+ *     isso com condições — `focoDoUsuario`, `data-tv-sem-autofoco` — que eram
+ *     remendos em cima de um mecanismo que não deveria existir);
+ *   • e, pior, ele competia com o foco inicial das telas: quem chegasse
+ *     primeiro vencia, o que tornava o comportamento imprevisível justamente
+ *     na descida card → detalhes.
  *
- * MODO IMERSIVO (`imersivo`): no PLAYER a rail desaparece e o vídeo ocupa a
- * tela inteira — é a experiência de cinema esperada numa TV.
- */
-const TENTATIVAS_FOCO = [250, 700, 1300, 2100, 3200];
-
-/**
- * O foco está em algo que o USUÁRIO escolheu (campo de texto ou formulário de
- * TV)? Nesse caso a recuperação automática de foco NÃO pode agir — ela movia o
- * foco para o elemento inicial enquanto o usuário digitava no login.
- */
-/*
- * `focoDoUsuario` mora em `./tvElementos` porque a navegação espacial precisa da
- * MESMA definição. A versão anterior só reconhecia INPUT/TEXTAREA: com o foco
- * numa TECLA do teclado na tela — que não é um campo de texto — a recuperação
- * automática continuava agindo e roubava o foco no meio da digitação.
+ * Ele foi REMOVIDO. O foco inicial passou a ser responsabilidade DETERMINÍSTICA
+ * de cada tela, que o coloca no elemento marcado com `data-tv-initial-focus`
+ * via `useTvScreenFocus` (ver `src/tv/useTvScreenFocus.ts`):
+ *   • na tela de detalhes, no botão "Assistir" — o requisito explícito do dono;
+ *   • nas grades, no primeiro card.
+ *
+ * Consequência prática para o requisito "card → detalhes → assistir só com o
+ * controle": o foco chega nos detalhes JÁ no botão de assistir, sem esperar
+ * timer nenhum e sem ninguém disputando. E, como não há mais nenhum timer
+ * global de foco, nada pode roubar o foco de um campo de texto em nenhuma tela
+ * (o login, inclusive).
  */
 
 export function TvLayout({ children, imersivo = false }: { children: ReactNode; imersivo?: boolean }) {
   const [splash, setSplash] = useState(true);
 
   useEffect(() => {
+    // Splash curto: é só identidade visual — NÃO agenda foco.
     const t = window.setTimeout(() => setSplash(false), 900);
     return () => window.clearTimeout(t);
   }, []);
-
-  useEffect(() => {
-    if (splash) return;
-    const timers = TENTATIVAS_FOCO.map((ms) =>
-      window.setTimeout(() => {
-        // Nunca mexe no foco quando o usuário está num campo de texto/formulário.
-        // Telas que cuidam do PRÓPRIO foco (o login da TV) pedem, por marcação,
-        // que a recuperação automática não aja nelas. É esta recuperação que
-        // roubava o foco enquanto o usuário digitava.
-        if (document.querySelector('[data-tv-sem-autofoco]')) return;
-        // Nunca mexe no foco com o usuário num campo de texto, num formulário de
-        // TV ou numa TECLA do teclado na tela.
-        if (focoDoUsuario()) return;
-        const ativo = document.activeElement as HTMLElement | null;
-        // Só assume o foco se ele se perdeu (ou nunca aconteceu).
-        if (ativo && ativo !== document.body && ativo.getBoundingClientRect().width > 0) return;
-        const preferido = document.querySelector<HTMLElement>('[data-tv-initial-focus]');
-        const alvo =
-          preferido ??
-          document.querySelector<HTMLElement>('.tv-content [data-tv-focusable]') ??
-          document.querySelector<HTMLElement>('.tv-nav-rail [data-tv-focusable]');
-        alvo?.focus({ preventScroll: true });
-      }, ms),
-    );
-    return () => timers.forEach((t) => window.clearTimeout(t));
-  }, [splash]);
 
   if (splash) {
     return (

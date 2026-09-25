@@ -23,3 +23,6 @@ jobs:
       # aparelho do usuário (foi o que aconteceu nas tentativas anteriores).
       # Usa o Chrome que o runner ubuntu-latest já traz — nenhum download.
       - run: npm run test:tv-login -- --shot=/tmp/qa-login-tv.png
+      # Navegação por controle: cards → detalhes → assistir, foco automático no
+      # botão de assistir e a seção "Mais como este".
+      - run: npm run test:tv-nav -- --shot=/tmp/qa-nav-tv.png

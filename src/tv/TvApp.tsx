@@ -15,7 +15,7 @@ import { TvLoginPage } from './TvLoginPage';
 import { TvAccountPage } from './TvAccountPage';
 import { TvLoading } from './TvStates';
 import { informarVersaoAoApp } from '@/lib/tecladoTv';
-import { TV_APP_INFO } from '@/lib/appInfo';
+import { BUILD_INFO, registrarBuildNoConsole } from '@/lib/version';
 
 /**
  * TvApp — aplicação MovieFlix TV.
@@ -78,7 +78,12 @@ export function TvApp() {
    * (ver `PonteNativa.verificarVersao` no MainActivity). Fora do app é no-op.
    */
   useEffect(() => {
-    informarVersaoAoApp(TV_APP_INFO.version);
+    // Identidade do build no console: responde em 5 segundos "a TV está rodando
+    // o build novo ou o antigo?". Ver src/lib/version.ts.
+    registrarBuildNoConsole();
+    // Anuncia o COMMIT (não a versão do produto) ao shell nativo: é o que
+    // permite detectar um bundle antigo de cache e recarregar sem cache.
+    informarVersaoAoApp(BUILD_INFO.commit);
   }, []);
 
   // "" (raiz da TV) ou os segmentos depois de /tv

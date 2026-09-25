@@ -459,11 +459,37 @@ app.get("/api/version", (req, res) => {
     const m = html.match(/assets\/(index-[^"']+\.js)/);
     bundle = m ? m[1] : null;
   } catch { /* dist ainda não construído */ }
+
+  // Identidade do build gravada pelo Vite (`scripts/version.mjs`). É a MESMA
+  // informação publicada estaticamente em /version.json — aqui só para quem
+  // preferir consultar a API.
+  let build = null;
+  try {
+    build = JSON.parse(fs.readFileSync(path.join(__dirname, "..", "dist", "version.json"), "utf-8"));
+  } catch { /* build antigo, sem version.json */ }
+
+  res.set("Cache-Control", "no-store");
   res.json({
-    commit: process.env.RENDER_GIT_COMMIT || null,
-    branch: process.env.RENDER_GIT_BRANCH || null,
+    commit: process.env.RENDER_GIT_COMMIT || build?.commitFull || null,
+    branch: process.env.RENDER_GIT_BRANCH || build?.branch || null,
     bundle,
+    build,
     startedAt: STARTED_AT,
+  });
+});
+
+// Health check do Render (ver render.yaml → healthCheckPath).
+// Aponta para o ENDPOINT DA API, e não para "/" (que só devolve o HTML do site):
+// assim o Render detecta uma API quebrada no deploy, em vez de publicar um site
+// "meio no ar" — que é exatamente o sintoma de um deploy parado.
+app.get("/api/health", (req, res) => {
+  res.set("Cache-Control", "no-store");
+  res.json({
+    status: "ok",
+    service: "movieflix",
+    commit: process.env.RENDER_GIT_COMMIT || null,
+    startedAt: STARTED_AT,
+    uptimeSeconds: Math.round(process.uptime()),
   });
 });
 

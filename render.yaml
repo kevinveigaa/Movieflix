@@ -5,7 +5,11 @@ services:
     plan: free
     buildCommand: npm install && npm run build && npm --prefix backend install
     startCommand: node backend/server.js
-    healthCheckPath: /
+    # Health check no ENDPOINT DA API (e não em "/", que responde o HTML do
+    # site): se o processo Node estiver de pé mas com a API quebrada, o Render
+    # passa a detectar isso no deploy em vez de publicar um site "meio no ar".
+    # Ver backend/server.js → rota /api/health.
+    healthCheckPath: /api/health
     envVars:
       - key: NODE_VERSION
         value: 20.19.4
