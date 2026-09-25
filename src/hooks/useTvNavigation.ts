@@ -213,6 +213,26 @@ export function useTvNavigation() {
     if (!emTv) return;
     limparFocoVisual();
 
+    /**
+     * O foco pode JÁ estar no alvo certo quando esta camada roda.
+     *
+     * Causa raiz do "foco invisível ao abrir os detalhes": telas que cuidam do
+     * PRÓPRIO foco (os detalhes, via `useTvScreenFocus`) colocam o foco no botão
+     * "Assistir" em um `useLayoutEffect` — ANTES deste efeito. Limpar o destaque
+     * aqui apagava o anel que a tela já tinha pintado e, como o foco já estava
+     * num `[data-tv-focusable]`, o `assumirSePerdido()` abaixo saía sem repintar:
+     * o botão ficava focado e SEM indicação visual até o usuário apertar uma
+     * tecla — exatamente o que o dono relatou ("o foco nem aparece visualmente
+     * até o usuário apertar algum botão").
+     *
+     * A correção mantém o anel quando o foco já está onde deveria estar. É a
+     * MESMA classe que o D-pad usa (`.tv-focus`), então o desenho não muda.
+     */
+    const jaFocado = document.activeElement as HTMLElement | null;
+    if (jaFocado && jaFocado !== document.body && jaFocado.closest?.("[data-tv-focusable]")) {
+      jaFocado.classList.add("tv-focus");
+    }
+
     /** Assume o foco inicial apenas se ele estiver realmente perdido. */
     const assumirSePerdido = () => {
       // Telas que gerenciam o próprio foco (ou um formulário em uso) têm

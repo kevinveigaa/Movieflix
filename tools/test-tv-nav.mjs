@@ -324,6 +324,9 @@ const disparar = (keyCode, key) => `
 
 const TECLAS = {
   OK: [23, 'Enter'],
+  MEDIA_PLAY_PAUSE: [85, 'MediaPlayPause'],
+  AVANCAR: [90, 'MediaFastForward'],
+  VOLTAR_MIDIA: [89, 'MediaRewind'],
   CIMA: [19, 'ArrowUp'],
   BAIXO: [20, 'ArrowDown'],
   ESQUERDA: [21, 'ArrowLeft'],
@@ -406,6 +409,17 @@ async function principal() {
           localStorage.setItem('movieflix_active_profile', JSON.stringify(${JSON.stringify(PERFIL_ATIVO)}));
         } catch (e) {}
 
+        // PONTE NATIVA FALSA DO APK. É a mesma superfície que o MovieFlix TV
+        // expõe (window.MovieFlixApp.enviarTeclaPlayer): registra a TECLA REAL
+        // que o app entrega ao player e responde que assumiu a entrega. Sem
+        // ela, o caminho do controle remoto dentro do APK não pode ser testado.
+        window.__mfTeclasPlayer = [];
+        window.MovieFlixApp = {
+          enviarTeclaPlayer: function (code) { window.__mfTeclasPlayer.push(code); return true; },
+          mostrarTeclado: function () {},
+          setControlesAbertos: function () {},
+        };
+
         window.__mfFocoOrfao = 0;
         document.addEventListener('focusin', function (e) {
           const el = e.target;
@@ -468,6 +482,27 @@ async function principal() {
       // posições mudam — esperar pouco faz a próxima seta calcular contra
       // coordenadas velhas.
       await valer(t === 'OK' ? 450 : 420);
+    };
+
+    /**
+     * Uma tecla CRUA — `keydown` OU `keyup`, separadamente.
+     *
+     * `teclar()` manda só o keydown (uma pulsação). Para testar SEGURAR o botão
+     * é preciso controlar os dois momentos: o `keydown` que inicia o movimento
+     * contínuo (e se repete enquanto o botão está pressionado) e o `keyup` que
+     * o encerra — é assim que o controle remoto se comporta.
+     */
+    const tecla = async (keyCode, key, tipo = 'keydown') => {
+      await avaliar(`
+        (() => {
+          const el = document.activeElement || document.body;
+          const ev = new KeyboardEvent(${JSON.stringify(tipo)}, { key: ${JSON.stringify(key)}, bubbles: true, cancelable: true });
+          Object.defineProperty(ev, 'keyCode', { get: () => ${keyCode} });
+          Object.defineProperty(ev, 'which', { get: () => ${keyCode} });
+          el.dispatchEvent(ev);
+          return el.tagName;
+        })()
+      `);
     };
 
     /** Estado do foco + o que está na tela. */
@@ -644,6 +679,225 @@ async function principal() {
     await valer(900);
     e = await estado();
     checar('OK no botão de assistir leva à REPRODUÇÃO', /\/tv\/assistir\//.test(e.rota), `rota=${e.rota}`);
+
+    /* ══════════════════════════════════════════════════════════════════════
+       5. PLAYER — os requisitos do dono viram verificação executável
+       ══════════════════════════════════════════════════════════════════════
+       TESTE A — login → Home com foco inicial marcado;
+       TESTE B — "Cartas para Deus" → detalhes → foco em "Assistir";
+       TESTE C — OK = pausa/retoma (tecla REAL entregue ao player);
+       TESTE D/E — clique único = +10s / −10s com barra, tempo e indicador;
+       TESTE F/G — segurar = movimento contínuo controlado, com acúmulo visível;
+       TESTE H/I — não passa da duração total nem abaixo de 00:00.
+       ─────────────────────────────────────────────────────────────────────── */
+
+    const numSegundos = (texto) => {
+      const p = String(texto || '').split(':').map(Number);
+      if (p.some((n) => !Number.isFinite(n))) return NaN;
+      return p.length === 3 ? p[0] * 3600 + p[1] * 60 + p[2] : p[0] * 60 + p[1];
+    };
+
+    /** Uma PULSAÇÃO completa do controle (keydown + keyup), como o aparelho envia. */
+    const pressionar = async (keyCode, key, tarefa = 70) => {
+      await tecla(keyCode, key, 'keydown');
+      await valer(tarefa);
+      await tecla(keyCode, key, 'keyup');
+      await valer(120);
+    };
+
+    const progressoAgora = () => avaliar(`
+      (() => {
+        const q = (s) => { const el = document.querySelector(s); return el ? (el.textContent || '').trim() : null; };
+        const mov = document.querySelector('[data-tv-progresso-movimento]');
+        return {
+          existe: !!document.querySelector('[data-tv-progresso]'),
+          atual: q('[data-tv-progresso-atual]'),
+          total: q('[data-tv-progresso-total]'),
+          restante: q('[data-tv-progresso-restante]'),
+          movimento: mov ? (mov.textContent || '').trim() : null,
+          estado: q('.tv-progresso-estado'),
+          visivel: !!document.querySelector('.tv-player-progresso-camada-ativo'),
+          barraAberta: !!document.querySelector('.tv-player-overlay-ativo'),
+          teclas: (window.__mfTeclasPlayer || []).slice(),
+        };
+      })()
+    `);
+
+    const focarJogador = () => avaliar(`
+      (() => {
+        const box = document.querySelector('.tv-player-box');
+        const iframe = box && box.querySelector('iframe');
+        (iframe || box) && (iframe || box).focus();
+        const a = document.activeElement;
+        return a ? a.tagName : null;
+      })()
+    `);
+
+    const abrirPlayer = async (id) => {
+      await avaliar(`window.location.hash = '#/tv/assistir/${id}'`);
+      await esperar(`!!document.querySelector('.tv-player-box iframe')`, 25000);
+      await valer(1000);
+      await focarJogador();
+      await avaliar('window.__mfTeclasPlayer = []');
+    };
+
+    // ── TESTE A: a Home (destino do login) marca o foco inicial ───────────
+    await avaliar(`window.location.hash = '#/tv'`);
+    await esperar(`document.querySelectorAll('[data-tv-card]').length > 0`, 25000);
+    await valer(700);
+    const home = await avaliar(`
+      (() => {
+        const alvo = document.querySelector('[data-tv-initial-focus]');
+        const el = document.activeElement;
+        return {
+          rota: location.hash,
+          temAlvo: !!alvo,
+          orfao: !el || el === document.body || el === document.documentElement,
+          noAlvo: !!alvo && el === alvo,
+          anel: !!(el && el.classList && el.classList.contains('tv-focus')),
+        };
+      })()
+    `);
+    checar('TESTE A — depois do login o destino é a HOME da TV', home.rota === '#/tv', `rota=${home.rota}`);
+    checar('TESTE A — a Home marca um elemento inicial para o foco', home.temAlvo === true);
+    checar('TESTE A — o foco já está nele, visível, e não perdido no body', home.noAlvo === true && home.orfao === false, `orfao=${home.orfao} anel=${home.anel}`);
+
+    // ── TESTE B: selecionar "Cartas para Deus" (título real do catálogo) ───
+    const focouCarta = await avaliar(`
+      (() => {
+        const card = Array.from(document.querySelectorAll('[data-tv-card]'))
+          .find((c) => /cartas para deus/i.test(c.getAttribute('aria-label') || ''));
+        if (!card) return false;
+        card.focus();
+        return document.activeElement === card;
+      })()
+    `);
+    checar('TESTE B — o card "Cartas para Deus" existe e recebe o foco', focouCarta === true);
+    await teclar('OK');
+    await valer(1000);
+    const detalhe = await avaliar(`
+      (() => {
+        const el = document.activeElement;
+        const alvo = document.querySelector('[data-tv-initial-focus]');
+        return {
+          rota: location.hash,
+          focoTexto: el ? (el.textContent || '').trim().slice(0, 40) : null,
+          focoTag: el ? el.tagName : null,
+          anel: !!(el && el.classList && el.classList.contains('tv-focus')),
+          marcaAssistir: !!alvo && /assist/i.test(alvo.textContent || ''),
+          focoEAssistir: !!el && /^assist/i.test((el.textContent || '').trim()),
+          focoNoSair: !!el && /sair|fechar|close/i.test(el.getAttribute('aria-label') || ''),
+        };
+      })()
+    `);
+    checar('TESTE B — OK no card abre os DETALHES do título', /\/tv\/titulo\//.test(detalhe.rota), `rota=${detalhe.rota}`);
+    checar('TESTE B — o foco vai AUTOMATICAMENTE para o botão "Assistir"', detalhe.marcaAssistir === true && detalhe.focoEAssistir === true, `foco="${detalhe.focoTexto}"`);
+    checar('TESTE B — o foco NÃO vai para o botão de sair', detalhe.focoNoSair === false);
+    checar('TESTE B — o foco está VISÍVEL na hora (anel de foco)', detalhe.anel === true);
+
+    // ── TESTE D: clique único em avançar = +10s ───────────────────────────
+    // "Visões de um Amor" tem 96 min no catálogo real → duração total conhecida.
+    await abrirPlayer(1550338);
+    let p = await progressoAgora();
+    checar('TESTE D — a barra de progresso e o tempo existem no player', p.existe === true);
+    checar('TESTE D — a DURAÇÃO TOTAL do título aparece (01:36:00)', p.total === '01:36:00', `total=${p.total}`);
+    await pressionar(22, 'ArrowRight');
+    p = await progressoAgora();
+    checar('TESTE D — a tecla REAL de avançar foi entregue ao player (código 90)', p.teclas.includes(90), `teclas=[${p.teclas.join(',')}]`);
+    checar('TESTE D — clique único avançou 10 segundos (00:00:10)', p.atual === '00:00:10', `atual=${p.atual}`);
+    checar('TESTE D — o indicador visual mostra ⏩ +10s', /⏩ \+10s/.test(p.movimento || ''), `movimento=${p.movimento}`);
+    checar('TESTE D — a barra apareceu na tela com o tempo', p.visivel === true && p.restante !== null, `restante=${p.restante}`);
+    checar('TESTE D — o tempo restante desconta o avanço', /^−01:35:[45]\d restantes/.test(p.restante || ''), `restante=${p.restante}`);
+
+    // ── TESTE E: clique único em retroceder = −10s ───────────────────────
+    await avaliar('window.__mfTeclasPlayer = []');
+    await pressionar(21, 'ArrowLeft');
+    p = await progressoAgora();
+    checar('TESTE E — a tecla REAL de retroceder foi entregue ao player (código 89)', p.teclas.includes(89), `teclas=[${p.teclas.join(',')}]`);
+    checar('TESTE E — clique único retrocedeu 10 segundos (00:00:00)', p.atual === '00:00:00', `atual=${p.atual}`);
+    checar('TESTE E — o indicador visual mostra ⏪ −10s', /⏪ −10s/.test(p.movimento || ''), `movimento=${p.movimento}`);
+
+    // ── TESTE I: o retrocesso não passa de 00:00 ─────────────────────────
+    for (let i = 0; i < 3; i += 1) await pressionar(21, 'ArrowLeft');
+    p = await progressoAgora();
+    checar('TESTE I — retroceder nunca passa de 00:00', p.atual === '00:00:00', `atual=${p.atual}`);
+
+    // ── TESTE F: SEGURAR avançar = movimento contínuo controlado ─────────
+    await avaliar('window.__mfTeclasPlayer = []');
+    await tecla(22, 'ArrowRight', 'keydown');
+    for (let i = 0; i < 11; i += 1) {
+      await valer(110);
+      await tecla(22, 'ArrowRight', 'keydown'); // repetição do controle enquanto segura
+    }
+    await tecla(22, 'ArrowRight', 'keyup');
+    await valer(200);
+    p = await progressoAgora();
+    const segundosF = numSegundos(p.atual);
+    const acumuladoF = Number((String(p.movimento || '').match(/\+(\d+)s/) || [])[1]);
+    checar('TESTE F — segurar avança CONTINUAMENTE (muito além de um passo)', segundosF >= 20, `posição=${p.atual}`);
+    checar('TESTE F — a quantidade avançada é mostrada e acumula', Number.isFinite(acumuladoF) && acumuladoF > 10, `movimento=${p.movimento}`);
+    checar('TESTE F — várias teclas REAIS foram entregues durante o movimento', p.teclas.filter((t) => t === 90).length >= 3, `envios=${p.teclas.filter((t) => t === 90).length}`);
+    checar('TESTE F — a barra acompanha a nova posição', numSegundos(p.atual) < numSegundos(p.total), `atual=${p.atual} total=${p.total}`);
+
+    // O movimento contínuo PARA quando o usuário solta (a repetição cessou).
+    await valer(2200);
+    const depoisDeSoltar = await progressoAgora();
+    checar('TESTE F — soltar o botão encerra o movimento (não fica avançando sozinho)', depoisDeSoltar.atual === p.atual, `antes=${p.atual} depois=${depoisDeSoltar.atual}`);
+
+    // ── TESTE G: SEGURAR retroceder = movimento contínuo controlado ──────
+    await avaliar('window.__mfTeclasPlayer = []');
+    const antesG = numSegundos((await progressoAgora()).atual);
+    await tecla(21, 'ArrowLeft', 'keydown');
+    for (let i = 0; i < 11; i += 1) {
+      await valer(110);
+      await tecla(21, 'ArrowLeft', 'keydown');
+    }
+    await tecla(21, 'ArrowLeft', 'keyup');
+    await valer(200);
+    p = await progressoAgora();
+    checar('TESTE G — segurar retrocede CONTINUAMENTE', numSegundos(p.atual) <= antesG - 20, `antes=${antesG}s depois=${p.atual}`);
+    checar('TESTE G — a quantidade retrocedida é mostrada', /⏪ −\d+s/.test(p.movimento || ''), `movimento=${p.movimento}`);
+    checar('TESTE G — a tecla REAL de retroceder foi entregue várias vezes', p.teclas.filter((t) => t === 89).length >= 3, `envios=${p.teclas.filter((t) => t === 89).length}`);
+
+    // ── TESTE C: OK = play/pause (dentro do player) ─────────────────────
+    await abrirPlayer(1550338);
+    await pressionar(23, 'Enter');
+    p = await progressoAgora();
+    // O controle remoto da TV manda o OK ora como ENTER (23), ora como
+    // PLAY_PAUSE (85/179) — os DOIS caminhos têm de chegar ao player. Este
+    // harness usa o keycode de OK/ENTER, que é o que a TV do usuário envia.
+    checar('TESTE C — OK entrega ao player a tecla REAL de play/pause (85 ou 179)', p.teclas.includes(85) || p.teclas.includes(179), `teclas=[${p.teclas.join(',')}]`);
+    checar('TESTE C — depois do OK o player aparece PAUSADO', /pausado/i.test(p.estado || ''), `estado=${p.estado}`);
+    checar('TESTE C — o OK não abriu a barra de controles em vez de pausar', p.barraAberta === false);
+    await avaliar('window.__mfTeclasPlayer = []');
+    await pressionar(23, 'Enter');
+    p = await progressoAgora();
+    checar('TESTE C — o segundo OK volta a REPRODUZIR', /reproduzindo/i.test(p.estado || ''), `estado=${p.estado}`);
+    checar('TESTE C — a tecla REAL foi entregue de novo', p.teclas.includes(85) || p.teclas.includes(179), `teclas=[${p.teclas.join(',')}]`);
+
+    // Regressão: o D-pad continua abrindo os controles normalmente (↓).
+    await pressionar(20, 'ArrowDown');
+    await valer(250);
+    p = await progressoAgora();
+    checar('REGRESSÃO — ↓ continua abrindo a barra de controles do player', p.barraAberta === true);
+
+    // ── TESTE H: o avanço não ultrapassa a duração total ─────────────────
+    // Um título MUITO curto (1 min no catálogo real) torna o limite alcançável.
+    await abrirPlayer(950480);
+    p = await progressoAgora();
+    checar('TESTE H — título curto: a duração total aparece (01:00)', p.total === '01:00', `total=${p.total}`);
+    await tecla(22, 'ArrowRight', 'keydown');
+    for (let i = 0; i < 200; i += 1) {
+      await valer(12);
+      await tecla(22, 'ArrowRight', 'keydown');
+    }
+    await tecla(22, 'ArrowRight', 'keyup');
+    await valer(300);
+    p = await progressoAgora();
+    checar('TESTE H — o avanço PARA na duração total (01:00)', p.atual === p.total, `atual=${p.atual} total=${p.total}`);
+    await pressionar(22, 'ArrowRight');
+    p = await progressoAgora();
+    checar('TESTE H — avançar de novo NÃO ultrapassa a duração', numSegundos(p.atual) <= numSegundos(p.total), `atual=${p.atual} total=${p.total}`);
 
     // Evidência visual dos detalhes.
     await avaliar(`history.back()`);

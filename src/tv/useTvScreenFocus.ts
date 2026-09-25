@@ -81,7 +81,9 @@ export function useTvScreenFocus<T extends HTMLElement>(
       } catch {
         return false;
       }
-      return document.activeElement === el;
+      const chegou = document.activeElement === el;
+      if (chegou) marcarFocoVisual(el);
+      return chegou;
     };
 
     // 1) Imediato — no mesmo tick da montagem.
@@ -108,6 +110,33 @@ export function useTvScreenFocus<T extends HTMLElement>(
 /** O elemento está realmente no documento E visível (largura > 0)? */
 function estaNoDocumento(el: HTMLElement | null | undefined): el is HTMLElement {
   return !!el && el.isConnected === true && el.getBoundingClientRect().width > 0;
+}
+
+/**
+ * PINTA O ANEL DE FOCO no elemento que acabou de receber o foco automático.
+ *
+ * POR QUE ISSO É NECESSÁRIO (requisito do dono: "quando o foco for colocado
+ * automaticamente em 'Assistir', o usuário precisa perceber claramente que o
+ * botão está selecionado… não depender de o usuário apertar uma tecla para o
+ * foco aparecer"):
+ *
+ * a navegação espacial (`useTvNavigation`) só adiciona a classe `.tv-focus` —
+ * que é o anel visível — quando o usuário APERTA uma seta (`focar()`). O foco
+ * colocado por programa ficava, portanto, invisível até a primeira tecla: o
+ * botão "Assistir" estava focado, mas nada na tela dizia isso.
+ *
+ * Aqui o MESMO anel é aplicado junto com o foco, no mesmo frame — sem alterar
+ * o desenho do botão (a classe é exatamente a que o D-pad usa).
+ */
+function marcarFocoVisual(el: HTMLElement): void {
+  try {
+    document.querySelectorAll<HTMLElement>('.tv-focus').forEach((outro) => {
+      if (outro !== el) outro.classList.remove('tv-focus');
+    });
+    el.classList.add('tv-focus');
+  } catch {
+    /* ambiente sem DOM: o foco nativo continua valendo */
+  }
 }
 
 /**

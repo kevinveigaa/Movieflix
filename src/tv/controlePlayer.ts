@@ -41,7 +41,17 @@
 import { enviarComandoPlayer, type AcaoPlayer } from '@/lib/playerCommands';
 
 /** Ações de reprodução que o controle remoto dispara. */
-export type AcaoControle = AcaoPlayer; // 'play' | 'pause' | 'toggle' | 'seekFwd' | 'seekBack'
+export type AcaoPlayerBase = AcaoPlayer; // 'play' | 'pause' | 'toggle' | 'seekFwd' | 'seekBack'
+
+/**
+ * Ações que o controle remoto dispara no player.
+ *
+ * `ok` é o comando PLAY/PAUSE DO BOTÃO OK/ENTER do controle — separado de
+ * `toggle` porque o protocolo de `postMessage` do embed reconhece `toggle`
+ * (usado pelos botões da barra em navegador), enquanto o OK da TV precisa
+ * virar uma TECLA REAL (KEYCODE_MEDIA_PLAY_PAUSE) entregue pela ponte nativa.
+ */
+export type AcaoControle = AcaoPlayerBase | 'ok';
 
 /**
  * keyCode Android (KeyEvent) de cada ação — o MESMO valor que o controle remoto
@@ -53,6 +63,7 @@ export const KEYCODE_ANDROID: Record<AcaoControle, number> = {
   toggle: 85, // KEYCODE_MEDIA_PLAY_PAUSE
   seekFwd: 90, // KEYCODE_MEDIA_FAST_FORWARD
   seekBack: 89, // KEYCODE_MEDIA_REWIND
+  ok: 85, // KEYCODE_MEDIA_PLAY_PAUSE (OK = play/pause no player)
 };
 
 /** Nome da tecla (só para depuração/log no lado nativo). */
@@ -62,6 +73,7 @@ export const NOME_TECLA: Record<AcaoControle, string> = {
   toggle: 'MediaPlayPause',
   seekFwd: 'MediaFastForward',
   seekBack: 'MediaRewind',
+  ok: 'MediaPlayPause',
 };
 
 /** Superfície da ponte nativa do shell Android TV (MainActivity.PonteNativa). */
@@ -114,6 +126,10 @@ export function acionarControlePlayer(
   let agiu = false;
 
   // (1) PONTE NATIVA — entrega uma TECLA REAL com o iframe focado.
+  //
+  // Vale para TODAS as ações, INCLUSIVE o OK (85 = MEDIA_PLAY_PAUSE): é o único
+  // caminho que muda o estado do vídeo no aparelho. Sem ela, o OK do controle
+  // mostrava o ícone mas o player do provedor não pausava/retomava.
   try {
     if (ponte?.enviarTeclaPlayer?.(KEYCODE_ANDROID[acao], NOME_TECLA[acao])) agiu = true;
   } catch {
@@ -121,7 +137,14 @@ export function acionarControlePlayer(
   }
 
   // (2) + (3) Caminhos de navegador/WebView sem ponte (postMessage + vídeo nativo).
-  if (enviarComandoPlayer(iframe, acao, passoSeek)) agiu = true;
+  //     O 'ok' NÃO entra aqui: o protocolo de `postMessage` do embed não conhece
+  //     um comando "ok" — no navegador quem alterna a reprodução são os botões da
+  //     barra, que já usam as ações explícitas 'play'/'pause'. Mandar um nome
+  //     inventado só poluiria o canal.
+  if (acao !== 'ok') {
+    const legado: AcaoPlayerBase = acao;
+    if (enviarComandoPlayer(iframe, legado, passoSeek)) agiu = true;
+  }
 
   return agiu;
 }

@@ -223,9 +223,16 @@ export function TvLoginPage() {
     [],
   );
 
-  // Já autenticado: segue para a conta/Home da TV.
+  // Já autenticado: segue DIRETO para a Home da TV.
+  //
+  // Era `/tv/perfil`. O dono pediu: "depois que o usuário fizer login… entrar
+  // automaticamente na página inicial/Home… e posicionar o foco automaticamente
+  // no elemento inicial… o usuário deve conseguir começar a navegar
+  // imediatamente". A Home já marca o próprio alvo inicial com
+  // `data-tv-initial-focus` (o botão "Assistir" do destaque), então o foco
+  // aparece visível assim que a tela monta — sem parada intermediária.
   useEffect(() => {
-    if (!authLoading && user) navigate('/tv/perfil', { replace: true });
+    if (!authLoading && user) navigate('/tv', { replace: true });
   }, [authLoading, user, navigate]);
 
   useEffect(() => {
@@ -562,7 +569,9 @@ export function TvLoginPage() {
     try {
       // MESMA função do site/mobile (AuthContext → Supabase).
       await signIn(e, s);
-      navigate('/tv/perfil', { replace: true });
+      // LOGIN → HOME (não `/tv/perfil`): o foco inicial da Home já está marcado,
+      // então o usuário cai na tela inicial com o foco visível e navega na hora.
+      navigate('/tv', { replace: true });
     } catch (err) {
       setErro((err as Error).message ?? 'Não foi possível entrar.');
       const alvo = campoDoRef('senha');

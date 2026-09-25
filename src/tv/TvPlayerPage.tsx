@@ -26,7 +26,18 @@ import {
   streambetterSeriesEmbedUrl,
 } from '@/lib/strembetter';
 import { StreamBetterEmbed } from '@/components/player/StreamBetterEmbed';
-import { acionarControlePlayer } from '@/tv/controlePlayer';
+import { acionarControlePlayer, type AcaoControle } from '@/tv/controlePlayer';
+import { TvProgresso } from './TvProgresso';
+import {
+  PASSO_SEEK,
+  acumularMovimento,
+  avancar,
+  duracaoDoCatalogo,
+  lerEstadoDoPlayer,
+  retroceder,
+  type EstadoProgresso,
+  type Movimento,
+} from './playerProgresso';
 import { TvMark } from './TvBrand';
 import {
   ajustarVolume,
@@ -35,7 +46,6 @@ import {
   lerVolume,
   volumeNativoDisponivel,
 } from '@/lib/volumeTv';
-import { type AcaoPlayer } from '@/lib/playerCommands';
 import { cn } from '@/lib/cn';
 
 /**
@@ -79,8 +89,20 @@ import { cn } from '@/lib/cn';
 /** Tempo de inatividade antes de esconder os controles (ms). */
 const AUTO_HIDE_MS = 4000;
 
-/** Passo do seek pelo controle remoto, em segundos. */
-const PASSO_SEEK = 10;
+/**
+ * Cadência do movimento CONTÍNUO ao segurar ←/→ (ms).
+ *
+ * Um clique = um passo de 10s. Segurar = um passo a cada 450 ms, de forma
+ * controlada — nunca na velocidade da auto-repetição do sistema (que dispara
+ * ~30 passos por segundo e tornaria o avanço inutilizável).
+ */
+const INTERVALO_SEGURAR_MS = 450;
+
+/** Quanto tempo o indicador de movimento (⏩ +30s) fica na tela depois do último passo. */
+const MOVIMENTO_VISIVEL_MS = 1200;
+
+/** Quanto tempo a barra de progresso/tempo fica na tela depois de um comando. */
+const PROGRESSO_VISIVEL_MS = 3500;
 
 export function TvPlayerPage({ id: idProp }: { id?: string } = {}) {
   const { id: idParam } = useParams();
@@ -110,6 +132,37 @@ export function TvPlayerPage({ id: idProp }: { id?: string } = {}) {
   const [emReproducao, setEmReproducao] = useState(true);
   /** Recria o embed ("Recarregar player") sem duplicar iframes. */
   const [recarga, setRecarga] = useState(0);
+
+  /**
+   * ── PROGRESSO / TEMPO (barra, +10s/−10s, tempo restante) ───────────────────
+   * `posicao`/`duracao` em segundos. `posicaoReal`/`duracaoReal` dizem se o
+   * número foi LIDO do player ou vem do acúmulo dos comandos + catálogo — a
+   * interface mostra a diferença em vez de inventar um tempo (ver
+   * `playerProgresso.ts`).
+   */
+  const [progresso, setProgresso] = useState<EstadoProgresso>({
+    posicao: 0,
+    duracao: 0,
+    posicaoReal: false,
+    duracaoReal: false,
+  });
+  /** Movimento acumulado do seek (⏩ +30s) — some sozinho depois do último passo. */
+  const [movimento, setMovimento] = useState<Movimento | null>(null);
+  /** A barra de progresso está na tela? (camada própria, independente dos controles) */
+  const [progressoVisivel, setProgressoVisivel] = useState(false);
+  const progressoTimerRef = useRef<number | null>(null);
+  const movimentoTimerRef = useRef<number | null>(null);
+  /** Cadência do avanço/retrocesso contínuo (segurar ←/→ ou ⏪/⏩). */
+  const seekTimerRef = useRef<number | null>(null);
+  /** Sentido do movimento contínuo em andamento. */
+  const direcaoSeguradaRef = useRef(false);
+  /**
+   * Instante do último evento de seek vindo do controle. Enquanto o botão está
+   * pressionado o aparelho repete o evento e este carimbo se renova; quando o
+   * usuário solta, a repetição para — e a cadência contínua se encerra sozinha
+   * (rede de segurança para controles que não mandam keyup).
+   */
+  const ultimoEventoSeekRef = useRef(0);
 
   /** Volume da mídia do aparelho (0–100) e mudo — lidos da ponte nativa. */
   const [volume, setVolume] = useState<number>(() => lerVolume() ?? 50);
@@ -188,6 +241,21 @@ export function TvPlayerPage({ id: idProp }: { id?: string } = {}) {
   }, []);
 
   /**
+   * ── PROGRESSO: visibilidade, indicador de movimento e agendamentos ─────────
+   * A barra/tempo aparece a cada comando e se esconde sozinha; o indicador do
+   * seek (⏩ +30s) some um pouco depois do último passo.
+   */
+  const agendarEsconderProgresso = useCallback(() => {
+    if (progressoTimerRef.current !== null) window.clearTimeout(progressoTimerRef.current);
+    progressoTimerRef.current = window.setTimeout(() => setProgressoVisivel(false), PROGRESSO_VISIVEL_MS);
+  }, []);
+
+  const agendarLimparMovimento = useCallback(() => {
+    if (movimentoTimerRef.current !== null) window.clearTimeout(movimentoTimerRef.current);
+    movimentoTimerRef.current = window.setTimeout(() => setMovimento(null), MOVIMENTO_VISIVEL_MS);
+  }, []);
+
+  /**
    * Envia um comando para o player embutido.
    *
    * A lógica (quais nomes de comando o player reconhece, e o reforço no vídeo
@@ -216,14 +284,21 @@ export function TvPlayerPage({ id: idProp }: { id?: string } = {}) {
     }
   }, []);
 
-  const comandarPlayer = useCallback((acao: AcaoPlayer) => {
+  const comandarPlayer = useCallback((acao: AcaoControle, passo: number = PASSO_SEEK) => {
     const iframe = iframeWrapRef.current?.querySelector('iframe');
     // A camada de integração entrega a TECLA REAL ao player quando o APK está
     // presente (é o que faz o controle do provedor reagir de verdade) e, quando
     // não está, mantém o caminho anterior (postMessage + vídeo nativo).
-    acionarControlePlayer(iframe, acao, PASSO_SEEK);
+    acionarControlePlayer(iframe, acao, passo);
   }, []);
 
+  /**
+   * PLAY/PAUSE pelo controle.
+   *
+   * Dentro do player o OK vira `KEYCODE_MEDIA_PLAY_PAUSE` (ação `ok`), e os
+   * botões de mídia passam `play`/`pause` explícitos. É o mesmo caminho da
+   * camada de integração — por isso o ESTADO REAL do vídeo muda.
+   */
   const alternarPlay = useCallback(() => {
     setEmReproducao((v) => {
       comandarPlayer(v ? 'pause' : 'play');
@@ -231,14 +306,113 @@ export function TvPlayerPage({ id: idProp }: { id?: string } = {}) {
     });
   }, [comandarPlayer]);
 
-  /** Seek pelo controle: avança/retrocede e mostra o passo no aviso. */
-  const seek = useCallback(
+  /**
+   * Alterna a reprodução pelo BOTÃO OK do controle (dentro do player).
+   * Usa a ação `ok` (KEYCODE_MEDIA_PLAY_PAUSE) em vez de nomear play/pause:
+   * o botão OK da TV é um toggle — nomear o estado poderia dessincronizar do
+   * player real se o embed já tivesse trocado de estado sozinho.
+   */
+  const alternarPlayPeloOk = useCallback(() => {
+    comandarPlayer('ok');
+    setEmReproducao((v) => !v);
+  }, [comandarPlayer]);
+
+  /**
+   * APLICA UM PASSO de ±10s: manda o comando ao player, move o tempo mostrado
+   * (respeitando 00:00 e a duração total) e acumula o INDICADOR de movimento.
+   *
+   * O clique único chama isto uma vez (⏩ +10s); o movimento contínuo chama em
+   * cadência controlada (⏩ +20s, +30s…).
+   */
+  const aplicarPasso = useCallback(
     (frente: boolean) => {
-      comandarPlayer(frente ? 'seekFwd' : 'seekBack');
-      mostrarAviso(frente ? `⏩ +${PASSO_SEEK}s` : `⏪ −${PASSO_SEEK}s`);
+      comandarPlayer(frente ? 'seekFwd' : 'seekBack', PASSO_SEEK);
+      setProgresso((antes) => ({
+        ...antes,
+        posicao: frente
+          ? avancar(antes.posicao, PASSO_SEEK, antes.duracao)
+          : retroceder(antes.posicao, PASSO_SEEK),
+      }));
+      setMovimento((m) => acumularMovimento(m, frente ? 'frente' : 'volta', PASSO_SEEK));
+      setProgressoVisivel(true);
+      agendarEsconderProgresso();
+      agendarLimparMovimento();
     },
-    [comandarPlayer, mostrarAviso],
+    [comandarPlayer, agendarEsconderProgresso, agendarLimparMovimento],
   );
+
+  /** Seek de UM passo (botões da barra e clique único das setas). */
+  const seek = useCallback((frente: boolean) => aplicarPasso(frente), [aplicarPasso]);
+
+  /**
+   * SEEK CONTÍNUO (segurar ←/→ ou o botão de avançar/retroceder).
+   *
+   * O primeiro passo é IMEDIATO (clique único = +10s). Enquanto o controle
+   * continuar mandando o evento, um passo roda a cada 450 ms — cadência
+   * controlada, não a auto-repetição bruta do sistema. Quando os eventos param
+   * (o usuário soltou), a rede de segurança encerra o movimento.
+   */
+  const seekContinuo = useCallback(
+    (frente: boolean) => {
+      ultimoEventoSeekRef.current = Date.now();
+      if (seekTimerRef.current !== null) {
+        // Já em movimento: só reorienta (segurar o outro sentido inverte).
+        direcaoSeguradaRef.current = frente;
+        return;
+      }
+      direcaoSeguradaRef.current = frente;
+      aplicarPasso(frente);
+      seekTimerRef.current = window.setInterval(() => {
+        if (Date.now() - ultimoEventoSeekRef.current > 1600) {
+          if (seekTimerRef.current !== null) window.clearInterval(seekTimerRef.current);
+          seekTimerRef.current = null;
+          return;
+        }
+        aplicarPasso(direcaoSeguradaRef.current);
+      }, INTERVALO_SEGURAR_MS);
+    },
+    [aplicarPasso],
+  );
+
+  /** Encerra o movimento contínuo (soltar o botão). */
+  const pararSeekContinuo = useCallback(() => {
+    if (seekTimerRef.current !== null) window.clearInterval(seekTimerRef.current);
+    seekTimerRef.current = null;
+  }, []);
+
+  /**
+   * TROCA DE TÍTULO/EPISÓDIO: o progresso mostrado é o DESTA reprodução.
+   *
+   * A instância do componente é reaproveitada quando se troca de título pelo
+   * próprio player; sem este reset a barra do novo título começaria com a
+   * posição do anterior — um número que não corresponde a nada.
+   */
+  const chaveTitulo = `${movie?.id ?? ''}/${params.get('temporada') ?? ''}/${params.get('episodio') ?? ''}`;
+  const chaveTituloRef = useRef('');
+  useEffect(() => {
+    if (chaveTituloRef.current === chaveTitulo) return;
+    chaveTituloRef.current = chaveTitulo;
+    setProgresso({ posicao: 0, duracao: 0, posicaoReal: false, duracaoReal: false });
+    setMovimento(null);
+  }, [chaveTitulo]);
+
+  /**
+   * DURAÇÃO conhecida do catálogo (`duration`, em minutos) — o MESMO dado que o
+   * card e a tela de detalhes já exibem. É o que permite mostrar
+   * "00:35:20 / 01:52:40" e o tempo restante mesmo com o player em outra origem
+   * (ilegível pela política de mesma origem). Sem `duration`, a interface diz
+   * "duração não informada" em vez de inventar um número.
+   */
+  useEffect(() => {
+    const seg = duracaoDoCatalogo(movie?.duration);
+    if (seg <= 0) return;
+    setProgresso((antes) => ({
+      ...antes,
+      duracao: seg,
+      duracaoReal: false,
+      posicao: antes.posicaoReal ? antes.posicao : Math.min(antes.posicao, seg),
+    }));
+  }, [movie?.duration]);
 
   /** Volume pelo controle (áudio do aparelho pela ponte nativa). */
   const mudarVolume = useCallback(
@@ -377,10 +551,39 @@ export function TvPlayerPage({ id: idProp }: { id?: string } = {}) {
   useEffect(() => () => {
     if (autoHideRef.current !== null) window.clearTimeout(autoHideRef.current);
     if (avisoRef.current !== null) window.clearTimeout(avisoRef.current);
+    if (progressoTimerRef.current !== null) window.clearTimeout(progressoTimerRef.current);
+    if (movimentoTimerRef.current !== null) window.clearTimeout(movimentoTimerRef.current);
+    if (seekTimerRef.current !== null) window.clearInterval(seekTimerRef.current);
   }, []);
 
   /** Só faz sentido quando há assinante e fonte real de vídeo. */
   const pronto = Boolean(user) && assinante && Boolean(src);
+
+  /**
+   * LEITURA DO TEMPO REAL do player quando o navegador permite (player da mesma
+   * origem ou embed que exponha `mfEstadoDoPlayer`). No MovieFlix TV o embed do
+   * provedor é de OUTRA ORIGEM: a leitura devolve `null` e a barra segue com a
+   * posição conhecida + os comandos do controle — sem inventar tempo. Se o
+   * player um dia virar nativo/legível, a barra passa a acompanhar o vídeo sem
+   * nenhuma outra mudança.
+   */
+  useEffect(() => {
+    if (!pronto) return;
+    let vivo = true;
+    const t = window.setInterval(() => {
+      if (!vivo) return;
+      const iframe = iframeWrapRef.current?.querySelector('iframe') as HTMLIFrameElement | null;
+      const lido = lerEstadoDoPlayer(iframe);
+      if (!lido) return;
+      setProgresso((antes) =>
+        Math.abs(lido.posicao - antes.posicao) < 0.5 && lido.duracao === antes.duracao ? antes : lido,
+      );
+    }, 900);
+    return () => {
+      vivo = false;
+      window.clearInterval(t);
+    };
+  }, [pronto, recarga]);
 
   /**
    * CONTROLES PELO CONTROLE REMOTO.
@@ -416,14 +619,22 @@ export function TvPlayerPage({ id: idProp }: { id?: string } = {}) {
       const tipo = (e as CustomEvent<string>).detail;
       // PLAY/PAUSE e AVANÇAR/VOLTAR: entram no modo CONTROLE DO PLAYER (barra
       // fixa) e vão direto ao player — o controle dele passa a obedecer.
-      if (tipo === 'togglePlay' || tipo === 'seekFwd' || tipo === 'seekBack') mostrarControles(0);
-      else if (!estadosRef.current.controles) mostrarControles();
-      if (tipo === 'togglePlay') alternarPlay();
-      else if (tipo === 'next') {
+      // OK/▶ = play/pause: NUNCA abre a barra — o comando tem de chegar ao vídeo.
+      if (tipo === 'togglePlay') {
+        alternarPlayPeloOk();
+        return;
+      }
+      // AVANÇAR/VOLTAR: entram no modo CONTROLE DO PLAYER (barra fixa) e vão
+      // direto ao player — o controle dele passa a obedecer.
+      if (tipo === 'seekFwd' || tipo === 'seekBack') {
+        mostrarControles(0);
+        seekContinuo(tipo === 'seekFwd');
+        return;
+      }
+      if (!estadosRef.current.controles) mostrarControles();
+      if (tipo === 'next') {
         if (proximo) proximoEpisodio();
       } else if (tipo === 'stop') voltar();
-      else if (tipo === 'seekFwd') seek(true);
-      else if (tipo === 'seekBack') seek(false);
       else if (tipo === 'volUp' || tipo === 'volDown') {
         // A camada nativa JÁ ajustou o volume da mídia (é ela o dono). Aqui só
         // lemos o novo valor e mostramos o feedback na tela — sem ajustar duas
@@ -509,15 +720,14 @@ export function TvPlayerPage({ id: idProp }: { id?: string } = {}) {
             timerLongo = window.setTimeout(() => {
               timerLongo = null;
               disparouLongo = true;
-              e.preventDefault();
-              e.stopPropagation();
-              // Segurar OK = modo CONTROLE DO PLAYER (barra fixa, setas no vídeo).
+              // Segurar OK = modo CONTROLE DO PLAYER (pinça a barra fixa). A
+              // pinça NÃO consome o toque: o play/pause sai no keyup (onKeyUp),
+              // mantendo os dois recursos (segurar para fixar E OK = pausar).
               document.documentElement.classList.add('tv-in-player');
               setControles(true);
               setFixo(true);
               if (autoHideRef.current !== null) window.clearTimeout(autoHideRef.current);
               autoHideRef.current = null;
-              focarJogador();
             }, 1000);
           }
           return;
@@ -545,13 +755,13 @@ export function TvPlayerPage({ id: idProp }: { id?: string } = {}) {
       if (esquerda) {
         e.preventDefault();
         e.stopPropagation();
-        seek(false);
+        seekContinuo(false);
         return;
       }
       if (direita) {
         e.preventDefault();
         e.stopPropagation();
-        seek(true);
+        seekContinuo(true);
         return;
       }
       if (cima) {
@@ -568,8 +778,34 @@ export function TvPlayerPage({ id: idProp }: { id?: string } = {}) {
       }
     }
 
+    // ── SOLTAR AS TECLAS ─────────────────────────────────────────────────────
+    // 1) TECLAS DE SEEK: soltar (ou o fim da repetição) encerra o movimento
+    //    contínuo — o botão deixa de avançar/retroceder na hora.
+    // 2) OK: o toque CURTO (sem a pinça de 1s) é PLAY/PAUSE. É esta a correção
+    //    do Problema 4: o OK do controle passa a mudar o estado REAL do vídeo
+    //    dentro do player, e não apenas quando o foco está num botão da barra.
+    //    Com o foco na INTERFACE (menus, botões) nada é consumido aqui — o
+    //    clique normal da interface continua valendo.
     function onKeyUp(e: KeyboardEvent) {
-      if (ehOk(e)) cancelarLongo();
+      const k = e.key;
+      const c = e.keyCode || e.which;
+      const eraOk = ehOk(e);
+      const eraPinca = disparouLongo;
+      if (eraOk) cancelarLongo();
+
+      if (
+        c === 37 || c === 39 || k === 'ArrowLeft' || k === 'ArrowRight' || k === 'Left' || k === 'Right'
+      ) {
+        pararSeekContinuo();
+        return;
+      }
+
+      if (!eraOk || eraPinca) return;
+      if (estadosRef.current.config) return;
+      if (estadosRef.current.controles || !focoNoPlayer()) return;
+      e.preventDefault();
+      e.stopPropagation();
+      alternarPlayPeloOk();
     }
 
     // Quem detém o foco? Um BOTÃO/controle da página = HUMANO navegando menus;
@@ -599,6 +835,9 @@ export function TvPlayerPage({ id: idProp }: { id?: string } = {}) {
     proximoEpisodio,
     voltar,
     alternarPlay,
+    alternarPlayPeloOk,
+    seekContinuo,
+    pararSeekContinuo,
     mostrarControles,
     esconderControles,
     abrirConfig,
@@ -736,12 +975,30 @@ export function TvPlayerPage({ id: idProp }: { id?: string } = {}) {
         />
       </div>
 
-      {/* Aviso curto (volume / seek) — feedback sem poluir o vídeo. */}
+      {/* Aviso curto (volume) — feedback sem poluir o vídeo. */}
       {aviso ? (
         <div className="tv-player-toast" role="status">
           {aviso}
         </div>
       ) : null}
+
+      {/* ── BARRA DE PROGRESSO E TEMPO (camada própria, no alto) ────────────
+          Aparece a cada comando do controle (⏩ +10s, OK, ←/→) e se esconde
+          sozinha — é a "interface mais profissional para mostrar o progresso":
+          tempo atual, duração total, quanto falta e a posição na barra. */}
+      <div
+        className={cn('tv-player-progresso-camada', progressoVisivel && 'tv-player-progresso-camada-ativo')}
+        aria-hidden={!progressoVisivel}
+      >
+        <TvProgresso
+          posicao={progresso.posicao}
+          duracao={progresso.duracao}
+          posicaoReal={progresso.posicaoReal}
+          duracaoReal={progresso.duracaoReal}
+          movimento={progressoVisivel ? movimento : null}
+          pausado={!emReproducao}
+        />
+      </div>
 
       {/* ── UMA barra única, no rodapé. Nada solto no topo. ────────────────── */}
       <div
@@ -894,8 +1151,8 @@ export function TvPlayerPage({ id: idProp }: { id?: string } = {}) {
 
           <p className="tv-player-dica">
             {temVolume
-              ? '← −10s · → +10s · ↑ configurações · ↓ controles · +/− volume · segure OK para fixar'
-              : '← −10s · → +10s · ↑ configurações · ↓ controles · volume pela TV · segure OK para fixar'}
+              ? '← −10s · → +10s (segure para contínuo) · OK pausa/continua · ↑ configurações · ↓ controles · +/− volume'
+              : '← −10s · → +10s (segure para contínuo) · OK pausa/continua · ↑ configurações · ↓ controles · volume pela TV'}
           </p>
         </div>
       </div>
