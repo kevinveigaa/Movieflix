@@ -45,7 +45,7 @@
 import { createServer } from 'node:http';
 import { spawn, execFileSync } from 'node:child_process';
 import { readFile, writeFile, mkdtemp, stat } from 'node:fs/promises';
-import { existsSync } from 'node:fs';
+import { existsSync, mkdirSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import net from 'node:net';
@@ -56,6 +56,12 @@ const raiz = path.resolve(aqui, '..');
 const DIST = path.join(raiz, 'dist');
 
 const arg = (nome, padrao = null) => {
+  // Aceita as duas formas: `--shot caminho.png` e `--shot=caminho.png`.
+  // A segunda é a que o runner do CI usa (`npm run test:tv-nav -- --shot=/tmp/x.png`)
+  // — sem este suporte, o valor era ignorado em silêncio e o teste tentava
+  // gravar no caminho padrão (que pode não existir no runner).
+  const comIgual = process.argv.find((a) => a.startsWith(`--${nome}=`));
+  if (comIgual) return comIgual.slice(nome.length + 3) || padrao;
   const i = process.argv.indexOf(`--${nome}`);
   if (i < 0) return padrao;
   const proximo = process.argv[i + 1];
@@ -643,6 +649,7 @@ async function principal() {
     await avaliar(`history.back()`);
     await valer(700);
     const captura = await enviar('Page.captureScreenshot', { format: 'png' });
+    mkdirSync(path.dirname(SHOT), { recursive: true });
     await writeFile(SHOT, Buffer.from(captura.data, 'base64'));
 
     // ── 8. O foco nunca ficou órfão no caminho ─────────────────────────────
