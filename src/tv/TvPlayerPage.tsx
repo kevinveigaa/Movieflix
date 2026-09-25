@@ -26,6 +26,7 @@ import {
   streambetterSeriesEmbedUrl,
 } from '@/lib/strembetter';
 import { StreamBetterEmbed } from '@/components/player/StreamBetterEmbed';
+import { acionarControlePlayer } from '@/tv/controlePlayer';
 import { TvMark } from './TvBrand';
 import {
   ajustarVolume,
@@ -34,7 +35,7 @@ import {
   lerVolume,
   volumeNativoDisponivel,
 } from '@/lib/volumeTv';
-import { enviarComandoPlayer, type AcaoPlayer } from '@/lib/playerCommands';
+import { type AcaoPlayer } from '@/lib/playerCommands';
 import { cn } from '@/lib/cn';
 
 /**
@@ -90,6 +91,10 @@ export function TvPlayerPage({ id: idProp }: { id?: string } = {}) {
   const { user, subscription, loading: authLoading } = useAuth();
   const assinante = hasActiveSubscription(subscription);
   const frameRef = useRef<HTMLDivElement>(null);
+  // Quando um BOTÃO da barra/overlay detém o foco, o foco NÃO é "do jogador":
+  // ele é do humano navegando os menus do MovieFlix TV. Serve para desambiguar
+  // o fim do modo CONTROLE DO PLAYER sem quebrar a navegação normal.
+  const ultimoFocoRef = useRef<'jogador' | 'humano'>('jogador');
   const iframeWrapRef = useRef<HTMLDivElement>(null);
   const autoHideRef = useRef<number | null>(null);
 
@@ -193,9 +198,30 @@ export function TvPlayerPage({ id: idProp }: { id?: string } = {}) {
    * segurança. Nesse caso o embed mantém os controles próprios, e o volume
    * segue resolvido pelo áudio do APARELHO (funciona em qualquer provedor).
    */
+  /**
+   * Devolve o foco ao JOGADOR (iframe do provedor em primeiro lugar).
+   *
+   * O iframe é preferido: enquanto ele é o `document.activeElement`, o navegador
+   * roteia a tecla do controle ao documento do player (mesmo de outra origem).
+   * Sem isso o comando virava só um aviso na tela — CAUSA RAIZ do Problema 2.
+   */
+  const focarJogador = useCallback(() => {
+    ultimoFocoRef.current = 'jogador';
+    const wrap = iframeWrapRef.current;
+    const alvo = wrap?.querySelector('iframe') ?? frameRef.current;
+    try {
+      alvo?.focus({ preventScroll: true });
+    } catch {
+      /* ignora */
+    }
+  }, []);
+
   const comandarPlayer = useCallback((acao: AcaoPlayer) => {
     const iframe = iframeWrapRef.current?.querySelector('iframe');
-    enviarComandoPlayer(iframe, acao, PASSO_SEEK);
+    // A camada de integração entrega a TECLA REAL ao player quando o APK está
+    // presente (é o que faz o controle do provedor reagir de verdade) e, quando
+    // não está, mantém o caminho anterior (postMessage + vídeo nativo).
+    acionarControlePlayer(iframe, acao, PASSO_SEEK);
   }, []);
 
   const alternarPlay = useCallback(() => {
@@ -249,10 +275,16 @@ export function TvPlayerPage({ id: idProp }: { id?: string } = {}) {
    * cair em qualquer botão da barra — inclusive no de sair — e um OK "de
    * interação" acabava fechando o player.
    */
-  const mostrarControles = useCallback(() => {
+  const mostrarControles = useCallback((ocultarEmMs: number = AUTO_HIDE_MS) => {
     setControles(true);
     if (autoHideRef.current !== null) window.clearTimeout(autoHideRef.current);
-    autoHideRef.current = window.setTimeout(() => setControles(false), AUTO_HIDE_MS);
+    // Na sessão de controles do player a barra fica FIXA (não auto-oculta) para
+    // o controle remoto seguir operando o player sem perder o contexto.
+    if (ocultarEmMs > 0) {
+      autoHideRef.current = window.setTimeout(() => setControles(false), ocultarEmMs);
+    } else {
+      autoHideRef.current = null;
+    }
     window.setTimeout(() => {
       try {
         ctrlMainRef.current?.focus({ preventScroll: true });
@@ -270,11 +302,11 @@ export function TvPlayerPage({ id: idProp }: { id?: string } = {}) {
     document.documentElement.classList.remove('tv-in-player');
     // Devolve o foco à superfície do player (o D-pad continua aqui).
     try {
-      frameRef.current?.focus({ preventScroll: true });
+      focarJogador();
     } catch {
       /* ignora */
     }
-  }, []);
+  }, [focarJogador]);
 
   const abrirConfig = useCallback(() => {
     setConfig(true);
@@ -290,11 +322,11 @@ export function TvPlayerPage({ id: idProp }: { id?: string } = {}) {
   const fecharConfig = useCallback(() => {
     setConfig(false);
     try {
-      frameRef.current?.focus({ preventScroll: true });
+      focarJogador();
     } catch {
       /* ignora */
     }
-  }, []);
+  }, [focarJogador]);
 
   /**
    * BACK hierárquico do player. Fonte única da decisão:
@@ -365,6 +397,7 @@ export function TvPlayerPage({ id: idProp }: { id?: string } = {}) {
    * As teclas de VOLUME (24/25/164) são sempre nossas: nenhum outro componente
    * da TV usa volume, e elas precisam chegar ao áudio do aparelho.
    */
+
   useEffect(() => {
     if (!pronto) return;
 
@@ -381,7 +414,10 @@ export function TvPlayerPage({ id: idProp }: { id?: string } = {}) {
     /** Teclas de mídia do controle (emitidas pelo shell como `mf-media-key`). */
     function onMediaKey(e: Event) {
       const tipo = (e as CustomEvent<string>).detail;
-      if (!estadosRef.current.controles) mostrarControles();
+      // PLAY/PAUSE e AVANÇAR/VOLTAR: entram no modo CONTROLE DO PLAYER (barra
+      // fixa) e vão direto ao player — o controle dele passa a obedecer.
+      if (tipo === 'togglePlay' || tipo === 'seekFwd' || tipo === 'seekBack') mostrarControles(0);
+      else if (!estadosRef.current.controles) mostrarControles();
       if (tipo === 'togglePlay') alternarPlay();
       else if (tipo === 'next') {
         if (proximo) proximoEpisodio();
@@ -481,11 +517,7 @@ export function TvPlayerPage({ id: idProp }: { id?: string } = {}) {
               setFixo(true);
               if (autoHideRef.current !== null) window.clearTimeout(autoHideRef.current);
               autoHideRef.current = null;
-              try {
-                frameRef.current?.focus({ preventScroll: true });
-              } catch {
-                /* ignora */
-              }
+              focarJogador();
             }, 1000);
           }
           return;
@@ -494,7 +526,13 @@ export function TvPlayerPage({ id: idProp }: { id?: string } = {}) {
       }
 
       // ── Setas: com a barra ABERTA elas navegam os botões (fluxo normal) ───
-      if (estadosRef.current.controles) return;
+      if (estadosRef.current.controles) {
+        // Mas se o foco voltou ao JOGADOR (o usuário saiu dos botões), a barra
+        // fecha e as setas voltam a operar o vídeo: a sessão de controles termina
+        // sem prender o usuário dentro dela.
+        if (focoNoPlayer()) esconderControles();
+        return;
+      }
 
       // Com o foco FORA do player, as setas pertencem à navegação da página.
       if (!focoNoPlayer()) return;
@@ -534,13 +572,25 @@ export function TvPlayerPage({ id: idProp }: { id?: string } = {}) {
       if (ehOk(e)) cancelarLongo();
     }
 
+    // Quem detém o foco? Um BOTÃO/controle da página = HUMANO navegando menus;
+    // o iframe/vídeo = JOGADOR (as teclas de mídia devem operar o vídeo).
+    // É o que evita que um OK "de interação" caia no botão de sair.
+    function onFocusIn(ev: FocusEvent) {
+      const alvo = ev.target as HTMLElement | null;
+      if (!alvo) return;
+      if (alvo.tagName === 'IFRAME' || alvo.tagName === 'VIDEO') ultimoFocoRef.current = 'jogador';
+      else if (alvo.tagName === 'BUTTON') ultimoFocoRef.current = 'humano';
+    }
+
     window.addEventListener('mf-media-key', onMediaKey as EventListener);
     window.addEventListener('keydown', onKeyDown, true);
     window.addEventListener('keyup', onKeyUp, true);
+    document.addEventListener('focusin', onFocusIn, true);
     return () => {
       window.removeEventListener('mf-media-key', onMediaKey as EventListener);
       window.removeEventListener('keydown', onKeyDown, true);
       window.removeEventListener('keyup', onKeyUp, true);
+      document.removeEventListener('focusin', onFocusIn, true);
       cancelarLongo();
     };
   }, [
@@ -557,6 +607,7 @@ export function TvPlayerPage({ id: idProp }: { id?: string } = {}) {
     mudarVolume,
     alternarMudo,
     mostrarAviso,
+    focarJogador,
   ]);
 
   // Foco inicial: o player, para o D-pad já operar o vídeo ao entrar.
@@ -564,13 +615,13 @@ export function TvPlayerPage({ id: idProp }: { id?: string } = {}) {
     if (!pronto) return;
     const t = window.setTimeout(() => {
       try {
-        frameRef.current?.focus({ preventScroll: true });
+        focarJogador();
       } catch {
         /* ignora */
       }
     }, 250);
     return () => window.clearTimeout(t);
-  }, [pronto, recarga]);
+  }, [pronto, recarga, focarJogador]);
 
   // Aviso do episódio atual (só em série).
   const epLabel = ehSerie
@@ -681,7 +732,7 @@ export function TvPlayerPage({ id: idProp }: { id?: string } = {}) {
           className={cn('tv-player-tap', controles && 'tv-player-tap-oculto')}
           aria-label="Mostrar controles"
           tabIndex={-1}
-          onClick={mostrarControles}
+          onClick={() => mostrarControles()}
         />
       </div>
 

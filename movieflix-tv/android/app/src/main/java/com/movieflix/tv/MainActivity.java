@@ -556,6 +556,57 @@ public class MainActivity extends Activity {
      *
      * Onde a plataforma não suporta, o app simplesmente não injeta: nada quebra.
      */
+    /**
+     * PONTE DE CONTROLE DO PLAYER — entrega uma TECLA REAL ao player do provedor.
+     *
+     * CAUSA RAIZ do problema "o aviso aparece, mas o vídeo não obedece": o player
+     * vive num IFRAME DE OUTRA ORIGEM. Uma tecla só chega ao documento dele
+     * quando o PRÓPRIO iframe é o elemento focado, e eventos sintéticos de
+     * JavaScript NUNCA atravessam a fronteira de origem. Logo, quem aperta o
+     * botão do controle não consegue acionar o player por JS.
+     *
+     * A solução é injetar a tecla como um evento REAL do WebView, depois de
+     * colocar o foco no iframe do player:
+     *   1º foca o iframe do player (o navegador passa a rotear a tecla para ele);
+     *   2º despacha a tecla de verdade (DOWN + UP) para o container do WebView;
+     *   3º devolve o foco ao site, para os menus do MovieFlix TV seguirem
+     *       funcionando normalmente pelo D-pad.
+     *
+     * O player do provedor continua sendo o ÚNICO player: nada é trocado,
+     * removido ou substituído, e a fonte dos vídeos é a mesma.
+     */
+    private void teclaDoPlayer(final int code) {
+        if (webView == null) return;
+        // O container do WebView precisa do foco nativo para a entrega.
+        if (!webView.hasFocus()) webView.requestFocus();
+        webView.post(() -> {
+            if (webView == null) return;
+            // 1º) Foca o iframe do player (sem ele focado, o WebView consumiria a
+            // tecla com a navegação espacial e ela não chegaria ao player).
+            webView.evaluateJavascript(
+                    "(function(){try{var a=document.activeElement;"
+                    + "var f=(a&&a.tagName==='IFRAME')?a:"
+                    + "(document.querySelector('.tv-player-embed iframe')||document.querySelector('iframe'));"
+                    + "if(f){f.focus({preventScroll:true});}}catch(e){}})();",
+                    valor -> {
+                        if (webView == null) return;
+                        // 2º) Injeta a TECLA REAL — o player do provedor reage.
+                        webView.dispatchKeyEvent(new KeyEvent(KeyEvent.ACTION_DOWN, code));
+                        webView.dispatchKeyEvent(new KeyEvent(KeyEvent.ACTION_UP, code));
+                        // 3º) Devolve o foco ao site (menus do MovieFlix TV intactos).
+                        webView.postDelayed(() -> {
+                            if (webView == null) return;
+                            webView.evaluateJavascript(
+                                    "(function(){try{var a=document.activeElement;"
+                                    + "if(a&&a.tagName==='IFRAME'){"
+                                    + "var b=document.querySelector('[data-tv-player-box]');"
+                                    + "(b||document.body).focus({preventScroll:true});}}catch(e){}})();",
+                                    null);
+                        }, 220);
+                    });
+        });
+    }
+
     private static final String SCRIPT_AUTOCLICK =
             "(function(){"
             + " if (window.__mfAutoAbrirLink) return; window.__mfAutoAbrirLink = true;"
@@ -859,6 +910,10 @@ public class MainActivity extends Activity {
                 webView.evaluateJavascript(
                         "window.dispatchEvent(new CustomEvent('mf-media-key',{detail:'" + tipo + "'}));",
                         null);
+                // Entrega a TECLA REAL ao player do provedor: é o que faz o
+                // comando valer de verdade (o aviso na tela, sozinho, não muda o
+                // vídeo). Ver `teclaDoPlayer`.
+                teclaDoPlayer(code);
             }
             // Consome a tecla para não sair do app por engano.
             return true;
@@ -962,6 +1017,24 @@ public class MainActivity extends Activity {
         @JavascriptInterface
         public void setControlesAbertos(boolean aberto) {
             controlesAbertos = aberto;
+        }
+
+        /**
+         * PONTE DE CONTROLE DO PLAYER (controle remoto → player do provedor).
+         *
+         * Chamado pela integração do site (`src/tv/controlePlayer.ts`) quando o
+         * usuário aperta PLAY/PAUSE, AVANÇAR ou VOLTAR no controle remoto. O site
+         * NÃO consegue acionar os controles do embed por JavaScript (iframe de
+         * outra origem); aqui a tecla é entregue como evento REAL do WebView.
+         *
+         * @param keyCode código Android da tecla (85 play/pause, 90 avançar, 89 voltar)
+         * @param key     nome da tecla (informativo)
+         * @return true sempre — o site usa o retorno para saber que a ponte agiu
+         */
+        @JavascriptInterface
+        public boolean enviarTeclaPlayer(final int keyCode, final String key) {
+            runOnUiThread(() -> teclaDoPlayer(keyCode));
+            return true;
         }
 
         /** Abre o WhatsApp oficial no app externo (mesma regra do mobile). */

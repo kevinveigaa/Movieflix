@@ -39,10 +39,35 @@ export function useTvScreenFocus<T extends HTMLElement>(
     if (!ativado) return;
     let encerrado = false;
 
-    /** O usuário já assumiu o foco? (há um elemento válido focado, não o body) */
+    const inicio = Date.now();
+    /** Janela em que o ALVO vence qualquer foco que não seja ele próprio. */
+    const JANELA_DO_ALVO_MS = 400;
+
+    /**
+     * O usuário já assumiu o foco?
+     *
+     * Antes bastava existir QUALQUER elemento focado para o hook desistir — e
+     * era aí que o foco inicial se perdia: na TV o conteúdo monta de forma
+     * assíncrona e, nesse meio-tempo, outro elemento (a moldura da tela, ou o
+     * primeiro controle que a navegação espacial foca) recebia o foco; o hook
+     * via aquilo como "o usuário assumiu", desistia e o foco ficava longe do
+     * botão de assistir. Agora:
+     *  • nos primeiros instantes o ALVO vence (só ele conta como resolvido);
+     *  • depois disso, um CONTROLE navegável de verdade (botão, card, link,
+     *    input, `[data-tv-focusable]`, `[tabindex]` ≠ -1) conta como o usuário;
+     *  • foco no body/documento/moldura continua não contando — o hook segue
+     *    tentando colocar o foco no alvo, que é o objetivo da tela.
+     */
     const usuarioNoControle = () => {
       const ativo = document.activeElement as HTMLElement | null;
-      return !!ativo && ativo !== document.body && ativo !== document.documentElement;
+      if (!ativo || ativo === document.body || ativo === document.documentElement) return false;
+      if (ativo === ref.current) return true;
+      if (Date.now() - inicio < JANELA_DO_ALVO_MS) return false;
+      try {
+        return ativo.matches(INTERATIVO);
+      } catch {
+        return false;
+      }
     };
 
     /** Tenta focar o alvo. Devolve true quando não há mais nada a fazer. */
@@ -84,3 +109,12 @@ export function useTvScreenFocus<T extends HTMLElement>(
 function estaNoDocumento(el: HTMLElement | null | undefined): el is HTMLElement {
   return !!el && el.isConnected === true && el.getBoundingClientRect().width > 0;
 }
+
+/**
+ * Controles NAVEGÁVEIS de verdade: aquilo que o usuário alcança e confirma com
+ * OK. Focar um destes significa que ele assumiu a navegação — o foco inicial
+ * não deve mais disputar. A moldura de uma tela (`tabIndex={-1}`) fica de fora,
+ * por isso o `:not([tabindex="-1"])`.
+ */
+const INTERATIVO =
+  'button, [href], input, select, textarea, [data-tv-focusable], [tabindex]:not([tabindex="-1"])';
