@@ -710,19 +710,34 @@ export function TvPlayerPage({ id: idProp }: { id?: string } = {}) {
       if (estadosRef.current.config) return;
 
       // ── OK: pulso rápido mostra a barra; long-press pina/solta ────────────
+      // ── OK: PLAY/PAUSE imediato; segurar pina/solta a barra ────────────────
+      //
+      // CAUSA RAIZ (relato: "as setas funcionam, mas o OK não pausa"):
+      // o play/pause era disparado no KEYUP do OK. Num controle remoto de TV o
+      // keyup do OK frequentemente NÃO chega à página (o WebView/Android o
+      // consome, ou ele é entregue ao iframe do player) — então o toggle nunca
+      // acontecia e o vídeo seguia reproduzindo. Além disso o keydown do OK não
+      // era `preventDefault`ado, e a navegação espacial global (fase de captura)
+      // podia consumi-lo antes.
+      //
+      // Agora o OK alterna a reprodução no PRÓPRIO keydown, pelo MESMO caminho
+      // do avançar/retroceder (a ponte nativa entrega a TECLA REAL de
+      // play/pause ao player do provedor). O long-press (~1s) continua pinando
+      // a barra de controles — recurso preservado, sem atrapalhar o toggle.
       if (ehOk(e)) {
         const st = estadosRef.current;
         if (!st.controles) {
           // Só tratamos o OK quando o foco está no player; se o foco está num
           // botão da página, o fluxo normal (clique) deve valer.
           if (!focoNoPlayer()) return;
+          // O OK é NOSSO: não deixa a navegação global consumi-lo.
+          e.preventDefault();
+          e.stopPropagation();
           if (!timerLongo && !disparouLongo) {
             timerLongo = window.setTimeout(() => {
               timerLongo = null;
               disparouLongo = true;
-              // Segurar OK = modo CONTROLE DO PLAYER (pinça a barra fixa). A
-              // pinça NÃO consome o toque: o play/pause sai no keyup (onKeyUp),
-              // mantendo os dois recursos (segurar para fixar E OK = pausar).
+              // Segurar OK = modo CONTROLE DO PLAYER (pinça a barra fixa).
               document.documentElement.classList.add('tv-in-player');
               setControles(true);
               setFixo(true);
@@ -730,6 +745,8 @@ export function TvPlayerPage({ id: idProp }: { id?: string } = {}) {
               autoHideRef.current = null;
             }, 1000);
           }
+          // PLAY/PAUSE imediato (não espera o keyup).
+          alternarPlayPeloOk();
           return;
         }
         return;
@@ -800,12 +817,10 @@ export function TvPlayerPage({ id: idProp }: { id?: string } = {}) {
         return;
       }
 
+      // O PLAY/PAUSE do OK já saiu no KEYDOWN (ver onKeyDown): aqui só
+      // encerramos o long-press. Alternar de novo faria o vídeo pausar e
+      // retomar na MESMA pulsação.
       if (!eraOk || eraPinca) return;
-      if (estadosRef.current.config) return;
-      if (estadosRef.current.controles || !focoNoPlayer()) return;
-      e.preventDefault();
-      e.stopPropagation();
-      alternarPlayPeloOk();
     }
 
     // Quem detém o foco? Um BOTÃO/controle da página = HUMANO navegando menus;
