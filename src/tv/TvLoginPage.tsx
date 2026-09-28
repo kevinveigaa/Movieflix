@@ -149,16 +149,22 @@ function ehTeclaDeControle(t: TeclaControle): boolean {
  * próprio campo continuam valendo.
  */
 function escreverNoCampo(el: HTMLInputElement, texto: string): void {
-  const inicio = el.selectionStart ?? el.value.length;
-  const fim = el.selectionEnd ?? el.value.length;
+  // Quando o foco está numa TECLA do teclado na tela (o caso normal), o campo
+  // NÃO é o elemento ativo — e `selectionStart` de um campo sem foco pode ser 0,
+  // o que inseriria o caractere no INÍCIO. Nesse caso escrevemos no FIM, que é
+  // onde o usuário espera continuar digitando.
+  const focado = document.activeElement === el;
+  const inicio = focado ? el.selectionStart ?? el.value.length : el.value.length;
+  const fim = focado ? el.selectionEnd ?? el.value.length : el.value.length;
   el.setRangeText(texto, inicio, fim, 'end');
   el.dispatchEvent(new Event('input', { bubbles: true }));
 }
 
 /** Apaga o caractere anterior (ou a seleção) do campo. */
 function apagarNoCampo(el: HTMLInputElement): void {
-  const inicio = el.selectionStart ?? el.value.length;
-  const fim = el.selectionEnd ?? el.value.length;
+  const focado = document.activeElement === el;
+  const inicio = focado ? el.selectionStart ?? el.value.length : el.value.length;
+  const fim = focado ? el.selectionEnd ?? el.value.length : el.value.length;
   if (inicio !== fim) {
     el.setRangeText('', inicio, fim, 'end');
   } else if (inicio > 0) {
@@ -517,11 +523,19 @@ export function TvLoginPage() {
 
   // ── Digitação do teclado NA TELA (escreve no input real) ──────────────────
 
+  /**
+   * Digita no campo ativo SEM roubar o foco do teclado na tela.
+   *
+   * CAUSA RAIZ do "preciso selecionar o campo de novo a cada letra": a versão
+   * anterior chamava `reabrirFocoDeTexto(alvo)` aqui, que FOCAVA o campo — o
+   * foco saía da tecla do teclado na tela a cada caractere. Agora o caractere é
+   * escrito no campo e o foco PERMANECE na tecla, então o usuário digita
+   * "teste@gmail.com" inteiro sem voltar ao campo.
+   */
   const digitar = useCallback(
     (t: string) => {
       const alvo = campoDoRef(campoAtivoRef.current);
       if (!alvo) return;
-      reabrirFocoDeTexto(alvo);
       if ((alvo.value?.length ?? 0) >= LIMITE) return;
       escreverNoCampo(alvo, t);
       registrar('digitar');
@@ -532,7 +546,6 @@ export function TvLoginPage() {
   const apagar = useCallback(() => {
     const alvo = campoDoRef(campoAtivoRef.current);
     if (!alvo) return;
-    reabrirFocoDeTexto(alvo);
     apagarNoCampo(alvo);
     registrar('apagar');
   }, [campoDoRef, registrar]);

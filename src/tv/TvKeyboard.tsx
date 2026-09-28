@@ -293,6 +293,52 @@ export function TvKeyboard({
       onSair?.('escapar');
       return;
     }
+
+    /**
+     * ── OK / ENTER: ativa a tecla focada EXPLICITAMENTE ──────────────────────
+     *
+     * CAUSA RAIZ do bug "o teclado abre, mas não digita" (relatado pelo dono):
+     * o teclado na tela dependia da ATIVAÇÃO NATIVA do `<button>` pelo OK. No
+     * WebView do Android TV o OK chega como keyCode 23 (DPAD_CENTER), que NÃO
+     * ativa um `<button>` — o caractere nunca era inserido, e o mesmo valia para
+     * "Apagar", "Limpar", "Espaço", "⇧", as abas e o "Entrar" do teclado.
+     *
+     * Aqui o OK é tratado pelo PRÓPRIO teclado: a tecla focada é acionada pelo
+     * seu `click()` (que dispara o `onClick` de cada botão), sem depender do
+     * navegador. `preventDefault` evita a ativação nativa duplicada quando ela
+     * existir (Enter no desktop), então nunca há dois caracteres por pulso.
+     */
+    const ok =
+      e.key === 'Enter' || e.key === 'OK' || e.key === 'Select' || c === 13 || c === 23;
+    if (ok) {
+      const ativo = document.activeElement as HTMLElement | null;
+      const btn = ativo?.closest?.('[data-tv-key]') as HTMLButtonElement | null;
+      if (btn && raizRef.current?.contains(btn)) {
+        e.preventDefault();
+        e.stopPropagation();
+        btn.click();
+        return;
+      }
+    }
+
+    /**
+     * ── TECLADO FÍSICO / IME com o teclado na tela aberto ────────────────────
+     *
+     * Com o foco numa TECLA do teclado na tela, uma letra digitada num teclado
+     * físico (ou pelo IME da TV) iria para o `<button>` focado — que não é um
+     * campo de texto — e o caractere se perdia. Era o "o teclado físico também
+     * não insere" relatado. Aqui a tecla de CARACTERE é desviada para o campo
+     * ativo, então os dois teclados funcionam ao mesmo tempo.
+     */
+    const ehCaractere =
+      e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey && e.key !== ' ';
+    if (ehCaractere) {
+      e.preventDefault();
+      e.stopPropagation();
+      onTecla(e.key);
+      return;
+    }
+
     if (!esq && !dir && !cima && !baixo) return;
 
     const resolvido = mover(esq ? 'left' : dir ? 'right' : cima ? 'up' : 'down');

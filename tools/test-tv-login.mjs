@@ -479,6 +479,50 @@ async function principal() {
       (e.valorEmail ?? '') === (emailAntesDoTeclado ?? ''),
       `antes="${emailAntesDoTeclado}" depois="${e.valorEmail}"`);
 
+    // ── 6b. OK do CONTROLE (keyCode 23) numa tecla do teclado na tela ────────
+    // O bug relatado pelo dono: "o teclado abre, mas não digita". O OK do
+    // controle remoto chega como keyCode 23 (DPAD_CENTER), que NÃO ativa um
+    // <button> no WebView — então o caractere nunca era inserido. Aqui o OK é
+    // enviado como o controle envia (keydown keyCode 23), não como um clique.
+    const senhaAntesOk = (await estado()).valorSenha ?? '';
+    await avaliar(`
+      (() => {
+        const t = document.querySelector('[data-tv-keyboard-grade] [data-tv-key="A"]');
+        if (!t) return false;
+        t.focus();
+        const ev = new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true });
+        Object.defineProperty(ev, 'keyCode', { get: () => 23 });
+        Object.defineProperty(ev, 'which', { get: () => 23 });
+        t.dispatchEvent(ev);
+        return true;
+      })()
+    `);
+    await valer(220);
+    e = await estado();
+    checar('OK (keyCode 23) numa tecla do teclado INSERE o caractere',
+      (e.valorSenha ?? '').length === senhaAntesOk.length + 1,
+      `antes=${senhaAntesOk.length} depois=${(e.valorSenha ?? '').length}`);
+
+    // ── 6c. OK em "Apagar" remove o último caractere ─────────────────────────
+    const senhaAntesApagar = (await estado()).valorSenha ?? '';
+    await avaliar(`
+      (() => {
+        const t = document.querySelector('[data-tv-key="apagar"]');
+        if (!t) return false;
+        t.focus();
+        const ev = new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true });
+        Object.defineProperty(ev, 'keyCode', { get: () => 23 });
+        Object.defineProperty(ev, 'which', { get: () => 23 });
+        t.dispatchEvent(ev);
+        return true;
+      })()
+    `);
+    await valer(220);
+    e = await estado();
+    checar('OK (keyCode 23) em "Apagar" remove o último caractere',
+      (e.valorSenha ?? '').length === senhaAntesApagar.length - 1,
+      `antes=${senhaAntesApagar.length} depois=${(e.valorSenha ?? '').length}`);
+
     // ── 7. Cadeia até o Entrar, e o foco nunca sai do formulário ────────────
     await teclar('VOLTAR');
     await teclar('BAIXO'); // → botão Teclado
