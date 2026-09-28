@@ -326,8 +326,20 @@ export function useTvNavigation() {
       // qualquer handler do formulário) e navegava para a tela anterior, sem
       // nunca fechar o teclado. Com o teclado FECHADO o Back continua sendo da
       // navegação (leva à tela anterior), para o usuário nunca ficar preso.
-      if (dentroDeFormularioTv(document.activeElement)) {
-        const tecladoAberto = !!document.querySelector("[data-tv-teclado-aberto]");
+      // CAUSA RAIZ (bug do login no APARELHO REAL): no WebView do Android TV o
+      // OK (DPAD_CENTER) faz o WebView mover o foco nativo para o CONTEINER
+      // ANTES de entregar a tecla ao JS. Nesse instante `document.activeElement`
+      // é o `body` — que NÃO está dentro de `[data-tv-form]` — então esta guarda
+      // não reconhecia o formulário e a navegação espacial assumia o OK: como o
+      // foco estava no body, ela chamava `primeiroFocavel()`, que devolve o
+      // `[data-tv-initial-focus]` (o campo E-mail). Era EXATAMENTE o sintoma
+      // relatado: "aperto OK numa tecla e o foco vai para o campo E-mail".
+      // Com o TECLADO NA TELA aberto, o formulário é o dono de TODAS as teclas
+      // (o foco pode ter sido movido ao container pelo WebView) — a navegação
+      // espacial não toca em nada.
+      const tecladoNaTelaAberto = !!document.querySelector("[data-tv-teclado-aberto]");
+      if (dentroDeFormularioTv(document.activeElement) || tecladoNaTelaAberto) {
+        const tecladoAberto = tecladoNaTelaAberto;
         if (acaoDaTecla(e) !== "back" || tecladoAberto) return;
         // Voltar com o teclado fechado e sem campo em edição (ex.: foco no
         // botão "Entrar"): segue o fluxo normal de navegação, para o usuário

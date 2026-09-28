@@ -156,7 +156,17 @@ function escreverNoCampo(el: HTMLInputElement, texto: string): void {
   const focado = document.activeElement === el;
   const inicio = focado ? el.selectionStart ?? el.value.length : el.value.length;
   const fim = focado ? el.selectionEnd ?? el.value.length : el.value.length;
-  el.setRangeText(texto, inicio, fim, 'end');
+  try {
+    el.setRangeText(texto, inicio, fim, 'end');
+  } catch {
+    // CAUSA RAIZ do "o teclado abre, mas não digita" no APARELHO REAL:
+    // `setRangeText` LANÇA `InvalidStateError` em `type="email"` (esse tipo não
+    // suporta seleção). A exceção abortava o handler do OK — o caractere nunca
+    // era escrito E o resto do fluxo (devolver o foco à tecla) não rodava, então
+    // o foco acabava no campo E-mail. Aqui escrevemos direto no valor, que
+    // funciona para QUALQUER tipo de input.
+    el.value = el.value.slice(0, inicio) + texto + el.value.slice(fim);
+  }
   el.dispatchEvent(new Event('input', { bubbles: true }));
 }
 
@@ -165,12 +175,20 @@ function apagarNoCampo(el: HTMLInputElement): void {
   const focado = document.activeElement === el;
   const inicio = focado ? el.selectionStart ?? el.value.length : el.value.length;
   const fim = focado ? el.selectionEnd ?? el.value.length : el.value.length;
-  if (inicio !== fim) {
-    el.setRangeText('', inicio, fim, 'end');
-  } else if (inicio > 0) {
-    el.setRangeText('', inicio - 1, inicio, 'end');
-  } else {
-    return;
+  if (inicio === fim && inicio === 0) return;
+  try {
+    if (inicio !== fim) {
+      el.setRangeText('', inicio, fim, 'end');
+    } else {
+      el.setRangeText('', inicio - 1, inicio, 'end');
+    }
+  } catch {
+    // Mesmo caso do `escreverNoCampo`: `type="email"` não suporta `setRangeText`.
+    if (inicio !== fim) {
+      el.value = el.value.slice(0, inicio) + el.value.slice(fim);
+    } else {
+      el.value = el.value.slice(0, inicio - 1) + el.value.slice(inicio);
+    }
   }
   el.dispatchEvent(new Event('input', { bubbles: true }));
 }
@@ -218,6 +236,15 @@ export function TvLoginPage() {
 
   const campoAtivoRef = useRef<Campo>('email');
   const tecladoNaTelaRef = useRef(false);
+  /**
+   * A tecla do teclado NA TELA que está focada.
+   *
+   * A GUARDA DE FOCO devolve o foco a este elemento (e não ao campo E-mail)
+   * quando o WebView do Android TV move o foco ao container ao entregar o OK.
+   * Sem isso, a guarda puxava o foco para o input e o usuário precisava voltar
+   * ao teclado a cada letra — o sintoma relatado no aparelho real.
+   */
+  const teclaFocadaRef = useRef<HTMLButtonElement | null>(null);
 
   /** Instante da última ativação por OK (anti-repetição SÓ do OK). */
   const ultimaAtivacao = useRef(0);
@@ -391,7 +418,12 @@ export function TvLoginPage() {
     if (!raiz) return;
     return instalarGuardaDeFoco({
       raiz,
-      alvoPreferido: () => campoDoRef(campoAtivoRef.current),
+      // Com o teclado NA TELA aberto, o foco pertence à TECLA focada (o campo
+      // ativo continua sendo o destino da digitação, mas o foco visual fica no
+      // teclado). Só quando não há teclado na tela o foco volta ao campo.
+      alvoPreferido: () =>
+        (tecladoNaTelaRef.current ? teclaFocadaRef.current : null) ??
+        campoDoRef(campoAtivoRef.current),
       aoRecuperar: (alvo) => registrar('foco-guarda', alvo),
     });
   }, [campoDoRef, registrar]);
@@ -883,6 +915,9 @@ export function TvLoginPage() {
                 onEntrar={() => void entrar()}
                 onFechar={fecharTeclado}
                 onSair={sairDoTeclado}
+                onFocoTecla={(btn) => {
+                  teclaFocadaRef.current = btn;
+                }}
               />
             </div>
           ) : (

@@ -1,5 +1,5 @@
 import { flushSync } from 'react-dom';
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { cn } from '@/lib/cn';
 
 /**
@@ -42,6 +42,15 @@ export interface TvKeyboardProps {
    * que é o efeito mais temido numa TV.
    */
   onSair?: (sentido: 'cima' | 'baixo' | 'escapar') => void;
+  /**
+   * Avisa a tela de login qual tecla do teclado está focada.
+   *
+   * É o que permite à GUARDA DE FOCO devolver o foco à TECLA (e não ao campo
+   * E-mail) quando o WebView do Android TV move o foco ao container ao entregar
+   * o OK — sem isso a guarda puxava o foco para o input e o usuário precisava
+   * voltar ao teclado a cada letra.
+   */
+  onFocoTecla?: (btn: HTMLButtonElement | null) => void;
   /** Apaga o último caractere do campo ativo. */
   onApagar: () => void;
   /** Limpa o campo ativo. */
@@ -91,6 +100,7 @@ export function TvKeyboard({
   onEntrar,
   onFechar,
   onSair,
+  onFocoTecla,
 }: TvKeyboardProps) {
   // Começa em minúsculas (e-mail costuma ser minúsculo). ⇧ = uma letra.
   const [maiuscula, setMaiuscula] = useState(false);
@@ -99,6 +109,38 @@ export function TvKeyboard({
   const raizRef = useRef<HTMLDivElement>(null);
   const abasRef = useRef<HTMLDivElement>(null);
   const funcoesRef = useRef<HTMLDivElement>(null);
+
+  /**
+   * LEMBRA a última tecla do teclado que recebeu foco.
+   *
+   * CAUSA RAIZ (bug do login no APARELHO REAL): no WebView do Android TV o OK
+   * (DPAD_CENTER) faz o WebView mover o foco nativo para o CONTEINER antes de
+   * entregar a tecla ao JS. Nesse instante `document.activeElement` é o `body`:
+   *   • o `onKeyDown` deste componente (que vive na raiz do teclado) NÃO dispara
+   *     — o alvo do evento é o body, fora do teclado — então o caractere se
+   *     perdia; e
+   *   • a navegação espacial global (no `window`) assumia o OK e mandava o foco
+   *     para o `[data-tv-initial-focus]` (o campo E-mail).
+   * Era EXATAMENTE o sintoma relatado: "aperto OK numa tecla e o foco vai para o
+   * campo E-mail, e a letra não entra".
+   *
+   * Com a tecla lembrada, o OK é acionado mesmo com o foco no container, e o
+   * foco é devolvido à tecla — o usuário continua digitando sem voltar ao campo.
+   */
+  const teclaFocadaRef = useRef<HTMLButtonElement | null>(null);
+
+  /**
+   * A tecla que o OK deve acionar: a focada AGORA ou, se o WebView moveu o foco
+   * ao container, a ÚLTIMA tecla focada (ainda montada e dentro do teclado).
+   */
+  function teclaAtual(): HTMLButtonElement | null {
+    const ativo = document.activeElement as HTMLElement | null;
+    const btn = ativo?.closest?.('[data-tv-key]') as HTMLButtonElement | null;
+    if (btn && raizRef.current?.contains(btn)) return btn;
+    const lembrada = teclaFocadaRef.current;
+    if (lembrada && lembrada.isConnected && raizRef.current?.contains(lembrada)) return lembrada;
+    return null;
+  }
 
   function enviar(t: string) {
     if (ehLetra(t)) {
@@ -172,7 +214,9 @@ export function TvKeyboard({
    * (voltar ao campo, ir ao "Entrar"), e é aí que a cadeia de foco fecha.
    */
   function mover(dir: 'left' | 'right' | 'up' | 'down'): boolean {
-    const ativo = document.activeElement as HTMLElement | null;
+    // Usa a tecla LEMBRADA quando o WebView moveu o foco ao container — sem
+    // isso as setas não teriam base e o D-pad "sumiria" no aparelho real.
+    const ativo = teclaAtual();
     if (!ativo) return false;
 
     // Na barra de ABAS (ABC / 123 / #+& / Fechar): ◀ ▶ trocam de aba; ▼ desce
@@ -278,9 +322,9 @@ export function TvKeyboard({
    * Importante: só consomem a tecla quando o movimento é resolvido DENTRO do
    * teclado — nas bordas a tecla é repassada à tela externa, que fecha a cadeia.
    */
-  function teclas(e: React.KeyboardEvent<HTMLDivElement>) {
+  function agir(e: KeyboardEvent) {
     if (e.defaultPrevented) return;
-    const c = e.nativeEvent.keyCode || e.nativeEvent.which;
+    const c = e.keyCode || e.which;
     const esq = e.key === 'ArrowLeft' || e.key === 'Left' || c === 37 || c === 21;
     const dir = e.key === 'ArrowRight' || e.key === 'Right' || c === 39 || c === 22;
     const cima = e.key === 'ArrowUp' || e.key === 'Up' || c === 38 || c === 19;
@@ -311,11 +355,14 @@ export function TvKeyboard({
     const ok =
       e.key === 'Enter' || e.key === 'OK' || e.key === 'Select' || c === 13 || c === 23;
     if (ok) {
-      const ativo = document.activeElement as HTMLElement | null;
-      const btn = ativo?.closest?.('[data-tv-key]') as HTMLButtonElement | null;
-      if (btn && raizRef.current?.contains(btn)) {
+      // Aciona a tecla focada — ou a LEMBRADA, quando o WebView moveu o foco ao
+      // container ao entregar o OK (o caso do aparelho real). O foco é devolvido
+      // à tecla, então ele CONTINUA no teclado e o usuário segue digitando.
+      const btn = teclaAtual();
+      if (btn) {
         e.preventDefault();
         e.stopPropagation();
+        btn.focus({ preventScroll: true });
         btn.click();
         return;
       }
@@ -331,7 +378,7 @@ export function TvKeyboard({
      * ativo, então os dois teclados funcionam ao mesmo tempo.
      */
     const ehCaractere =
-      e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey && e.key !== ' ';
+      e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey;
     if (ehCaractere) {
       e.preventDefault();
       e.stopPropagation();
@@ -353,13 +400,72 @@ export function TvKeyboard({
     onSair?.(cima ? 'cima' : 'baixo');
   }
 
+  /**
+   * O handler mais recente, para o listener de `window` abaixo (que é registrado
+   * uma única vez e precisa enxergar o estado atual: aba, maiúsculas, etc.).
+   */
+  const agirRef = useRef(agir);
+  agirRef.current = agir;
+
+  /** O callback de foco mais recente (o listener é registrado uma única vez). */
+  const onFocoTeclaRef = useRef(onFocoTecla);
+  onFocoTeclaRef.current = onFocoTecla;
+
+  /**
+   * LISTENER DE `window` (fase de captura) — a correção do aparelho real.
+   *
+   * O `onKeyDown` da raiz do teclado só dispara quando o ALVO do evento está
+   * dentro do teclado. No WebView do Android TV o OK move o foco nativo ao
+   * container ANTES de entregar a tecla, então o alvo é o `body` e aquele
+   * handler nunca rodava: o caractere se perdia e a navegação espacial global
+   * levava o foco ao campo E-mail.
+   *
+   * Este listener roda no `window` (sempre dispara) e age SOMENTE quando o
+   * teclado é o dono da tecla:
+   *   • o foco está dentro do teclado; ou
+   *   • o foco foi movido ao container pelo WebView E existe uma tecla lembrada.
+   * Fora disso (foco num campo/botão do formulário) ele não toca em nada — quem
+   * cuida é a própria tela de login.
+   */
+  useEffect(() => {
+    const raiz = raizRef.current;
+    if (!raiz) return;
+    // Registra a tecla focada por um listener NATIVO de `focusin` (o `onFocus`
+    // sintético do React não disparou de forma confiável no WebView do Android
+    // TV). É esta referência que permite acionar o OK mesmo quando o WebView
+    // move o foco ao container antes de entregar a tecla.
+    function aoFocarNativo(ev: FocusEvent) {
+      const alvo = ev.target as HTMLElement | null;
+      const btn = alvo?.closest?.('[data-tv-key]') as HTMLButtonElement | null;
+      if (btn && raiz!.contains(btn)) {
+        teclaFocadaRef.current = btn;
+        onFocoTeclaRef.current?.(btn);
+      }
+    }
+    function aoTeclarJanela(e: KeyboardEvent) {
+      if (e.defaultPrevented) return;
+      const ativo = document.activeElement as HTMLElement | null;
+      const dentroDoTeclado = !!ativo && raiz!.contains(ativo);
+      const focoNoContainer =
+        !ativo || ativo === document.body || ativo === document.documentElement;
+      if (!dentroDoTeclado && !(focoNoContainer && teclaFocadaRef.current)) return;
+      agirRef.current(e);
+    }
+    raiz.addEventListener('focusin', aoFocarNativo, true);
+    window.addEventListener('keydown', aoTeclarJanela, true);
+    return () => {
+      raiz.removeEventListener('focusin', aoFocarNativo, true);
+      window.removeEventListener('keydown', aoTeclarJanela, true);
+    };
+  }, []);
+
   return (
     <div
       ref={raizRef}
       className="tv-login-teclado"
       role="group"
       aria-label="Teclado na tela"
-      onKeyDown={teclas}
+      onKeyDown={(ev) => agir(ev.nativeEvent)}
     >
       {/* Abas: alcançáveis com ← → como qualquer controle (data-tv-focusable). */}
       <div
