@@ -136,15 +136,18 @@ export function acionarControlePlayer(
     /* aparelho sem a ponte: seguimos para os caminhos de navegador */
   }
 
-  // (2) + (3) Caminhos de navegador/WebView sem ponte (postMessage + vídeo nativo).
-  //     O 'ok' NÃO entra aqui: o protocolo de `postMessage` do embed não conhece
-  //     um comando "ok" — no navegador quem alterna a reprodução são os botões da
-  //     barra, que já usam as ações explícitas 'play'/'pause'. Mandar um nome
-  //     inventado só poluiria o canal.
-  if (acao !== 'ok') {
-    const legado: AcaoPlayerBase = acao;
-    if (enviarComandoPlayer(iframe, legado, passoSeek)) agiu = true;
-  }
+  // (2) + (3) Caminhos de navegador/WebView (postMessage + vídeo nativo).
+  //
+  // O 'ok' TAMBÉM entra aqui, como 'toggle'. CAUSA RAIZ (relato no APARELHO:
+  // "as setas/volume funcionam, mas o OK não pausa"): o 'ok' era o ÚNICO
+  // comando que NÃO usava o canal `postMessage` — dependia só da tecla nativa.
+  // Como o avançar/retroceder (que o usuário confirma que funciona) usam esse
+  // canal, o OK ficava preso a um único caminho. Agora ele manda o MESMO
+  // comando de alternância que os botões da barra ('toggle' → 'toggle'/'play'/
+  // 'pause'), além da tecla nativa — o provedor usa o que reconhecer e ignora
+  // o resto, sem dupla execução (o embed trata um comando por vez).
+  const legado: AcaoPlayerBase = acao === 'ok' ? 'toggle' : acao;
+  if (enviarComandoPlayer(iframe, legado, passoSeek)) agiu = true;
 
   return agiu;
 }

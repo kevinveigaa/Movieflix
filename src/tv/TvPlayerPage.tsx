@@ -267,16 +267,25 @@ export function TvPlayerPage({ id: idProp }: { id?: string } = {}) {
    * segue resolvido pelo áudio do APARELHO (funciona em qualquer provedor).
    */
   /**
-   * Devolve o foco ao JOGADOR (iframe do provedor em primeiro lugar).
+   * Devolve o foco ao JOGADOR — no WRAPPER (mesma origem), NUNCA no iframe.
    *
-   * O iframe é preferido: enquanto ele é o `document.activeElement`, o navegador
-   * roteia a tecla do controle ao documento do player (mesmo de outra origem).
-   * Sem isso o comando virava só um aviso na tela — CAUSA RAIZ do Problema 2.
+   * CAUSA RAIZ (relato no APARELHO: "as setas/volume funcionam, mas o OK não
+   * pausa"): o iframe do player é de OUTRA ORIGEM. Enquanto ele é o
+   * `document.activeElement`, o navegador entrega TODA tecla ao documento do
+   * player e o documento PAI não recebe NADA — medido com uma tecla REAL: com o
+   * iframe focado, nenhum listener do site dispara. Sem receber a tecla, o site
+   * nunca chama a ponte nativa e o OK não vira play/pause. Só as teclas de
+   * MÍDIA (⏩/⏪/volume), interceptadas no `dispatchKeyEvent` do Android, seguiam
+   * funcionando — daí a impressão de que "só o OK não funciona".
+   *
+   * O wrapper `[data-tv-player-box]` é da MESMA origem: com ele focado o site
+   * recebe o OK e as setas, e a ponte nativa (`enviarTeclaPlayer`) entrega a
+   * TECLA REAL ao player — ela mesma foca o iframe no instante da injeção, de
+   * modo que o player continua reagindo. Nada do player é trocado.
    */
   const focarJogador = useCallback(() => {
     ultimoFocoRef.current = 'jogador';
-    const wrap = iframeWrapRef.current;
-    const alvo = wrap?.querySelector('iframe') ?? frameRef.current;
+    const alvo = frameRef.current ?? iframeWrapRef.current;
     try {
       alvo?.focus({ preventScroll: true });
     } catch {

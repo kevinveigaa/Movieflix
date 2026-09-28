@@ -505,6 +505,24 @@ async function principal() {
       `);
     };
 
+    /**
+     * Uma tecla REAL (via CDP `Input.dispatchKeyEvent`) — é o que o CONTROLE
+     * REMOTO entrega ao WebView. Diferente de `tecla()`, que cria um
+     * KeyboardEvent SINTÉTICO no documento PAI: um evento sintético borbulha no
+     * pai mesmo com o iframe focado, então ele NÃO reproduz o aparelho. A tecla
+     * real vai para o elemento REALMENTE focado — se for o iframe de outra
+     * origem, o documento pai não a recebe (é a causa raiz do OK não pausar).
+     */
+    const teclaReal = async (vk, key) => {
+      await enviar('Input.dispatchKeyEvent', {
+        type: 'rawKeyDown', windowsVirtualKeyCode: vk, nativeVirtualKeyCode: vk, key, code: key,
+      });
+      await enviar('Input.dispatchKeyEvent', {
+        type: 'keyUp', windowsVirtualKeyCode: vk, nativeVirtualKeyCode: vk, key, code: key,
+      });
+      await valer(250);
+    };
+
     /** Estado do foco + o que está na tela. */
     const estado = () => avaliar(`
       (() => {
@@ -723,11 +741,15 @@ async function principal() {
       })()
     `);
 
+    /**
+     * Deixa o foco no WRAPPER do player (mesma origem) — o MESMO estado que o
+     * app aplica. NÃO foca o iframe do provedor: com o iframe (outra origem)
+     * focado, o documento pai não recebe tecla nenhuma (ver TESTE C2).
+     */
     const focarJogador = () => avaliar(`
       (() => {
-        const box = document.querySelector('.tv-player-box');
-        const iframe = box && box.querySelector('iframe');
-        (iframe || box) && (iframe || box).focus();
+        const box = document.querySelector('[data-tv-player-box]');
+        if (box) box.focus({ preventScroll: true });
         const a = document.activeElement;
         return a ? a.tagName : null;
       })()
@@ -874,6 +896,37 @@ async function principal() {
     p = await progressoAgora();
     checar('TESTE C — o segundo OK volta a REPRODUZIR', /reproduzindo/i.test(p.estado || ''), `estado=${p.estado}`);
     checar('TESTE C — a tecla REAL foi entregue de novo', p.teclas.includes(85) || p.teclas.includes(179), `teclas=[${p.teclas.join(',')}]`);
+
+    // ── TESTE C2: tecla REAL do controle (não sintética) ────────────────────
+    // O TESTE C acima usa um KeyboardEvent SINTÉTICO, que borbulha no documento
+    // pai mesmo com o iframe focado — por isso ele passava enquanto o aparelho
+    // real falhava. Aqui a tecla é REAL (CDP), como o controle remoto entrega:
+    // ela vai para o elemento REALMENTE focado. Se o site deixou o iframe de
+    // outra origem focado, o documento pai não recebe nada e o OK não vira
+    // play/pause — exatamente o bug relatado no aparelho.
+    // Abre o player do ZERO (sai da rota e volta) para o app MONTAR a tela e
+    // aplicar o PRÓPRIO foco — é o estado que o controle remoto encontra.
+    // NÃO usa `abrirPlayer` aqui: ele foca o wrapper de propósito; queremos ver
+    // onde o APP deixa o foco SOZINHO.
+    await avaliar(`window.location.hash = '#/tv'`);
+    await valer(700);
+    await avaliar(`window.location.hash = '#/tv/assistir/1550338'`);
+    await esperar(`!!document.querySelector('.tv-player-box iframe')`, 25000);
+    await valer(1200);
+    const focoDoApp = await avaliar(`document.activeElement ? document.activeElement.tagName : null`);
+    await avaliar('window.__mfTeclasPlayer = []');
+    await teclaReal(13, 'Enter');
+    const real = await progressoAgora();
+    checar(
+      'TESTE C2 — o app NÃO deixa o iframe de outra origem focado (senão o site não recebe tecla)',
+      focoDoApp !== 'IFRAME',
+      `foco=${focoDoApp}`,
+    );
+    checar(
+      'TESTE C2 — com o foco como o app deixa, a tecla REAL de OK chega ao site e vira play/pause',
+      real.teclas.includes(85) || real.teclas.includes(179),
+      `foco=${focoDoApp} teclas=[${real.teclas.join(',')}]`,
+    );
 
     // Regressão: o D-pad continua abrindo os controles normalmente (↓).
     await pressionar(20, 'ArrowDown');
