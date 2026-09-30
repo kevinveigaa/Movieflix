@@ -112,6 +112,23 @@ export function temPonteDeTeclasNativa(): boolean {
  * (Android TV); (2) o protocolo de `postMessage` do embed; (3) o vídeo nativo
  * `[data-mf-player]`. Devolve `true` quando ao menos um caminho agiu.
  *
+ * ── CAUSA RAIZ (medida na documentação do PRÓPRIO provedor) ─────────────────
+ * O protocolo `postMessage` do embed do StreamBetter é DOCUMENTADO em
+ * https://streambetter.shop/docs e define APENAS dois tipos:
+ *   • `streambetter:seek`     (entrada — o site manda a posição);
+ *   • `streambetter:progress` (saída — o player informa o tempo).
+ * NÃO existe NENHUM comando de play/pause por `postMessage`. A correção
+ * anterior inventou um `{event:'command',func:'toggle'}` que o provedor NUNCA
+ * escuta — por isso o OK continuou sem pausar no aparelho, mesmo com o teste
+ * "postados=[...]" passando (o teste só provava que a mensagem SAÍA, não que o
+ * player a entendia).
+ *
+ * O ÚNICO caminho que muda o estado do vídeo é a TECLA REAL entregue pela
+ * ponte nativa (KEYCODE_MEDIA_PLAY_PAUSE = 85) com o iframe focado — o mesmo
+ * mecanismo que faz o avançar/retroceder funcionar. Por isso o `ok` NÃO manda
+ * mais nenhum `postMessage` fabricado: ele usa a ponte nativa e, quando não há
+ * ponte (navegador), o vídeo nativo `[data-mf-player]` (play/pause reais).
+ *
  * @param iframe   o `<iframe>` do embed do provedor
  * @param acao     a ação pedida pelo controle
  * @param passoSeek segundos do avanço/retrocesso
@@ -136,17 +153,36 @@ export function acionarControlePlayer(
     /* aparelho sem a ponte: seguimos para os caminhos de navegador */
   }
 
-  // (2) + (3) Caminhos de navegador/WebView (postMessage + vídeo nativo).
+  // (2) + (3) Caminhos de navegador/WebView.
   //
-  // O 'ok' TAMBÉM entra aqui, como 'toggle'. CAUSA RAIZ (relato no APARELHO:
-  // "as setas/volume funcionam, mas o OK não pausa"): o 'ok' era o ÚNICO
-  // comando que NÃO usava o canal `postMessage` — dependia só da tecla nativa.
-  // Como o avançar/retroceder (que o usuário confirma que funciona) usam esse
-  // canal, o OK ficava preso a um único caminho. Agora ele manda o MESMO
-  // comando de alternância que os botões da barra ('toggle' → 'toggle'/'play'/
-  // 'pause'), além da tecla nativa — o provedor usa o que reconhecer e ignora
-  // o resto, sem dupla execução (o embed trata um comando por vez).
-  const legado: AcaoPlayerBase = acao === 'ok' ? 'toggle' : acao;
+  // O `ok` NÃO entra no `postMessage`: o protocolo do provedor não tem comando
+  // de play/pause (ver CAUSA RAIZ acima). Mandar um evento inventado só criava
+  // a ILUSÃO de correção. Para o `ok` sem ponte nativa, o único caminho real é
+  // o vídeo nativo `[data-mf-player]` — tratado dentro de `enviarComandoPlayer`
+  // quando a ação é `toggle`.
+  if (acao === 'ok') {
+    // Sem ponte nativa (navegador): alterna o vídeo nativo, se houver.
+    if (!agiu) {
+      try {
+        const video =
+          iframe?.contentDocument?.querySelector<HTMLVideoElement>('video') ??
+          document.querySelector<HTMLVideoElement>('video[data-mf-player]');
+        if (video) {
+          if (video.paused) void video.play().catch(() => undefined);
+          else video.pause();
+          agiu = true;
+        }
+      } catch {
+        /* cross-origin: inalcançável — só a ponte nativa resolveria */
+      }
+    }
+    return agiu;
+  }
+
+  // Demais ações (play/pause explícitos e seek): mantêm o caminho de
+  // `postMessage` + vídeo nativo como antes (o seek é o que o usuário confirma
+  // que funciona; não mexemos nele).
+  const legado: AcaoPlayerBase = acao;
   if (enviarComandoPlayer(iframe, legado, passoSeek)) agiu = true;
 
   return agiu;

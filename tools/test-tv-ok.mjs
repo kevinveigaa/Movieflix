@@ -2,11 +2,21 @@
  * Teste do CAMINHO DE COMANDO do OK (play/pause) — o que o harness de navegação
  * NÃO consegue verificar, porque o embed do provedor está atrás do Cloudflare.
  * ══════════════════════════════════════════════════════════════════════════════
- * CAUSA RAIZ (relato no APARELHO: "as setas/volume funcionam, mas o OK não
- * pausa"): o 'ok' era o ÚNICO comando que NÃO usava o canal `postMessage` —
- * dependia só da tecla nativa. O avançar/retroceder (que o usuário confirma que
- * funciona) usam esse canal. Este teste trava a correção: o 'ok' PRECISA mandar
- * o comando de alternância pelo `postMessage`, além da tecla nativa.
+ * CAUSA RAIZ (medida na documentação do PRÓPRIO provedor, /docs):
+ *
+ * O protocolo `postMessage` do embed do StreamBetter define APENAS dois tipos:
+ *   • `streambetter:seek`     (entrada — o site manda a posição);
+ *   • `streambetter:progress` (saída — o player informa o tempo).
+ * NÃO existe NENHUM comando de play/pause por `postMessage`.
+ *
+ * A correção ANTERIOR inventou um `{event:'command',func:'toggle'}` que o
+ * provedor NUNCA escuta — por isso o OK continuou sem pausar no aparelho, mesmo
+ * com o teste antigo passando (ele só provava que a mensagem SAÍA, não que o
+ * player a entendia). Este teste trava a correção CERTA:
+ *   • o `ok` NÃO pode mandar nenhum `postMessage` de play/pause fabricado;
+ *   • o `ok` PRECISA entregar a TECLA REAL 85 (KEYCODE_MEDIA_PLAY_PAUSE) pela
+ *     ponte nativa — o único caminho que muda o estado do vídeo no aparelho;
+ *   • o seek (que funciona) continua postando seus comandos.
  *
  * Roda o módulo REAL (`src/tv/controlePlayer.ts`) com um iframe FALSO que
  * registra o que foi postado — sem rede, sem navegador.
@@ -75,29 +85,31 @@ function nomes(enviados) {
     .filter(Boolean);
 }
 
-// ── 1. OK (sem ponte nativa) PRECISA postar o comando de alternância ─────────
-{
-  const { enviados, iframe } = iframeFalso();
-  const agiu = mod.acionarControlePlayer(iframe, 'ok', 10, null);
-  const n = nomes(enviados);
-  checar('OK sem ponte nativa: o comando foi enviado (agiu=true)', agiu === true);
-  checar(
-    'OK manda o comando de ALTERNÂNCIA pelo postMessage (toggle/play/pause)',
-    n.some((x) => x === 'toggle' || x === 'play' || x === 'pause'),
-    `postados=[${n.join(',')}]`,
-  );
-}
-
-// ── 2. OK COM a ponte nativa: a tecla 85 vai E o postMessage também ──────────
+// ── 1. OK COM a ponte nativa: a tecla REAL 85 é entregue ─────────────────────
 {
   const { enviados, iframe } = iframeFalso();
   const teclas = [];
   const ponte = { enviarTeclaPlayer: (code) => { teclas.push(code); return true; } };
   const agiu = mod.acionarControlePlayer(iframe, 'ok', 10, ponte);
-  const n = nomes(enviados);
   checar('OK com ponte nativa: a tecla REAL de play/pause (85) foi entregue', teclas.includes(85), `teclas=[${teclas.join(',')}]`);
-  checar('OK com ponte nativa: o postMessage TAMBÉM foi enviado (dois caminhos)', n.length > 0, `postados=[${n.join(',')}]`);
   checar('OK com ponte nativa: agiu=true', agiu === true);
+  checar(
+    'OK NÃO manda postMessage de play/pause fabricado (o provedor não escuta)',
+    nomes(enviados).length === 0,
+    `postados=[${nomes(enviados).join(',')}]`,
+  );
+}
+
+// ── 2. OK SEM ponte nativa: NÃO inventa comando; só o vídeo nativo ───────────
+{
+  const { enviados, iframe } = iframeFalso();
+  const agiu = mod.acionarControlePlayer(iframe, 'ok', 10, null);
+  checar(
+    'OK sem ponte nativa: NÃO posta comando de play/pause inventado',
+    nomes(enviados).length === 0,
+    `postados=[${nomes(enviados).join(',')}]`,
+  );
+  checar('OK sem ponte nativa e sem vídeo nativo: agiu=false (nada a fazer)', agiu === false);
 }
 
 // ── 3. Regressão: avançar/retroceder continuam postando seus comandos ────────
@@ -124,6 +136,15 @@ function nomes(enviados) {
   const { enviados, iframe } = iframeFalso();
   mod.acionarControlePlayer(iframe, 'pause', 10, null);
   checar('REGRESSÃO — pause continua postando pause', nomes(enviados).includes('pause'), `postados=[${nomes(enviados).join(',')}]`);
+}
+
+// ── 5. Regressão: seek COM ponte nativa também entrega a tecla real ──────────
+{
+  const { iframe } = iframeFalso();
+  const teclas = [];
+  const ponte = { enviarTeclaPlayer: (code) => { teclas.push(code); return true; } };
+  mod.acionarControlePlayer(iframe, 'seekFwd', 10, ponte);
+  checar('REGRESSÃO — avançar com ponte entrega a tecla real 90', teclas.includes(90), `teclas=[${teclas.join(',')}]`);
 }
 
 console.log('\n── Teste do caminho de comando do OK (play/pause) ──────────────────');
