@@ -27,6 +27,7 @@ import {
 } from '@/lib/strembetter';
 import { StreamBetterEmbed } from '@/components/player/StreamBetterEmbed';
 import { acionarControlePlayer, type AcaoControle } from '@/tv/controlePlayer';
+import { instalarDebugTeclas } from '@/tv/debugTeclasTv';
 import { TvProgresso } from './TvProgresso';
 import {
   PASSO_SEEK,
@@ -611,6 +612,8 @@ export function TvPlayerPage({ id: idProp }: { id?: string } = {}) {
    */
 
   useEffect(() => {
+    // DEBUG TEMPORÁRIO: overlay de teclas (diagnóstico do OK no aparelho real).
+    instalarDebugTeclas();
     if (!pronto) return;
 
     function focoNoPlayer(): boolean {

@@ -11,6 +11,7 @@ import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Message;
+import android.util.Log;
 import android.view.KeyEvent;
 import android.view.View;
 import android.view.ViewGroup;
@@ -844,6 +845,31 @@ public class MainActivity extends Activity {
      *   togglePlay → play/pause   next → próximo episódio (só quando existe)
      *   stop → sair da reprodução  seekFwd/seekBack → ±10s
      */
+    /**
+     * DEBUG TEMPORÁRIO — encaminha o keyCode CRU do controle ao overlay do site.
+     *
+     * O player do provedor está atrás do Cloudflare/Turnstile e não pode ser
+     * testado de fora: só o aparelho real responde. Esta instrumentação mostra,
+     * na própria TV, o keyCode/action/repeat que a camada nativa interceptou
+     * ANTES de entregar ao WebView — para comparar com o que o documento do
+     * MovieFlix TV recebe (linha "JS" do overlay). Não altera comportamento.
+     */
+    private void encaminharDebugTeclas(KeyEvent event) {
+        if (webView == null) return;
+        try {
+            final int code = event.getKeyCode();
+            final int action = event.getAction();
+            final int repeat = event.getRepeatCount();
+            Log.d("MF_DEBUG_TECLAS", "android keyCode=" + code + " action=" + action + " repeat=" + repeat);
+            webView.evaluateJavascript(
+                    "window.dispatchEvent(new CustomEvent('mf-debug-android',{detail:{"
+                    + "keyCode:" + code + ",action:" + action + ",repeat:" + repeat + "}}));",
+                    null);
+        } catch (Exception e) {
+            /* diagnóstico nunca pode quebrar o app */
+        }
+    }
+
     @Override
     public boolean dispatchKeyEvent(KeyEvent event) {
         if (webView != null && !webView.hasFocus() && event.getAction() == KeyEvent.ACTION_DOWN) {
@@ -853,6 +879,9 @@ public class MainActivity extends Activity {
         }
 
         int code = event.getKeyCode();
+
+        // DEBUG TEMPORÁRIO: encaminha o keyCode CRU ao overlay do site.
+        encaminharDebugTeclas(event);
 
         // ── VOLUME PELO CONTROLE REMOTO ────────────────────────────────────────
         // Estas teclas são do MovieFlix: ajustamos a stream de MÍDIA (o que o
