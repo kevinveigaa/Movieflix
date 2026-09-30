@@ -85,13 +85,18 @@ function nomes(enviados) {
     .filter(Boolean);
 }
 
-// ── 1. OK COM a ponte nativa: a tecla REAL 85 é entregue ─────────────────────
+// ── 1. OK COM a ponte nativa: a tecla REAL de play/pause é entregue ──────────
 {
   const { enviados, iframe } = iframeFalso();
   const teclas = [];
   const ponte = { enviarTeclaPlayer: (code) => { teclas.push(code); return true; } };
   const agiu = mod.acionarControlePlayer(iframe, 'ok', 10, ponte);
-  checar('OK com ponte nativa: a tecla REAL de play/pause (85) foi entregue', teclas.includes(85), `teclas=[${teclas.join(',')}]`);
+  checar('OK com ponte nativa: a tecla REAL de play/pause (ESPAÇO = 32) foi entregue', teclas.includes(32), `teclas=[${teclas.join(',')}]`);
+  checar(
+    'OK NÃO usa a tecla de MÍDIA 85 (o WebView a roteia para a MediaSession e o player não a recebe)',
+    !teclas.includes(85),
+    `teclas=[${teclas.join(',')}]`,
+  );
   checar('OK com ponte nativa: agiu=true', agiu === true);
   checar(
     'OK NÃO manda postMessage de play/pause fabricado (o provedor não escuta)',

@@ -888,14 +888,14 @@ async function principal() {
     // O controle remoto da TV manda o OK ora como ENTER (23), ora como
     // PLAY_PAUSE (85/179) — os DOIS caminhos têm de chegar ao player. Este
     // harness usa o keycode de OK/ENTER, que é o que a TV do usuário envia.
-    checar('TESTE C — OK entrega ao player a tecla REAL de play/pause (85 ou 179)', p.teclas.includes(85) || p.teclas.includes(179), `teclas=[${p.teclas.join(',')}]`);
+    checar('TESTE C — OK entrega ao player a tecla REAL de play/pause (ESPAÇO = 32)', p.teclas.includes(32), `teclas=[${p.teclas.join(',')}]`);
     checar('TESTE C — depois do OK o player aparece PAUSADO', /pausado/i.test(p.estado || ''), `estado=${p.estado}`);
     checar('TESTE C — o OK não abriu a barra de controles em vez de pausar', p.barraAberta === false);
     await avaliar('window.__mfTeclasPlayer = []');
     await pressionar(23, 'Enter');
     p = await progressoAgora();
     checar('TESTE C — o segundo OK volta a REPRODUZIR', /reproduzindo/i.test(p.estado || ''), `estado=${p.estado}`);
-    checar('TESTE C — a tecla REAL foi entregue de novo', p.teclas.includes(85) || p.teclas.includes(179), `teclas=[${p.teclas.join(',')}]`);
+    checar('TESTE C — a tecla REAL foi entregue de novo', p.teclas.includes(32), `teclas=[${p.teclas.join(',')}]`);
 
     // ── TESTE C2: tecla REAL do controle (não sintética) ────────────────────
     // O TESTE C acima usa um KeyboardEvent SINTÉTICO, que borbulha no documento
@@ -924,7 +924,7 @@ async function principal() {
     );
     checar(
       'TESTE C2 — com o foco como o app deixa, a tecla REAL de OK chega ao site e vira play/pause',
-      real.teclas.includes(85) || real.teclas.includes(179),
+      real.teclas.includes(32),
       `foco=${focoDoApp} teclas=[${real.teclas.join(',')}]`,
     );
 

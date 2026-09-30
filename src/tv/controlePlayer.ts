@@ -63,7 +63,13 @@ export const KEYCODE_ANDROID: Record<AcaoControle, number> = {
   toggle: 85, // KEYCODE_MEDIA_PLAY_PAUSE
   seekFwd: 90, // KEYCODE_MEDIA_FAST_FORWARD
   seekBack: 89, // KEYCODE_MEDIA_REWIND
-  ok: 85, // KEYCODE_MEDIA_PLAY_PAUSE (OK = play/pause no player)
+  // OK = play/pause no player. NÃO usamos KEYCODE_MEDIA_PLAY_PAUSE (85): é uma
+  // tecla de MÍDIA do sistema, e o WebView/Chromium a roteia para a MediaSession
+  // em vez de entregá-la como `keydown` ao iframe do player — por isso o OK não
+  // pausava, embora o seek (teclas 90/89) funcionasse. Usamos a tecla que TODO
+  // player web escuta para play/pause: ESPAÇO (32), uma tecla comum, entregue
+  // como `keydown` confiável ao iframe focado — o MESMO caminho do seek.
+  ok: 32, // KEYCODE_SPACE (play/pause universal de players web)
 };
 
 /** Nome da tecla (só para depuração/log no lado nativo). */
@@ -73,7 +79,7 @@ export const NOME_TECLA: Record<AcaoControle, string> = {
   toggle: 'MediaPlayPause',
   seekFwd: 'MediaFastForward',
   seekBack: 'MediaRewind',
-  ok: 'MediaPlayPause',
+  ok: 'Space',
 };
 
 /** Superfície da ponte nativa do shell Android TV (MainActivity.PonteNativa). */
@@ -157,9 +163,10 @@ export function acionarControlePlayer(
   //
   // O `ok` NÃO entra no `postMessage`: o protocolo do provedor não tem comando
   // de play/pause (ver CAUSA RAIZ acima). Mandar um evento inventado só criava
-  // a ILUSÃO de correção. Para o `ok` sem ponte nativa, o único caminho real é
-  // o vídeo nativo `[data-mf-player]` — tratado dentro de `enviarComandoPlayer`
-  // quando a ação é `toggle`.
+  // a ILUSÃO de correção. O `ok` entrega uma TECLA REAL pela ponte nativa — mas
+  // ESPAÇO (32), não a tecla de mídia 85: o WebView roteia MEDIA_PLAY_PAUSE para
+  // a MediaSession (não ligada ao `<video>` do iframe) em vez de entregá-la como
+  // `keydown` ao player. Sem ponte (navegador), alterna o vídeo nativo.
   if (acao === 'ok') {
     // Sem ponte nativa (navegador): alterna o vídeo nativo, se houver.
     if (!agiu) {

@@ -682,7 +682,11 @@ export function TvPlayerPage({ id: idProp }: { id?: string } = {}) {
     function ehOk(e: KeyboardEvent): boolean {
       const k = e.key;
       const c = e.keyCode || e.which;
-      return k === 'Enter' || k === 'OK' || k === 'Select' || c === 13 || c === 23 || c === 32;
+      // NÃO inclui 32 (ESPAÇO): a ponte nativa injeta ESPAÇO no iframe do player
+      // para o play/pause. Se o iframe não estiver focado, essa tecla chegaria ao
+      // documento pai e reentraria aqui — alternando duas vezes. O OK físico da TV
+      // chega como 13/23 (Enter/DPAD_CENTER), nunca como 32.
+      return k === 'Enter' || k === 'OK' || k === 'Select' || c === 13 || c === 23;
     }
 
     function onKeyDown(e: KeyboardEvent) {
