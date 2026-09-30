@@ -305,27 +305,31 @@ export function TvPlayerPage({ id: idProp }: { id?: string } = {}) {
   /**
    * PLAY/PAUSE pelo controle.
    *
-   * Dentro do player o OK vira `KEYCODE_MEDIA_PLAY_PAUSE` (ação `ok`), e os
-   * botões de mídia passam `play`/`pause` explícitos. É o mesmo caminho da
-   * camada de integração — por isso o ESTADO REAL do vídeo muda.
+   * CAUSA RAIZ (relato no APARELHO: "as setas funcionam, mas o OK não pausa"):
+   * o OK do controle cai no BOTÃO de play/pause da barra (a barra fica fora do
+   * `[data-tv-player-box]`, então o OK vira um clique nesse botão). Esse botão
+   * mandava `pause`/`play` EXPLÍCITOS, que a ponte nativa traduz para
+   * `KEYCODE_MEDIA_PAUSE` (127) / `KEYCODE_MEDIA_PLAY` (126) — teclas que o
+   * player do provedor IGNORA. O provedor só reage a `KEYCODE_MEDIA_PLAY_PAUSE`
+   * (85), a MESMA tecla que faz o avançar/retroceder funcionar. Por isso o
+   * vídeo não pausava, embora o indicador na tela mudasse.
+   *
+   * Correção: o toggle manda a ação `ok` (tecla 85) — o provedor alterna de
+   * verdade. O estado mostrado continua sendo alternado localmente.
    */
   const alternarPlay = useCallback(() => {
-    setEmReproducao((v) => {
-      comandarPlayer(v ? 'pause' : 'play');
-      return !v;
-    });
+    comandarPlayer('ok');
+    setEmReproducao((v) => !v);
   }, [comandarPlayer]);
 
   /**
    * Alterna a reprodução pelo BOTÃO OK do controle (dentro do player).
-   * Usa a ação `ok` (KEYCODE_MEDIA_PLAY_PAUSE) em vez de nomear play/pause:
-   * o botão OK da TV é um toggle — nomear o estado poderia dessincronizar do
-   * player real se o embed já tivesse trocado de estado sozinho.
+   * Mesmo caminho do botão de play/pause da barra (`alternarPlay`): manda a
+   * tecla `ok` (85) — a única que o player do provedor reconhece.
    */
   const alternarPlayPeloOk = useCallback(() => {
-    comandarPlayer('ok');
-    setEmReproducao((v) => !v);
-  }, [comandarPlayer]);
+    alternarPlay();
+  }, [alternarPlay]);
 
   /**
    * APLICA UM PASSO de ±10s: manda o comando ao player, move o tempo mostrado
