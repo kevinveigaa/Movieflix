@@ -64,6 +64,11 @@ export function Seo() {
   const { pathname } = useLocation();
 
   useEffect(() => {
+    // A ÁREA PRIVADA define o próprio título e as meta tags (noindex, nofollow)
+    // dentro de PrivatePage. O Seo não toca nela — assim o slug secreto não
+    // entra em nenhuma lista pública de rotas (ver ROUTE_SEO abaixo).
+    if (pathname.startsWith('/p/')) return;
+
     const config = resolveConfig(pathname);
 
     document.title = config.title;

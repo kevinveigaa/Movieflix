@@ -33,6 +33,28 @@
     <meta name="twitter:description" content="A sua plataforma de streaming. Filmes e séries dublados em pt-BR, sem anúncios, em um só lugar." />
     <meta name="twitter:image" content="https://movieflix-bszf.onrender.com/og-image.jpg" />
     <script>
+      // ── ÁREA PRIVADA ─────────────────────────────────────────────────────
+      // O site usa HashRouter, então o caminho canônico da rota privada é
+      // `/#/p/<slug>`. Este redirecionamento permite abrir também o formato
+      // "limpo" `/p/<slug>` (sem `#`) e levá-lo para a URL canônica.
+      // Nenhum slug é escrito aqui — só o prefixo `/p/`, que não revela nada.
+      (function () {
+        try {
+          var caminho = window.location.pathname;
+          if (caminho.indexOf('/p/') !== 0) return;
+          var alvo = '/' + '#' + caminho + window.location.search;
+          if (window.history && window.history.replaceState) {
+            window.history.replaceState(null, '', alvo);
+            window.location.reload();
+          } else {
+            window.location.replace(alvo);
+          }
+        } catch (e) {
+          /* ignora — o restante do site continua funcionando normalmente */
+        }
+      })();
+    </script>
+    <script>
       // Limpa service worker antigo e força atualização
       if ('serviceWorker' in navigator) {
         navigator.serviceWorker.getRegistrations().then(function(regs) {

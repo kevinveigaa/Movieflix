@@ -38,6 +38,18 @@ const ProfileSelectPage = lazyWithRetry(() => import('@/pages/auth/ProfileSelect
 const DownloadAppPage = lazyWithRetry(() => import('@/pages/DownloadAppPage').then((m) => ({ default: m.DownloadAppPage })));
 const TvApp = lazyWithRetry(() => import('@/tv/TvApp').then((m) => ({ default: m.TvApp })));
 
+/*
+  ÁREA PRIVADA — acesso SOMENTE por link secreto.
+
+  Esta página NÃO tem link em nenhum menu, header, footer, home, sitemap.xml
+  ou robots.txt, e não é listada em nenhuma página pública. A única forma de
+  chegar até ela é conhecer a URL secreta (`/#/p/<slug>`).
+
+  Carregada com lazy (code-splitting): quem não abre a URL secreta nem baixa
+  o JS desta página.
+*/
+const PrivatePage = lazyWithRetry(() => import('@/pages/PrivatePage').then((m) => ({ default: m.PrivatePage })));
+
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
@@ -123,6 +135,13 @@ function AppRoutes() {
             do site (seria o layout web ampliado). Duas rotas porque `/tv/*` não
             casa com a barra final, e `/tv` sozinho cairia no catch-all.
           */}
+          {/*
+            Área privada do proprietário (APK "MEU GANHO" e conteúdo pessoal).
+            Fica FORA do <AppLayout/> de propósito: sem Navbar e sem Footer —
+            nenhum link para cá sai do site, e a página não se anuncia.
+            O componente valida o slug e marca `noindex, nofollow`.
+          */}
+          <Route path="/p/:slug" element={<PrivatePage />} />
           <Route path="/tv" element={<TvApp />} />
           <Route path="/tv/*" element={<TvApp />} />
           <Route path="/login" element={<LoginPage />} />
