@@ -50,6 +50,15 @@ const TvApp = lazyWithRetry(() => import('@/tv/TvApp').then((m) => ({ default: m
 */
 const PrivatePage = lazyWithRetry(() => import('@/pages/PrivatePage').then((m) => ({ default: m.PrivatePage })));
 
+/*
+  ÁREA DE PROJETOS — acesso SOMENTE por link direto (`/projetos`).
+
+  Página pessoal de projetos do proprietário. NÃO tem link em nenhum menu,
+  header, footer, home, sitemap.xml ou robots.txt. Carregada com lazy
+  (code-splitting): quem não abre a URL nem baixa o JS desta página.
+*/
+const ProjetosPage = lazyWithRetry(() => import('@/pages/ProjetosPage').then((m) => ({ default: m.ProjetosPage })));
+
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
@@ -142,6 +151,12 @@ function AppRoutes() {
             O componente valida o slug e marca `noindex, nofollow`.
           */}
           <Route path="/p/:slug" element={<PrivatePage />} />
+          {/*
+            Área de projetos do proprietário (rota /projetos). Fica FORA do
+            <AppLayout/> de propósito: sem Navbar e sem Footer — nenhum link
+            para cá sai do site, e a página se marca `noindex, nofollow`.
+          */}
+          <Route path="/projetos" element={<ProjetosPage />} />
           <Route path="/tv" element={<TvApp />} />
           <Route path="/tv/*" element={<TvApp />} />
           <Route path="/login" element={<LoginPage />} />

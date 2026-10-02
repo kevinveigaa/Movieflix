@@ -41,7 +41,13 @@
       (function () {
         try {
           var caminho = window.location.pathname;
-          if (caminho.indexOf('/p/') !== 0) return;
+          // Área privada (`/p/<slug>`) e área de projetos (`/projetos`): o site
+          // usa HashRouter, então o caminho canônico é `/#/...`. Este
+          // redirecionamento permite abrir também o formato "limpo" (sem `#`).
+          // Nenhum slug é escrito aqui — só os prefixos, que não revelam nada.
+          var privado = caminho.indexOf('/p/') === 0;
+          var projetos = caminho === '/projetos' || caminho.indexOf('/projetos/') === 0;
+          if (!privado && !projetos) return;
           var alvo = '/' + '#' + caminho + window.location.search;
           if (window.history && window.history.replaceState) {
             window.history.replaceState(null, '', alvo);

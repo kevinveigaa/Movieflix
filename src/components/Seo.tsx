@@ -69,6 +69,11 @@ export function Seo() {
     // entra em nenhuma lista pública de rotas (ver ROUTE_SEO abaixo).
     if (pathname.startsWith('/p/')) return;
 
+    // A ÁREA DE PROJETOS (/projetos) também define o próprio título e as meta
+    // tags (noindex, nofollow) dentro de ProjetosPage. O Seo não toca nela —
+    // assim a rota não entra em nenhuma lista pública de rotas.
+    if (pathname.startsWith('/projetos')) return;
+
     const config = resolveConfig(pathname);
 
     document.title = config.title;

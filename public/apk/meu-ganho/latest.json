@@ -1,0 +1,13 @@
+{
+  "app": "MEU GANHO",
+  "version": "1.0.0",
+  "file": "MeuGanho-1.0.0.apk",
+  "path": "/apk/meu-ganho/MeuGanho-1.0.0.apk",
+  "sizeBytes": 2359806,
+  "sizeLabel": "2,3 MB",
+  "sha256": "119d3f77d5e0c1a58ef27d56a5afbd08b490573a3efb057b922519b8e87e1324",
+  "package": "com.meuganho.app",
+  "minSdk": 24,
+  "targetSdk": 34,
+  "releaseDate": "2026-10-02"
+}
