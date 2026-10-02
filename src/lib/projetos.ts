@@ -55,6 +55,16 @@ export interface ApkVersion {
  */
 export const MEU_GANHO_VERSOES: ApkVersion[] = [
   {
+    versao: '1.0.3',
+    arquivo: 'MeuGanho-1.0.3.apk',
+    tamanhoBytes: 2365978,
+    tamanhoLabel: '2,3 MB',
+    sha256: 'dfbaf09526a764d5b49ba7988974fabb63f9e027ee05cc221ffca24314582337',
+    releaseDate: '2026-10-02',
+    pacote: 'com.meuganho.app',
+    notas: 'Um \u00fanico bot\u00e3o + ADICIONAR: o formul\u00e1rio do dia agora tem Faturamento total + Combust\u00edvel no MESMO lan\u00e7amento. O combust\u00edvel \u00e9 descontado ANTES de qualquer divis\u00e3o (base = faturamento \u2212 combust\u00edvel) e s\u00f3 depois o valor l\u00edquido \u00e9 distribu\u00eddo nas categorias. Editar/excluir o lan\u00e7amento recalcula tudo automaticamente.',
+  },
+  {
     versao: '1.0.2',
     arquivo: 'MeuGanho-1.0.2.apk',
     tamanhoBytes: 2364970,
@@ -100,4 +110,4 @@ export const MEU_GANHO_APK_ABSOLUTE_URL = `${SITE_ORIGIN}${MEU_GANHO_APK_URL}`;
 
 /** Espelho (CDN) do mesmo APK — link secundário, caso o site esteja fora do ar. */
 export const MEU_GANHO_APK_MIRROR_URL =
-  'https://static.teamily.ai/sites/50bf53f0-23a0-4805-9dea-6346b8a066db/documents/meu-ganho/MeuGanho-1.0.2.apk';
+  'https://static.teamily.ai/sites/50bf53f0-23a0-4805-9dea-6346b8a066db/documents/meu-ganho/MeuGanho-1.0.3.apk';
