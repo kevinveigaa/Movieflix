@@ -55,6 +55,16 @@ export interface ApkVersion {
  */
 export const MEU_GANHO_VERSOES: ApkVersion[] = [
   {
+    versao: '1.0.5',
+    arquivo: 'MeuGanho-1.0.5.apk',
+    tamanhoBytes: 2371742,
+    tamanhoLabel: '2,3 MB',
+    sha256: '84d59cd947508e0933da2fd2f94b4e37f5a291908c7020e87c232b7f82fa966d',
+    releaseDate: '2026-10-02',
+    pacote: 'com.meuganho.app',
+    notas: 'Correção da sincronização Categoria × Dashboard: ao gastar de uma categoria livre (ex.: Dia a dia), o valor sai do saldo disponível da categoria E do dinheiro disponível do Dashboard na hora. Legibilidade de TODAS as janelas/diálogos corrigida (fundo escuro + texto claro, seletor de mês/ano com botão próprio). Nova CALCULADORA avulsa (não registra nada): digite o valor que você tem e veja quanto vai para cada caixinha. Nova opção de EXPORTAR RELATÓRIO ESCRITO (.txt) em Configurações.',
+  },
+  {
     versao: '1.0.4',
     arquivo: 'MeuGanho-1.0.4.apk',
     tamanhoBytes: 2366842,
@@ -120,4 +130,4 @@ export const MEU_GANHO_APK_ABSOLUTE_URL = `${SITE_ORIGIN}${MEU_GANHO_APK_URL}`;
 
 /** Espelho (CDN) do mesmo APK — link secundário, caso o site esteja fora do ar. */
 export const MEU_GANHO_APK_MIRROR_URL =
-  'https://static.teamily.ai/sites/50bf53f0-23a0-4805-9dea-6346b8a066db/documents/meuganho-104/MeuGanho-1.0.4.apk';
+  'https://static.teamily.ai/sites/50bf53f0-23a0-4805-9dea-6346b8a066db/documents/meu-ganho/MeuGanho-1.0.5.apk';
