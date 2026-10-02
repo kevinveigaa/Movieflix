@@ -55,6 +55,16 @@ export interface ApkVersion {
  */
 export const MEU_GANHO_VERSOES: ApkVersion[] = [
   {
+    versao: '1.0.4',
+    arquivo: 'MeuGanho-1.0.4.apk',
+    tamanhoBytes: 2366842,
+    tamanhoLabel: '2,3 MB',
+    sha256: 'da793c0131919859979af344b740790f9a3dbbd2182d411f744750b99dbef269',
+    releaseDate: '2026-10-02',
+    pacote: 'com.meuganho.app',
+    notas: 'Gastos agora descontam da categoria escolhida: ao registrar um gasto, o valor sai do saldo dispon\u00edvel daquela categoria (or\u00e7amento \u2212 gasto) e o Dashboard atualiza na hora. Nova aba CATEGORIAS com acompanhamento mensal por categoria: or\u00e7amento, gasto, restante, % usado e % restante, com barra de progresso. Editar, excluir ou trocar a categoria de um gasto recalcula tudo automaticamente, respeitando o m\u00eas/ano selecionado.',
+  },
+  {
     versao: '1.0.3',
     arquivo: 'MeuGanho-1.0.3.apk',
     tamanhoBytes: 2365978,
@@ -110,4 +120,4 @@ export const MEU_GANHO_APK_ABSOLUTE_URL = `${SITE_ORIGIN}${MEU_GANHO_APK_URL}`;
 
 /** Espelho (CDN) do mesmo APK — link secundário, caso o site esteja fora do ar. */
 export const MEU_GANHO_APK_MIRROR_URL =
-  'https://static.teamily.ai/sites/50bf53f0-23a0-4805-9dea-6346b8a066db/documents/meu-ganho/MeuGanho-1.0.3.apk';
+  'https://static.teamily.ai/sites/50bf53f0-23a0-4805-9dea-6346b8a066db/documents/meuganho-104/MeuGanho-1.0.4.apk';
