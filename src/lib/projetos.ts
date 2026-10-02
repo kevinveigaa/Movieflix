@@ -55,6 +55,16 @@ export interface ApkVersion {
  */
 export const MEU_GANHO_VERSOES: ApkVersion[] = [
   {
+    versao: '1.0.1',
+    arquivo: 'MeuGanho-1.0.1.apk',
+    tamanhoBytes: 2363902,
+    tamanhoLabel: '2,3 MB',
+    sha256: 'ebbb50833fc5ecece4b138865467f24895e42850527d22d8e31ae4b9e400ccfb',
+    releaseDate: '2026-10-02',
+    pacote: 'com.meuganho.app',
+    notas: 'Correção do sistema de lançamentos: registrar entradas e gastos em QUALQUER dia, editar e excluir depois, com data própria e persistência. Faixa de dias do mês, card do dia, edição/exclusão no calendário e recálculo automático de totais, metas e gráficos.',
+  },
+  {
     versao: '1.0.0',
     arquivo: 'MeuGanho-1.0.0.apk',
     tamanhoBytes: 2359806,
@@ -80,4 +90,4 @@ export const MEU_GANHO_APK_ABSOLUTE_URL = `${SITE_ORIGIN}${MEU_GANHO_APK_URL}`;
 
 /** Espelho (CDN) do mesmo APK — link secundário, caso o site esteja fora do ar. */
 export const MEU_GANHO_APK_MIRROR_URL =
-  'https://static.teamily.ai/sites/e2606ed0-028d-4e1c-b0b3-5d16284e8e57/documents/meu-ganho/meu-ganho-v1.0.0.apk';
+  'https://static.teamily.ai/sites/50bf53f0-23a0-4805-9dea-6346b8a066db/documents/meu-ganho/MeuGanho-1.0.1.apk';
