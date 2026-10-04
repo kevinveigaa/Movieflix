@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 108 108" width="108" height="108" role="img" aria-label="Minhas Finanças">
+  <defs>
+    <linearGradient id="mfRoxo" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#D8B4FE"/>
+      <stop offset="0.5" stop-color="#A855F7"/>
+      <stop offset="1" stop-color="#6D28D9"/>
+    </linearGradient>
+  </defs>
+  <!-- M roxo premium: mesma linguagem visual do ícone do aplicativo -->
+  <path fill="url(#mfRoxo)" d="M30 79 L30 32 L43 32 L54 55 L65 32 L78 32 L78 79 L66 79 L66 51 L54 74 L42 51 L42 79 Z"/>
+  <circle cx="54" cy="80" r="2.6" fill="#F5F3FF"/>
+</svg>
