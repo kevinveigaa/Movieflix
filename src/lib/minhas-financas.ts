@@ -41,7 +41,7 @@ export const MF_APK_ABSOLUTE_URL = `${SITE_ORIGIN}${MF_APK_URL}`;
 
 /** Espelho (CDN) do mesmo APK — link secundário. */
 export const MF_APK_MIRROR_URL =
-  'https://static.teamily.ai/sites/e2606ed0-028d-4e1c-b0b3-5d16284e8e57/documents/minhas-financas/MinhasFinancas-1.0.0.apk';
+  'https://static.teamily.ai/sites/50bf53f0-23a0-4805-9dea-6346b8a066db/documents/minhas-financas/MinhasFinancas-1.0.0.apk';
 
 /** Logo próprio (M roxo) — arquivo independente, não reaproveita o logo do Meu Ganho. */
 export const MF_LOGO = '/minhas-financas-logo.svg';
