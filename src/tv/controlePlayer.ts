@@ -175,8 +175,15 @@ export function acionarControlePlayer(
           iframe?.contentDocument?.querySelector<HTMLVideoElement>('video') ??
           document.querySelector<HTMLVideoElement>('video[data-mf-player]');
         if (video) {
-          if (video.paused) void video.play().catch(() => undefined);
-          else video.pause();
+          if (video.ended === true) {
+            // Vídeo finalizado: respeita o comportamento existente do player —
+            // não alterna (nada de play/pause indevido no fim do vídeo).
+          } else if (video.paused) {
+            const p = video.play();
+            if (p !== undefined) p.catch(() => undefined);
+          } else {
+            video.pause();
+          }
           agiu = true;
         }
       } catch {
@@ -193,4 +200,41 @@ export function acionarControlePlayer(
   if (enviarComandoPlayer(iframe, legado, passoSeek)) agiu = true;
 
   return agiu;
+}
+
+/**
+ * ESTADO REAL DO ELEMENTO `<video>` DO PLAYER — leitura honesta (sem inventar).
+ * ──────────────────────────────────────────────────────────────────────────
+ * A especificação pede que a lógica do OK/ENTER use o estado REAL do <video>
+ * (`video.paused`) e que o ícone de play/pause o acompanhe (reutilizando a
+ * lógica existente, em vez de criar outra).
+ *
+ * O `<video>` do MovieFlix (player HLS nativo, `[data-mf-player]`) é de MESMA
+ * ORIGEM e é lido direto. No embed do provedor o <video> vive num IFRAME de
+ * OUTRA origem e a política de mesma origem impede a leitura — nesse caso o
+ * estado devolvido é UNKNOWN (nunca um valor inventado). A ação em si continua
+ * sendo entregue pela ponte nativa; este módulo só RESOLVE O ESTADO.
+ */
+export type EstadoVideoPlayer = 'PLAYING' | 'PAUSED' | 'UNKNOWN';
+
+/**
+ * Lê o estado real do `<video>` do player.
+ *
+ * @param iframe      o `<iframe>` do embed (quando o player é embed)
+ * @param videoNativo o `<video>` nativo conhecido (evita uma busca no DOM)
+ * @returns 'PLAYING' | 'PAUSED' | 'UNKNOWN' (UNKNOWN = estado não legível)
+ */
+export function estadoDoVideoPlayer(
+  iframe: HTMLIFrameElement | null | undefined,
+  videoNativo: HTMLVideoElement | null = null,
+): EstadoVideoPlayer {
+  try {
+    const alvo = videoNativo ?? document.querySelector<HTMLVideoElement>('video[data-mf-player]');
+    if (alvo) return alvo.paused ? 'PAUSED' : 'PLAYING';
+    const interno = iframe?.contentDocument?.querySelector<HTMLVideoElement>('video');
+    if (interno) return interno.paused ? 'PAUSED' : 'PLAYING';
+  } catch {
+    /* cross-origin: o vídeo não é alcançável pelo JS */
+  }
+  return 'UNKNOWN';
 }

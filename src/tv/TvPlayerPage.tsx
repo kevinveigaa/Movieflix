@@ -26,7 +26,7 @@ import {
   streambetterSeriesEmbedUrl,
 } from '@/lib/strembetter';
 import { StreamBetterEmbed } from '@/components/player/StreamBetterEmbed';
-import { acionarControlePlayer, type AcaoControle } from '@/tv/controlePlayer';
+import { acionarControlePlayer, estadoDoVideoPlayer, type AcaoControle } from '@/tv/controlePlayer';
 import { instalarDebugTeclas } from '@/tv/debugTeclasTv';
 import { TvProgresso } from './TvProgresso';
 import {
@@ -90,6 +90,9 @@ import { cn } from '@/lib/cn';
 /** Tempo de inatividade antes de esconder os controles (ms). */
 const AUTO_HIDE_MS = 4000;
 
+/** Log temporário de diagnóstico do OK/ENTER (desligado na versão final). */
+const DEBUG_OK = false;
+
 /**
  * Cadência do movimento CONTÍNUO ao segurar ←/→ (ms).
  *
@@ -131,6 +134,8 @@ export function TvPlayerPage({ id: idProp }: { id?: string } = {}) {
   const ctrlMainRef = useRef<HTMLButtonElement>(null);
   /** Estado otimista de play/pause para o ícone do controle. */
   const [emReproducao, setEmReproducao] = useState(true);
+  /** Espelho do estado acima para leitura síncrona nos listeners (sem re-render). */
+  const emReproducaoRef = useRef(true);
   /** Recria o embed ("Recarregar player") sem duplicar iframes. */
   const [recarga, setRecarga] = useState(0);
 
@@ -164,6 +169,11 @@ export function TvPlayerPage({ id: idProp }: { id?: string } = {}) {
    * (rede de segurança para controles que não mandam keyup).
    */
   const ultimoEventoSeekRef = useRef(0);
+
+  /** Carimbo do último keydown de OK/ENTER (distingue auto-repetição de novo toque). */
+  const ultimoOkKeydownRef = useRef(0);
+  /** O OK/ENTER está pressionado (entre keydown e keyup)? */
+  const okPressionandoRef = useRef(false);
 
   /** Volume da mídia do aparelho (0–100) e mudo — lidos da ponte nativa. */
   const [volume, setVolume] = useState<number>(() => lerVolume() ?? 50);
@@ -317,10 +327,55 @@ export function TvPlayerPage({ id: idProp }: { id?: string } = {}) {
    * Correção: o toggle manda a ação `ok` (tecla 85) — o provedor alterna de
    * verdade. O estado mostrado continua sendo alternado localmente.
    */
+  /**
+   * Estado REAL do <video> quando o player é nativo (mesma origem); `null`
+   * quando o estado não é legível (embed do provedor, cross-origin). É a MESMA
+   * leitura que o debug imprime — não existe um segundo caminho de verdade.
+   */
+  const lerEstadoVideo = useCallback((): 'PLAYING' | 'PAUSED' | null => {
+    const iframe = iframeWrapRef.current?.querySelector('iframe') ?? null;
+    const estado = estadoDoVideoPlayer(iframe);
+    return estado === 'UNKNOWN' ? null : estado;
+  }, []);
+
+  /**
+   * PLAY/PAUSE pelo controle (barra + OK/ENTER).
+   *
+   * AÇÃO: vai pelo MESMO caminho de sempre (ação `ok`) — a ponte nativa entrega
+   * a TECLA REAL ao player do provedor quando o APK está presente e, sem ponte,
+   * o `video` nativo é alternado dentro de `acionarControlePlayer`.
+   *
+   * ESTADO: quando o estado REAL do <video> é legível (`video.paused`), o ícone
+   * de play/pause o acompanha — em vez de depender apenas de um estado visual
+   * que possa ficar dessincronizado. Quando não é legível (embed cross-origin),
+   * mantém o toggle local (comportamento anterior).
+   */
   const alternarPlay = useCallback(() => {
+    const antes = lerEstadoVideo() ?? (emReproducaoRef.current ? 'PLAYING' : 'PAUSED');
+    if (DEBUG_OK) {
+      // eslint-disable-next-line no-console
+      console.info(`[TV PLAYER] estado antes: ${antes}`);
+    }
+
     comandarPlayer('ok');
-    setEmReproducao((v) => !v);
-  }, [comandarPlayer]);
+
+    const depoisReal = lerEstadoVideo();
+    const agoraReproduz = depoisReal ? depoisReal === 'PLAYING' : !emReproducaoRef.current;
+    setEmReproducao(agoraReproduz);
+    emReproducaoRef.current = agoraReproduz;
+
+    if (DEBUG_OK) {
+      const v = document.querySelector<HTMLVideoElement>('video[data-mf-player]');
+      if (v && v.ended === true) {
+        // eslint-disable-next-line no-console
+        console.info('[TV PLAYER] video finalizado (ended) — alternância respeitada');
+      }
+      // eslint-disable-next-line no-console
+      console.info(`[TV PLAYER] ação: ${antes === 'PLAYING' ? 'PAUSE' : 'PLAY'}`);
+      // eslint-disable-next-line no-console
+      console.info(`[TV PLAYER] estado depois: ${agoraReproduz ? 'PLAYING' : 'PAUSED'}`);
+    }
+  }, [comandarPlayer, lerEstadoVideo]);
 
   /**
    * Alterna a reprodução pelo BOTÃO OK do controle (dentro do player).
@@ -330,6 +385,48 @@ export function TvPlayerPage({ id: idProp }: { id?: string } = {}) {
   const alternarPlayPeloOk = useCallback(() => {
     alternarPlay();
   }, [alternarPlay]);
+
+  /**
+   * OK/ENTER do controle remoto — fonte única do toggle de play/pause.
+   *
+   * Roda UMA vez por pressionamento físico:
+   *  • `keydown` é o caminho primário; fica aberto entre DOWN e UP, então os
+   *    `keydown` de auto-repetição do MESMO pressionamento contam como um só;
+   *  • `keyup` só age como FALLBACK quando NÃO houve o `keydown` correspondente
+   *    (controle que entrega apenas o UP) — nunca alterna de novo pelo mesmo
+   *    pressionamento já tratado no DOWN;
+   *  • `media-key` (tecla de mídia emitida pelo shell Android) é evento único.
+   */
+  const tratarOkEnter = useCallback(
+    (origem: 'keydown' | 'keyup' | 'media-key') => {
+      const agora = Date.now();
+
+      if (DEBUG_OK) {
+        // eslint-disable-next-line no-console
+        console.info(`[TV PLAYER] ENTER/OK recebido (${origem})`);
+      }
+
+      if (origem === 'keydown') {
+        const novoPressionamento =
+          !okPressionandoRef.current || agora - ultimoOkKeydownRef.current > 150;
+        ultimoOkKeydownRef.current = agora;
+        okPressionandoRef.current = true;
+        if (!novoPressionamento) return; // auto-repetição do mesmo pressionamento
+      } else if (origem === 'keyup') {
+        const veioDoKeydown = okPressionandoRef.current;
+        okPressionandoRef.current = false;
+        if (veioDoKeydown) return; // o keydown do MESMO pressionamento já alternou
+      }
+
+      alternarPlayPeloOk();
+    },
+    [alternarPlayPeloOk],
+  );
+
+  /** Encerra um pressionamento do OK sem alternar (usado quando o long-press disparou). */
+  const soltarOk = useCallback(() => {
+    okPressionandoRef.current = false;
+  }, []);
 
   /**
    * APLICA UM PASSO de ±10s: manda o comando ao player, move o tempo mostrado
@@ -637,7 +734,8 @@ export function TvPlayerPage({ id: idProp }: { id?: string } = {}) {
       // fixa) e vão direto ao player — o controle dele passa a obedecer.
       // OK/▶ = play/pause: NUNCA abre a barra — o comando tem de chegar ao vídeo.
       if (tipo === 'togglePlay') {
-        alternarPlayPeloOk();
+        // Fonte única do toggle (com cooldown): mesma rota do ENTER/OK do teclado.
+        tratarOkEnter('media-key');
         return;
       }
       // AVANÇAR/VOLTAR: entram no modo CONTROLE DO PLAYER (barra fixa) e vão
@@ -766,7 +864,7 @@ export function TvPlayerPage({ id: idProp }: { id?: string } = {}) {
             }, 1000);
           }
           // PLAY/PAUSE imediato (não espera o keyup).
-          alternarPlayPeloOk();
+          tratarOkEnter('keydown');
           return;
         }
         return;
@@ -840,7 +938,11 @@ export function TvPlayerPage({ id: idProp }: { id?: string } = {}) {
       // O PLAY/PAUSE do OK já saiu no KEYDOWN (ver onKeyDown): aqui só
       // encerramos o long-press. Alternar de novo faria o vídeo pausar e
       // retomar na MESMA pulsação.
-      if (!eraOk || eraPinca) return;
+      if (eraPinca) {
+        soltarOk();
+        return;
+      }
+      if (eraOk) tratarOkEnter('keyup');
     }
 
     // Quem detém o foco? Um BOTÃO/controle da página = HUMANO navegando menus;
@@ -871,6 +973,8 @@ export function TvPlayerPage({ id: idProp }: { id?: string } = {}) {
     voltar,
     alternarPlay,
     alternarPlayPeloOk,
+    tratarOkEnter,
+    soltarOk,
     seekContinuo,
     pararSeekContinuo,
     mostrarControles,
