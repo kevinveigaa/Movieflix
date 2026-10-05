@@ -42,6 +42,37 @@ export const APP_INFO = {
   apkFileName: 'MovieFlix-v2.1.1.apk',
 } as const;
 
+/**
+ * MovieFlix TV — aplicativo nativo para Android TV / Google TV / TV Box
+ * (Kotlin + Leanback + ExoPlayer, 100% nativo, sem WebView).
+ *
+ * v1.9.1: correção final do controle remoto do player.
+ */
+export const TV_APP_INFO = {
+  name: 'MovieFlix TV',
+  version: '1.9.1',
+  versionCode: 13,
+  releaseDate: '2026-10-04',
+  changelog: [
+    'Correção do controle remoto do player: OK agora executa play/pause real no vídeo',
+    'Seta direita avança exatamente 30s e seta esquerda volta exatamente 30s no vídeo real',
+    'Setas cima/baixo movem o foco entre os controles do player (foco visível)',
+    'Botão PLAY/PAUSE físico do controle alterna play/pause no vídeo real',
+    'BACK sai do player e retorna à tela anterior',
+  ],
+  platforms: ['Android TV', 'Google TV', 'TV Box'],
+  apkFileName: 'MovieFlixTV-v1.9.1.apk',
+} as const;
+
+/** Caminho público do APK do MovieFlix TV dentro do app (servido pelo backend/static). */
+export const TV_APK_URL = `/apk/${TV_APP_INFO.apkFileName}`;
+
+/** URL absoluta do APK do MovieFlix TV (usada por links externos). */
+export const TV_APK_ABSOLUTE_URL = `https://movieflix-bszf.onrender.com${TV_APK_URL}`;
+
+/** Tamanho do APK do MovieFlix TV em MB (mantido em sincronia com public/apk/). */
+export const TV_APK_SIZE_MB = '11.5 MB';
+
 /** Caminho público do APK oficial dentro do app (servido pelo backend/static). */
 export const APK_URL = `/apk/${APP_INFO.apkFileName}`;
 
