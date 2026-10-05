@@ -17,13 +17,14 @@
  *     (https://streambetter.shop/docs) tem APENAS `streambetter:seek` (entrada)
  *     e `streambetter:progress` (saída) — NÃO existe comando de play/pause.
  *
- * Logo, o único caminho que muda o estado do vídeo no aparelho é uma TECLA REAL
- * entregue enquanto o iframe está focado. Só a camada nativa Android pode fazer
- * isso — é a ponte `MovieFlixApp.enviarTeclaPlayer` do shell MovieFlix TV
- * (MainActivity.PonteNativa), que:
- *   1º foca o iframe do player;
- *   2º despacha a tecla de verdade (DOWN + UP) para o container do WebView;
- *   3º devolve o foco ao site.
+ * Logo, o único caminho que muda o estado do vídeo no aparelho é um EVENTO REAL
+ * de entrada entregue pelo WebView. Só a camada nativa Android pode fazer isso —
+ * é a ponte `MovieFlixApp` do shell MovieFlix TV (MainActivity.PonteNativa):
+ *   • `enviarToquePlayer()` — TOQUE REAL (DOWN+UP) no centro do player. NÃO
+ *     depende de foco: o WebView faz hit-testing e entrega ao iframe. É o
+ *     caminho PRIMÁRIO (play/pause e autoplay);
+ *   • `enviarTeclaPlayer()` — TECLA REAL (DOWN+UP) com o iframe focado. Fica
+ *     como FALLBACK para APKs antigos que ainda não têm o toque.
  *
  * ── A CORREÇÃO (por que a rodada anterior falhava em silêncio) ────────────
  * A ponte nativa já existia, mas a chamada falhava na PRÁTICA de duas formas:
@@ -107,10 +108,11 @@ export function temPonteDeTeclasNativa(): boolean {
  * Ordem:
  *   1. se o `<video>` é LEGÍVEL (mesma origem), alterna DIRETO pelo estado real
  *      (`video.paused`) e trata a Promise de `play()`;
- *   2. senão (embed do provedor, cross-origin), entrega a TECLA REAL (ESPAÇO)
- *      pela ponte nativa — o único caminho que muda o estado do vídeo no
- *      aparelho (o `TvPlayerPage` SUSPENDE a guarda de foco durante a injeção,
- *      senão o foco voltava ao botão antes da entrega).
+ *   2. senão (embed do provedor, cross-origin), entrega um TOQUE REAL no centro
+ *      do player pela ponte nativa — o gesto que o player aceita e que NÃO
+ *      depende de foco (o `TvPlayerPage` suspende a camada de bloqueio durante a
+ *      injeção, para o toque atravessar até o iframe). Sem o toque (APK antigo),
+ *      cai na TECLA REAL (ESPAÇO).
  *
  * @returns o estado que a interface deve mostrar: `true` = pausado. Quando o
  *          estado real não é legível (embed cross-origin), devolve `null` e quem
@@ -161,13 +163,14 @@ export function alternarPlayPausePlayer(
  * CAUSA RAIZ do "o filme abre em pause e não roda": o embed do provedor vive num
  * IFRAME DE OUTRA ORIGEM e NÃO começa a tocar sozinho — nem com `autoplay=1` na
  * URL, nem por `video.play()` (o site não alcança o `<video>` de dentro do
- * iframe). O único gesto que o player aceita é uma TECLA REAL entregue com o
- * iframe focado — exatamente o caminho do OK.
+ * iframe). O único gesto que o player aceita é um EVENTO REAL de entrada — o
+ * mesmo caminho do OK.
  *
- * Aqui entregamos o OK (KEYCODE_DPAD_CENTER = 23) UMA vez, logo depois de o
- * embed carregar. É o mesmo gesto que o usuário faria para dar play, então o
- * player responde; e como é uma única injeção, não há risco de alternar duas
- * vezes (o que cancelaria o play).
+ * Aqui entregamos um TOQUE REAL no centro do player (fallback: OK/DPAD_CENTER)
+ * logo depois de o embed carregar, repetindo em poucas tentativas espaçadas (o
+ * provedor demora a montar o `<video>`). O `TvPlayerPage` PARA de tentar assim
+ * que o usuário aperta qualquer tecla — nunca pausa o vídeo que ele acabou de
+ * dar play.
  *
  * @returns `true` quando um caminho real assumiu o play; `false` quando não há
  *          como iniciar (navegador sem ponte nativa).
