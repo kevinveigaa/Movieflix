@@ -595,13 +595,17 @@ public class MainActivity extends Activity {
                         webView.dispatchKeyEvent(new KeyEvent(KeyEvent.ACTION_DOWN, code));
                         webView.dispatchKeyEvent(new KeyEvent(KeyEvent.ACTION_UP, code));
                         // 3º) Devolve o foco ao site (menus do MovieFlix TV intactos).
+                        //    No player, o foco volta para o CONTROLE focado
+                        //    (Play/Pause, −30s, +30s, barra) — o foco NUNCA pode
+                        //    desaparecer do player. Fora dele, volta ao container.
                         webView.postDelayed(() -> {
                             if (webView == null) return;
                             webView.evaluateJavascript(
                                     "(function(){try{var a=document.activeElement;"
                                     + "if(a&&a.tagName==='IFRAME'){"
+                                    + "var c=document.querySelector('[data-tv-player-controles] [data-tv-focusable]');"
                                     + "var b=document.querySelector('[data-tv-player-box]');"
-                                    + "(b||document.body).focus({preventScroll:true});}}catch(e){}})();",
+                                    + "(c||b||document.body).focus({preventScroll:true});}}catch(e){}})();",
                                     null);
                         }, 220);
                     });

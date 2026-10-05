@@ -72,15 +72,26 @@ export const APK_SIZE_MB = '10.4 MB';
  */
 export const TV_APP_INFO = {
   name: 'MovieFlix TV',
-  version: '4.0.3',
-  versionCode: 43,
+  version: '4.0.4',
+  versionCode: 44,
   /** Arquivo do APK TV em public/apk/ (mesma pasta servida em /apk/) */
-  apkFileName: 'MovieFlix-TV-v4.0.3.apk',
-  /** Tamanho exibido (sincronizado com public/apk/MovieFlix-TV-v4.0.3.apk) */
-  sizeMB: '5.6 MB',
+  apkFileName: 'MovieFlix-TV-v4.0.4.apk',
+  /** Tamanho exibido (sincronizado com public/apk/MovieFlix-TV-v4.0.4.apk) */
+  sizeMB: '4.5 MB',
   package: 'com.movieflix.tv',
-  releaseDate: '2026-09-25',
+  releaseDate: '2026-10-04',
   changelog: [
+    'PLAYER (controle remoto REAL): OK/ENTER agora pausa e reproduz o VÍDEO REAL (estado real do player → play()/pause()), não apenas o ícone; o botão visual Play/Pause continua funcionando',
+    'PLAYER: SETA DIREITA avança exatamente 30s e SETA ESQUERDA volta exatamente 30s no vídeo REAL, respeitando os limites (nunca passa do fim nem fica negativo)',
+    'PLAYER: SETAS ↑/↓ navegam entre os controles (Play/Pause, barra de progresso, −30s, +30s) e o foco NUNCA desaparece — sempre visível e acionável pelo controle',
+    'PLAYER: FOCO INICIAL automático no botão PLAY/PAUSE ao abrir o player, sem precisar de mouse',
+    'PLAYER: corrigido o "0:00 / 0:00" — o tempo e a duração passam a ser os REAIS do vídeo, publicados pelo próprio player do provedor (postMessage streambetter:progress)',
+    'PLAYER: o seek ±30s usa o comando REAL do provedor (streambetter:seek) com a posição real do vídeo — sem simulação e sem recarregar o player',
+    'PLAYER: teclas de MÍDIA do controle (PLAY/PAUSE, ⏩, ⏪) tratadas de ponta a ponta (Android → WebView → player)',
+    'PLAYER: BACK volta para a tela anterior do app (nunca fecha o MovieFlix nem vai para a tela inicial do Android)',
+    'PLAYER: um único dono por tecla — a navegação espacial global se abstém enquanto o player está aberto (fim do OK com dois donos)',
+    'DOWNLOAD: página de Downloads com DUAS opções separadas e claras — 📱 MovieFlix para Celular e 📺 MovieFlix TV (Android TV / Google TV)',
+    'O app MOBILE não foi alterado: nenhuma mudança de controle remoto/player foi aplicada a ele',
     'LOGIN (causa raiz do foco que escapava, ELIMINADA): a recuperação de foco por TIMER saiu de cena. Havia timers de foco em CINCO instantes (250/700/1300/2100/3200 ms) na moldura da TV e outro na navegação global — qualquer um deles que disparasse enquanto você digitava arrancava o foco do campo. Agora o foco inicial é determinístico e não existe nenhum timer de foco no app',
     'LOGIN (nova invariante): uma guarda de foco síncrona, sem timer e sem blur, devolve o foco ao campo ativo no INSTANTE em que ele escapa — inclusive quando o foco vai para o "nada" (o sistema fechando o teclado), caso que os eventos de foco não cobriam',
     'LOGIN (lado Android): o monitor de geometria do WebView chamava requestFocus() a CADA mudança de geometria — e abrir o teclado MUDA a geometria. Esse era o loop teclado-abre/fecha que arrancava o foco do campo. O request focus nativo agora só acontece se o foco tiver saído do WebView',

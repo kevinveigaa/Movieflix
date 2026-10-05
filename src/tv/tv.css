@@ -1518,6 +1518,68 @@
   font-weight: 600;
 }
 
+/* ── CONTROLES DO PLAYER (focáveis pelo controle remoto) ─────────────────────
+   Requisito do dono: o player inteiro operável só com o controle remoto, com o
+   foco SEMPRE visível. Estes controles são irmãos do vídeo (não ficam sobre o
+   iframe do provedor), então o D-pad os alcança e o OK os aciona. ↑/↓ navega
+   entre eles; o foco inicial é o Play/Pause. */
+.tv-player-controles {
+  position: relative;
+  z-index: 26;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1.4vw;
+  padding: 1.4vh 1.6vw 0.6vh;
+  background: linear-gradient(0deg, rgba(0, 0, 0, 0.92) 0%, rgba(0, 0, 0, 0) 100%);
+}
+
+/* Barra de progresso focável: mostra o tempo REAL e a posição. */
+.tv-player-barra {
+  display: flex;
+  align-items: center;
+  gap: 1vw;
+  min-width: min(46vw, 720px);
+  padding: 0.8vh 1.2vw;
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background: rgba(255, 255, 255, 0.1);
+  color: #e6e6ee;
+  font-weight: 700;
+  font-size: clamp(10px, 1.3vh, 20px);
+  font-variant-numeric: tabular-nums;
+  outline: none;
+  cursor: pointer;
+  transition: transform 0.14s ease, background 0.14s ease;
+}
+
+.tv-player-barra-focavel.tv-focus,
+.tv-player-barra-focavel:focus-visible {
+  border-color: #fff;
+  background: rgba(255, 255, 255, 0.18);
+  box-shadow: 0 0 0 4px rgba(223, 10, 21, 0.55);
+}
+
+.tv-player-barra-trilha {
+  position: relative;
+  flex: 1 1 auto;
+  height: clamp(6px, 0.9vh, 12px);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.24);
+  overflow: hidden;
+}
+
+.tv-player-barra-preenchida {
+  display: block;
+  height: 100%;
+  background: var(--mf-grad);
+  transition: width 0.18s linear;
+}
+
+.tv-player-barra-tempo {
+  white-space: nowrap;
+}
+
 /* Badge do modo "controle do player" (long-press OK). */
 .tv-player-mode-badge {
   position: absolute;

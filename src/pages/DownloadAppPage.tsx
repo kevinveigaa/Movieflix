@@ -21,8 +21,9 @@ export function DownloadAppPage() {
           Baixe o app <span className="text-brand-400">MovieFlix</span>
         </h1>
         <p className="mx-auto mt-3 max-w-xl text-sm text-ink-400 sm:text-base">
-          O aplicativo oficial do MovieFlix para celular, tablet e outros
-          dispositivos compatíveis.
+          Escolha o aplicativo certo para o seu aparelho: <strong className="text-white">celular</strong> ou{' '}
+          <strong className="text-white">Android TV / Google TV</strong>. São dois apps separados —
+          instale o que combina com a sua tela.
         </p>
 
         {/* ──────────────── MOVIEFLIX (celular/tablet) ──────────────── */}
@@ -33,9 +34,9 @@ export function DownloadAppPage() {
                 <Smartphone className="h-7 w-7 text-brand-400" />
               </span>
               <div>
-                <h2 className="text-xl font-bold text-white">📱 MovieFlix</h2>
+                <h2 className="text-xl font-bold text-white">📱 MOVIEFLIX PARA CELULAR</h2>
                 <p className="mt-1 max-w-md text-sm text-ink-400">
-                  Para celular, tablet e outros dispositivos compatíveis.
+                  Aplicativo para smartphones Android (celular e tablet).
                   <br />
                   <span className="text-ink-500">v{APP_INFO.version} • {APK_SIZE_MB} • .apk</span>
                 </p>
@@ -49,7 +50,7 @@ export function DownloadAppPage() {
                 className="inline-flex items-center gap-3 rounded-2xl bg-brand-600 px-8 py-4 text-lg font-semibold text-white shadow-lg shadow-brand-600/30 transition hover:bg-brand-500"
               >
                 <Download className="h-6 w-6" />
-                BAIXAR MOVIEFLIX
+                BAIXAR APP
               </a>
               <div className="flex items-center gap-2 rounded-xl border border-white/10 bg-white p-2">
                 <QRCodeSVG value={apkUrl} size={64} level="M" bgColor="#ffffff" fgColor="#0a0a0f" title="MovieFlix APK" />
@@ -67,9 +68,9 @@ export function DownloadAppPage() {
                 <Monitor className="h-7 w-7 text-purple-300" />
               </span>
               <div>
-                <h2 className="text-xl font-bold text-white">📺 MovieFlix TV</h2>
+                <h2 className="text-xl font-bold text-white">📺 MOVIEFLIX TV</h2>
                 <p className="mt-1 max-w-md text-sm text-ink-400">
-                  App nativo para Android TV, Google TV e TV Box — feito para o
+                  Aplicativo para Android TV / Google TV (e TV Box) — feito para o
                   controle remoto (D-pad), tela grande e visual cinematográfico.
                   <br />
                   <span className="text-ink-500">
@@ -87,7 +88,7 @@ export function DownloadAppPage() {
                 className="inline-flex items-center gap-3 rounded-2xl bg-purple-600 px-8 py-4 text-lg font-semibold text-white shadow-lg shadow-purple-600/30 transition hover:bg-purple-500"
               >
                 <Download className="h-6 w-6" />
-                BAIXAR APP MOVIEFLIX TV
+                BAIXAR APP PARA TV
               </a>
               <div className="flex items-center gap-2 rounded-xl border border-white/10 bg-white p-2">
                 <QRCodeSVG value={TV_APK_ABSOLUTE_URL} size={64} level="M" bgColor="#ffffff" fgColor="#0a0a0f" title="MovieFlix TV APK" />
@@ -194,7 +195,7 @@ export function DownloadAppPage() {
         <div className="mt-10 rounded-2xl border border-white/10 bg-ink-900/60 p-6 text-left">
           <h2 className="font-semibold text-white">Como instalar no Android</h2>
           <ol className="mt-3 list-decimal space-y-2 pl-5 text-sm text-ink-300">
-            <li>Toque em <strong className="text-white">BAIXAR MOVIEFLIX</strong> acima.</li>
+            <li>Toque em <strong className="text-white">BAIXAR APP</strong> (celular) ou <strong className="text-white">BAIXAR APP PARA TV</strong> (Android TV / Google TV) acima.</li>
             <li>
               Abra o arquivo baixado. Se aparecer o aviso, permita{' '}
               <strong className="text-white">instalar de fontes desconhecidas</strong>{' '}
