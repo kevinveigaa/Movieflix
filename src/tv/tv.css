@@ -468,6 +468,14 @@
   cursor: default;
   -webkit-tap-highlight-color: transparent;
 }
+
+/* JANELA DE INJEÇÃO — o TOQUE REAL precisa ATRAVESSAR até o iframe do provedor.
+   Durante a injeção (autoplay e OK), a camada de bloqueio e o `pointer-events:
+   none` do iframe são suspensos por ~500ms; o toque nativo chega ao player e
+   alterna play/pause de verdade. Depois tudo volta a cobrir o embed, de modo
+   que nenhum controle do provedor fica visível ou clicável. */
+.tv-player-injetando .tv-player-bloqueio { pointer-events: none; }
+.tv-player-injetando .tv-player-embed iframe { pointer-events: auto; }
 /* ── Conteúdo ─────────────────────────────────────────────────────────── */
 
 .tv-content {

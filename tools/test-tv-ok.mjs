@@ -9,11 +9,13 @@
  *   • `streambetter:progress` (saída — o player informa o tempo).
  * NÃO existe NENHUM comando de play/pause por `postMessage`.
  *
- * Por isso o OK NÃO usa `postMessage`: ele entrega uma TECLA REAL pela ponte
- * nativa do shell Android (MovieFlixApp.enviarTeclaPlayer) — o único caminho que
- * muda o estado do vídeo no aparelho. A tecla é ESPAÇO (32), não a tecla de
- * MÍDIA 85 (o WebView a roteia para a MediaSession, que não é o <video> do
- * iframe). Quando o <video> é legível (mesma origem), alterna direto pelo estado.
+ * Por isso o OK NÃO usa `postMessage`: ele entrega um TOQUE REAL pela ponte
+ * nativa do shell Android (MovieFlixApp.enviarToquePlayer) — o caminho que muda
+ * o estado do vídeo no aparelho SEM depender de foco (o WebView faz hit-testing
+ * e entrega o toque ao iframe do provedor). Se a ponte não tiver o toque (APK
+ * antigo), cai na TECLA REAL (ESPAÇO = 32), nunca na tecla de MÍDIA 85 (o WebView
+ * a roteia para a MediaSession, que não é o <video> do iframe). Quando o <video>
+ * é legível (mesma origem), alterna direto pelo estado.
  *
  * Roda o módulo REAL (`src/tv/controlePlayer.ts`) com iframes/vídeos FALSOS —
  * sem rede, sem navegador.
@@ -80,14 +82,36 @@ function videoFalso(inicialPausado) {
   };
 }
 
-// ── 1. OK com a ponte nativa: entrega a tecla REAL de play/pause (ESPAÇO = 32)
+// ── 1. OK com a ponte nativa: entrega um TOQUE REAL (caminho primário) ──────
+{
+  const toques = [];
+  const teclas = [];
+  const ponte = {
+    enviarToquePlayer: () => { toques.push(1); return true; },
+    enviarTeclaPlayer: (code) => { teclas.push(code); return true; },
+  };
+  const resultado = mod.alternarPlayPausePlayer(null, ponte);
+  checar('OK com ponte nativa: entrega um TOQUE REAL ao player (não depende de foco)', toques.length === 1, `toques=${toques.length}`);
+  checar('OK com toque disponível NÃO cai na tecla (um único comando por toque)', teclas.length === 0, `teclas=[${teclas.join(',')}]`);
+  checar('OK com ponte e sem estado legível: devolve null (o HUD mantém o otimista)', resultado === null, `resultado=${resultado}`);
+}
+
+// ── 1b. Ponte ANTIGA (só tecla): cai na TECLA REAL (ESPAÇO = 32) ─────────────
 {
   const teclas = [];
   const ponte = { enviarTeclaPlayer: (code) => { teclas.push(code); return true; } };
   const resultado = mod.alternarPlayPausePlayer(null, ponte);
-  checar('OK com ponte nativa: a tecla REAL de play/pause (ESPAÇO = 32) foi entregue', teclas.includes(32), `teclas=[${teclas.join(',')}]`);
-  checar('OK NÃO usa a tecla de MÍDIA 85 (o WebView a roteia para a MediaSession)', !teclas.includes(85), `teclas=[${teclas.join(',')}]`);
-  checar('OK com ponte e sem estado legível: devolve null (o HUD mantém o otimista)', resultado === null, `resultado=${resultado}`);
+  checar('APK antigo (sem toque): cai na TECLA REAL de play/pause (ESPAÇO = 32)', teclas.includes(32), `teclas=[${teclas.join(',')}]`);
+  checar('APK antigo: NÃO usa a tecla de MÍDIA 85 (o WebView a roteia para a MediaSession)', !teclas.includes(85), `teclas=[${teclas.join(',')}]`);
+  checar('APK antigo: devolve null (o HUD mantém o otimista)', resultado === null, `resultado=${resultado}`);
+}
+
+// ── 1c. AUTOPLAY: entrega um TOQUE REAL (inicia a reprodução) ───────────────
+{
+  const toques = [];
+  const ponte = { enviarToquePlayer: () => { toques.push(1); return true; } };
+  const r = mod.iniciarReproducaoPlayer(null, ponte);
+  checar('AUTOPLAY com ponte nativa: entrega um TOQUE REAL ao player', toques.length === 1 && r === true, `toques=${toques.length} r=${r}`);
 }
 
 // ── 2. OK sem ponte e sem vídeo: nada a fazer, nenhum comando inventado ──────

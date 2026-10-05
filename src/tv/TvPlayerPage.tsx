@@ -14,6 +14,7 @@ import { duracaoDoCatalogo, type EstadoProgresso } from './playerProgresso';
 import {
   alternarPlayPausePlayer,
   ajustarVolumePlayerTv,
+  iniciarReproducaoPlayer,
   lerVolumePlayerTv,
   type PontePlayerTv,
 } from '@/tv/controlePlayer';
@@ -186,6 +187,30 @@ export function TvPlayerPage({ id: idProp }: { id?: string } = {}) {
   const janelaInjecaoRef = useRef(0);
 
   /**
+   * O usuário já apertou alguma tecla do controle? Serve para o AUTOPLAY parar
+   * de tentar iniciar o vídeo assim que houver interação real — sem isso, uma
+   * injeção tardia poderia pausar o vídeo que o usuário acabou de dar play.
+   */
+  const usuarioInteragiuRef = useRef(false);
+
+  /**
+   * A CAMADA DE BLOQUEIO está suspensa? Enquanto o toque real é injetado no
+   * player, a camada (e o `pointer-events:none` do iframe) são desligados para o
+   * toque ATRAVESSAR até o iframe do provedor. Fora dessa janela, a camada volta
+   * a cobrir o embed (nenhum controle do provedor aparece).
+   */
+  const [injetando, setInjetando] = useState(false);
+  const injecaoTimerRef = useRef<number | null>(null);
+
+  /** Abre a janela de injeção: suspende a camada e ignora o eco da tecla. */
+  const marcarInjecao = useCallback(() => {
+    janelaInjecaoRef.current = Date.now() + 700;
+    setInjetando(true);
+    if (injecaoTimerRef.current !== null) window.clearTimeout(injecaoTimerRef.current);
+    injecaoTimerRef.current = window.setTimeout(() => setInjetando(false), 500);
+  }, []);
+
+  /**
    * PLAY/PAUSE pelo OK/ENTER e pelo botão/play do controle.
    * FONTE ÚNICA do toggle: `alternarPlayPausePlayer` decide pelo estado REAL do
    * `<video>` quando legível e, quando não é (embed cross-origin), entrega o
@@ -193,7 +218,7 @@ export function TvPlayerPage({ id: idProp }: { id?: string } = {}) {
    */
   const alternarPlay = useCallback(() => {
     alternandoRef.current = true;
-    janelaInjecaoRef.current = Date.now() + 700;
+    marcarInjecao();
     window.setTimeout(() => {
       alternandoRef.current = false;
     }, 700);
@@ -207,7 +232,7 @@ export function TvPlayerPage({ id: idProp }: { id?: string } = {}) {
         alternandoRef.current = false;
       }, 680);
     }
-  }, [iframeDoPlayer]);
+  }, [iframeDoPlayer, marcarInjecao]);
 
   /**
    * SEEK REAL de ±30s. Usa a posição REAL (postMessage) quando disponível;
@@ -283,6 +308,9 @@ export function TvPlayerPage({ id: idProp }: { id?: string } = {}) {
 
       const acao = classificarTecla(e);
       if (!acao) return;
+
+      // A partir daqui é interação REAL do usuário: o autoplay para de tentar.
+      usuarioInteragiuRef.current = true;
 
       e.preventDefault();
       e.stopPropagation();
@@ -442,6 +470,36 @@ export function TvPlayerPage({ id: idProp }: { id?: string } = {}) {
   }, [pronto, recarga]);
 
   /**
+   * ══════════════════════════════════════════════════════════════════════════
+   * AUTOPLAY REAL — o filme começa sozinho ao abrir o player
+   * ══════════════════════════════════════════════════════════════════════════
+   * O embed do provedor (iframe de outra origem) NÃO inicia sozinho: nem com
+   * `autoplay=1` na URL, nem por `video.play()` (o site não alcança o `<video>`
+   * de dentro do iframe). O único gesto que o player aceita é uma TECLA REAL
+   * entregue com o iframe focado — o MESMO caminho do OK.
+   *
+   * Aqui entregamos o OK (DPAD_CENTER) UMA vez, logo depois de o embed carregar,
+   * e repetimos em poucas tentativas espaçadas (o provedor demora a montar o
+   * `<video>`). Assim que o usuário aperta qualquer tecla, o autoplay PARA —
+   * nunca pausa o vídeo que ele acabou de dar play.
+   */
+  useEffect(() => {
+    if (!pronto) return;
+    usuarioInteragiuRef.current = false;
+    const tentativas = [900, 1800, 3200, 5200];
+    const timers = tentativas.map((ms) =>
+      window.setTimeout(() => {
+        if (usuarioInteragiuRef.current) return;
+        // Abre a janela de injeção: suspende a camada (o toque atravessa) e
+        // ignora o eco da tecla no documento pai.
+        marcarInjecao();
+        iniciarReproducaoPlayer(iframeDoPlayer());
+      }, ms),
+    );
+    return () => timers.forEach((t) => window.clearTimeout(t));
+  }, [pronto, recarga, iframeDoPlayer, marcarInjecao]);
+
+  /**
    * GUARDA DE FOCO — o foco NUNCA pode ficar no iframe de outra origem (senão o
    * documento pai deixa de receber as teclas do controle). Se o foco escapar
    * para o iframe, é devolvido ao botão. SUSPENSA durante a injeção de tecla/
@@ -552,7 +610,7 @@ export function TvPlayerPage({ id: idProp }: { id?: string } = {}) {
       {/* A MOLDURA do vídeo ocupa a tela inteira. A barra customizada é ANCORADA
           no rodapé DESTA moldura — exatamente onde a barra nativa do provedor
           aparece — de modo que ela a COBRE por completo (ver tv.css). */}
-      <div className="tv-player-box" data-tv-player-box>
+      <div className={`tv-player-box${injetando ? ' tv-player-injetando' : ''}`} data-tv-player-box>
         <div ref={iframeWrapRef} className="tv-player-embed">
           <StreamBetterEmbed
             key={`${src}-${recarga}`}

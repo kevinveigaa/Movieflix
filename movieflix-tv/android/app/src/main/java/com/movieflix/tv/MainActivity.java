@@ -11,8 +11,10 @@ import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Message;
+import android.os.SystemClock;
 import android.util.Log;
 import android.view.KeyEvent;
+import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.WindowManager;
@@ -612,6 +614,48 @@ public class MainActivity extends Activity {
         });
     }
 
+    /**
+     * ══════════════════════════════════════════════════════════════════════════
+     * TOQUE REAL NO PLAYER — o gesto que o player do provedor ACEITA
+     * ══════════════════════════════════════════════════════════════════════════
+     * CAUSA RAIZ do "OK não faz nada" e do "o filme não começa sozinho":
+     *
+     * O player do provedor vive num IFRAME DE OUTRA ORIGEM. Uma TECLA só chega
+     * ao documento do iframe quando o próprio `<iframe>` é o `document.activeElement`
+     * — e, no WebView do Android, o foco de um iframe cross-origin é instável (a
+     * navegação espacial do WebView o consome antes de a tecla ser despachada).
+     * Já um TOQUE não depende de foco: o WebView faz hit-testing e entrega o
+     * evento ao elemento sob o ponto — o próprio iframe. É o gesto que o usuário
+     * faria com o dedo e que TODO player web trata como play/pause.
+     *
+     * Aqui injetamos um toque REAL (ACTION_DOWN + ACTION_UP) no CENTRO da área do
+     * player. O site suspende a camada de bloqueio durante a injeção (ver
+     * `TvPlayerPage`), então o toque atravessa até o iframe do provedor.
+     */
+    private void toqueDoPlayer() {
+        if (webView == null) return;
+        if (!webView.hasFocus()) webView.requestFocus();
+        webView.post(() -> {
+            if (webView == null) return;
+            final int w = webView.getWidth();
+            final int h = webView.getHeight();
+            if (w <= 0 || h <= 0) return;
+            final float x = w / 2f;
+            final float y = h / 2f;
+            final long t = SystemClock.uptimeMillis();
+            try {
+                MotionEvent down = MotionEvent.obtain(t, t, MotionEvent.ACTION_DOWN, x, y, 0);
+                webView.dispatchTouchEvent(down);
+                down.recycle();
+                MotionEvent up = MotionEvent.obtain(t, t + 40, MotionEvent.ACTION_UP, x, y, 0);
+                webView.dispatchTouchEvent(up);
+                up.recycle();
+            } catch (Throwable e) {
+                Log.w("MovieFlixTV", "toqueDoPlayer falhou: " + e);
+            }
+        });
+    }
+
     private static final String SCRIPT_AUTOCLICK =
             "(function(){"
             + " if (window.__mfAutoAbrirLink) return; window.__mfAutoAbrirLink = true;"
@@ -1067,6 +1111,21 @@ public class MainActivity extends Activity {
         @JavascriptInterface
         public boolean enviarTeclaPlayer(final int keyCode, final String key) {
             runOnUiThread(() -> teclaDoPlayer(keyCode));
+            return true;
+        }
+
+        /**
+         * Injeta um TOQUE REAL no centro do player (play/pause e autoplay).
+         *
+         * É o caminho que funciona no aparelho: o toque NÃO depende de foco e
+         * atravessa até o iframe do provedor (ver `toqueDoPlayer`). O site chama
+         * esta ponte em `src/tv/controlePlayer.ts`.
+         *
+         * @return true sempre — o site usa o retorno para saber que a ponte agiu.
+         */
+        @JavascriptInterface
+        public boolean enviarToquePlayer() {
+            runOnUiThread(MainActivity.this::toqueDoPlayer);
             return true;
         }
 

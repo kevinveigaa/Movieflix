@@ -49,6 +49,15 @@ export interface PontePlayerTv {
    * Devolve `true` quando a ponte existe e assumiu a entrega.
    */
   enviarTeclaPlayer?: (keyCode: number, key: string) => boolean;
+  /**
+   * Injeta um TOQUE REAL no centro do player (play/pause e autoplay).
+   *
+   * É o caminho que funciona no aparelho: o toque NÃO depende de foco (o WebView
+   * faz hit-testing e entrega ao iframe do provedor), enquanto a tecla só chega
+   * ao iframe quando ele é o `document.activeElement` — foco instável no WebView.
+   * Devolve `true` quando a ponte existe e assumiu a entrega.
+   */
+  enviarToquePlayer?: () => boolean;
   /** Ajusta o volume da mídia em `delta` pontos percentuais (ex.: +5 / -5). */
   ajustarVolume?: (delta: number) => void;
   /** Define o volume absoluto (0–100). */
@@ -61,6 +70,16 @@ export interface PontePlayerTv {
 
 /** Android KEYCODE_SPACE — tecla que todo player web escuta para play/pause. */
 const KEYCODE_SPACE = 32;
+
+/**
+ * Android KEYCODE_DPAD_CENTER (23) — o "OK" do controle remoto.
+ *
+ * É a tecla usada para INICIAR a reprodução no autoplay: o player do provedor
+ * (iframe de outra origem) não começa sozinho, e um OK real é o gesto que o
+ * aparelho entrega ao player. Diferente do ESPAÇO (que alterna), o OK é o que o
+ * usuário apertaria para dar play — e é o que o player espera.
+ */
+const KEYCODE_DPAD_CENTER = 23;
 
 /** A ponte nativa do player, quando o site roda dentro do APK (senão `null`). */
 export function pontePlayerTv(): PontePlayerTv | null {
@@ -120,13 +139,74 @@ export function alternarPlayPausePlayer(
     /* cross-origin: inalcançável — segue para a ponte nativa */
   }
 
-  // (2) Embed do provedor: entrega a TECLA REAL (ESPAÇO) pela ponte nativa.
+  // (2) Embed do provedor: entrega um TOQUE REAL no centro do player pela ponte
+  //     nativa — o gesto que o player aceita (não depende de foco). Se a ponte
+  //     não tiver o toque (APK antigo), cai na TECLA REAL (ESPAÇO).
+  try {
+    if (ponte?.enviarToquePlayer?.()) return null;
+  } catch {
+    /* segue para a tecla */
+  }
   try {
     if (ponte?.enviarTeclaPlayer?.(KEYCODE_SPACE, 'Space')) return null;
   } catch {
     /* aparelho sem a ponte: nada a fazer */
   }
   return null;
+}
+
+/**
+ * INICIA a reprodução ao abrir o player (autoplay REAL no aparelho).
+ *
+ * CAUSA RAIZ do "o filme abre em pause e não roda": o embed do provedor vive num
+ * IFRAME DE OUTRA ORIGEM e NÃO começa a tocar sozinho — nem com `autoplay=1` na
+ * URL, nem por `video.play()` (o site não alcança o `<video>` de dentro do
+ * iframe). O único gesto que o player aceita é uma TECLA REAL entregue com o
+ * iframe focado — exatamente o caminho do OK.
+ *
+ * Aqui entregamos o OK (KEYCODE_DPAD_CENTER = 23) UMA vez, logo depois de o
+ * embed carregar. É o mesmo gesto que o usuário faria para dar play, então o
+ * player responde; e como é uma única injeção, não há risco de alternar duas
+ * vezes (o que cancelaria o play).
+ *
+ * @returns `true` quando um caminho real assumiu o play; `false` quando não há
+ *          como iniciar (navegador sem ponte nativa).
+ */
+export function iniciarReproducaoPlayer(
+  iframe: HTMLIFrameElement | null | undefined,
+  ponte: PontePlayerTv | null = pontePlayerTv(),
+): boolean {
+  // (1) Vídeo legível (mesma origem): toca direto pelo estado real.
+  try {
+    const video =
+      iframe?.contentDocument?.querySelector<HTMLVideoElement>('video') ??
+      document.querySelector<HTMLVideoElement>('video[data-mf-player]');
+    if (video) {
+      if (video.ended === true) return true;
+      if (video.paused) {
+        const p = video.play();
+        if (p !== undefined) p.catch(() => undefined);
+      }
+      return true;
+    }
+  } catch {
+    /* cross-origin: inalcançável — segue para a ponte nativa */
+  }
+
+  // (2) Embed do provedor: entrega um TOQUE REAL no centro do player pela ponte
+  //     nativa — o gesto que INICIA a reprodução (não depende de foco). Se a
+  //     ponte não tiver o toque (APK antigo), cai na TECLA REAL (OK).
+  try {
+    if (ponte?.enviarToquePlayer?.()) return true;
+  } catch {
+    /* segue para a tecla */
+  }
+  try {
+    if (ponte?.enviarTeclaPlayer?.(KEYCODE_DPAD_CENTER, 'Enter')) return true;
+  } catch {
+    /* aparelho sem a ponte: nada a fazer */
+  }
+  return false;
 }
 
 /**

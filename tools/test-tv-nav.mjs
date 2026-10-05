@@ -414,9 +414,13 @@ async function principal() {
         // que o app entrega ao player e responde que assumiu a entrega. Sem
         // ela, o caminho do controle remoto dentro do APK não pode ser testado.
         window.__mfTeclasPlayer = [];
+        window.__mfToquesPlayer = [];
         window.__mfVolume = 50;
         window.MovieFlixApp = {
           enviarTeclaPlayer: function (code) { window.__mfTeclasPlayer.push(code); return true; },
+          // TOQUE REAL no player: o caminho PRIMÁRIO do OK/autoplay (não depende
+          // de foco — o WebView entrega o toque ao iframe do provedor).
+          enviarToquePlayer: function () { window.__mfToquesPlayer.push(1); return true; },
           ajustarVolume: function (delta) {
             window.__mfVolume = Math.max(0, Math.min(100, (window.__mfVolume ?? 50) + delta));
           },
@@ -749,6 +753,7 @@ async function principal() {
           visivel: !!document.querySelector('[data-tv-progresso]'),
           barraAberta: false,
           teclas: (window.__mfTeclasPlayer || []).slice(),
+          toques: (window.__mfToquesPlayer || []).slice(),
         };
       })()
     `);
@@ -773,6 +778,7 @@ async function principal() {
       await valer(1000);
       await focarJogador();
       await avaliar('window.__mfTeclasPlayer = []');
+      await avaliar('window.__mfToquesPlayer = []');
     };
 
     // ── TESTE A: a Home (destino do login) marca o foco inicial ───────────
@@ -897,13 +903,14 @@ async function principal() {
     // O controle remoto da TV manda o OK ora como ENTER (23), ora como
     // PLAY_PAUSE (85/179) — os DOIS caminhos têm de chegar ao player. Este
     // harness usa o keycode de OK/ENTER, que é o que a TV do usuário envia.
-    checar('TESTE C — OK entrega ao player a tecla REAL de play/pause (ESPAÇO = 32)', p.teclas.includes(32), `teclas=[${p.teclas.join(',')}]`);
+    checar('TESTE C — OK entrega um comando REAL ao player (toque real, sem depender de foco)', p.toques.length >= 1 || p.teclas.includes(32), `toques=${p.toques.length} teclas=[${p.teclas.join(',')}]`);
     checar('TESTE C — depois do OK a interface mostra PAUSADO', /pausado/i.test(p.estado || ''), `estado=${p.estado}`);
     await avaliar('window.__mfTeclasPlayer = []');
+    await avaliar('window.__mfToquesPlayer = []');
     await pressionar(23, 'Enter');
     p = await progressoAgora();
     checar('TESTE C — o segundo OK volta a REPRODUZIR', /reproduzindo/i.test(p.estado || ''), `estado=${p.estado}`);
-    checar('TESTE C — a tecla REAL foi entregue de novo', p.teclas.includes(32), `teclas=[${p.teclas.join(',')}]`);
+    checar('TESTE C — o comando REAL foi entregue de novo', p.toques.length >= 1 || p.teclas.includes(32), `toques=${p.toques.length} teclas=[${p.teclas.join(',')}]`);
 
     // ── TESTE C2: tecla REAL do controle (não sintética) ────────────────────
     // O TESTE C acima usa um KeyboardEvent SINTÉTICO, que borbulha no documento
@@ -923,6 +930,7 @@ async function principal() {
     await valer(1200);
     const focoDoApp = await avaliar(`document.activeElement ? document.activeElement.tagName : null`);
     await avaliar('window.__mfTeclasPlayer = []');
+    await avaliar('window.__mfToquesPlayer = []');
     await teclaReal(13, 'Enter');
     const real = await progressoAgora();
     checar(
@@ -931,9 +939,9 @@ async function principal() {
       `foco=${focoDoApp}`,
     );
     checar(
-      'TESTE C2 — com o foco como o app deixa, a tecla REAL de OK chega ao site e vira play/pause',
-      real.teclas.includes(32),
-      `foco=${focoDoApp} teclas=[${real.teclas.join(',')}]`,
+      'TESTE C2 — com o foco como o app deixa, o OK chega ao player e vira play/pause (toque real)',
+      real.toques.length >= 1 || real.teclas.includes(32),
+      `foco=${focoDoApp} toques=${real.toques.length} teclas=[${real.teclas.join(',')}]`,
     );
 
     // Regressão: o D-pad continua abrindo os controles normalmente (↓).
