@@ -224,23 +224,8 @@ export function useTvPlayerControls(
           return;
         }
 
-        if (isOk(e)) {
-          // Long-press já foi tratado no keydown acima (timer) — aqui é o
-          // keyup do long-press ou um toque rápido. Toque rápido = ação normal.
-          if (longPressFired) {
-            e.preventDefault();
-            e.stopPropagation();
-            return;
-          }
-          // Toque rápido: play/pause do vídeo nativo; se não houver, deixa o
-          // iframe/player tratar (a tecla original não é bloqueada).
-          if (playPauseNative()) {
-            e.preventDefault();
-            e.stopPropagation();
-          }
-          return;
-        }
-
+        // OK no MODO 2: o toque rápido (play/pause) é tratado no keyup
+        // (onKeyUp) e o long-press no timer do keydown — nada a fazer aqui.
         return; // outras teclas no modo player: ignora
       }
 
@@ -264,7 +249,25 @@ export function useTvPlayerControls(
     }
 
     function onKeyUp(e: KeyboardEvent) {
-      if (isOk(e)) cancelLongPress();
+      if (e.defaultPrevented) return;
+      if (!isOk(e)) return;
+      // Captura ANTES de cancelar: cancelLongPress zera longPressFired.
+      const foiLongPress = longPressFired;
+      cancelLongPress();
+      // O keydown do OK só ARMA o timer do long-press e retorna — portanto a
+      // ação do TOQUE RÁPIDO tem de acontecer aqui, no keyup. Antes desta
+      // correção o bloco de OK do MODO 2 em `acao` era inalcançável (keydown
+      // retornava cedo; keyup só cancelava o timer), então o toque rápido de
+      // OK no modo CONTROLE DO PLAYER não fazia nada.
+      if (foiLongPress) {
+        e.preventDefault();
+        e.stopPropagation();
+        return;
+      }
+      if (modeRef.current && playPauseNative()) {
+        e.preventDefault();
+        e.stopPropagation();
+      }
     }
 
     window.addEventListener('keydown', acao, true);
