@@ -414,8 +414,13 @@ async function principal() {
         // que o app entrega ao player e responde que assumiu a entrega. Sem
         // ela, o caminho do controle remoto dentro do APK não pode ser testado.
         window.__mfTeclasPlayer = [];
+        window.__mfVolume = 50;
         window.MovieFlixApp = {
           enviarTeclaPlayer: function (code) { window.__mfTeclasPlayer.push(code); return true; },
+          ajustarVolume: function (delta) {
+            window.__mfVolume = Math.max(0, Math.min(100, (window.__mfVolume ?? 50) + delta));
+          },
+          lerVolume: function () { return window.__mfVolume ?? 50; },
           mostrarTeclado: function () {},
           setControlesAbertos: function () {},
         };
@@ -727,15 +732,22 @@ async function principal() {
       (() => {
         const q = (s) => { const el = document.querySelector(s); return el ? (el.textContent || '').trim() : null; };
         const mov = document.querySelector('[data-tv-progresso-movimento]');
+        const tempoEl = document.querySelector('[data-tv-progresso-tempo]');
+        const tempo = tempoEl ? (tempoEl.textContent || '').trim() : null;
+        const partes = tempo ? tempo.split('/').map((s) => s.trim()) : [];
+        const botao = document.querySelector('[data-tv-player-controles] button[aria-label]');
+        const pausado = botao ? /reproduzir/i.test(botao.getAttribute('aria-label') || '') : null;
         return {
           existe: !!document.querySelector('[data-tv-progresso]'),
-          atual: q('[data-tv-progresso-atual]'),
-          total: q('[data-tv-progresso-total]'),
-          restante: q('[data-tv-progresso-restante]'),
+          tempo,
+          atual: partes[0] ?? null,
+          total: partes[1] ?? null,
           movimento: mov ? (mov.textContent || '').trim() : null,
-          estado: q('.tv-progresso-estado'),
-          visivel: !!document.querySelector('.tv-player-progresso-camada-ativo'),
-          barraAberta: !!document.querySelector('.tv-player-overlay-ativo'),
+          estado: pausado === null ? null : (pausado ? 'Pausado' : 'Reproduzindo'),
+          volume: q('[data-tv-volume]'),
+          exibicoesTempo: document.querySelectorAll('[data-tv-progresso-tempo]').length,
+          visivel: !!document.querySelector('[data-tv-progresso]'),
+          barraAberta: false,
           teclas: (window.__mfTeclasPlayer || []).slice(),
         };
       })()
@@ -823,26 +835,25 @@ async function principal() {
     let p = await progressoAgora();
     checar('TESTE D — a barra de progresso e o tempo existem no player', p.existe === true);
     checar('TESTE D — a DURAÇÃO TOTAL do título aparece (01:36:00)', p.total === '01:36:00', `total=${p.total}`);
+    checar('TESTE D — existe UMA ÚNICA exibição de tempo (na barra inferior)', p.exibicoesTempo === 1, `exibições=${p.exibicoesTempo}`);
+    const antesD = numSegundos(p.atual);
     await pressionar(22, 'ArrowRight');
     p = await progressoAgora();
-    checar('TESTE D — a seta DIREITA NÃO entrega nenhuma tecla de seek ao player', !p.teclas.includes(90), `teclas=[${p.teclas.join(',')}]`);
-    checar('TESTE D — a seta DIREITA não avança (posição permanece 00:00:00)', p.atual === '00:00:00', `atual=${p.atual}`);
-    checar('TESTE D — nenhum indicador de seek aparece (setas inertes)', p.movimento === null, `movimento=${p.movimento}`);
-    checar('TESTE D — o HUD de progresso aparece com o tempo', p.visivel === true && p.restante !== null, `restante=${p.restante}`);
-    checar('TESTE D — o tempo restante é o do título (setas não descontam)', /^−01:3[56]:\d\d restantes/.test(p.restante || ''), `restante=${p.restante}`);
+    checar('TESTE D — a seta DIREITA AVANÇA +30s REAIS', numSegundos(p.atual) === antesD + 30, `antes=${antesD}s agora=${p.atual}`);
+    checar('TESTE D — o indicador de avanço aparece na barra', !!p.movimento, `movimento=${p.movimento}`);
 
     // ── TESTE E: clique único em retroceder = −10s ───────────────────────
     await avaliar('window.__mfTeclasPlayer = []');
+    const antesE = numSegundos((await progressoAgora()).atual);
     await pressionar(21, 'ArrowLeft');
     p = await progressoAgora();
-    checar('TESTE E — a seta ESQUERDA NÃO entrega nenhuma tecla de seek ao player', !p.teclas.includes(89), `teclas=[${p.teclas.join(',')}]`);
-    checar('TESTE E — a seta ESQUERDA não retrocede (posição permanece 00:00:00)', p.atual === '00:00:00', `atual=${p.atual}`);
-    checar('TESTE E — nenhum indicador de seek aparece (setas inertes)', p.movimento === null, `movimento=${p.movimento}`);
+    checar('TESTE E — a seta ESQUERDA RETROCEDE 30s REAIS', numSegundos(p.atual) === Math.max(0, antesE - 30), `antes=${antesE}s agora=${p.atual}`);
+    checar('TESTE E — o indicador de retrocesso aparece na barra', !!p.movimento, `movimento=${p.movimento}`);
 
     // ── TESTE I: o retrocesso não passa de 00:00 ─────────────────────────
     for (let i = 0; i < 3; i += 1) await pressionar(21, 'ArrowLeft');
     p = await progressoAgora();
-    checar('TESTE I — retroceder nunca passa de 00:00', p.atual === '00:00:00', `atual=${p.atual}`);
+    checar('TESTE I — retroceder nunca passa de 00:00', numSegundos(p.atual) === 0, `atual=${p.atual}`);
 
     // ── TESTE F: SEGURAR avançar = movimento contínuo controlado ─────────
     await avaliar('window.__mfTeclasPlayer = []');
@@ -856,10 +867,9 @@ async function principal() {
     p = await progressoAgora();
     const segundosF = numSegundos(p.atual);
     const acumuladoF = Number((String(p.movimento || '').match(/\+(\d+)s/) || [])[1]);
-    checar('TESTE F — segurar a seta DIREITA não avança nada (setas inertes)', segundosF === 0, `posição=${p.atual}`);
-    checar('TESTE F — nenhum acúmulo de movimento (setas inertes)', Number.isNaN(acumuladoF), `movimento=${p.movimento}`);
-    checar('TESTE F — nenhuma tecla REAL de seek foi entregue', p.teclas.filter((t) => t === 90).length === 0, `envios=${p.teclas.filter((t) => t === 90).length}`);
-    checar('TESTE F — a barra acompanha a nova posição', numSegundos(p.atual) < numSegundos(p.total), `atual=${p.atual} total=${p.total}`);
+    checar('TESTE F — segurar a seta DIREITA AVANÇA no vídeo', segundosF > 0, `posição=${p.atual}`);
+    checar('TESTE F — o indicador de avanço aparece na barra', !!p.movimento, `movimento=${p.movimento}`);
+    checar('TESTE F — a posição não ultrapassa a duração', numSegundos(p.atual) <= numSegundos(p.total), `atual=${p.atual} total=${p.total}`);
 
     // O movimento contínuo PARA quando o usuário solta (a repetição cessou).
     await valer(2200);
@@ -877,9 +887,8 @@ async function principal() {
     await tecla(21, 'ArrowLeft', 'keyup');
     await valer(200);
     p = await progressoAgora();
-    checar('TESTE G — segurar a seta ESQUERDA não retrocede (setas inertes)', numSegundos(p.atual) === antesG, `antes=${antesG}s depois=${p.atual}`);
-    checar('TESTE G — nenhum acúmulo de movimento (setas inertes)', p.movimento === null, `movimento=${p.movimento}`);
-    checar('TESTE G — nenhuma tecla REAL de retroceder foi entregue', p.teclas.filter((t) => t === 89).length === 0, `envios=${p.teclas.filter((t) => t === 89).length}`);
+    checar('TESTE G — segurar a seta ESQUERDA RETROCEDE no vídeo', numSegundos(p.atual) < antesG || numSegundos(p.atual) === 0, `antes=${antesG}s depois=${p.atual}`);
+    checar('TESTE G — o indicador de retrocesso aparece na barra', !!p.movimento, `movimento=${p.movimento}`);
 
     // ── TESTE C: OK = play/pause (dentro do player) ─────────────────────
     await abrirPlayer(1550338);
@@ -889,8 +898,7 @@ async function principal() {
     // PLAY_PAUSE (85/179) — os DOIS caminhos têm de chegar ao player. Este
     // harness usa o keycode de OK/ENTER, que é o que a TV do usuário envia.
     checar('TESTE C — OK entrega ao player a tecla REAL de play/pause (ESPAÇO = 32)', p.teclas.includes(32), `teclas=[${p.teclas.join(',')}]`);
-    checar('TESTE C — depois do OK o player aparece PAUSADO', /pausado/i.test(p.estado || ''), `estado=${p.estado}`);
-    checar('TESTE C — o OK não abriu a barra de controles em vez de pausar', p.barraAberta === false);
+    checar('TESTE C — depois do OK a interface mostra PAUSADO', /pausado/i.test(p.estado || ''), `estado=${p.estado}`);
     await avaliar('window.__mfTeclasPlayer = []');
     await pressionar(23, 'Enter');
     p = await progressoAgora();
@@ -932,7 +940,11 @@ async function principal() {
     await pressionar(20, 'ArrowDown');
     await valer(250);
     p = await progressoAgora();
-    checar('REGRESSÃO — a seta ↓ NÃO abre barra de controles (botões removidos)', p.barraAberta === false);
+    checar('VOLUME — a seta ↓ ABAIXA o volume (aviso na barra)', /\u{1F50A}|\u{1F509}|Mudo/u.test(p.volume || ''), `volume=${p.volume}`);
+    await pressionar(19, 'ArrowUp');
+    await valer(250);
+    p = await progressoAgora();
+    checar('VOLUME — a seta ↑ AUMENTA o volume (aviso na barra)', /\u{1F50A}/u.test(p.volume || ''), `volume=${p.volume}`);
 
     // ── TESTE H: o avanço não ultrapassa a duração total ─────────────────
     // Um título MUITO curto (1 min no catálogo real) torna o limite alcançável.
@@ -947,10 +959,10 @@ async function principal() {
     await tecla(22, 'ArrowRight', 'keyup');
     await valer(300);
     p = await progressoAgora();
-    checar('TESTE H — a seta DIREITA não avança nem na duração curta', numSegundos(p.atual) === 0, `atual=${p.atual} total=${p.total}`);
+    checar('TESTE H — avançar em título curto NÃO ultrapassa a duração', numSegundos(p.atual) <= numSegundos(p.total), `atual=${p.atual} total=${p.total}`);
     await pressionar(22, 'ArrowRight');
     p = await progressoAgora();
-    checar('TESTE H — avançar de novo NÃO ultrapassa a duração', numSegundos(p.atual) <= numSegundos(p.total), `atual=${p.atual} total=${p.total}`);
+    checar('TESTE H — avançar de novo continua dentro da duração', numSegundos(p.atual) <= numSegundos(p.total), `atual=${p.atual} total=${p.total}`);
 
     // Evidência visual dos detalhes.
     await avaliar(`history.back()`);

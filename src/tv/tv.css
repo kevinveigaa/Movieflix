@@ -1518,6 +1518,25 @@
   font-weight: 600;
 }
 
+/* Dica das teclas no topo, empurrada para a direita do título. */
+.tv-player-hint-top {
+  margin-top: 0;
+  margin-left: auto;
+  text-align: right;
+}
+
+/* O topo (marca + título + dica) é AUTO-OCULTO: fica visível alguns segundos
+   ao abrir o player e então desaparece — em regime normal a única coisa na tela
+   são os controles customizados do rodapé. */
+.tv-player-top-auto {
+  pointer-events: none;
+  animation: tv-player-top-fade 0.8s ease 6s forwards;
+}
+
+@keyframes tv-player-top-fade {
+  to { opacity: 0; }
+}
+
 /* ── CONTROLES DO PLAYER (focáveis pelo controle remoto) ─────────────────────
    Requisito do dono: o player inteiro operável só com o controle remoto, com o
    foco SEMPRE visível. Estes controles são irmãos do vídeo (não ficam sobre o
@@ -1532,6 +1551,66 @@
   gap: 1.4vw;
   padding: 1.4vh 1.6vw 0.6vh;
   background: linear-gradient(0deg, rgba(0, 0, 0, 0.92) 0%, rgba(0, 0, 0, 0) 100%);
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   ÂNCORA DA BARRA CUSTOMIZADA NO RODAPÉ DO VÍDEO
+   ────────────────────────────────────────────────────────────────────────
+   CAUSA RAIZ da "barra de controles do provedor sobrepondo a tela": a barra
+   nativa do embed do StreamBetter aparece NA BASE do iframe. Enquanto a barra
+   customizada do MovieFlix ficava FORA da moldura do vídeo, logo abaixo, a
+   barra nativa (com botões azuis, 0:00 / 0:00, engrenagem e tela cheia) ficava
+   visível ACIMA dela.
+
+   Agora a barra customizada é ANCORADA NO RODAPÉ DA MOLDURA (mesma posição da
+   barra nativa) e tem z-index ACIMA da camada de bloqueio, de modo que a COBRE
+   por completo: o usuário vê apenas os controles do MovieFlix. Esta é uma
+   sobreposição TRANSPARENTE na parte de cima (o vídeo aparece) e OPACA embaixo
+   (esconde a barra nativa). */
+.tv-player-bar-ancora {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 20;
+  padding-top: 11vh;
+  background: linear-gradient(
+    0deg,
+    rgba(0, 0, 0, 0.96) 0%,
+    rgba(0, 0, 0, 0.9) 40%,
+    rgba(0, 0, 0, 0) 100%
+  );
+}
+
+.tv-player-bar-ancora .tv-player-controles {
+  padding: 1vh 1.6vw 1.4vh;
+  background: transparent;
+}
+
+/* Indicador de seek (⏩ +30s / ⏪ −30s) DENTRO da barra — não é uma segunda
+   exibição de tempo, é o retorno visual do comando. */
+.tv-player-barra-aviso {
+  padding: 0.35vh 0.8vw;
+  border-radius: 999px;
+  font-weight: 800;
+  color: #fff;
+  background: rgba(223, 10, 21, 0.92);
+  animation: tv-progresso-pulso 0.25s ease-out;
+  white-space: nowrap;
+}
+
+/* Aviso de volume (🔊 60% / 🔇 Mudo) — também não é tempo. */
+.tv-player-barra-volume {
+  font-weight: 800;
+  color: #fff;
+  white-space: nowrap;
+}
+
+.tv-player-volume-icone {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #e6e6ee;
 }
 
 /* Barra de progresso focável: mostra o tempo REAL e a posição. */
@@ -1578,6 +1657,7 @@
 
 .tv-player-barra-tempo {
   white-space: nowrap;
+  font-variant-numeric: tabular-nums;
 }
 
 /* Badge do modo "controle do player" (long-press OK). */

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
-import { Loader2, AlertCircle, Play, Pause, RotateCcw, RotateCw } from 'lucide-react';
+import { Loader2, AlertCircle, Play, Pause, RotateCcw, RotateCw, Volume2, VolumeX } from 'lucide-react';
 import { useMovies } from '@/hooks/useMovies';
 import { useAuth } from '@/context/AuthContext';
 import { hasActiveSubscription } from '@/context/AuthContext';
@@ -10,50 +10,70 @@ import {
   streambetterSeriesEmbedUrl,
 } from '@/lib/strembetter';
 import { StreamBetterEmbed } from '@/components/player/StreamBetterEmbed';
-import { alternarPlayPausePlayer } from '@/tv/controlePlayer';
+import { duracaoDoCatalogo, type EstadoProgresso } from './playerProgresso';
+import {
+  alternarPlayPausePlayer,
+  ajustarVolumePlayerTv,
+  lerVolumePlayerTv,
+  type PontePlayerTv,
+} from '@/tv/controlePlayer';
 import { classificarTecla } from '@/tv/teclasPlayer';
 import { assinarProgressoProvedor, pedirSeekProvedor } from '@/tv/progressoReal';
-import { TvProgresso } from './TvProgresso';
-import { duracaoDoCatalogo, type EstadoProgresso } from './playerProgresso';
-import { cn } from '@/lib/cn';
 
 /**
  * TvPlayerPage — player do MovieFlix TV (controle remoto físico). REESCRITA.
- * ══════════════════════════════════════════════════════════════════════════════
- * REQUISITOS DO DONO (o comportamento que esta versão garante):
- *   a. FOCO INICIAL no botão PLAY/PAUSE ao abrir o player (sem mouse);
- *   b. OK/ENTER → play/pause REAL do vídeo (estado real → play()/pause());
- *   c. SETA DIREITA (→) → +30s REAIS; SETA ESQUERDA (←) → −30s REAIS;
- *   d. SETAS ↑/↓ → navegação de foco entre os controles (Play/Pause, barra de
- *      progresso, −30s, +30s); o foco NUNCA desaparece;
- *   e. PLAY/PAUSE físico → play/pause REAL;
- *   f. BACK → tela anterior (tratado pelo shell/WebView);
- *   g. TEMPO REAL: corrige o "0:00 / 0:00" lendo o progresso que o provedor
- *      PUBLICA por postMessage (`streambetter:progress`).
+ * ═══════════════════════════════════════════════════════════════════════════
+ * O que esta versão garante (requisitos do dono após testar na TV):
  *
- * ── COMO O VÍDEO É CONTROLADO DE VERDADE ──────────────────────────────────────
- * O player do provedor vive num IFRAME DE OUTRA ORIGEM. Duas pontes reais:
+ * INTERFACE
+ *   a. NENHUM controle nativo do provedor na tela (botões azuis, engrenagem,
+ *      tela cheia, play/volume). Além de neutralizar a interação do iframe, a
+ *      BARRA CUSTOMIZADA foi movida para DENTRO da moldura do vídeo e ANCORADA
+ *      NO RODAPÉ — exatamente onde a barra nativa do provedor aparece —, de
+ *      forma que ela a COBRE por completo. Ver tv.css (`.tv-player-bar-ancora`).
+ *   b. UMA ÚNICA exibição de tempo, na barra inferior, no formato
+ *      `HH:MM:SS / HH:MM:SS` (ex.: 00:35:20 / 01:52:40). O HUD de topo (status
+ *      "Reproduzindo/Pausado" + tempo + "restantes" + nota) foi ELIMINADO.
+ *   c. Só os controles customizados do projeto (play/pause + retroceder +
+ *      avançar + barra/tempo) permanecem.
+ *
+ * CONTROLE REMOTO — mapa EXATO pedido
+ *   • OK/ENTER          → pausa / des-pausa (play/pause REAL do vídeo);
+ *   • ← / →             → retrocede / avança 30s REAIS;
+ *   • ↑ / ↓             → AUMENTA / ABAIXA o VOLUME (camada nativa);
+ *   • BACK              → tela anterior.
+ *
+ * ── COMO O VÍDEO É CONTROLADO DE VERDADE ────────────────────────────────
+ * O player do provedor vive num IFRAME DE OUTRA ORIGEM. Três pontes reais:
  *   1. PLAY/PAUSE — `alternarPlayPausePlayer` (controlePlayer.ts): alterna pelo
  *      estado REAL quando o `<video>` é legível; senão entrega a TECLA REAL
  *      (ESPAÇO) pela ponte nativa do shell Android (o único caminho que muda o
- *      vídeo no aparelho). NUNCA é só o ícone.
+ *      vídeo no aparelho). A guarda de foco é SUSPENSA durante a injeção (causa
+ *      raiz do OK que "só trocava o ícone": o foco voltava ao botão antes de o
+ *      WebView entregar a tecla).
  *   2. SEEK ±30s — `pedirSeekProvedor` (progressoReal.ts): manda
  *      `streambetter:seek` com a posição REAL (currentTime ± 30), respeitando os
  *      limites [0, duração]. É o comando documentado do provedor.
  *   3. TEMPO — `assinarProgressoProvedor`: escuta `streambetter:progress`
- *      (currentTime/duration/state reais) e alimenta a barra. Sem leitura, cai
- *      na duração do catálogo — nunca um número inventado.
+ *      (currentTime/duration/state reais). Sem leitura, cai na duração do
+ *      catálogo — nunca um número inventado.
  *
- * ── CONTROLE REMOTO (implantação ÚNICA) ───────────────────────────────────────
- *   • UM listener de `keydown` (captura), registrado UMA vez (deps `[]`);
+ * ── CONTROLE REMOTO (implantação ÚNICA) ─────────────────────────────────
+ *   • UM listener de `keydown` em fase de CAPTURA, registrado UMA vez (deps
+ *     `[]`), lendo o estado por refs; as teclas são consumidas
+ *     (preventDefault/stopPropagation) para NENHUM outro dono disputar a mesma
+ *     pulsação;
  *   • o marker `data-tv-player-ativo` no `<html>` faz a navegação espacial
- *     global ignorar TODAS as teclas enquanto o player está montado;
+ *     global se abster por completo enquanto o player está montado;
  *   • as teclas de MÍDIA do controle chegam pelo evento `mf-media-key` (o shell
  *     Android as encaminha) e são tratadas aqui.
  */
 
-/** Passo do seek pelo controle remoto, em segundos (requisito: exatamente 30s). */
+/** Passo do seek pelo controle remoto, em segundos (requisito: 30s). */
 const PASSO_SEEK = 30;
+
+/** Passo do volume por pulsação (pontos percentuais). */
+const PASSO_VOLUME = 5;
 
 /** Anexa `autoplay=1` à URL do embed (o provedor inicia a reprodução sozinho). */
 function comAutoplay(url: string): string {
@@ -93,17 +113,22 @@ export function TvPlayerPage({ id: idProp }: { id?: string } = {}) {
   /** Recria o embed sem duplicar iframes (mantido para a leitura de estado). */
   const [recarga] = useState(0);
 
-  /** ── PROGRESSO / TEMPO (real quando o provedor publica) ─────────────────── */
+  /** ── PROGRESSO / TEMPO (real quando o provedor publica) ───────────────── */
   const [progresso, setProgresso] = useState<EstadoProgresso>({
     posicao: 0,
     duracao: 0,
     posicaoReal: false,
     duracaoReal: false,
   });
-  /** Estado real de reprodução publicado pelo provedor (otimista sem leitura). */
+  /** Estado de reprodução (otimista quando o embed não é legível). */
   const [pausado, setPausado] = useState(false);
   /** Movimento acumulado do seek, para o indicador (⏩ +30s / ⏪ −30s). */
   const [movimento, setMovimento] = useState<{ sentido: 'frente' | 'volta'; segundos: number } | null>(null);
+  /** Aviso curto transitório (volume / mudo) mostrado na barra. */
+  const [aviso, setAviso] = useState<string | null>(null);
+  /** Volume atual (0–100) exibido no aviso; `null` quando não é legível. */
+  const [volume, setVolume] = useState<number | null>(null);
+  const [mudo, setMudo] = useState(false);
 
   const movie = useMemo(
     () => (movies.data ?? []).find((m) => String(m.id) === String(id)) ?? null,
@@ -123,16 +148,6 @@ export function TvPlayerPage({ id: idProp }: { id?: string } = {}) {
       const pedida = Number(params.get('temporada'));
       const pedido = Number(params.get('episodio'));
       const temPedido = Number.isFinite(pedida) && pedida > 0 && Number.isFinite(pedido) && pedido > 0;
-
-      const ordenados = eps
-        .map((e) => {
-          const [s, ep] = String(e).split('/');
-          const season = Number(s);
-          const episode = Number(ep);
-          return Number.isFinite(season) && Number.isFinite(episode) ? { season, episode } : null;
-        })
-        .filter((x): x is { season: number; episode: number } => x !== null)
-        .sort((a, b) => a.season - b.season || a.episode - b.episode);
 
       const atual = temPedido ? { season: pedida, episode: pedido } : primeiroEpisodioDisponivel(movie);
       if (!atual) return '';
@@ -162,15 +177,36 @@ export function TvPlayerPage({ id: idProp }: { id?: string } = {}) {
   progressoRef.current = progresso;
 
   /**
-   * PLAY/PAUSE pelo OK/ENTER e pelo botão físico.
+   * Suspende a GUARDA DE FOCO enquanto uma tecla/toque é injetado no player.
+   * CAUSA RAIZ: a guarda devolvia o foco ao botão imediatamente — às vezes antes
+   * de o WebView despachar a tecla ao iframe recém-focado, e o play/pause não
+   * acontecia de verdade. Ver a nota longa no início do arquivo.
+   */
+  const alternandoRef = useRef(false);
+  const janelaInjecaoRef = useRef(0);
+
+  /**
+   * PLAY/PAUSE pelo OK/ENTER e pelo botão/play do controle.
    * FONTE ÚNICA do toggle: `alternarPlayPausePlayer` decide pelo estado REAL do
-   * `<video>` quando legível e, quando não é (embed cross-origin), entrega a
-   * TECLA REAL de play/pause pela ponte nativa.
+   * `<video>` quando legível e, quando não é (embed cross-origin), entrega o
+   * toque/tecla REAL pela ponte nativa.
    */
   const alternarPlay = useCallback(() => {
-    const resultado = alternarPlayPausePlayer(iframeDoPlayer());
-    if (resultado !== null) setPausado(resultado);
-    else setPausado((p) => !p); // sem leitura: toggle otimista do HUD
+    alternandoRef.current = true;
+    janelaInjecaoRef.current = Date.now() + 700;
+    window.setTimeout(() => {
+      alternandoRef.current = false;
+    }, 700);
+    try {
+      const resultado = alternarPlayPausePlayer(iframeDoPlayer());
+      if (resultado !== null) setPausado(resultado);
+      else setPausado((p) => !p); // sem leitura: toggle otimista do HUD
+    } finally {
+      // A guarda só volta a agir depois que o shell entregou a tecla ao player.
+      window.setTimeout(() => {
+        alternandoRef.current = false;
+      }, 680);
+    }
   }, [iframeDoPlayer]);
 
   /**
@@ -185,7 +221,6 @@ export function TvPlayerPage({ id: idProp }: { id?: string } = {}) {
       const alvo = limitar(atual.posicao + delta, 0, duracao > 0 ? duracao : Number.MAX_SAFE_INTEGER);
       const ok = pedirSeekProvedor(iframe, alvo);
       if (ok) {
-        // Atualização otimista da posição (o provedor confirma no próximo progress).
         setProgresso((antes) => ({ ...antes, posicao: alvo }));
         setMovimento((antes) => {
           const sentido = delta > 0 ? 'frente' : 'volta';
@@ -197,6 +232,20 @@ export function TvPlayerPage({ id: idProp }: { id?: string } = {}) {
     [iframeDoPlayer],
   );
 
+  /** VOLUME pelo ↑/↓: ajusta a mídia no shell nativo e mostra o nível na tela. */
+  const ajustarVolume = useCallback((delta: number) => {
+    const assumiu = ajustarVolumePlayerTv(delta);
+    if (!assumiu) return; // sem shell nativo: não há volume para ajustar aqui
+    const lido = lerVolumePlayerTv();
+    if (lido !== null) {
+      setVolume(lido);
+      setMudo(lido <= 0);
+      setAviso(lido <= 0 ? '🔇 Mudo' : `🔊 ${lido}%`);
+    } else {
+      setAviso(delta > 0 ? '🔊 +' : '🔉 −');
+    }
+  }, []);
+
   /** Só faz sentido quando há assinante e fonte real de vídeo. */
   const pronto = Boolean(user) && assinante && Boolean(src);
   const prontoRef = useRef(pronto);
@@ -207,56 +256,22 @@ export function TvPlayerPage({ id: idProp }: { id?: string } = {}) {
   alternarPlayRef.current = alternarPlay;
   const buscarRef = useRef(buscar);
   buscarRef.current = buscar;
+  const ajustarVolumeRef = useRef(ajustarVolume);
+  ajustarVolumeRef.current = ajustarVolume;
   const voltarRef = useRef(voltar);
   voltarRef.current = voltar;
 
-  /** ── CONTROLES FOCÁVEIS (↑/↓ navega entre eles) ─────────────────────────── */
+  /** Foco visual (só cosmético: as teclas são tratadas globalmente). */
   const playPauseRef = useRef<HTMLButtonElement>(null);
-  const rewindRef = useRef<HTMLButtonElement>(null);
-  const forwardRef = useRef<HTMLButtonElement>(null);
-  const barraRef = useRef<HTMLDivElement>(null);
-  /** Ordem de navegação por ↑/↓. */
-  const ordemRefs = useMemo(() => [playPauseRef, barraRef, rewindRef, forwardRef], []);
-  const [indiceFoco, setIndiceFoco] = useState(0);
-  const indiceFocoRef = useRef(0);
-  indiceFocoRef.current = indiceFoco;
-
-  /** Pinta o anel de foco (a MESMA classe que o D-pad usa). */
-  const pintarFoco = useCallback((el: HTMLElement | null) => {
-    if (!el) return;
-    document.querySelectorAll<HTMLElement>('.tv-focus').forEach((o) => {
-      if (o !== el) o.classList.remove('tv-focus');
-    });
-    el.classList.add('tv-focus');
-  }, []);
-
-  /** Foca o controle de índice `i` (com wrap). */
-  const focarControle = useCallback(
-    (i: number) => {
-      const lista = ordemRefs;
-      const n = lista.length;
-      const idx = ((i % n) + n) % n;
-      const el = lista[idx].current;
-      if (!el) return;
-      try {
-        el.focus({ preventScroll: true });
-      } catch {
-        /* ignora */
-      }
-      pintarFoco(el);
-      setIndiceFoco(idx);
-    },
-    [ordemRefs, pintarFoco],
-  );
 
   /**
-   * ══════════════════════════════════════════════════════════════════════════
+   * ══════════════════════════════════════════════════════════════════════
    * CONTROLE REMOTO — UM ÚNICO LISTENER, REGISTRADO UMA VEZ
-   * ══════════════════════════════════════════════════════════════════════════
-   * Captura, `keydown`. Trata OK/ENTER, setas ←/→ (seek ±30s), setas ↑/↓ (foco),
-   * PLAY/PAUSE físico e BACK. Ignora `e.repeat` para o OK (segurar não dispara
-   * uma sequência de toggles). Consome a tecla (preventDefault/stopPropagation)
-   * para a navegação espacial global se abster. Deps `[]`: registrado UMA vez.
+   * ══════════════════════════════════════════════════════════════════════
+   * Captura, `keydown`. Trata OK/ENTER (play/pause), ← / → (seek ±30s), ↑ / ↓
+   * (volume), PLAY/PAUSE físico e BACK. Ignora `e.repeat` para o OK (segurar não
+   * dispara uma sequência de toggles). Consome a tecla (preventDefault/
+   * stopPropagation) para nenhum outro dono disputar a mesma pulsação.
    */
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
@@ -272,21 +287,11 @@ export function TvPlayerPage({ id: idProp }: { id?: string } = {}) {
       e.preventDefault();
       e.stopPropagation();
 
-      if (acao === 'ok') {
-        if (e.repeat) return;
-        // OK aciona o controle focado (Play/Pause, −30s, +30s, barra).
-        const el = ordemRefs[indiceFocoRef.current]?.current;
-        if (el) el.click();
-        else alternarPlayRef.current();
-        return;
-      }
-
-      if (acao === 'playpause') {
+      if (acao === 'ok' || acao === 'playpause') {
         if (e.repeat) return;
         alternarPlayRef.current();
         return;
       }
-
       if (acao === 'left') {
         buscarRef.current(-PASSO_SEEK);
         return;
@@ -296,11 +301,11 @@ export function TvPlayerPage({ id: idProp }: { id?: string } = {}) {
         return;
       }
       if (acao === 'up') {
-        focarControle(indiceFocoRef.current - 1);
+        ajustarVolumeRef.current(PASSO_VOLUME);
         return;
       }
       if (acao === 'down') {
-        focarControle(indiceFocoRef.current + 1);
+        ajustarVolumeRef.current(-PASSO_VOLUME);
         return;
       }
       if (acao === 'back') {
@@ -311,12 +316,12 @@ export function TvPlayerPage({ id: idProp }: { id?: string } = {}) {
 
     window.addEventListener('keydown', onKeyDown, true);
     return () => window.removeEventListener('keydown', onKeyDown, true);
-  }, [ordemRefs, focarControle]);
+  }, []);
 
   /**
-   * TECLAS DE MÍDIA do controle físico (PLAY/PAUSE, ⏩, ⏪). O shell Android as
+   * TECLAS DE MÍDIA do controle físico (PLAY/PAUSE). O shell Android as
    * encaminha como o evento `mf-media-key` (o WebView não as entrega como
-   * keydown). Aqui elas viram as MESMAS ações reais do OK e das setas.
+   * keydown). Aqui elas viram a MESMA ação real do OK.
    */
   useEffect(() => {
     function onMediaKey(e: Event) {
@@ -325,15 +330,19 @@ export function TvPlayerPage({ id: idProp }: { id?: string } = {}) {
       if (tipo === 'togglePlay') alternarPlayRef.current();
       else if (tipo === 'seekFwd') buscarRef.current(PASSO_SEEK);
       else if (tipo === 'seekBack') buscarRef.current(-PASSO_SEEK);
+      else if (tipo === 'volUp') ajustarVolumeRef.current(PASSO_VOLUME);
+      else if (tipo === 'volDown') ajustarVolumeRef.current(-PASSO_VOLUME);
     }
     window.addEventListener('mf-media-key', onMediaKey as EventListener);
     return () => window.removeEventListener('mf-media-key', onMediaKey as EventListener);
   }, []);
 
   /**
-   * MARCADOR DE POSSE DO PLAYER: enquanto esta tela está montada,
-   * `data-tv-player-ativo` no `<html>` diz à navegação espacial global para
-   * ignorar TODAS as teclas — o player é o dono do controle.
+   * O marker `data-tv-player-ativo` no `<html>` faz a navegação espacial GLOBAL
+   * (registrada uma única vez no App) se abster de TODAS as teclas enquanto o
+   * player está montado — o player é o dono do controle remoto. Sem ele, a
+   * camada global consumia a MESMA pulsação (dois donos) e o OK podia nunca
+   * chegar ao player.
    */
   useEffect(() => {
     if (!pronto) return;
@@ -349,6 +358,7 @@ export function TvPlayerPage({ id: idProp }: { id?: string } = {}) {
     chaveTituloRef.current = chaveTitulo;
     setProgresso({ posicao: 0, duracao: 0, posicaoReal: false, duracaoReal: false });
     setMovimento(null);
+    setAviso(null);
   }, [chaveTitulo]);
 
   /**
@@ -369,7 +379,8 @@ export function TvPlayerPage({ id: idProp }: { id?: string } = {}) {
   /**
    * PROGRESSO REAL do provedor (postMessage `streambetter:progress`).
    * É o que corrige o "0:00 / 0:00": o tempo e a duração passam a ser os REAIS
-   * do vídeo, publicados pelo próprio player.
+   * do vídeo, publicados pelo próprio player. Alimenta a ÚNICA exibição de tempo
+   * (a da barra inferior).
    */
   useEffect(() => {
     if (!pronto) return;
@@ -393,45 +404,69 @@ export function TvPlayerPage({ id: idProp }: { id?: string } = {}) {
     return () => window.clearTimeout(t);
   }, [movimento]);
 
+  /** O aviso de volume some sozinho depois de um instante. */
+  useEffect(() => {
+    if (!aviso) return;
+    const t = window.setTimeout(() => setAviso(null), 1400);
+    return () => window.clearTimeout(t);
+  }, [aviso]);
+
   /**
-   * FOCO INICIAL: no botão PLAY/PAUSE, assim que o player está pronto.
-   * Determinístico (sem depender de tecla) — o requisito do dono.
+   * Lê o volume inicial pela ponte (só para o indicador; o volume em si é do
+   * aparelho). Roda uma vez por montagem.
    */
   useEffect(() => {
     if (!pronto) return;
-    const t = window.setTimeout(() => focarControle(0), 300);
+    const lido = lerVolumePlayerTv();
+    if (lido !== null) {
+      setVolume(lido);
+      setMudo(lido <= 0);
+    }
+  }, [pronto]);
+
+  /** Foco visual no botão Play/Pause ao abrir (cosmético; as teclas são globais). */
+  useEffect(() => {
+    if (!pronto) return;
+    const t = window.setTimeout(() => {
+      const b = playPauseRef.current;
+      if (b) {
+        try {
+          b.focus({ preventScroll: true });
+        } catch {
+          /* ignora */
+        }
+        b.classList.add('tv-focus');
+      }
+    }, 300);
     return () => window.clearTimeout(t);
-  }, [pronto, recarga, focarControle]);
+  }, [pronto, recarga]);
 
   /**
-   * GUARDA DE FOCO: o foco NUNCA pode desaparecer do player. Se ele sair dos
-   * controles (para o body, para o iframe ou para fora), é devolvido ao controle
-   * atual. Sem timer perpétuo: reage ao evento de foco.
+   * GUARDA DE FOCO — o foco NUNCA pode ficar no iframe de outra origem (senão o
+   * documento pai deixa de receber as teclas do controle). Se o foco escapar
+   * para o iframe, é devolvido ao botão. SUSPENSA durante a injeção de tecla/
+   * toque no player (o WebView precisa focar o iframe para entregar o comando).
    */
   useEffect(() => {
     if (!pronto) return;
     function onFocusIn(e: FocusEvent) {
+      if (alternandoRef.current || Date.now() < janelaInjecaoRef.current) return;
       const alvo = e.target as HTMLElement | null;
-      if (!alvo) return;
-      const dentro = ordemRefs.some((r) => r.current === alvo);
-      if (dentro) {
-        pintarFoco(alvo);
-        return;
-      }
-      // Foco saiu dos controles: devolve ao controle atual.
-      const atual = ordemRefs[indiceFocoRef.current]?.current;
-      if (atual) {
-        try {
-          atual.focus({ preventScroll: true });
-        } catch {
-          /* ignora */
+      if (alvo && alvo.tagName === 'IFRAME') {
+        const b = playPauseRef.current;
+        if (b) {
+          try {
+            b.focus({ preventScroll: true });
+          } catch {
+            /* ignora */
+          }
+          b.classList.add('tv-focus');
         }
-        pintarFoco(atual);
       }
     }
     document.addEventListener('focusin', onFocusIn, true);
     return () => document.removeEventListener('focusin', onFocusIn, true);
-  }, [pronto, ordemRefs, pintarFoco]);
+  }, [pronto]);
 
   if (authLoading) {
     return (
@@ -512,11 +547,11 @@ export function TvPlayerPage({ id: idProp }: { id?: string } = {}) {
     );
   }
 
-  const pct = progresso.duracao > 0 ? limitar((progresso.posicao / progresso.duracao) * 100, 0, 100) : 0;
-
   return (
     <div className="tv-page tv-page-player">
-      {/* O vídeo ocupa a tela. */}
+      {/* A MOLDURA do vídeo ocupa a tela inteira. A barra customizada é ANCORADA
+          no rodapé DESTA moldura — exatamente onde a barra nativa do provedor
+          aparece — de modo que ela a COBRE por completo (ver tv.css). */}
       <div className="tv-player-box" data-tv-player-box>
         <div ref={iframeWrapRef} className="tv-player-embed">
           <StreamBetterEmbed
@@ -529,87 +564,113 @@ export function TvPlayerPage({ id: idProp }: { id?: string } = {}) {
 
         {/* CAMADA DE BLOQUEIO: cobre o embed do provedor para a barra nativa dele
             não surgir nem responder. O controle remoto opera o player pelas
-            pontes reais (tecla de play/pause + streambetter:seek). */}
+            pontes reais (toque/tecla de play/pause + streambetter:seek). */}
         <div className="tv-player-bloqueio" aria-hidden="true" tabIndex={-1} />
-      </div>
 
-      {/* HUD de progresso/tempo (camada própria, no alto) — só leitura. */}
-      <div className="tv-player-progresso-camada tv-player-progresso-camada-ativo">
-        <TvProgresso
-          posicao={progresso.posicao}
-          duracao={progresso.duracao}
-          posicaoReal={progresso.posicaoReal}
-          duracaoReal={progresso.duracaoReal}
-          movimento={movimento}
-          pausado={pausado}
-        />
-      </div>
+        {/* ── BARRA CUSTOMIZADA ANCORADA NO RODAPÉ (cobre a barra nativa) ──
+            Contém a ÚNICA exibição de tempo, no formato HH:MM:SS / HH:MM:SS. */}
+        <div className="tv-player-bar-ancora" data-tv-player-controles>
+          <div className="tv-player-controles">
+            <button
+              ref={playPauseRef}
+              type="button"
+              data-tv-focusable
+              tabIndex={0}
+              className="tv-player-ctrl tv-player-ctrl-main"
+              aria-label={pausado ? 'Reproduzir' : 'Pausar'}
+              onClick={alternarPlay}
+            >
+              {pausado ? <Play className="tv-player-ctrl-icon" /> : <Pause className="tv-player-ctrl-icon" />}
+            </button>
 
-      {/* ── CONTROLES DO PLAYER (focáveis pelo controle remoto) ────────────────
-          ↑/↓ navega entre eles; OK aciona o controle focado; ←/→ faz seek ±30s
-          real; PLAY/PAUSE físico alterna. O foco inicial é o Play/Pause. */}
-      <div className="tv-player-controles" data-tv-player-controles>
-        <button
-          ref={playPauseRef}
-          type="button"
-          data-tv-focusable
-          tabIndex={0}
-          className="tv-player-ctrl tv-player-ctrl-main"
-          aria-label={pausado ? 'Reproduzir' : 'Pausar'}
-          onClick={alternarPlay}
-        >
-          {pausado ? <Play className="tv-player-ctrl-icon" /> : <Pause className="tv-player-ctrl-icon" />}
-        </button>
+            <button
+              type="button"
+              data-tv-focusable
+              tabIndex={0}
+              className="tv-player-ctrl"
+              aria-label="Retroceder 30 segundos"
+              onClick={() => buscar(-PASSO_SEEK)}
+            >
+              <RotateCcw className="tv-player-ctrl-icon" />
+            </button>
 
-        <button
-          ref={rewindRef}
-          type="button"
-          data-tv-focusable
-          tabIndex={0}
-          className="tv-player-ctrl"
-          aria-label="Voltar 30 segundos"
-          onClick={() => buscar(-PASSO_SEEK)}
-        >
-          <RotateCcw className="tv-player-ctrl-icon" />
-        </button>
+            <button
+              type="button"
+              data-tv-focusable
+              tabIndex={0}
+              className="tv-player-ctrl"
+              aria-label="Avançar 30 segundos"
+              onClick={() => buscar(PASSO_SEEK)}
+            >
+              <RotateCw className="tv-player-ctrl-icon" />
+            </button>
 
-        <button
-          ref={forwardRef}
-          type="button"
-          data-tv-focusable
-          tabIndex={0}
-          className="tv-player-ctrl"
-          aria-label="Avançar 30 segundos"
-          onClick={() => buscar(PASSO_SEEK)}
-        >
-          <RotateCw className="tv-player-ctrl-icon" />
-        </button>
+            {/* ── A ÚNICA EXIBIÇÃO DE TEMPO ⏪⏩ / HH:MM:SS / HH:MM:SS ── */}
+            <div
+              className="tv-player-barra"
+              role="progressbar"
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-valuenow={Math.round(
+                progresso.duracao > 0 ? limitar((progresso.posicao / progresso.duracao) * 100, 0, 100) : 0,
+              )}
+              aria-label="Progresso do vídeo"
+              data-tv-progresso
+            >
+              <span className="tv-player-barra-trilha" data-tv-progresso-trilha>
+                <span
+                  className="tv-player-barra-preenchida"
+                  style={{
+                    width: `${
+                      progresso.duracao > 0 ? limitar((progresso.posicao / progresso.duracao) * 100, 0, 100) : 0
+                    }%`,
+                  }}
+                />
+              </span>
+              {movimento ? (
+                <span className="tv-player-barra-aviso" data-tv-progresso-movimento>
+                  {movimento.sentido === 'frente' ? `⏩ +${movimento.segundos}s` : `⏪ −${movimento.segundos}s`}
+                </span>
+              ) : null}
+              <span className="tv-player-barra-tempo" data-tv-progresso-tempo>
+                {formatar(progresso.posicao)} / {progresso.duracao > 0 ? formatar(progresso.duracao) : '--:--'}
+              </span>
+              {aviso ? (
+                <span className="tv-player-barra-volume" data-tv-volume>
+                  {aviso}
+                </span>
+              ) : null}
+            </div>
 
-        {/* Barra de progresso focável: mostra o tempo REAL e a posição. */}
-        <div
-          ref={barraRef}
-          data-tv-focusable
-          tabIndex={0}
-          role="slider"
-          aria-label="Progresso do vídeo"
-          aria-valuemin={0}
-          aria-valuemax={100}
-          aria-valuenow={Math.round(pct)}
-          className={cn('tv-player-barra', 'tv-player-barra-focavel')}
-          onClick={alternarPlay}
-        >
-          <span className="tv-player-barra-trilha">
-            <span className="tv-player-barra-preenchida" style={{ width: `${pct}%` }} />
-          </span>
-          <span className="tv-player-barra-tempo">
-            {formatar(progresso.posicao)} / {progresso.duracao > 0 ? formatar(progresso.duracao) : '--:--'}
-          </span>
+            {/* Indicador de volume/mudo (não é uma segunda leitura de tempo). */}
+            {volume !== null ? (
+              <span
+                className="tv-player-volume-icone"
+                aria-hidden="true"
+                title={mudo ? 'Mudo' : `Volume ${volume}%`}
+              >
+                {mudo || volume <= 0 ? (
+                  <VolumeX className="tv-player-ctrl-icon" />
+                ) : (
+                  <Volume2 className="tv-player-ctrl-icon" />
+                )}
+              </span>
+            ) : null}
+          </div>
         </div>
       </div>
 
-      <p className="tv-player-hint">
-        OK pausa/continua · ← −30s · → +30s · ↑↓ navega · Voltar sai
-      </p>
+      {/* TOPO discreto, AUTO-OCULTO: marca + título + dica das teclas. */}
+      <div className="tv-player-top tv-player-top-auto" aria-hidden="false">
+        <span className="tv-player-logo" aria-hidden="true">
+          MovieFlix
+        </span>
+        <span className="tv-player-title">{movie.title}</span>
+        <span className="tv-player-hint tv-player-hint-top">
+          OK pausa/continua · ← retrocede · → avança · ↑↓ volume · Voltar sai
+        </span>
+      </div>
+
     </div>
   );
 }
