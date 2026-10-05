@@ -308,6 +308,15 @@ export function useTvNavigation() {
       // navegava de página no meio da reprodução — o "saiu do player" relatado.
       if (e.defaultPrevented) return;
 
+      // ── O PLAYER DA TV É O DONO DAS TECLAS ENQUANTO ESTÁ MONTADO ──────────
+      // O `TvPlayerPage` marca o `<html>` com `data-tv-player-ativo` e trata
+      // TODAS as teclas do controle num ÚNICO listener (OK = play/pause, setas =
+      // ±10s, BACK = sair do player). Sem esta guarda, a navegação espacial
+      // global disputava a MESMA pulsação (dois donos) — o OK podia ser
+      // consumido aqui e nunca chegar ao player. Com o player ativo, esta
+      // camada se abstém por completo.
+      if (document.documentElement.hasAttribute("data-tv-player-ativo")) return;
+
       // ── FORMULÁRIO DE TV (login) ──
       // Com um CAMPO DE TEXTO focado dentro de [data-tv-form], o formulário é o
       // dono do foco e do teclado: a navegação espacial não toca em nada. Antes,
