@@ -55,6 +55,16 @@ export interface ApkVersion {
  */
 export const MEU_GANHO_VERSOES: ApkVersion[] = [
   {
+    versao: '1.0.7',
+    arquivo: 'MeuGanho-1.0.7.apk',
+    tamanhoBytes: 2373490,
+    tamanhoLabel: '2,3 MB',
+    sha256: '46ece32e5cf16fc9aadf8eca6d43d11a2bef36a9dabc08456bb147b8940c69dd',
+    releaseDate: '2026-10-05',
+    pacote: 'com.meuganho.app',
+    notas: 'DINHEIRO DISPONIVEL = DIA A DIA: os dois cards passam a vir da MESMA fonte de calculo e mostram sempre o mesmo valor em qualquer mes/ano (o dinheiro disponivel e o saldo da categoria Dia a dia: orcamento = base x % menos o gasto nela). REMOVIDO o campo de gasolina gasta: nao existe mais entrada manual de combustivel no lancamento do dia (a ⛽ Gasolina continua apenas como valor CALCULADO automaticamente: 20% do faturamento com minimo de R$ 60 por dia trabalhado, e segue nos resumos, graficos e relatorios). A ⛽ Gasolina tambem sai da lista de categorias de gasto (nao e lancavel a mao). Migracao NAO-DESTRUTIVA: todos os lancamentos, historico, meses, anos, configuracoes e relatorios anteriores sao preservados.',
+  },
+  {
     versao: '1.0.6',
     arquivo: 'MeuGanho-1.0.6.apk',
     tamanhoBytes: 2373638,
@@ -140,4 +150,4 @@ export const MEU_GANHO_APK_ABSOLUTE_URL = `${SITE_ORIGIN}${MEU_GANHO_APK_URL}`;
 
 /** Espelho (CDN) do mesmo APK — link secundário, caso o site esteja fora do ar. */
 export const MEU_GANHO_APK_MIRROR_URL =
-  'https://static.teamily.ai/sites/50bf53f0-23a0-4805-9dea-6346b8a066db/documents/meu-ganho/MeuGanho-1.0.6.apk';
+  'https://static.teamily.ai/sites/50bf53f0-23a0-4805-9dea-6346b8a066db/documents/meu-ganho/MeuGanho-1.0.7.apk';
