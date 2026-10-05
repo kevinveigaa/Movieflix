@@ -218,6 +218,52 @@ export function acionarControlePlayer(
 export type EstadoVideoPlayer = 'PLAYING' | 'PAUSED' | 'UNKNOWN';
 
 /**
+ * ALTERNA a reprodução pelo botão OK/ENTER do controle remoto.
+ *
+ * É o ÚNICO ponto de decisão do play/pause da TV — usado tanto pelo OK/ENTER
+ * quanto pela tecla de mídia do shell. A ordem é:
+ *   1. se o `<video>` é LEGÍVEL (mesma origem), alterna DIRETO pelo estado real
+ *      (`video.paused`) e trata a Promise de `play()`;
+ *   2. senão (embed do provedor, cross-origin), entrega a TECLA REAL pela ponte
+ *      nativa — o único caminho que muda o estado do vídeo no aparelho.
+ *
+ * Devolve o estado que a interface deve mostrar: `true` = pausado.
+ * Quando o estado real não é legível, devolve `null` e quem chama mantém o
+ * toggle otimista (comportamento anterior, honesto).
+ */
+export function alternarPlayPausePlayer(
+  iframe: HTMLIFrameElement | null | undefined,
+  ponte: PontePlayerTv | null = pontePlayerTv(),
+): boolean | null {
+  // (1) Vídeo legível (mesma origem): alterna pelo estado REAL.
+  try {
+    const video =
+      iframe?.contentDocument?.querySelector<HTMLVideoElement>('video') ??
+      document.querySelector<HTMLVideoElement>('video[data-mf-player]');
+    if (video) {
+      if (video.ended === true) return true; // finalizado: não reinicia por engano
+      if (video.paused) {
+        const p = video.play();
+        if (p !== undefined) p.catch(() => undefined);
+        return false;
+      }
+      video.pause();
+      return true;
+    }
+  } catch {
+    /* cross-origin: inalcançável — segue para a ponte nativa */
+  }
+
+  // (2) Embed do provedor: entrega a TECLA REAL (ESPAÇO = 32) pela ponte.
+  try {
+    if (ponte?.enviarTeclaPlayer?.(KEYCODE_ANDROID.ok, NOME_TECLA.ok)) return null;
+  } catch {
+    /* aparelho sem a ponte: nada a fazer */
+  }
+  return null;
+}
+
+/**
  * Lê o estado real do `<video>` do player.
  *
  * @param iframe      o `<iframe>` do embed (quando o player é embed)

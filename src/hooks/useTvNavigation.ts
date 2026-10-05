@@ -373,6 +373,11 @@ export function useTvNavigation() {
       // "sai" do player (volta a navegar a pgina). Se o modo CONTROLE DO
       // PLAYER estiver ativo, sai do modo antes de navegar a pgina.
       if (acao === "back") {
+        // O PLAYER DA TV é o dono do BACK enquanto está montado: ele decide a
+        // hierarquia (fechar configurações → fechar controles → sair) e já
+        // chamou preventDefault. Sem esta guarda, o BACK era tratado por DOIS
+        // caminhos e podia navegar de página no meio da reprodução.
+        if (document.documentElement.hasAttribute("data-tv-player-ativo")) return;
         if (digitando && (e.key === "Backspace" || e.keyCode === 8)) return; // apagar texto
         if (playerModeAtivo()) {
           e.preventDefault();
