@@ -1,7 +1,7 @@
 /**
  * Teste do CAMINHO DE COMANDO do OK (play/pause) — o que o harness de navegação
  * NÃO consegue verificar, porque o embed do provedor está atrás do Cloudflare.
- * ══════════════════════════════════════════════════════════════════════════════
+ * ═══════════════════════════════════════════════════════════════════════════
  * CAUSA RAIZ (medida na documentação do PRÓPRIO provedor, /docs):
  *
  * O protocolo `postMessage` do embed do StreamBetter define APENAS dois tipos:
@@ -9,17 +9,14 @@
  *   • `streambetter:progress` (saída — o player informa o tempo).
  * NÃO existe NENHUM comando de play/pause por `postMessage`.
  *
- * A correção ANTERIOR inventou um `{event:'command',func:'toggle'}` que o
- * provedor NUNCA escuta — por isso o OK continuou sem pausar no aparelho, mesmo
- * com o teste antigo passando (ele só provava que a mensagem SAÍA, não que o
- * player a entendia). Este teste trava a correção CERTA:
- *   • o `ok` NÃO pode mandar nenhum `postMessage` de play/pause fabricado;
- *   • o `ok` PRECISA entregar a TECLA REAL 85 (KEYCODE_MEDIA_PLAY_PAUSE) pela
- *     ponte nativa — o único caminho que muda o estado do vídeo no aparelho;
- *   • o seek (que funciona) continua postando seus comandos.
+ * Por isso o OK NÃO usa `postMessage`: ele entrega uma TECLA REAL pela ponte
+ * nativa do shell Android (MovieFlixApp.enviarTeclaPlayer) — o único caminho que
+ * muda o estado do vídeo no aparelho. A tecla é ESPAÇO (32), não a tecla de
+ * MÍDIA 85 (o WebView a roteia para a MediaSession, que não é o <video> do
+ * iframe). Quando o <video> é legível (mesma origem), alterna direto pelo estado.
  *
- * Roda o módulo REAL (`src/tv/controlePlayer.ts`) com um iframe FALSO que
- * registra o que foi postado — sem rede, sem navegador.
+ * Roda o módulo REAL (`src/tv/controlePlayer.ts`) com iframes/vídeos FALSOS —
+ * sem rede, sem navegador.
  *
  * Uso: node tools/test-tv-ok.mjs
  */
@@ -36,7 +33,7 @@ const raiz = path.resolve(aqui, '..');
 const passos = [];
 const falhas = [];
 function checar(nome, condicao, detalhe = '') {
-  passos.push(`${condicao ? '✅' : '❌'} ${nome}${detalhe ? ` — ${detalhe}` : ''}`);
+  passos.push(`${condicao ? '\u2705' : '\u274c'} ${nome}${detalhe ? ` \u2014 ${detalhe}` : ''}`);
   if (!condicao) falhas.push(nome);
 }
 
@@ -73,91 +70,58 @@ function iframeFalso() {
   };
 }
 
-/** Os nomes de comando postados (aceita string JSON e objeto). */
-function nomes(enviados) {
-  return enviados
-    .map((m) => {
-      if (typeof m === 'string') {
-        try { return JSON.parse(m).func; } catch { return null; }
-      }
-      return m && (m.func || m.command);
-    })
-    .filter(Boolean);
+/** Vídeo FALSO legível (mesma origem), com estado controlável. */
+function videoFalso(inicialPausado) {
+  return {
+    paused: inicialPausado,
+    ended: false,
+    play() { this.paused = false; return Promise.resolve(); },
+    pause() { this.paused = true; },
+  };
 }
 
-// ── 1. OK COM a ponte nativa: a tecla REAL de play/pause é entregue ──────────
+// ── 1. OK com a ponte nativa: entrega a tecla REAL de play/pause (ESPAÇO = 32)
 {
-  const { enviados, iframe } = iframeFalso();
   const teclas = [];
   const ponte = { enviarTeclaPlayer: (code) => { teclas.push(code); return true; } };
-  const agiu = mod.acionarControlePlayer(iframe, 'ok', 10, ponte);
+  const resultado = mod.alternarPlayPausePlayer(null, ponte);
   checar('OK com ponte nativa: a tecla REAL de play/pause (ESPAÇO = 32) foi entregue', teclas.includes(32), `teclas=[${teclas.join(',')}]`);
-  checar(
-    'OK NÃO usa a tecla de MÍDIA 85 (o WebView a roteia para a MediaSession e o player não a recebe)',
-    !teclas.includes(85),
-    `teclas=[${teclas.join(',')}]`,
-  );
-  checar('OK com ponte nativa: agiu=true', agiu === true);
-  checar(
-    'OK NÃO manda postMessage de play/pause fabricado (o provedor não escuta)',
-    nomes(enviados).length === 0,
-    `postados=[${nomes(enviados).join(',')}]`,
-  );
+  checar('OK NÃO usa a tecla de MÍDIA 85 (o WebView a roteia para a MediaSession)', !teclas.includes(85), `teclas=[${teclas.join(',')}]`);
+  checar('OK com ponte e sem estado legível: devolve null (o HUD mantém o otimista)', resultado === null, `resultado=${resultado}`);
 }
 
-// ── 2. OK SEM ponte nativa: NÃO inventa comando; só o vídeo nativo ───────────
+// ── 2. OK sem ponte e sem vídeo: nada a fazer, nenhum comando inventado ──────
 {
-  const { enviados, iframe } = iframeFalso();
-  const agiu = mod.acionarControlePlayer(iframe, 'ok', 10, null);
-  checar(
-    'OK sem ponte nativa: NÃO posta comando de play/pause inventado',
-    nomes(enviados).length === 0,
-    `postados=[${nomes(enviados).join(',')}]`,
-  );
-  checar('OK sem ponte nativa e sem vídeo nativo: agiu=false (nada a fazer)', agiu === false);
+  const { enviados } = iframeFalso();
+  const resultado = mod.alternarPlayPausePlayer(null, null);
+  checar('OK sem ponte e sem vídeo nativo: NÃO posta comando inventado', enviados.length === 0, `postados=${enviados.length}`);
+  checar('OK sem ponte e sem vídeo nativo: devolve null (estado desconhecido)', resultado === null, `resultado=${resultado}`);
 }
 
-// ── 3. Regressão: avançar/retroceder continuam postando seus comandos ────────
+// ── 3. Vídeo LEGÍVEL (mesma origem): alterna pelo estado REAL ────────────────
 {
-  const { enviados, iframe } = iframeFalso();
-  mod.acionarControlePlayer(iframe, 'seekFwd', 10, null);
-  const n = nomes(enviados);
-  checar('REGRESSÃO — avançar continua postando seekForward', n.includes('seekForward'), `postados=[${n.join(',')}]`);
-}
-{
-  const { enviados, iframe } = iframeFalso();
-  mod.acionarControlePlayer(iframe, 'seekBack', 10, null);
-  const n = nomes(enviados);
-  checar('REGRESSÃO — retroceder continua postando seekBackward', n.includes('seekBackward'), `postados=[${n.join(',')}]`);
+  const video = videoFalso(true); // começa pausado
+  const iframe = { contentDocument: { querySelector: (sel) => (sel === 'video' ? video : null) } };
+  const r1 = mod.alternarPlayPausePlayer(iframe, null);
+  checar('vídeo legível pausado: o OK dá play() e devolve false (não pausado)', r1 === false && video.paused === false, `r=${r1} paused=${video.paused}`);
+  const r2 = mod.alternarPlayPausePlayer(iframe, null);
+  checar('vídeo legível tocando: o OK dá pause() e devolve true (pausado)', r2 === true && video.paused === true, `r=${r2} paused=${video.paused}`);
 }
 
-// ── 4. Regressão: play/pause explícitos continuam postando ───────────────────
+// ── 4. Nenhum caminho usa postMessage para play/pause ────────────────────────
 {
   const { enviados, iframe } = iframeFalso();
-  mod.acionarControlePlayer(iframe, 'play', 10, null);
-  checar('REGRESSÃO — play continua postando play', nomes(enviados).includes('play'), `postados=[${nomes(enviados).join(',')}]`);
-}
-{
-  const { enviados, iframe } = iframeFalso();
-  mod.acionarControlePlayer(iframe, 'pause', 10, null);
-  checar('REGRESSÃO — pause continua postando pause', nomes(enviados).includes('pause'), `postados=[${nomes(enviados).join(',')}]`);
+  const ponte = { enviarTeclaPlayer: () => true };
+  mod.alternarPlayPausePlayer(iframe, ponte);
+  checar('play/pause nunca vira postMessage (só a tecla real pela ponte)', enviados.length === 0, `postados=${enviados.length}`);
 }
 
-// ── 5. Regressão: seek COM ponte nativa também entrega a tecla real ──────────
-{
-  const { iframe } = iframeFalso();
-  const teclas = [];
-  const ponte = { enviarTeclaPlayer: (code) => { teclas.push(code); return true; } };
-  mod.acionarControlePlayer(iframe, 'seekFwd', 10, ponte);
-  checar('REGRESSÃO — avançar com ponte entrega a tecla real 90', teclas.includes(90), `teclas=[${teclas.join(',')}]`);
-}
-
-console.log('\n── Teste do caminho de comando do OK (play/pause) ──────────────────');
+console.log('\n── Teste do caminho de comando do OK (play/pause) ──────────────');
 for (const p of passos) console.log(p);
 console.log('────────────────────────────────────────────────────────────────────');
 if (falhas.length) {
-  console.log(`\n❌ ${falhas.length} verificação(ões) falharam:`);
+  console.log(`\n\u274c ${falhas.length} verificação(ões) falharam:`);
   for (const f of falhas) console.log(`   • ${f}`);
   process.exit(1);
 }
-console.log(`\n✅ Todas as ${passos.length} verificações passaram.`);
+console.log(`\n\u2705 Todas as ${passos.length} verificações passaram.`);

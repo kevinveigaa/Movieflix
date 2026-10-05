@@ -442,10 +442,32 @@
 
 .tv-player-embed { position: absolute; inset: 0; }
 
-/* A barra de botões do rodapé foi REMOVIDA por completo: nenhum daqueles
-   botões funcionava pelo controle (o player do provedor vive num iframe de
-   outra origem e não aceita comandos por JS). O controle remoto opera o player
-   DIRETO pelas teclas — OK = play/pause, ←/→ = ±10s, BACK = sair. */
+/* O IFRAME do provedor NÃO recebe interação: sem foco e sem ponteiro.
+   A barra nativa do embed (voltar, ⏪10, play, ⏩10, volume, engrenagem, tela
+   cheia, ✕) só aparece e só responde à INTERAÇÃO. Neutralizando o iframe ela
+   não surge nem funciona — requisito: NENHUM botão na tela do player. O OK
+   chega ao player pela PONTE NATIVA do shell Android (tecla real), nunca por
+   clique/toque, então o player segue operável apenas pelo OK. */
+.tv-player-embed iframe {
+  pointer-events: none;
+  touch-action: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+/* CAMADA DE BLOQUEIO — cobre TODO o embed e absorve qualquer clique/toque/foco,
+   para nada reativar os controles do provedor. Não desenha NADA (fundo
+   transparente): o vídeo aparece normalmente por baixo. */
+.tv-player-bloqueio {
+  position: absolute;
+  inset: 0;
+  z-index: 12;
+  background: transparent;
+  pointer-events: auto;
+  touch-action: none;
+  cursor: default;
+  -webkit-tap-highlight-color: transparent;
+}
 /* ── Conteúdo ─────────────────────────────────────────────────────────── */
 
 .tv-content {
