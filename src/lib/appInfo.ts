@@ -72,15 +72,19 @@ export const APK_SIZE_MB = '10.4 MB';
  */
 export const TV_APP_INFO = {
   name: 'MovieFlix TV',
-  version: '4.0.4',
-  versionCode: 44,
+  version: '4.0.5',
+  versionCode: 45,
   /** Arquivo do APK TV em public/apk/ (mesma pasta servida em /apk/) */
-  apkFileName: 'MovieFlix-TV-v4.0.4.apk',
-  /** Tamanho exibido (sincronizado com public/apk/MovieFlix-TV-v4.0.4.apk) */
-  sizeMB: '4.5 MB',
+  apkFileName: 'MovieFlix-TV-v4.0.5.apk',
+  /** Tamanho exibido (sincronizado com public/apk/MovieFlix-TV-v4.0.5.apk) */
+  sizeMB: '5.3 MB',
   package: 'com.movieflix.tv',
-  releaseDate: '2026-10-04',
+  releaseDate: '2026-10-05',
   changelog: [
+    'PLAYER (AUTOPLAY REAL): ao abrir o player o filme começa a reproduzir SOZINHO, sem tocar no controle — o app entrega um TOQUE REAL no centro do player (o gesto que o player do provedor aceita), repetindo em poucas tentativas até o vídeo montar e parando assim que você aperta qualquer tecla',
+    'PLAYER (OK = PLAY/PAUSE REAL): o OK agora pausa e despausa o VÍDEO de verdade, uma única ação por toque. A causa raiz era o FOCO: uma TECLA só chega ao player do provedor (iframe de outra origem) quando o próprio iframe está focado, e o foco é instável no WebView. A correção entrega um TOQUE REAL (não depende de foco) pela nova ponte nativa MovieFlixApp.enviarToquePlayer',
+    'PLAYER: a camada que esconde os controles do provedor é suspensa por ~0,5s durante a injeção do toque, para o toque atravessar até o player; fora dessa janela ela volta a cobrir o embed (nenhum controle do provedor fica visível ou clicável)',
+    'PLAYER: setas ← → continuam retrocedendo/avançando 30s reais, BACK continua saindo do player e a navegação do app não mudou',
     'PLAYER (controle remoto REAL): OK/ENTER agora pausa e reproduz o VÍDEO REAL (estado real do player → play()/pause()), não apenas o ícone; o botão visual Play/Pause continua funcionando',
     'PLAYER: SETA DIREITA avança exatamente 30s e SETA ESQUERDA volta exatamente 30s no vídeo REAL, respeitando os limites (nunca passa do fim nem fica negativo)',
     'PLAYER: SETAS ↑/↓ navegam entre os controles (Play/Pause, barra de progresso, −30s, +30s) e o foco NUNCA desaparece — sempre visível e acionável pelo controle',
