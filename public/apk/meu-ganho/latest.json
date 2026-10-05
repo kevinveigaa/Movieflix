@@ -1,13 +1,13 @@
 {
   "app": "MEU GANHO",
-  "version": "1.0.5",
-  "file": "MeuGanho-1.0.5.apk",
-  "path": "/apk/meu-ganho/MeuGanho-1.0.5.apk",
-  "sizeBytes": 2371742,
+  "version": "1.0.6",
+  "file": "MeuGanho-1.0.6.apk",
+  "path": "/apk/meu-ganho/MeuGanho-1.0.6.apk",
+  "sizeBytes": 2373638,
   "sizeLabel": "2,3 MB",
-  "sha256": "84d59cd947508e0933da2fd2f94b4e37f5a291908c7020e87c232b7f82fa966d",
+  "sha256": "9a7595dbe22c2f0b911ff5fcd0c303d4f96895fd11b0751ee30b9cf92c0c742d",
   "package": "com.meuganho.app",
   "minSdk": 24,
   "targetSdk": 34,
-  "releaseDate": "2026-10-02"
+  "releaseDate": "2026-10-05"
 }

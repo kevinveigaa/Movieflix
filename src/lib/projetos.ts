@@ -55,6 +55,16 @@ export interface ApkVersion {
  */
 export const MEU_GANHO_VERSOES: ApkVersion[] = [
   {
+    versao: '1.0.6',
+    arquivo: 'MeuGanho-1.0.6.apk',
+    tamanhoBytes: 2373638,
+    tamanhoLabel: '2,3 MB',
+    sha256: '9a7595dbe22c2f0b911ff5fcd0c303d4f96895fd11b0751ee30b9cf92c0c742d',
+    releaseDate: '2026-10-05',
+    pacote: 'com.meuganho.app',
+    notas: 'NOVA CATEGORIA ⛽ GASOLINA, separada das demais e visível em resumos, gráficos, divisões e relatórios (não é mais descontada silenciosamente). Regra da gasolina: 20% do faturamento com MÍNIMO de R$ 60 por dia efetivamente trabalhado (configurável). Divisão padrão: ⛽ Gasolina 20% · 🏠 Contas 52% · 🔧 Manutenção 12% · 🛒 Dia a dia 12% · 🏦 Reserva 4% = 100%. Ex.: R$ 300 → ⛽ 60 · 🏠 156 · 🔧 36 · 🛒 36 · 🏦 12. Sábado/domingo/feriado trabalhado também aplica o mínimo de R$ 60. Novos campos em Configurações: gasolina mínima por dia e liga/desliga do mínimo. Migração NÃO-DESTRUTIVA: todos os lançamentos, meses, anos e configurações anteriores são preservados.',
+  },
+  {
     versao: '1.0.5',
     arquivo: 'MeuGanho-1.0.5.apk',
     tamanhoBytes: 2371742,
@@ -130,4 +140,4 @@ export const MEU_GANHO_APK_ABSOLUTE_URL = `${SITE_ORIGIN}${MEU_GANHO_APK_URL}`;
 
 /** Espelho (CDN) do mesmo APK — link secundário, caso o site esteja fora do ar. */
 export const MEU_GANHO_APK_MIRROR_URL =
-  'https://static.teamily.ai/sites/50bf53f0-23a0-4805-9dea-6346b8a066db/documents/meu-ganho/MeuGanho-1.0.5.apk';
+  'https://static.teamily.ai/sites/50bf53f0-23a0-4805-9dea-6346b8a066db/documents/meu-ganho/MeuGanho-1.0.6.apk';
