@@ -315,14 +315,27 @@ export function useTvNavigation() {
       // global disputava a MESMA pulsação (dois donos) — o OK podia ser
       // consumido aqui e nunca chegar ao player. Com o player ativo, esta
       // camada se abstém por completo.
-      if (document.documentElement.hasAttribute("data-tv-player-ativo")) return;
+      //
+      // ── REGRESSÃO DO LOGIN (CORRIGIDA AQUI) ─────────────────────────────────
+      // Um CAMPO/TECLADO DE TEXTO tem PRIORIDADE ABSOLUTA sobre o player. Antes,
+      // esta guarda (e a da rota, logo abaixo) retornava ANTES da proteção do
+      // formulário; quando o marcador do player ficava presente (o player da TV
+      // marca o `<html>` com `data-tv-player-ativo`), o login podia ter as
+      // teclas tratadas como se fosse o player e o usuário não conseguia
+      // digitar. Agora, se há digitação em curso, NENHUMA guarda de player se
+      // aplica: a camada global se abstém e a tecla segue para o campo.
+      const emTexto =
+        ehCampoDeTexto(e.target as Element | null) ||
+        ehCampoDeTexto(document.activeElement) ||
+        !!document.querySelector("[data-tv-teclado-aberto]");
+      if (!emTexto && document.documentElement.hasAttribute("data-tv-player-ativo")) return;
 
       // ── ROTA DO PLAYER DA TV: NENHUMA tecla pela camada GLOBAL ─────────────
       // Reforço do marcador acima: enquanto a rota é a do player, o controle
       // remoto só tem a ação do OK (tratada pelo `TvPlayerPage`). Assim setas,
       // BACK e volume NÃO fazem nada no player nem por esta camada. O BACK
       // físico é tratado pelo WebView nativo (sai da rota) — não aqui.
-      if (/^\/tv\/assistir\//.test(location.pathname)) return;
+      if (!emTexto && /^\/tv\/assistir\//.test(location.pathname)) return;
 
       // ── FORMULÁRIO DE TV (login) ──
       // Com um CAMPO DE TEXTO focado dentro de [data-tv-form], o formulário é o

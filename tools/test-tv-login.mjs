@@ -577,6 +577,56 @@ async function principal() {
     checar('o foco NUNCA saiu do formulário (0 saídas)', saidas.n === 0,
       `saídas=${saidas.n} alvos=${JSON.stringify(saidas.alvos)}`);
 
+    // ── 9. SUSPEITA DE REGRESSÃO: o PLAYER não pode bloquear a DIGITAÇÃO ─────
+    // O player da TV marca o `<html>` com `data-tv-player-ativo` e registra um
+    // listener global de keydown em fase de CAPTURA. A suspeita do dono é
+    // exatamente "arrumei o player e quebrei o login": se esse estado/marcador
+    // vazar (player desmontado com o atributo ainda posto, listener
+    // remanescente), o LOGIN não pode perder a digitação. Aqui o marcador é
+    // injetado À FORÇA e provamos que o campo continua recebendo texto.
+    await avaliar(`
+      (() => {
+        // Fecha o teclado na tela (se aberto) para o campo E-mail ser o alvo.
+        const f = document.querySelector('[data-tv-key="fechar"]');
+        if (f) f.click();
+        return true;
+      })()
+    `);
+    await valer(300);
+    await avaliar(`
+      (() => {
+        document.documentElement.setAttribute('data-tv-player-ativo', '1');
+        const email = document.querySelector('[data-tv-form] input[type="email"]');
+        email.value = '';
+        email.dispatchEvent(new Event('input', { bubbles: true }));
+        email.focus();
+        return true;
+      })()
+    `);
+    await valer(180);
+
+    await digitarReal('zoe');
+    e = await estado();
+    checar('COM o marcador do player ativo, a digitação AINDA chega ao campo E-mail',
+      (e.valorEmail ?? '').includes('zoe'), `valor="${e.valorEmail}"`);
+
+    const letraPassaComPlayer = await avaliar(`
+      (() => {
+        const el = document.activeElement;
+        const ev = new KeyboardEvent('keydown', { key: 'k', bubbles: true, cancelable: true });
+        Object.defineProperty(ev, 'keyCode', { get: () => 107 });
+        Object.defineProperty(ev, 'which', { get: () => 107 });
+        el.dispatchEvent(ev);
+        return !ev.defaultPrevented;
+      })()
+    `);
+    checar('COM o marcador do player ativo, a tecla de letra NÃO é engolida',
+      letraPassaComPlayer === true);
+
+    // O player de verdade remove o marcador ao desmontar; aqui limpamos para não
+    // contaminar as demais verificações.
+    await avaliar(`document.documentElement.removeAttribute('data-tv-player-ativo'); true`);
+
     console.log(`\nCaptura da tela: ${SHOT}`);
   } finally {
     if (!MANTER) {

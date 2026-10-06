@@ -3,6 +3,7 @@ import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { Loader2, AlertCircle, Play, Pause, RotateCcw, RotateCw, Volume2, VolumeX } from 'lucide-react';
 import { useMovies } from '@/hooks/useMovies';
 import { useAuth } from '@/context/AuthContext';
+import { ehCampoDeTexto } from '@/lib/tecladoTv';
 import { hasActiveSubscription } from '@/context/AuthContext';
 import {
   primeiroEpisodioDisponivel,
@@ -388,9 +389,14 @@ export function TvPlayerPage({ id: idProp }: { id?: string } = {}) {
     function onKeyDown(e: KeyboardEvent) {
       if (!prontoRef.current) return;
 
-      // Não roubar teclas de um campo de texto (login/busca da TV).
-      const alvo = e.target as HTMLElement | null;
-      if (alvo && (alvo.tagName === 'INPUT' || alvo.tagName === 'TEXTAREA' || alvo.isContentEditable)) return;
+      // ── UM CAMPO/TECLADO DE TEXTO É O DONO DAS TECLAS — SEMPRE ──
+      // Guarda PRIMEIRA e UNCONDICIONAL: não olha rota, marcador
+      // (`data-tv-player-ativo`) nem estado do player. `ehCampoDeTexto` é a
+      // definição única do codebase (cobre os subtipos de input, textarea e
+      // contentEditable), então a digitação do login/busca NUNCA pode ser
+      // engolida por este listener — era o risco de regressão "arruma o player
+      // e quebra o login".
+      if (ehCampoDeTexto(e.target as Element | null)) return;
 
       const acao = classificarTecla(e);
       if (!acao) return;
