@@ -108,19 +108,28 @@ export function temPonteDeTeclasNativa(): boolean {
  * Ordem:
  *   1. se o `<video>` é LEGÍVEL (mesma origem), alterna DIRETO pelo estado real
  *      (`video.paused`) e trata a Promise de `play()`;
- *   2. senão (embed do provedor, cross-origin), entrega um TOQUE REAL no centro
- *      do player pela ponte nativa — o gesto que o player aceita e que NÃO
- *      depende de foco (o `TvPlayerPage` suspende a camada de bloqueio durante a
- *      injeção, para o toque atravessar até o iframe). Sem o toque (APK antigo),
- *      cai na TECLA REAL (ESPAÇO).
+ *   2. senão (embed do provedor, cross-origin), entrega a TECLA REAL de toggle
+ *      (ESPAÇO) pela ponte nativa — o gesto CANÔNICO de play/pause de um player
+ *      web e o que ALTERNA (o toque no centro foi medido no aparelho como "só
+ *      despausa": quando o vídeo toca, o player trata o toque como "mostrar
+ *      controles"/"play", nunca como pausa). Se a ponte não tiver a tecla, cai
+ *      no TOQUE REAL. O `TvPlayerPage` suspende a guarda de foco/camada de
+ *      bloqueio durante a injeção para o gesto atravessar até o iframe.
+ *
+ * Parâmetro `mecanismo`: `'tecla'` (padrão, alternância real) ou `'toque'`
+ * (usado pelo RETRY verificado do `TvPlayerPage`, quando a tecla não mudou o
+ * estado real publicado pelo provedor).
  *
  * @returns o estado que a interface deve mostrar: `true` = pausado. Quando o
  *          estado real não é legível (embed cross-origin), devolve `null` e quem
  *          chama mantém o toggle otimista do HUD.
  */
+export type MecanismoToggle = 'tecla' | 'toque';
+
 export function alternarPlayPausePlayer(
   iframe: HTMLIFrameElement | null | undefined,
   ponte: PontePlayerTv | null = pontePlayerTv(),
+  mecanismo: MecanismoToggle = 'tecla',
 ): boolean | null {
   // (1) Vídeo legível (mesma origem): alterna pelo estado REAL.
   try {
@@ -141,16 +150,31 @@ export function alternarPlayPausePlayer(
     /* cross-origin: inalcançável — segue para a ponte nativa */
   }
 
-  // (2) Embed do provedor: entrega um TOQUE REAL no centro do player pela ponte
-  //     nativa — o gesto que o player aceita (não depende de foco). Se a ponte
-  //     não tiver o toque (APK antigo), cai na TECLA REAL (ESPAÇO).
-  try {
-    if (ponte?.enviarToquePlayer?.()) return null;
-  } catch {
-    /* segue para a tecla */
+  // (2) Embed do provedor (cross-origin): entrega UM ÚNICO gesto REAL pela
+  //     ponte nativa. Padrão = TECLA ESPAÇO (o toggle canônico do player).
+  //     `mecanismo === 'toque'` = caminho de RETRY do `TvPlayerPage`.
+  if (mecanismo === 'toque') {
+    try {
+      if (ponte?.enviarToquePlayer?.()) return null;
+    } catch {
+      /* segue para a tecla */
+    }
+    try {
+      if (ponte?.enviarTeclaPlayer?.(KEYCODE_SPACE, 'Space')) return null;
+    } catch {
+      /* aparelho sem a ponte: nada a fazer */
+    }
+    return null;
   }
+
+  // TECLA primeiro: é o que ALTERNA de verdade (o toque no centro só despausa).
   try {
     if (ponte?.enviarTeclaPlayer?.(KEYCODE_SPACE, 'Space')) return null;
+  } catch {
+    /* segue para o toque */
+  }
+  try {
+    if (ponte?.enviarToquePlayer?.()) return null;
   } catch {
     /* aparelho sem a ponte: nada a fazer */
   }

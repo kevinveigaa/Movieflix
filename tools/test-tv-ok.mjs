@@ -9,13 +9,13 @@
  *   • `streambetter:progress` (saída — o player informa o tempo).
  * NÃO existe NENHUM comando de play/pause por `postMessage`.
  *
- * Por isso o OK NÃO usa `postMessage`: ele entrega um TOQUE REAL pela ponte
- * nativa do shell Android (MovieFlixApp.enviarToquePlayer) — o caminho que muda
- * o estado do vídeo no aparelho SEM depender de foco (o WebView faz hit-testing
- * e entrega o toque ao iframe do provedor). Se a ponte não tiver o toque (APK
- * antigo), cai na TECLA REAL (ESPAÇO = 32), nunca na tecla de MÍDIA 85 (o WebView
- * a roteia para a MediaSession, que não é o <video> do iframe). Quando o <video>
- * é legível (mesma origem), alterna direto pelo estado.
+ * Por isso o OK NÃO usa `postMessage`: ele entrega a TECLA REAL de toggle
+ * (ESPAÇO = 32) pela ponte nativa do shell Android — o gesto CANÔNICO de
+ * play/pause de um player web, que ALTERNA. O TOQUE no centro (medido no
+ * aparelho: "só despausa") fica como RETRY verificado, quando a tecla não muda o
+ * estado real publicado pelo provedor. Nunca se usa a tecla de MÍDIA 85 (o
+ * WebView a roteia para a MediaSession, que não é o <video> do iframe). Quando o
+ * <video> é legível (mesma origem), alterna direto pelo estado.
  *
  * Roda o módulo REAL (`src/tv/controlePlayer.ts`) com iframes/vídeos FALSOS —
  * sem rede, sem navegador.
@@ -91,9 +91,31 @@ function videoFalso(inicialPausado) {
     enviarTeclaPlayer: (code) => { teclas.push(code); return true; },
   };
   const resultado = mod.alternarPlayPausePlayer(null, ponte);
-  checar('OK com ponte nativa: entrega um TOQUE REAL ao player (não depende de foco)', toques.length === 1, `toques=${toques.length}`);
-  checar('OK com toque disponível NÃO cai na tecla (um único comando por toque)', teclas.length === 0, `teclas=[${teclas.join(',')}]`);
+  checar('OK com ponte nativa: entrega a TECLA REAL de toggle (ESPAÇO = 32)', teclas.includes(32), `teclas=[${teclas.join(',')}]`);
+  checar('OK com ponte nativa: UM ÚNICO comando por toque (não manda toque junto)', toques.length === 0, `toques=${toques.length}`);
   checar('OK com ponte e sem estado legível: devolve null (o HUD mantém o otimista)', resultado === null, `resultado=${resultado}`);
+}
+
+// ── 1a2. RETRY verificado: mecanismo 'toque' ────────────────────────────────
+{
+  const toques = [];
+  const teclas = [];
+  const ponte = {
+    enviarToquePlayer: () => { toques.push(1); return true; },
+    enviarTeclaPlayer: (code) => { teclas.push(code); return true; },
+  };
+  const resultado = mod.alternarPlayPausePlayer(null, ponte, 'toque');
+  checar('RETRY alternativo usa o TOQUE REAL (tecla não mudou o estado)', toques.length === 1, `toques=${toques.length}`);
+  checar('RETRY por toque NÃO manda também a tecla (um único gesto)', teclas.length === 0, `teclas=[${teclas.join(',')}]`);
+  checar('RETRY por toque devolve null (confirmado pelo progresso real)', resultado === null, `resultado=${resultado}`);
+}
+
+// ── 1a3. Ponte SEM tecla: cai no TOQUE REAL (fallback) ───────────────────────
+{
+  const toques = [];
+  const ponte = { enviarToquePlayer: () => { toques.push(1); return true; } };
+  const r = mod.alternarPlayPausePlayer(null, ponte);
+  checar('Ponte SEM tecla: cai no TOQUE REAL (fallback)', toques.length === 1 && r === null, `toques=${toques.length} r=${r}`);
 }
 
 // ── 1b. Ponte ANTIGA (só tecla): cai na TECLA REAL (ESPAÇO = 32) ─────────────

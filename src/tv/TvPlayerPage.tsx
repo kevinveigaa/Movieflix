@@ -123,6 +123,9 @@ export function TvPlayerPage({ id: idProp }: { id?: string } = {}) {
   });
   /** Estado de reprodução (otimista quando o embed não é legível). */
   const [pausado, setPausado] = useState(false);
+  /** Espelho do estado mostrado, lido pelo listener estável (registrado uma vez). */
+  const pausadoRef = useRef(pausado);
+  pausadoRef.current = pausado;
   /** Movimento acumulado do seek, para o indicador (⏩ +30s / ⏪ −30s). */
   const [movimento, setMovimento] = useState<{ sentido: 'frente' | 'volta'; segundos: number } | null>(null);
   /** Aviso curto transitório (volume / mudo) mostrado na barra. */
@@ -130,6 +133,8 @@ export function TvPlayerPage({ id: idProp }: { id?: string } = {}) {
   /** Volume atual (0–100) exibido no aviso; `null` quando não é legível. */
   const [volume, setVolume] = useState<number | null>(null);
   const [mudo, setMudo] = useState(false);
+  /** Os controles (barra do rodapé + faixa do topo) estão visíveis na tela? */
+  const [controlesVisiveis, setControlesVisiveis] = useState(true);
 
   const movie = useMemo(
     () => (movies.data ?? []).find((m) => String(m.id) === String(id)) ?? null,
@@ -178,6 +183,50 @@ export function TvPlayerPage({ id: idProp }: { id?: string } = {}) {
   progressoRef.current = progresso;
 
   /**
+   * ESTADO REAL do vídeo publicado pelo provedor (`streambetter:progress` →
+   * `state`). É a ÚNICA fonte de verdade para decidir "pausar" ou "despausar":
+   * sem ele, o OK alterna às cegas — e foi exatamente assim que o aparelho
+   * ficou "só despausando". Guarda o instante para saber se a leitura ainda é
+   * recente (o provedor publica a cada ~15s e em play/pause/seeked/ended).
+   */
+  const estadoRealRef = useRef<{ estado: 'playing' | 'paused' | 'ended' | null; em: number }>({
+    estado: null,
+    em: 0,
+  });
+
+  /**
+   * Instante do último OK. Só um estado real publicado DEPOIS dele descreve o
+   * efeito do gesto; uma leitura anterior descreve o ALVO (o vídeo que ainda
+   * tocava), e confiar nela faria o OK seguinte repetir a mesma intenção — foi
+   * assim que o aparelho passou a "só despausar".
+   */
+  const ultimoOkRef = useRef(0);
+
+  /** Timer do AUTO-OCULTAR (5s) dos controles. */
+  const ocultarTimerRef = useRef<number | null>(null);
+
+  /**
+   * MOSTRA os controles e REINICIA a contagem de 5s até o próximo sumiço.
+   * Chamado em toda interação do controle remoto (qualquer tecla) e no OK.
+   */
+  const reiniciarOcultar = useCallback(() => {
+    setControlesVisiveis(true);
+    if (ocultarTimerRef.current !== null) window.clearTimeout(ocultarTimerRef.current);
+    ocultarTimerRef.current = window.setTimeout(() => setControlesVisiveis(false), 5000);
+  }, []);
+  const reiniciarOcultarRef = useRef(reiniciarOcultar);
+  reiniciarOcultarRef.current = reiniciarOcultar;
+
+  /**
+   * RETRY VERIFICADO do OK: guarda a intenção (pausar/despausar) e o instante do
+   * comando para, pouco depois, conferir se o ESTADO REAL mudou. Se o provedor
+   * não mudou o estado, o `TvPlayerPage` entrega o OUTRO gesto uma única vez
+   * (é o que transforma "só despausa" em alternância garantida no aparelho).
+   */
+  const retryRef = useRef<{ alvoPausado: boolean; em: number } | null>(null);
+  const retryTimerRef = useRef<number | null>(null);
+
+  /**
    * Suspende a GUARDA DE FOCO enquanto uma tecla/toque é injetado no player.
    * CAUSA RAIZ: a guarda devolvia o foco ao botão imediatamente — às vezes antes
    * de o WebView despachar a tecla ao iframe recém-focado, e o play/pause não
@@ -217,21 +266,58 @@ export function TvPlayerPage({ id: idProp }: { id?: string } = {}) {
    * toque/tecla REAL pela ponte nativa.
    */
   const alternarPlay = useCallback(() => {
+    // O OK REVELA os controles no mesmo toque em que alterna play/pause.
+    reiniciarOcultarRef.current();
     alternandoRef.current = true;
     marcarInjecao();
-    window.setTimeout(() => {
-      alternandoRef.current = false;
-    }, 700);
+
+    // INTENÇÃO ancorada no ESTADO REAL: se há leitura real recente, ela é a
+    // fonte de verdade (tocando → PAUSAR; pausado → DESPAUSAR). Sem leitura
+    // (provedor ainda não publicou), alterna o estado mostrado — nunca fixa um
+    // "pausar" que impediria o segundo OK de voltar a reproduzir.
+    const lido = estadoRealRef.current;
+    // Estado real SÓ manda quando foi publicado DEPOIS do último OK (aí ele diz
+    // o que o gesto fez de fato). Antes disso, ele descreve o alvo — confiar
+    // nele travaria a alternância no "pausar" para sempre. Sem leitura nova,
+    // alterna o estado mostrado, e a alternância de 1º/2º OK fica garantida.
+    const recente =
+      lido.estado !== null && lido.em > (ultimoOkRef.current ?? 0) && Date.now() - lido.em < 12000;
+    const alvoPausado = recente ? lido.estado !== 'paused' : !pausadoRef.current;
+    ultimoOkRef.current = Date.now();
+
     try {
-      const resultado = alternarPlayPausePlayer(iframeDoPlayer());
+      // Um ÚNICO gesto por OK: a TECLA REAL (ESPAÇO) é o toggle que ALTERNA de
+      // verdade no player do provedor (o toque no centro só despausa).
+      const resultado = alternarPlayPausePlayer(iframeDoPlayer(), undefined, 'tecla');
       if (resultado !== null) setPausado(resultado);
-      else setPausado((p) => !p); // sem leitura: toggle otimista do HUD
+      else setPausado(alvoPausado); // otimista, ancorado no estado real
     } finally {
-      // A guarda só volta a agir depois que o shell entregou a tecla ao player.
+      // A guarda de foco só volta a agir depois que o shell entregou o gesto.
       window.setTimeout(() => {
         alternandoRef.current = false;
-      }, 680);
+      }, 700);
     }
+
+    // VERIFICAÇÃO + retry: se o estado REAL não mudou, entrega o OUTRO gesto.
+    retryRef.current = { alvoPausado, em: Date.now() };
+    if (retryTimerRef.current !== null) window.clearTimeout(retryTimerRef.current);
+    retryTimerRef.current = window.setTimeout(() => {
+      const pend = retryRef.current;
+      retryRef.current = null;
+      if (!pend) return;
+      const atual = estadoRealRef.current;
+      // Sem leitura real NOVA (posterior ao comando) não há como confirmar: sai.
+      if (!atual.estado || atual.em <= (ultimoOkRef.current ?? 0) || Date.now() - atual.em > 4500) return;
+      const jaCerto = pend.alvoPausado ? atual.estado === 'paused' : atual.estado !== 'paused';
+      if (jaCerto) return;
+      // O gesto não mudou o estado real: entrega o TOQUE REAL (retry único).
+      marcarInjecao();
+      alternarPlayPausePlayer(iframeDoPlayer(), undefined, 'toque');
+      window.setTimeout(() => {
+        const fim = estadoRealRef.current;
+        if (fim.estado) setPausado(fim.estado === 'paused');
+      }, 900);
+    }, 1300);
   }, [iframeDoPlayer, marcarInjecao]);
 
   /**
@@ -311,6 +397,8 @@ export function TvPlayerPage({ id: idProp }: { id?: string } = {}) {
 
       // A partir daqui é interação REAL do usuário: o autoplay para de tentar.
       usuarioInteragiuRef.current = true;
+      // Qualquer tecla do controle REMOSTRA os controles e reinicia os 5s.
+      reiniciarOcultarRef.current();
 
       e.preventDefault();
       e.stopPropagation();
@@ -419,8 +507,11 @@ export function TvPlayerPage({ id: idProp }: { id?: string } = {}) {
         posicaoReal: true,
         duracaoReal: p.duracao > 0,
       });
-      if (p.estado === 'playing') setPausado(false);
-      else if (p.estado === 'paused') setPausado(true);
+      if (p.estado) {
+        // O ESTADO REAL é a fonte de verdade: alimenta o próximo OK e o ícone.
+        estadoRealRef.current = { estado: p.estado, em: Date.now() };
+        setPausado(p.estado === 'paused');
+      }
     });
     return limpar;
   }, [pronto, recarga]);
@@ -451,6 +542,20 @@ export function TvPlayerPage({ id: idProp }: { id?: string } = {}) {
       setMudo(lido <= 0);
     }
   }, [pronto]);
+
+  /**
+   * AUTO-OCULTAR: ao entrar no player os controles aparecem e começam a contar
+   * 5s; sem interação eles somem (fica só o vídeo). Cada tecla/OK reinicia a
+   * contagem via `reiniciarOcultar`. O timer é limpo ao desmontar.
+   */
+  useEffect(() => {
+    if (!pronto) return;
+    reiniciarOcultar();
+    return () => {
+      if (ocultarTimerRef.current !== null) window.clearTimeout(ocultarTimerRef.current);
+      if (retryTimerRef.current !== null) window.clearTimeout(retryTimerRef.current);
+    };
+  }, [pronto, recarga, reiniciarOcultar]);
 
   /** Foco visual no botão Play/Pause ao abrir (cosmético; as teclas são globais). */
   useEffect(() => {
@@ -606,7 +711,7 @@ export function TvPlayerPage({ id: idProp }: { id?: string } = {}) {
   }
 
   return (
-    <div className="tv-page tv-page-player">
+    <div className={`tv-page tv-page-player${controlesVisiveis ? '' : ' tv-controles-oculto'}`}>
       {/* A MOLDURA do vídeo ocupa a tela inteira. A barra customizada é ANCORADA
           no rodapé DESTA moldura — exatamente onde a barra nativa do provedor
           aparece — de modo que ela a COBRE por completo (ver tv.css). */}

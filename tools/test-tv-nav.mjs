@@ -944,6 +944,25 @@ async function principal() {
       `foco=${focoDoApp} toques=${real.toques.length} teclas=[${real.teclas.join(',')}]`,
     );
 
+    // ── TESTE J: AUTO-OCULTAR (5s) dos controles ────────────────────────────
+    // Requisito do dono: após 5s sem interação TODOS os controles somem (fica só
+    // o vídeo); ao apertar OK, eles reaparecem E o OK já alterna play/pause no
+    // MESMO toque. A classe `tv-controles-oculto` no container é o sinal.
+    const controlesOcultos = () => avaliar(
+      `!!document.querySelector('.tv-page-player')?.classList.contains('tv-controles-oculto')`,
+    );
+    await abrirPlayer(1550338);
+    await valer(300);
+    checar('TESTE J — ao entrar no player os controles estão VISÍVEIS', (await controlesOcultos()) === false, `oculto=${await controlesOcultos()}`);
+    await valer(5600); // passa dos 5s sem interação
+    checar('TESTE J — após 5s sem interação os controles SOMEM (fica só o vídeo)', (await controlesOcultos()) === true, `oculto=${await controlesOcultos()}`);
+    await avaliar('window.__mfTeclasPlayer = []');
+    await pressionar(23, 'Enter');
+    await valer(200);
+    checar('TESTE J — o OK REVELA os controles de novo', (await controlesOcultos()) === false, `oculto=${await controlesOcultos()}`);
+    p = await progressoAgora();
+    checar('TESTE J — no MESMO OK o play/pause alterna (comando real entregue)', p.toques.length >= 1 || p.teclas.includes(32), `toques=${p.toques.length} teclas=[${p.teclas.join(',')}]`);
+
     // Regressão: o D-pad continua abrindo os controles normalmente (↓).
     await pressionar(20, 'ArrowDown');
     await valer(250);

@@ -1693,6 +1693,25 @@
   border-color: transparent;
 }
 
+/* ══════════════════════════════════════════════════════════════════════════
+   AUTO-OCULTAR (5s) DOS CONTROLES
+   ──────────────────────────────────────────────────────────────────────────
+   Requisito do dono: após 5 segundos sem interação TODOS os botões/controles
+   somem e fica SÓ o vídeo na tela; ao apertar OK, os controles reaparecem E o
+   OK já alterna play/pause no MESMO toque. A classe `tv-controles-oculto` no
+   container da página esconde a barra do rodapé e a faixa do topo. */
+.tv-player-bar-ancora,
+.tv-player-top {
+  transition: opacity 0.25s ease, visibility 0.25s ease, transform 0.25s ease;
+}
+.tv-page-player.tv-controles-oculto .tv-player-bar-ancora,
+.tv-page-player.tv-controles-oculto .tv-player-top {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transform: translateY(6px);
+}
+
 /* ── Responsividade por resolução real (720p / 1080p / 4K) ─────────────── */
 
 /* 720p e telas pequenas: cards e textos menores, mais linhas visíveis. */
