@@ -184,14 +184,17 @@ export function alternarPlayPausePlayer(
     return null;
   }
 
-  // TECLA primeiro: é o que ALTERNA de verdade (o toque no centro só despausa).
-  try {
-    if (ponte?.enviarTeclaPlayer?.(KEYCODE_SPACE, 'Space')) return null;
-  } catch {
-    /* segue para o toque */
-  }
+  // TOQUE primeiro: é o ÚNICO gesto que ATRAVESSA até o iframe do provedor
+  // (o teclado do WebView entrega a tecla ao documento PAI, nunca ao player de
+  // outra origem). A TECLA fica como fallback, só quando não há ponte de toque.
+  // SEMPRE UM ÚNICO gesto por chamada — nunca toque E tecla juntos.
   try {
     if (ponte?.enviarToquePlayer?.()) return null;
+  } catch {
+    /* segue para a tecla */
+  }
+  try {
+    if (ponte?.enviarTeclaPlayer?.(KEYCODE_SPACE, 'Space')) return null;
   } catch {
     /* aparelho sem a ponte: nada a fazer */
   }

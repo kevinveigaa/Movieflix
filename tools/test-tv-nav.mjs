@@ -1061,6 +1061,24 @@ async function principal() {
     checar('TESTE K4 — o OK ALTERNA em série (não fica preso em um estado)',
       new Set(estadosK.filter(Boolean)).size >= 2, `estados=${estadosK.join(' \u2192 ')}`);
 
+    /*
+     * K4b — FEEDBACK IMEDIATO: no MESMO OK aparece um ícone grande de pausa/play
+     * no centro da tela, sem esperar o provedor publicar o estado. É o que o
+     * usuário vê responder na hora; some sozinho em ~0,9s.
+     *
+     * LIMITAÇÃO HONESTA (importante): o teste roda headless e NÃO consegue ler o
+     * estado real do `<video>` do provedor — o embed do StreamBetter é de OUTRA
+     * ORIGEM e está atrás do Cloudflare. Por isso aqui se verifica (a) que o OK
+     * entrega o gesto REAL pela ponte nativa e (b) que o `estado` exibido pelo
+     * app alterna. A alternância do VÍDEO de verdade só pode ser confirmada na TV
+     * física (ou por um `streambetter:progress` real, ausente no harness).
+     */
+    await avaliar('window.__mfTeclasPlayer = []; window.__mfToquesPlayer = []');
+    await teclaReal(23, 'Enter');
+    const temFeedback = await avaliar(`!!document.querySelector('[data-tv-player-feedback]')`);
+    checar('TESTE K4b — no MESMO OK aparece o FEEDBACK IMEDIATO (ícone central de pausa/play)',
+      temFeedback === true, `feedback=${temFeedback}`);
+
     // K5 — o EMBED não é recarregado/travado durante o uso. Espera passar MAIS de
     // um ciclo da varredura do antiAds (2s) antes de conferir: era exatamente essa
     // varredura que mexia no iframe do player e congelava o vídeo em 00:00.

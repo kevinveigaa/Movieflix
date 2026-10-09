@@ -72,15 +72,19 @@ export const APK_SIZE_MB = '10.4 MB';
  */
 export const TV_APP_INFO = {
   name: 'MovieFlix TV',
-  version: '4.0.5',
-  versionCode: 45,
+  version: '4.0.6',
+  versionCode: 46,
   /** Arquivo do APK TV em public/apk/ (mesma pasta servida em /apk/) */
-  apkFileName: 'MovieFlix-TV-v4.0.5.apk',
-  /** Tamanho exibido (sincronizado com public/apk/MovieFlix-TV-v4.0.5.apk) */
+  apkFileName: 'MovieFlix-TV-v4.0.6.apk',
+  /** Tamanho exibido (sincronizado com public/apk/MovieFlix-TV-v4.0.6.apk) */
   sizeMB: '5.3 MB',
   package: 'com.movieflix.tv',
-  releaseDate: '2026-10-05',
+  releaseDate: '2026-10-09',
   changelog: [
+    'PLAYER (OK PAUSA/DESPAUSA — CORRIGIDO DE VEZ): o OK agora alterna o pause/despause de forma CONFIAVEL. Causa raiz medida no aparelho: havia um SEGUNDO gesto automatico de "correcao" ~1,3s depois do OK que desfazia o primeiro — o video pausava e voltava sozinho, e o OK parecia "nao pausar". Esse segundo gesto foi ELIMINADO: cada OK entrega UM UNICO gesto real',
+    'PLAYER (OK — GESTO QUE ATRAVESSA): o gesto do OK passou a ser o TOQUE REAL no centro (o unico que atravessa ate o player do provedor, que vive num iframe de outra origem); a tecla ESPACO ficou apenas como fallback para APKs antigos, porque o teclado do WebView entrega a tecla ao documento PAI e ela nunca chegava ao video',
+    'PLAYER (OK — TOGGLE GARANTIDO): o toque de toggle e entregue em DOIS toques reais seguidos (~90ms), como um duplo-toque, para garantir o play/pause mesmo quando o player consome o primeiro toque apenas para "revelar os controles"',
+    'PLAYER (FEEDBACK IMEDIATO): ao apertar OK aparece na hora um icone grande de pausa/play no centro da tela, no MESMO toque — sem esperar o provedor publicar o estado. O estado do botao e o estado real do video voltam a ficar sincronizados (o provedor publica o estado real por postMessage)',
     'PLAYER (AUTOPLAY REAL): ao abrir o player o filme começa a reproduzir SOZINHO, sem tocar no controle — o app entrega um TOQUE REAL no centro do player (o gesto que o player do provedor aceita), repetindo em poucas tentativas até o vídeo montar e parando assim que você aperta qualquer tecla',
     'PLAYER (OK = PLAY/PAUSE REAL): o OK agora pausa e despausa o VÍDEO de verdade, uma única ação por toque. A causa raiz era o FOCO: uma TECLA só chega ao player do provedor (iframe de outra origem) quando o próprio iframe está focado, e o foco é instável no WebView. A correção entrega um TOQUE REAL (não depende de foco) pela nova ponte nativa MovieFlixApp.enviarToquePlayer',
     'PLAYER: a camada que esconde os controles do provedor é suspensa por ~0,5s durante a injeção do toque, para o toque atravessar até o player; fora dessa janela ela volta a cobrir o embed (nenhum controle do provedor fica visível ou clicável)',

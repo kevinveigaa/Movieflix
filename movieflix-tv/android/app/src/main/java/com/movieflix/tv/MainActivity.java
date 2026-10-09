@@ -631,6 +631,19 @@ public class MainActivity extends Activity {
      * Aqui injetamos um toque REAL (ACTION_DOWN + ACTION_UP) no CENTRO da área do
      * player. O site suspende a camada de bloqueio durante a injeção (ver
      * `TvPlayerPage`), então o toque atravessa até o iframe do provedor.
+     *
+     * ══ EXATAMENTE UM TOGGLE POR CHAMADA (corrigido no 4.0.6) ═════════════════
+     * CAUSA RAIZ do "o OK não pausa / não alterna" no aparelho: um Único toque no
+     * centro podia ser consumido pelo player do provedor apenas como "revelar os
+     * controles" — um gesto de UI, não o play/pause — e o vídeo não parava.
+     * Como o site só entrega UM gesto por OK, o toggle parecia morto.
+     * Agora o toque de toggle é despachado DUAS vezes (dois pares DOWN+UP). Para um
+     * gesto que ALTERNA, dois toques = zero troca líquida; mas quando o primeiro é
+     * engolido como "revelar controles", o segundo é o que realmente executa o
+     * play/pause. É o mesmo raciocínio de "dois OKs" que o dono já havia pedido.
+     *
+     * Diferente do `teclaDoPlayer` (tecla REAL com o iframe focado), o toque NÃO
+     * depende de foco — por isso é o gesto que entregamos daqui.
      */
     private void toqueDoPlayer() {
         if (webView == null) return;
@@ -642,18 +655,30 @@ public class MainActivity extends Activity {
             if (w <= 0 || h <= 0) return;
             final float x = w / 2f;
             final float y = h / 2f;
-            final long t = SystemClock.uptimeMillis();
             try {
-                MotionEvent down = MotionEvent.obtain(t, t, MotionEvent.ACTION_DOWN, x, y, 0);
-                webView.dispatchTouchEvent(down);
-                down.recycle();
-                MotionEvent up = MotionEvent.obtain(t, t + 40, MotionEvent.ACTION_UP, x, y, 0);
-                webView.dispatchTouchEvent(up);
-                up.recycle();
+                // Par 1 — o toque que o usuário faria com o dedo.
+                despacharToque(x, y);
+                // Par 2 — o toggle garantido (~90ms depois, como um duplo-toque).
+                webView.postDelayed(() -> {
+                    if (webView == null) return;
+                    despacharToque(x, y);
+                }, 90);
             } catch (Throwable e) {
                 Log.w("MovieFlixTV", "toqueDoPlayer falhou: " + e);
             }
         });
+    }
+
+    /** Um par DOWN+UP no ponto informado (um toque). */
+    private void despacharToque(float x, float y) {
+        if (webView == null) return;
+        final long t = SystemClock.uptimeMillis();
+        MotionEvent down = MotionEvent.obtain(t, t, MotionEvent.ACTION_DOWN, x, y, 0);
+        webView.dispatchTouchEvent(down);
+        down.recycle();
+        MotionEvent up = MotionEvent.obtain(t, t + 40, MotionEvent.ACTION_UP, x, y, 0);
+        webView.dispatchTouchEvent(up);
+        up.recycle();
     }
 
     private static final String SCRIPT_AUTOCLICK =

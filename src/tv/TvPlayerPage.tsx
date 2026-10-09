@@ -17,7 +17,6 @@ import {
   ajustarVolumePlayerTv,
   iniciarReproducaoPlayer,
   lerVolumePlayerTv,
-  type MecanismoToggle,
   type PontePlayerTv,
 } from '@/tv/controlePlayer';
 import { classificarTecla } from '@/tv/teclasPlayer';
@@ -222,20 +221,11 @@ export function TvPlayerPage({ id: idProp }: { id?: string } = {}) {
   reiniciarOcultarRef.current = reiniciarOcultar;
 
   /**
-   * RETRY VERIFICADO do OK: guarda a intenção (pausar/despausar) e o instante do
-   * comando para, pouco depois, conferir se o ESTADO REAL mudou. Se o provedor
-   * não mudou o estado, o `TvPlayerPage` entrega o OUTRO gesto uma única vez
-   * (é o que transforma "só despausa" em alternância garantida no aparelho).
+   * FEEDBACK VISUAL IMEDIATO do toggle: um ícone grande (play/pause) no centro
+   * da tela, mostrado no MESMO OK — não espera o provedor publicar o estado.
    */
-  const retryRef = useRef<{ alvoPausado: boolean; em: number } | null>(null);
-  const retryTimerRef = useRef<number | null>(null);
-
-  /**
-   * ESCALA de mecanismos do retry: quando um gesto não altera o estado real,
-   * o próximo OK entrega um gesto DIFERENTE (toque real → tecla OK/DPAD_CENTER)
-   * em vez de repetir o mesmo caminho que acabou de falhar.
-   */
-  const escalonamentoRef = useRef(0);
+  const [feedback, setFeedback] = useState<'pausar' | 'despausar' | null>(null);
+  const feedbackTimerRef = useRef<number | null>(null);
 
   /**
    * Suspende a GUARDA DE FOCO enquanto uma tecla/toque é injetado no player.
@@ -318,43 +308,24 @@ export function TvPlayerPage({ id: idProp }: { id?: string } = {}) {
     const alvoPausado = recente ? lido.estado !== 'paused' : !pausadoRef.current;
     ultimoOkRef.current = Date.now();
 
-    try {
-      // Um ÚNICO gesto por OK: a TECLA REAL (ESPAÇO) é o toggle que ALTERNA de
-      // verdade no player do provedor (o toque no centro só despausa).
-      const resultado = alternarPlayPausePlayer(iframeDoPlayer(), undefined, 'tecla');
-      if (resultado !== null) setPausado(resultado);
-      else setPausado(alvoPausado); // otimista, ancorado no estado real
-    } finally {
-      // A guarda de foco só volta a agir depois que o shell entregou o gesto.
-      window.setTimeout(() => {
-        alternandoRef.current = false;
-      }, 700);
-    }
+    // FEEDBACK IMEDIATO, no MESMO OK: ícone grande no centro (não espera o
+    // provedor). É o que o usuário vê responder na hora.
+    setPausado(alvoPausado);
+    setFeedback(alvoPausado ? 'pausar' : 'despausar');
+    if (feedbackTimerRef.current !== null) window.clearTimeout(feedbackTimerRef.current);
+    feedbackTimerRef.current = window.setTimeout(() => setFeedback(null), 900);
 
-    // VERIFICAÇÃO + retry: se o estado REAL não mudou, entrega o OUTRO gesto.
-    retryRef.current = { alvoPausado, em: Date.now() };
-    if (retryTimerRef.current !== null) window.clearTimeout(retryTimerRef.current);
-    retryTimerRef.current = window.setTimeout(() => {
-      const pend = retryRef.current;
-      retryRef.current = null;
-      if (!pend) return;
-      const atual = estadoRealRef.current;
-      // Sem leitura real NOVA (posterior ao comando) não há como confirmar: sai.
-      if (!atual.estado || atual.em <= (ultimoOkRef.current ?? 0) || Date.now() - atual.em > 4500) return;
-      const jaCerto = pend.alvoPausado ? atual.estado === 'paused' : atual.estado !== 'paused';
-      if (jaCerto) return;
-      // O gesto não mudou o estado real: entrega o PRÓXIMO gesto da ESCALA
-      // (toque real → tecla OK/DPAD_CENTER). Repetir sempre o MESMO mecanismo que
-      // acabou de falhar deixava o OK sem alternar no aparelho.
-      const prox: MecanismoToggle = escalonamentoRef.current % 2 === 0 ? 'toque' : 'ok';
-      escalonamentoRef.current += 1;
-      marcarInjecao();
-      alternarPlayPausePlayer(iframeDoPlayer(), undefined, prox);
-      window.setTimeout(() => {
-        const fim = estadoRealRef.current;
-        if (fim.estado) setPausado(fim.estado === 'paused');
-      }, 900);
-    }, 1300);
+    // UM ÚNICO GESTO REAL por OK — e o TOQUE é o gesto que ATRAVESSA até o iframe
+    // do provedor (ver controlePlayer.ts). NUNCA emitimos um SEGUNDO gesto "de
+    // correção": era exatamente isso que anulava o toggle no aparelho (o 2º gesto
+    // desfazia o 1º ~1,3s depois e o OK parecia "não pausar").
+    const resultado = alternarPlayPausePlayer(iframeDoPlayer());
+    if (resultado !== null) setPausado(resultado); // vídeo legível: estado real
+
+    // A guarda de foco só volta a agir depois que o shell entregou o gesto.
+    window.setTimeout(() => {
+      alternandoRef.current = false;
+    }, 700);
   }, [iframeDoPlayer, marcarInjecao]);
 
   /**
@@ -603,7 +574,7 @@ export function TvPlayerPage({ id: idProp }: { id?: string } = {}) {
     reiniciarOcultar();
     return () => {
       if (ocultarTimerRef.current !== null) window.clearTimeout(ocultarTimerRef.current);
-      if (retryTimerRef.current !== null) window.clearTimeout(retryTimerRef.current);
+      if (feedbackTimerRef.current !== null) window.clearTimeout(feedbackTimerRef.current);
     };
   }, [pronto, recarga, reiniciarOcultar]);
 
@@ -790,6 +761,18 @@ export function TvPlayerPage({ id: idProp }: { id?: string } = {}) {
             não surgir nem responder. O controle remoto opera o player pelas
             pontes reais (toque/tecla de play/pause + streambetter:seek). */}
         <div className="tv-player-bloqueio" aria-hidden="true" tabIndex={-1} />
+
+        {/* FEEDBACK IMEDIATO do OK: ícone grande (pausa/play) no centro, no
+            MESMO toque. Não depende do provedor — some sozinho em ~0,9s. */}
+        {feedback ? (
+          <div className="tv-player-feedback" aria-hidden="true" data-tv-player-feedback>
+            {feedback === 'pausar' ? (
+              <Pause className="tv-player-feedback-icon" />
+            ) : (
+              <Play className="tv-player-feedback-icon" />
+            )}
+          </div>
+        ) : null}
 
         {/* ── BARRA CUSTOMIZADA ANCORADA NO RODAPÉ (cobre a barra nativa) ──
             Contém a ÚNICA exibição de tempo, no formato HH:MM:SS / HH:MM:SS. */}
