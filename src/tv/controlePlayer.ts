@@ -124,7 +124,7 @@ export function temPonteDeTeclasNativa(): boolean {
  *          estado real não é legível (embed cross-origin), devolve `null` e quem
  *          chama mantém o toggle otimista do HUD.
  */
-export type MecanismoToggle = 'tecla' | 'toque';
+export type MecanismoToggle = 'tecla' | 'toque' | 'ok';
 
 export function alternarPlayPausePlayer(
   iframe: HTMLIFrameElement | null | undefined,
@@ -153,6 +153,23 @@ export function alternarPlayPausePlayer(
   // (2) Embed do provedor (cross-origin): entrega UM ÚNICO gesto REAL pela
   //     ponte nativa. Padrão = TECLA ESPAÇO (o toggle canônico do player).
   //     `mecanismo === 'toque'` = caminho de RETRY do `TvPlayerPage`.
+  // ESCALA do retry: o OK (DPAD_CENTER, 23) é o gesto que o usuário apertaria e
+  // que o provedor também trata como play/pause. Fica como TERCEIRO mecanismo da
+  // escala, para quando a tecla ESPAÇO e o toque no centro não surtiram efeito.
+  if (mecanismo === 'ok') {
+    try {
+      if (ponte?.enviarTeclaPlayer?.(KEYCODE_DPAD_CENTER, 'Enter')) return null;
+    } catch {
+      /* segue para o toque */
+    }
+    try {
+      if (ponte?.enviarToquePlayer?.()) return null;
+    } catch {
+      /* aparelho sem a ponte: nada a fazer */
+    }
+    return null;
+  }
+
   if (mecanismo === 'toque') {
     try {
       if (ponte?.enviarToquePlayer?.()) return null;

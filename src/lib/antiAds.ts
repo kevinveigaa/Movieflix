@@ -260,6 +260,10 @@ function sanitizarIframesAnuncio(): void {
   try {
     const iframes = document.querySelectorAll<HTMLIFrameElement>('iframe');
     for (const iframe of iframes) {
+      // NUNCA tocar no iframe do PLAYER (documentado): ele é o embed OFICIAL do
+      // provedor, não um anúncio — removê-lo/recarregá-lo zerava o tempo e prendia
+      // o vídeo em 00:00.
+      if (iframe.closest('[data-tv-player-box]') || iframe.hasAttribute('data-player-src')) continue;
       const src = iframe.getAttribute('src') || '';
       if (!src) continue;
       let host = '';
@@ -302,6 +306,16 @@ function instalarAutoCloseOverlays(): () => void {
   function tentarFechar(): void {
     const body = document.body;
     if (!body) return;
+    // ── O PLAYER DA TV É O DONO ABSOLUTO DA TELA (CAUSA RAIZ) ────────────────
+    // Com o player montado (marcador no <html>), esta varredura mexia no MESMO
+    // iframe que está reproduzindo e reagia a TODA mutação de classe do player
+    // (`.tv-focus`, `.tv-player-injetando`, os controles aparecendo/sumindo no
+    // auto-ocultar de 5s). No TV Box isso travava a alternação play/pause e
+    // podia recarregar o embed — o tempo zerava em 00:00 e a duração oscilava,
+    // exatamente o que o vídeo do dono mostra. Nenhuma proteção anti-anúncio é
+    // necessária aqui: a CAMADA DE BLOQUEIO do player cobre o embed, e a camada
+    // nativa (MainActivity) é a última linha de defesa.
+    if (document.documentElement.hasAttribute('data-tv-player-ativo')) return;
     // 1) Seletores diretos de botão de fechar — SOMENTE fora de #root.
     for (const sel of SELETORES_FECHAR) {
       try {

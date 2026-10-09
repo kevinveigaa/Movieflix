@@ -13,6 +13,7 @@
     "test:tv-login": "node tools/test-tv-login.mjs",
     "test:tv-nav": "node tools/test-tv-nav.mjs",
     "test:tv-ok": "node tools/test-tv-ok.mjs",
+    "test:tv-pause": "node tools/test-tv-nav.mjs --shot=tools/qa/pause-tv.png",
     "test:tv": "npm run test:tv-login && npm run test:tv-nav && npm run test:tv-ok",
     "verificar:deploy": "node tools/verificar-deploy.mjs",
     "cap:sync": "npm run build && npx cap sync",

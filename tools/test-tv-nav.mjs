@@ -991,6 +991,102 @@ async function principal() {
     p = await progressoAgora();
     checar('TESTE H — avançar de novo continua dentro da duração', numSegundos(p.atual) <= numSegundos(p.total), `atual=${p.atual} total=${p.total}`);
 
+    // ══════════════════════════════════════════════════════════════════════
+    // TESTE K — PAUSE/DESPAUSE DO PLAYER PELO CONTROLE REMOTO (keycodes REAIS)
+    // ──────────────────────────────────────────────────────────────────────
+    // Requisito do dono (após gravar a TV em vídeo): "o pause e despause NÃO
+    // funciona". Aqui o caminho é reproduzido com os KEYCODES REAIS do Android
+    // TV — OK=23, PLAY/PAUSE=85, setas, Voltar=4 — entregues como TECLA REAL
+    // (CDP), que é como o controle remoto entrega. Repetimos o toggle em série
+    // para provar que ele ALTERNA (não fica preso em um estado) e — o ponto que
+    // travava no aparelho — que o EMBED NÃO é recarregado durante o uso: a
+    // varredura do antiAds (2s) e a camada de bloqueio não podem tocar no iframe
+    // que está tocando (era isso que prendia o vídeo em 00:00 e fazia a duração
+    // oscilar no vídeo do dono).
+    await abrirPlayer(1550338);
+    await valer(600);
+    const PASTA_QA = path.dirname(SHOT);
+    const capturaPng = async (nome) => {
+      const c = await enviar('Page.captureScreenshot', { format: 'png' });
+      mkdirSync(PASTA_QA, { recursive: true });
+      const destino = path.join(PASTA_QA, nome);
+      await writeFile(destino, Buffer.from(c.data, 'base64'));
+      return destino;
+    };
+    const marcaIframe = () =>
+      avaliar(`document.querySelector('.tv-player-box iframe')?.getAttribute('data-mf-teste') || null`);
+    await avaliar(
+      `(() => { const f = document.querySelector('.tv-player-box iframe'); if (f) f.setAttribute('data-mf-teste','k1'); })()`,
+    );
+    checar('TESTE K — o player se declara ativo (data-tv-player-ativo)',
+      (await avaliar(`document.documentElement.hasAttribute('data-tv-player-ativo')`)) === true);
+    checar('TESTE K — o embed do player está montado', (await marcaIframe()) === 'k1');
+    checar('TESTE K — a MOLDURA do player existe (recebe a janela de injeção)',
+      (await avaliar(`!!document.querySelector('.tv-player-box')`)) === true);
+
+    // K1 — OK (keycode 23) PAUSA.
+    await avaliar('window.__mfTeclasPlayer = []; window.__mfToquesPlayer = []');
+    await teclaReal(23, 'Enter');
+    p = await progressoAgora();
+    checar('TESTE K1 — OK (23) entrega comando REAL de pausa ao player',
+      p.toques.length >= 1 || p.teclas.includes(32) || p.teclas.includes(23),
+      `toques=${p.toques.length} teclas=[${p.teclas.join(',')}]`);
+    checar('TESTE K1 — depois do OK a interface mostra PAUSADO', /pausado/i.test(p.estado || ''), `estado=${p.estado}`);
+    const evPausado = await capturaPng('tv-player-pausado.png');
+
+    // K2 — OK novamente DESPAUSA (alternância real, e não "só o ícone").
+    await avaliar('window.__mfTeclasPlayer = []; window.__mfToquesPlayer = []');
+    await teclaReal(23, 'Enter');
+    p = await progressoAgora();
+    checar('TESTE K2 — o segundo OK DESPAUSA (volta a Reproduzindo)', /reproduzindo/i.test(p.estado || ''), `estado=${p.estado}`);
+    checar('TESTE K2 — o segundo OK entrega comando REAL (não é só o ícone)',
+      p.toques.length >= 1 || p.teclas.includes(32) || p.teclas.includes(23),
+      `toques=${p.toques.length} teclas=[${p.teclas.join(',')}]`);
+    const evReproduzindo = await capturaPng('tv-player-reproduzindo.png');
+
+    // K3 — a tecla de MÍDIA PLAY/PAUSE (85) do controle faz o MESMO toggle do OK.
+    await avaliar('window.__mfTeclasPlayer = []; window.__mfToquesPlayer = []');
+    await teclaReal(85, 'MediaPlayPause');
+    p = await progressoAgora();
+    checar('TESTE K3 — PLAY/PAUSE (85) do controle aciona o mesmo toggle do OK',
+      p.toques.length >= 1 || p.teclas.includes(32) || p.teclas.includes(85) || /pausado|reproduzindo/i.test(p.estado || ''),
+      `toques=${p.toques.length} teclas=[${p.teclas.join(',')}] estado=${p.estado}`);
+
+    // K4 — ALTERNÂNCIA em série: 4 OKs produzem MAIS DE UM estado (não trava).
+    const estadosK = [];
+    for (let i = 0; i < 4; i += 1) {
+      await teclaReal(23, 'Enter');
+      estadosK.push((await progressoAgora()).estado);
+    }
+    checar('TESTE K4 — o OK ALTERNA em série (não fica preso em um estado)',
+      new Set(estadosK.filter(Boolean)).size >= 2, `estados=${estadosK.join(' \u2192 ')}`);
+
+    // K5 — o EMBED não é recarregado/travado durante o uso. Espera passar MAIS de
+    // um ciclo da varredura do antiAds (2s) antes de conferir: era exatamente essa
+    // varredura que mexia no iframe do player e congelava o vídeo em 00:00.
+    await valer(6000);
+    checar('TESTE K5 — o embed do player NÃO foi recarregado (a varredura do antiAds não age no player)',
+      (await marcaIframe()) === 'k1', `marca=${await marcaIframe()}`);
+    checar('TESTE K5 — o player continua MONTADO depois da janela da varredura (não congelou)',
+      (await avaliar(`!!document.querySelector('.tv-player-box iframe')`)) === true);
+
+    // K6 — as setas continuam chegando ao player (seek ±30s).
+    const antesK6 = numSegundos((await progressoAgora()).atual);
+    await teclaReal(39, 'ArrowRight');
+    await valer(350);
+    const depoisK6 = await progressoAgora();
+    checar('TESTE K6 — a seta DIREITA chega ao player (avançar 30s: avanço ou indicador na barra)',
+      numSegundos(depoisK6.atual) > antesK6 || !!depoisK6.movimento,
+      `antes=${antesK6}s depois=${depoisK6.atual} movimento=${depoisK6.movimento}`);
+
+    // K7 — VOLTAR (4) sai do player sem travar o app.
+    await teclaReal(4, 'GoBack');
+    await valer(800);
+    checar('TESTE K7 — VOLTAR (4) sai do player sem travar o app',
+      !/\/tv\/assistir\//.test(await avaliar('location.hash')), `rota=${await avaliar('location.hash')}`);
+    void evPausado;
+    void evReproduzindo;
+
     // Evidência visual dos detalhes.
     await avaliar(`history.back()`);
     await valer(700);

@@ -17,6 +17,7 @@ import {
   ajustarVolumePlayerTv,
   iniciarReproducaoPlayer,
   lerVolumePlayerTv,
+  type MecanismoToggle,
   type PontePlayerTv,
 } from '@/tv/controlePlayer';
 import { classificarTecla } from '@/tv/teclasPlayer';
@@ -111,6 +112,8 @@ export function TvPlayerPage({ id: idProp }: { id?: string } = {}) {
   const { user, subscription, loading: authLoading } = useAuth();
   const assinante = hasActiveSubscription(subscription);
   const iframeWrapRef = useRef<HTMLDivElement>(null);
+  /** A MOLDURA do player (recebe a classe de injeção DE FORMA SÍNCRONA). */
+  const boxRef = useRef<HTMLDivElement>(null);
 
   /** Recria o embed sem duplicar iframes (mantido para a leitura de estado). */
   const [recarga] = useState(0);
@@ -228,6 +231,13 @@ export function TvPlayerPage({ id: idProp }: { id?: string } = {}) {
   const retryTimerRef = useRef<number | null>(null);
 
   /**
+   * ESCALA de mecanismos do retry: quando um gesto não altera o estado real,
+   * o próximo OK entrega um gesto DIFERENTE (toque real → tecla OK/DPAD_CENTER)
+   * em vez de repetir o mesmo caminho que acabou de falhar.
+   */
+  const escalonamentoRef = useRef(0);
+
+  /**
    * Suspende a GUARDA DE FOCO enquanto uma tecla/toque é injetado no player.
    * CAUSA RAIZ: a guarda devolvia o foco ao botão imediatamente — às vezes antes
    * de o WebView despachar a tecla ao iframe recém-focado, e o play/pause não
@@ -255,9 +265,31 @@ export function TvPlayerPage({ id: idProp }: { id?: string } = {}) {
   /** Abre a janela de injeção: suspende a camada e ignora o eco da tecla. */
   const marcarInjecao = useCallback(() => {
     janelaInjecaoRef.current = Date.now() + 700;
+    // ══ APLICAÇÃO SÍNCRONA — CAUSA RAIZ DO "PLAY/PAUSE NÃO FUNCIONA" ══
+    // O toque/tecla REAIS são entregues pelo shell nativo poucos milissegundos
+    // depois desta chamada. Antes, a suspensão da camada de bloqueio subia junto
+    // com o estado do React (`setInjetando`), e um re-render só vale no PRÓXIMO
+    // quadro: o toque nativo chegava enquanto `.tv-player-bloqueio` ainda cobria
+    // o iframe (z-index 12) — o toque era ENGOLIDO pela camada, o player nunca
+    // recebia play/pause e a tela ficava no cartão título parado em 00:00
+    // (exatamente o vídeo do dono). Aqui a classe é aplicada no DOM na MESMA
+    // pilha, ANTES de qualquer ponte nativa ser acionada: não há janela de
+    // corrida. O estado do React continua sendo atualizado só para coerência.
+    try {
+      boxRef.current?.classList.add('tv-player-injetando');
+    } catch {
+      /* ambiente sem DOM */
+    }
     setInjetando(true);
     if (injecaoTimerRef.current !== null) window.clearTimeout(injecaoTimerRef.current);
-    injecaoTimerRef.current = window.setTimeout(() => setInjetando(false), 500);
+    injecaoTimerRef.current = window.setTimeout(() => {
+      try {
+        boxRef.current?.classList.remove('tv-player-injetando');
+      } catch {
+        /* ignorar */
+      }
+      setInjetando(false);
+    }, 500);
   }, []);
 
   /**
@@ -311,9 +343,13 @@ export function TvPlayerPage({ id: idProp }: { id?: string } = {}) {
       if (!atual.estado || atual.em <= (ultimoOkRef.current ?? 0) || Date.now() - atual.em > 4500) return;
       const jaCerto = pend.alvoPausado ? atual.estado === 'paused' : atual.estado !== 'paused';
       if (jaCerto) return;
-      // O gesto não mudou o estado real: entrega o TOQUE REAL (retry único).
+      // O gesto não mudou o estado real: entrega o PRÓXIMO gesto da ESCALA
+      // (toque real → tecla OK/DPAD_CENTER). Repetir sempre o MESMO mecanismo que
+      // acabou de falhar deixava o OK sem alternar no aparelho.
+      const prox: MecanismoToggle = escalonamentoRef.current % 2 === 0 ? 'toque' : 'ok';
+      escalonamentoRef.current += 1;
       marcarInjecao();
-      alternarPlayPausePlayer(iframeDoPlayer(), undefined, 'toque');
+      alternarPlayPausePlayer(iframeDoPlayer(), undefined, prox);
       window.setTimeout(() => {
         const fim = estadoRealRef.current;
         if (fim.estado) setPausado(fim.estado === 'paused');
@@ -469,7 +505,15 @@ export function TvPlayerPage({ id: idProp }: { id?: string } = {}) {
   useEffect(() => {
     if (!pronto) return;
     document.documentElement.setAttribute('data-tv-player-ativo', '1');
-    return () => document.documentElement.removeAttribute('data-tv-player-ativo');
+    return () => {
+      document.documentElement.removeAttribute('data-tv-player-ativo');
+      // Nunca deixar a janela de injeção presa no DOM ao desmontar.
+      try {
+        boxRef.current?.classList.remove('tv-player-injetando');
+      } catch {
+        /* ignorar */
+      }
+    };
   }, [pronto]);
 
   /** Troca de título/episódio: o progresso mostrado é o DESTA reprodução. */
@@ -601,6 +645,13 @@ export function TvPlayerPage({ id: idProp }: { id?: string } = {}) {
     const timers = tentativas.map((ms) =>
       window.setTimeout(() => {
         if (usuarioInteragiuRef.current) return;
+        // CAUSA RAIZ: as 4 tentativas eram entregues MESMO depois de o vídeo já
+        // estar tocando. Como o gesto é um ALTERNADOR (toque = play/pause), o
+        // 2º/3º/4º toque PAUSAVAM o filme que o provedor tinha acabado de iniciar —
+        // o usuário via o vídeo parar sozinho logo depois de abrir. Agora o
+        // autoplay para no instante em que o provedor publica estado REAL de
+        // reprodução (`streambetter:progress` → state = playing).
+        if (estadoRealRef.current.estado === 'playing') return;
         // Abre a janela de injeção: suspende a camada (o toque atravessa) e
         // ignora o eco da tecla no documento pai.
         marcarInjecao();
@@ -721,7 +772,11 @@ export function TvPlayerPage({ id: idProp }: { id?: string } = {}) {
       {/* A MOLDURA do vídeo ocupa a tela inteira. A barra customizada é ANCORADA
           no rodapé DESTA moldura — exatamente onde a barra nativa do provedor
           aparece — de modo que ela a COBRE por completo (ver tv.css). */}
-      <div className={`tv-player-box${injetando ? ' tv-player-injetando' : ''}`} data-tv-player-box>
+      <div
+        ref={boxRef}
+        className={`tv-player-box${injetando ? ' tv-player-injetando' : ''}`}
+        data-tv-player-box
+      >
         <div ref={iframeWrapRef} className="tv-player-embed">
           <StreamBetterEmbed
             key={`${src}-${recarga}`}
