@@ -100,8 +100,28 @@ async def instalar_stubs(page) -> None:
                     # O embed é de OUTRA origem: o pai não consegue espionar a
                     # função postMessage dele. Então o próprio stub nos DEVOLVE
                     # o que recebeu (eco) — é a prova de que o comando chegou.
-                    "<script>window.addEventListener('message',function(e){"
-                    "try{parent.postMessage({mfEco:e.data},'*')}catch(err){}});</script>"
+                    #
+                    # A partir da 5.0.4 o stub também faz o papel da PONTE NATIVA
+                    # (SCRIPT_PONTE_PLAYER): mantém o estado do <video> e o reporta
+                    # por `mf-player-state`, para provar que o ícone reflete o
+                    # estado REAL — e não um palpite otimista da página.
+                    "<script>"
+                    "window.__mfPlaying = true; window.__mfIgnorar = false;"
+                    "function avisar(){try{parent.postMessage({type:'mf-player-state',playing:window.__mfPlaying},'*')}catch(e){}}"
+                    "window.addEventListener('message',function(e){"
+                    "try{parent.postMessage({mfEco:e.data},'*')}catch(err){}"
+                    "var d=e.data; if(!d)return;"
+                    "if(d.type==='mf-stub-set'){if(typeof d.playing==='boolean')window.__mfPlaying=d.playing;"
+                    "if(typeof d.ignorar==='boolean')window.__mfIgnorar=d.ignorar; avisar(); return;}"
+                    "if(d.type!=='mf-player-command')return;"
+                    "if(window.__mfIgnorar){avisar(); return;}"
+                    "var c=d.command;"
+                    "if(c==='play')window.__mfPlaying=true;"
+                    "else if(c==='pause')window.__mfPlaying=false;"
+                    "else if(c==='toggle')window.__mfPlaying=!window.__mfPlaying;"
+                    "avisar();"
+                    "});"
+                    "</script>"
                     "</body></html>"
                 ),
             )
@@ -552,6 +572,52 @@ async def main() -> int:
                 "Reproduzindo" in ((await estado(page))["aviso"] or ""),
                 "pausar → retomar → pausar → retomar volta mesmo a reproduzir",
             )
+
+            # ── [10A.1b] O ÍCONE REFLETE O ESTADO REAL DO VÍDEO (não um palpite) ──
+            # A correção 5.0.4 faz a ponte nativa aplicar o comando ao <video> real
+            # e devolver `mf-player-state`. O stub do provedor faz esse papel aqui:
+            # mantém o estado e o reporta. Provamos que o ícone segue o ESTADO REAL
+            # — inclusive quando o provedor RECUSA o comando (o ícone não mente).
+            print("\n[10A.1b] Player: o ícone reflete o estado REAL do vídeo")
+
+            async def icone():
+                return await page.evaluate(
+                    "() => { const b = document.querySelector('[aria-label=\"Pausar\"], [aria-label=\"Reproduzir\"]'); return b ? b.getAttribute('aria-label') : null; }"
+                )
+
+            async def stub_set(playing: bool, ignorar: bool) -> None:
+                await page.evaluate(
+                    """([p, ig]) => {
+                        const f = document.querySelector('.tv-player-embed iframe');
+                        if (f && f.contentWindow) f.contentWindow.postMessage({type:'mf-stub-set', playing:p, ignorar:ig}, '*');
+                    }""",
+                    [playing, ignorar],
+                )
+                await page.wait_for_timeout(220)
+
+            # (a) O provedor ACEITA: o comando chega e o ícone acompanha o vídeo.
+            await stub_set(True, False)
+            await zera()
+            await midia_key("togglePlay")
+            checar(await conta("pause") >= 1, "o comando 'pause' chegou ao player (ponte)")
+            ic = await icone()
+            checar(ic == "Reproduzir", f"o ícone reflete o vídeo PAUSADO (ícone={ic!r})")
+            await zera()
+            await midia_key("togglePlay")
+            checar(await conta("play") >= 1, "o comando 'play' chegou ao player (ponte)")
+            ic = await icone()
+            checar(ic == "Pausar", f"o ícone reflete o vídeo REPRODUZINDO (ícone={ic!r})")
+
+            # (b) O provedor RECUSA: o ícone NÃO pode mentir — tem de seguir o
+            # estado REAL (que não mudou), e não o palpite otimista da página.
+            await stub_set(True, True)
+            await midia_key("togglePlay")
+            ic = await icone()
+            checar(
+                ic == "Pausar",
+                f"com o provedor recusando, o ícone NÃO mente (ícone={ic!r})",
+            )
+            await stub_set(True, False)
 
             # ── [10A.2] O OK ACIONA O BOTÃO FOCADO, COM FOCO VISÍVEL ────────────
             print("\n[10A.2] Player: ↓ põe o FOCO num botão e o OK o aciona")

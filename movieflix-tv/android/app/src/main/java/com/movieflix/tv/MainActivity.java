@@ -276,6 +276,11 @@ public class MainActivity extends Activity {
         // provedor (ver instalarAutoclickAbrirLink).
         instalarAutoclickAbrirLink(webView);
 
+        // Ponte de comandos do player (correção do PAUSE/DESPAUSE, v5.0.4):
+        // leva o play/pause/seek até o <video> REAL dentro do iframe do provedor
+        // e devolve o estado verdadeiro para o ícone do botão.
+        instalarPontePlayer(webView);
+
         webView.setWebViewClient(new WebViewClient() {
             @Override
             public void onPageStarted(WebView view, String url, Bitmap favicon) {
@@ -366,8 +371,10 @@ public class MainActivity extends Activity {
                     WebView nova = new WebView(MainActivity.this);
                     copiarConfiguracao(view, nova);
                     // A janela nova recebe o MESMO autoclick (o passo "Abrir link"
-                    // pode abrir em janela nova).
+                    // pode abrir em janela nova) e a MESMA ponte de comandos do
+                    // player (o embed pode carregar numa janela nova).
                     instalarAutoclickAbrirLink(nova);
+                    instalarPontePlayer(nova);
                     nova.setWebViewClient(new WebViewClient() {
                         @Override
                         public boolean shouldOverrideUrlLoading(WebView v, WebResourceRequest request) {
@@ -550,6 +557,84 @@ public class MainActivity extends Activity {
                     alvo, SCRIPT_AUTOCLICK, Collections.singleton("*"));
         } catch (Exception e) {
             // Plataforma sem suporte: o usuário ainda pode acionar pelo controle.
+        }
+    }
+
+    /**
+     * PONTE DE COMANDOS DO PLAYER — correção do PAUSE/DESPAUSE (v5.0.4).
+     *
+     * ══════════════════════════════════════════════════════════════════════════
+     * CAUSA RAIZ DO DEFEITO RELATADO ("pausar e despausar não funciona")
+     * ══════════════════════════════════════════════════════════════════════════
+     * O player do provedor (StreamBetter) roda num IFRAME de OUTRA ORIGEM. A
+     * página do MovieFlix NÃO consegue tocar no `<video>` de dentro dele (política
+     * de mesma origem), então o `postMessage` que ela enviava
+     * (`{event:'command',func:'pause'}`) não era reconhecido por NINGUÉM: o ícone
+     * do botão alternava (estado otimista da própria página), mas o vídeo NUNCA
+     * pausava. É exatamente o que a gravação mostra — o ícone muda de ⏸ para ▶ e
+     * volta, e o contador permanece em 00:00.
+     *
+     * Por que o seek/volume "funcionavam": o volume é do APARELHO (AudioManager,
+     * não do iframe) e o seek só dava feedback na tela — o mesmo palpite otimista.
+     *
+     * ══════════════════════════════════════════════════════════════════════════
+     * CORREÇÃO (mínima e cirúrgica)
+     * ══════════════════════════════════════════════════════════════════════════
+     * Injetamos, em TODOS os frames (inclusive o do provedor), um receptor que:
+     *   1. escuta o comando que a página já enviava (`mf-player-command`);
+     *   2. aplica-o ao `<video>` REAL daquele frame (play/pause/toggle/seek);
+     *   3. se o frame não tem o vídeo, REPASSA o comando aos frames filhos (o
+     *      embed do provedor aninha o player em outro iframe);
+     *   4. devolve o estado VERDADEIRO (`mf-player-state`, playing/paused) para a
+     *      página, para o ícone refletir o vídeo e não um palpite.
+     *
+     * A injeção é DOCUMENT_START (androidx.webkit): roda antes do script da
+     * página, em todos os frames. Ela NÃO esconde nada, NÃO cria botão falso e
+     * NÃO toca no Cloudflare/Turnstile — apenas controla o elemento de vídeo que
+     * já está na página. Onde a plataforma não suporta, o app não injeta e nada
+     * quebra (o player segue com os controles próprios do provedor).
+     */
+    private static final String SCRIPT_PONTE_PLAYER =
+            "(function(){"
+            + " if (window.__mfPontePlayer) return; window.__mfPontePlayer = true;"
+            + " function acharVideo(){"
+            + "   try { var v = document.querySelector('video'); if (v) return v; } catch(e){}"
+            + "   try { var vs = document.getElementsByTagName('video'); if (vs && vs.length) return vs[0]; } catch(e){}"
+            + "   return null; }"
+            + " function avisarEstado(){"
+            + "   try { var v = acharVideo(); if (!v) return;"
+            + "     var msg = { type: 'mf-player-state', playing: !v.paused,"
+            + "                 currentTime: v.currentTime || 0, duration: v.duration || 0 };"
+            + "     try { if (window.top && window.top !== window) window.top.postMessage(msg, '*'); } catch(e){}"
+            + "     try { if (window.parent && window.parent !== window) window.parent.postMessage(msg, '*'); } catch(e){}"
+            + "   } catch(e){} }"
+            + " function aplicar(cmd){"
+            + "   try { var v = acharVideo(); if (!v) return false;"
+            + "     if (cmd === 'play') { var r1 = v.play(); if (r1 && r1.catch) r1.catch(function(){}); }"
+            + "     else if (cmd === 'pause') { v.pause(); }"
+            + "     else if (cmd === 'toggle') { if (v.paused) { var r2 = v.play(); if (r2 && r2.catch) r2.catch(function(){}); } else { v.pause(); } }"
+            + "     else if (cmd === 'seekFwd') { v.currentTime = Math.min((v.duration||0), (v.currentTime||0) + 10); }"
+            + "     else if (cmd === 'seekBack') { v.currentTime = Math.max(0, (v.currentTime||0) - 10); }"
+            + "     else return false;"
+            + "     avisarEstado(); return true;"
+            + "   } catch(e){ return false; } }"
+            + " window.addEventListener('message', function(ev){"
+            + "   var d = ev.data; if (!d || d.type !== 'mf-player-command') return;"
+            + "   if (!aplicar(d.command)) {"
+            + "     try { for (var i=0;i<window.frames.length;i++){ try { window.frames[i].postMessage(d, '*'); } catch(e){} } } catch(e){}"
+            + "   }"
+            + " }, false);"
+            + " try { var v = acharVideo(); if (v) { v.addEventListener('play', avisarEstado); v.addEventListener('pause', avisarEstado); avisarEstado(); } } catch(e){}"
+            + "})();";
+
+    private void instalarPontePlayer(WebView alvo) {
+        if (alvo == null) return;
+        try {
+            if (!WebViewFeature.isFeatureSupported(WebViewFeature.DOCUMENT_START_SCRIPT)) return;
+            WebViewCompat.addDocumentStartJavaScript(
+                    alvo, SCRIPT_PONTE_PLAYER, Collections.singleton("*"));
+        } catch (Exception e) {
+            // Plataforma sem suporte: o player ainda tem os controles próprios.
         }
     }
 

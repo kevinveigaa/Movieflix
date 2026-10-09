@@ -360,6 +360,26 @@ export function TvPlayerPage({ id: idProp }: { id?: string } = {}) {
     mostrarAviso(proximoEstado ? '▶ Reproduzindo' : '⏸ Pausado');
   }, [comandarPlayer, mostrarAviso]);
 
+  /**
+   * ESTADO REAL DO VÍDEO (correção do PAUSE/DESPAUSE, v5.0.4).
+   *
+   * O ícone do botão NÃO pode ser um palpite: o vídeo vive num iframe de OUTRA
+   * origem e só ele sabe se está pausado. A ponte nativa (ver
+   * `SCRIPT_PONTE_PLAYER` em MainActivity.java) aplica o comando ao `<video>`
+   * real e devolve `mf-player-state` com o estado VERDADEIRO. Aqui o ícone passa
+   * a refletir o vídeo — se o provedor recusar o comando, o ícone NÃO mente.
+   */
+  useEffect(() => {
+    function onEstado(ev: MessageEvent) {
+      const d = ev.data as { type?: string; playing?: boolean } | null;
+      if (!d || d.type !== 'mf-player-state' || typeof d.playing !== 'boolean') return;
+      emReproducaoRef.current = d.playing;
+      setEmReproducao(d.playing);
+    }
+    window.addEventListener('message', onEstado);
+    return () => window.removeEventListener('message', onEstado);
+  }, []);
+
   /** Seek pelo controle: avança/retrocede e mostra o passo no aviso. */
   const seek = useCallback(
     (frente: boolean) => {

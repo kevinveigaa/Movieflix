@@ -72,15 +72,17 @@ export const APK_SIZE_MB = '10.4 MB';
  */
 export const TV_APP_INFO = {
   name: 'MovieFlix TV',
-  version: '5.0.3',
-  versionCode: 503,
+  version: '5.0.4',
+  versionCode: 504,
   /** Arquivo do APK TV em public/apk/ (mesma pasta servida em /apk/) */
-  apkFileName: 'MovieFlix-TV-v5.0.3.apk',
-  /** Tamanho exibido (sincronizado com public/apk/MovieFlix-TV-v5.0.3.apk) */
+  apkFileName: 'MovieFlix-TV-v5.0.4.apk',
+  /** Tamanho exibido (sincronizado com public/apk/MovieFlix-TV-v5.0.4.apk) */
   sizeMB: '5.3 MB',
   package: 'com.movieflix.tv',
-  releaseDate: '2026-09-23',
+  releaseDate: '2026-10-09',
   changelog: [
+    'PAUSE/DESPAUSE (correção principal): pausar e retomar agora funcionam de verdade no player — o comando de play/pause era enviado ao iframe do provedor, mas NINGUÉM o aplicava ao vídeo (o iframe é de outra origem e não reconhecia a mensagem), então o ícone mudava e o filme continuava rodando; agora uma ponte nativa leva o comando até o <video> REAL dentro do embed e devolve o estado verdadeiro',
+    'PAUSE/DESPAUSE (correção): o ícone do botão deixou de ser um "palpite" — ele passa a refletir o estado REAL do vídeo (se o provedor recusar o comando, o ícone não mente)',
     'LOGIN (correção): ao acionar o campo de E-MAIL o teclado da TV abre e PERMANECE aberto — antes o OK dentro de um campo movia o foco para o OUTRO campo em ~1 ms, o foco saía sozinho e não dava para escrever nada; agora o foco fica no campo e o pedido de teclado chega à camada nativa',
     'TOQUE (correção): no CELULAR, tocar em pausar/retomar, avançar e retroceder agora funciona — a superfície de tela cheia que abria os controles ENGOLIA o toque antes de ele chegar ao player e virou `pointer-events: none`, então o toque atravessa para o vídeo e o player responde',
     'CONTROLE REMOTO (correção): pausar, retomar, avançar e retroceder agora respondem de verdade ao controle remoto — o PLAY/PAUSE do controle voltou a funcionar',
