@@ -36,7 +36,6 @@ const ForgotPasswordPage = lazyWithRetry(() => import('@/pages/auth/ForgotPasswo
 const ResetPasswordPage = lazyWithRetry(() => import('@/pages/auth/ResetPasswordPage').then((m) => ({ default: m.ResetPasswordPage })));
 const ProfileSelectPage = lazyWithRetry(() => import('@/pages/auth/ProfileSelectPage').then((m) => ({ default: m.ProfileSelectPage })));
 const DownloadAppPage = lazyWithRetry(() => import('@/pages/DownloadAppPage').then((m) => ({ default: m.DownloadAppPage })));
-const TvApp = lazyWithRetry(() => import('@/tv/TvApp').then((m) => ({ default: m.TvApp })));
 
 /*
   ÁREA PRIVADA — acesso SOMENTE por link secreto.
@@ -139,10 +138,9 @@ function AppRoutes() {
             <Route path="/admin/series/:seriesId" element={<RequireAuth><AdminSeriesPage /></RequireAuth>} />
           </Route>
           {/*
-            MovieFlix TV — interface dedicada para Android TV / Google TV / TV Box.
-            Fica FORA do <AppLayout/>: a TV não pode herdar a Navbar nem o Footer
-            do site (seria o layout web ampliado). Duas rotas porque `/tv/*` não
-            casa com a barra final, e `/tv` sozinho cairia no catch-all.
+            MovieFlix TV — interface preservada no código (src/tv/), mas
+            TEMPORARIAMENTE oculta da navegação pública. As rotas /tv e /tv/*
+            redirecionam para a home enquanto a versão TV estiver suspensa.
           */}
           {/*
             Área privada do proprietário (APK "MEU GANHO" e conteúdo pessoal).
@@ -157,8 +155,8 @@ function AppRoutes() {
             para cá sai do site, e a página se marca `noindex, nofollow`.
           */}
           <Route path="/projetos" element={<ProjetosPage />} />
-          <Route path="/tv" element={<TvApp />} />
-          <Route path="/tv/*" element={<TvApp />} />
+          <Route path="/tv" element={<Navigate to="/" replace />} />
+          <Route path="/tv/*" element={<Navigate to="/" replace />} />
           <Route path="/login" element={<LoginPage />} />
           <Route path="/cadastro" element={<SignupPage />} />
           <Route path="/recuperar-senha" element={<ForgotPasswordPage />} />

@@ -87,7 +87,7 @@ export function AssistaPeloApp({
           </span>
           <span className="inline-flex items-center gap-1.5">
             <MonitorSmartphone className="h-3.5 w-3.5 text-brand-400" />
-            Android · Android TV · Google TV · TV Box
+            Android Mobile
           </span>
         </div>
 

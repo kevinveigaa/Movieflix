@@ -35,8 +35,8 @@ export const APP_INFO = {
     'Botão voltar inteligente: sai da tela cheia → volta na página → sai do app',
     'Tela de carregamento com o logo e tela de erro com "Tentar novamente"',
   ],
-  /** Plataformas suportadas */
-  platforms: ['Android', 'Android TV', 'Google TV', 'TV Box'],
+  /** Plataformas suportadas exibidas publicamente durante a pausa da versão TV */
+  platforms: ['Android Mobile'],
   /** Nome do arquivo do APK oficial (manter sincronizado com public/apk/) */
   apkFileName: 'MovieFlix-v3.4.1.apk',
 } as const;

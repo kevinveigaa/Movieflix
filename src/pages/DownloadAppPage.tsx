@@ -1,11 +1,11 @@
 import { Link } from 'react-router-dom';
 import { QRCodeSVG } from 'qrcode.react';
 import { Smartphone, Download, ShieldCheck, Monitor, RotateCcw, Apple, CheckCircle2 } from 'lucide-react';
-import { APP_INFO, APK_ABSOLUTE_URL, DOWNLOAD_PAGE_URL, APK_SIZE_MB, TV_APP_INFO, TV_APK_ABSOLUTE_URL } from '@/lib/appInfo';
+import { APP_INFO, APK_ABSOLUTE_URL, DOWNLOAD_PAGE_URL, APK_SIZE_MB } from '@/lib/appInfo';
 
 /**
  * DownloadAppPage — página de download do app oficial MovieFlix.
- *  - 📱 MovieFlix (celular, tablet e outros dispositivos compatíveis)
+ *  - 📱 MovieFlix Mobile (celular e tablet)
  */
 export function DownloadAppPage() {
   const apkUrl = APK_ABSOLUTE_URL; // URL absoluta usada pelo botão E pelo QR
@@ -21,12 +21,10 @@ export function DownloadAppPage() {
           Baixe o app <span className="text-brand-400">MovieFlix</span>
         </h1>
         <p className="mx-auto mt-3 max-w-xl text-sm text-ink-400 sm:text-base">
-          Escolha o aplicativo certo para o seu aparelho: <strong className="text-white">celular</strong> ou{' '}
-          <strong className="text-white">Android TV / Google TV</strong>. São dois apps separados —
-          instale o que combina com a sua tela.
+          O aplicativo oficial do MovieFlix para celular e tablet.
         </p>
 
-        {/* ──────────────── MOVIEFLIX (celular/tablet) ──────────────── */}
+        {/* ──────────────── MOVIEFLIX MOBILE (celular/tablet) ──────────────── */}
         <div className="mt-10 rounded-2xl border border-white/10 bg-ink-900/60 p-6 text-left">
           <div className="flex flex-col items-center gap-6 sm:flex-row sm:justify-between">
             <div className="flex items-start gap-4">
@@ -34,9 +32,9 @@ export function DownloadAppPage() {
                 <Smartphone className="h-7 w-7 text-brand-400" />
               </span>
               <div>
-                <h2 className="text-xl font-bold text-white">📱 MOVIEFLIX PARA CELULAR</h2>
+                <h2 className="text-xl font-bold text-white">📱 MovieFlix Mobile</h2>
                 <p className="mt-1 max-w-md text-sm text-ink-400">
-                  Aplicativo para smartphones Android (celular e tablet).
+                  Para celular e tablet.
                   <br />
                   <span className="text-ink-500">v{APP_INFO.version} • {APK_SIZE_MB} • .apk</span>
                 </p>
@@ -60,64 +58,10 @@ export function DownloadAppPage() {
           </div>
         </div>
 
-        {/* ───────────────────────── MOVIEFLIX TV (Android TV) ───────────────────────── */}
-        <div className="mt-6 rounded-2xl border border-white/10 bg-ink-900/60 p-6 text-left">
-          <div className="flex flex-col items-center gap-6 sm:flex-row sm:justify-between">
-            <div className="flex items-start gap-4">
-              <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-purple-600/15 ring-1 ring-purple-500/40">
-                <Monitor className="h-7 w-7 text-purple-300" />
-              </span>
-              <div>
-                <h2 className="text-xl font-bold text-white">📺 MOVIEFLIX TV</h2>
-                <p className="mt-1 max-w-md text-sm text-ink-400">
-                  Aplicativo para Android TV / Google TV (e TV Box) — feito para o
-                  controle remoto (D-pad), tela grande e visual cinematográfico.
-                  <br />
-                  <span className="text-ink-500">
-                    v{TV_APP_INFO.version} • {TV_APP_INFO.sizeMB} • .apk • mesma conta do
-                    MovieFlix
-                  </span>
-                </p>
-              </div>
-            </div>
-            <div className="flex flex-col items-center gap-3">
-              <a
-                href={TV_APK_ABSOLUTE_URL}
-                download={TV_APP_INFO.apkFileName}
-                data-tv-focusable
-                className="inline-flex items-center gap-3 rounded-2xl bg-purple-600 px-8 py-4 text-lg font-semibold text-white shadow-lg shadow-purple-600/30 transition hover:bg-purple-500"
-              >
-                <Download className="h-6 w-6" />
-                BAIXAR APP PARA TV
-              </a>
-              <div className="flex items-center gap-2 rounded-xl border border-white/10 bg-white p-2">
-                <QRCodeSVG value={TV_APK_ABSOLUTE_URL} size={64} level="M" bgColor="#ffffff" fgColor="#0a0a0f" title="MovieFlix TV APK" />
-                <span className="pr-2 text-[11px] font-semibold text-ink-900">QR para baixar na TV</span>
-              </div>
-            </div>
-          </div>
-          <p className="mt-4 border-t border-white/10 pt-4 text-xs leading-relaxed text-ink-400">
-            <strong className="text-white">Mesma conta, mesmos filmes.</strong> O MovieFlix TV usa exatamente
-            a mesma conta, o mesmo catálogo e as mesmas regras de assinatura do app do
-            celular e do site — o que você assiste em um, continua no outro
-            (incluindo <strong className="text-white">continuar assistindo</strong> e o limite de telas do seu plano).
-          </p>
-          {TV_APP_INFO.precisaDesinstalarAntes ? (
-            <p className="mt-3 rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-xs leading-relaxed text-amber-100">
-              <strong>Atualizando de uma versão anterior?</strong> Desinstale o
-              MovieFlix TV antigo antes de instalar o v{TV_APP_INFO.version} — esta
-              versão tem uma nova assinatura, e o Android não instala por cima de
-              outra assinatura. Seus dados e sua conta não são afetados (ficam no
-              servidor do MovieFlix), e depois desta atualização os próximos ajustes
-              chegam sozinhos, sem precisar baixar o APK de novo.
-            </p>
-          ) : null}
-        </div>
-
         {/* Nota honesta: como o QR funciona por plataforma */}
         <div className="mx-auto mt-6 max-w-3xl rounded-xl border border-white/10 bg-ink-900/40 px-4 py-3 text-left text-xs leading-relaxed text-ink-400">
           <strong className="text-white">Como o QR funciona:</strong> no{' '}
-          <strong className="text-brand-300">Android</strong> (celular, tablet, Smart TV, TV Box),
+          <strong className="text-brand-300">Android</strong> (celular e tablet),
           o QR inicia o download do APK na hora. No{' '}
           <strong className="text-white">iPhone/iPad (iOS)</strong>, o iOS não permite instalar
           APK — então o QR abre esta página de download, onde há o passo a passo
@@ -180,7 +124,7 @@ export function DownloadAppPage() {
             <Smartphone className="h-7 w-7 text-brand-400" />
             <h3 className="mt-3 font-semibold text-white">No celular e tablet</h3>
             <p className="mt-1 text-sm text-ink-400">
-              MovieFlix para celular, tablet e outros dispositivos compatíveis.
+              MovieFlix para celular e tablet.
             </p>
           </div>
           <div className="rounded-2xl border border-white/10 bg-ink-900/60 p-5">
@@ -195,7 +139,7 @@ export function DownloadAppPage() {
         <div className="mt-10 rounded-2xl border border-white/10 bg-ink-900/60 p-6 text-left">
           <h2 className="font-semibold text-white">Como instalar no Android</h2>
           <ol className="mt-3 list-decimal space-y-2 pl-5 text-sm text-ink-300">
-            <li>Toque em <strong className="text-white">BAIXAR APP</strong> (celular) ou <strong className="text-white">BAIXAR APP PARA TV</strong> (Android TV / Google TV) acima.</li>
+            <li>Toque em <strong className="text-white">BAIXAR APP</strong> acima.</li>
             <li>
               Abra o arquivo baixado. Se aparecer o aviso, permita{' '}
               <strong className="text-white">instalar de fontes desconhecidas</strong>{' '}
