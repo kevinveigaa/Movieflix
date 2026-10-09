@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
-import { Loader2, AlertCircle, Play, Pause, RotateCcw, RotateCw, Volume2, VolumeX } from 'lucide-react';
+import { Loader2, AlertCircle, Play, Pause } from 'lucide-react';
 import { useMovies } from '@/hooks/useMovies';
 import { useAuth } from '@/context/AuthContext';
 import { ehCampoDeTexto } from '@/lib/tecladoTv';
@@ -92,15 +92,6 @@ function limitar(v: number, min: number, max: number): number {
 }
 
 /** Formata segundos como `mm:ss` / `hh:mm:ss`. */
-function formatar(segundos: number): string {
-  if (!Number.isFinite(segundos)) return '--:--';
-  const total = Math.max(0, Math.floor(segundos));
-  const h = Math.floor(total / 3600);
-  const m = Math.floor((total % 3600) / 60);
-  const s = total % 60;
-  const dois = (n: number) => String(n).padStart(2, '0');
-  return h > 0 ? `${dois(h)}:${dois(m)}:${dois(s)}` : `${dois(m)}:${dois(s)}`;
-}
 
 export function TvPlayerPage({ id: idProp }: { id?: string } = {}) {
   const { id: idParam } = useParams();
@@ -129,15 +120,13 @@ export function TvPlayerPage({ id: idProp }: { id?: string } = {}) {
   /** Espelho do estado mostrado, lido pelo listener estável (registrado uma vez). */
   const pausadoRef = useRef(pausado);
   pausadoRef.current = pausado;
-  /** Movimento acumulado do seek, para o indicador (⏩ +30s / ⏪ −30s). */
+  /** Movimento acumulado do seek, mantido só para a lógica interna do player. */
   const [movimento, setMovimento] = useState<{ sentido: 'frente' | 'volta'; segundos: number } | null>(null);
-  /** Aviso curto transitório (volume / mudo) mostrado na barra. */
+  /** Aviso interno de volume/mudo, sem UI visível. */
   const [aviso, setAviso] = useState<string | null>(null);
-  /** Volume atual (0–100) exibido no aviso; `null` quando não é legível. */
+  /** Volume atual (0–100) mantido só para lógica interna. */
   const [volume, setVolume] = useState<number | null>(null);
   const [mudo, setMudo] = useState(false);
-  /** Os controles (barra do rodapé + faixa do topo) estão visíveis na tela? */
-  const [controlesVisiveis, setControlesVisiveis] = useState(true);
 
   const movie = useMemo(
     () => (movies.data ?? []).find((m) => String(m.id) === String(id)) ?? null,
@@ -205,27 +194,6 @@ export function TvPlayerPage({ id: idProp }: { id?: string } = {}) {
    */
   const ultimoOkRef = useRef(0);
 
-  /** Timer do AUTO-OCULTAR (5s) dos controles. */
-  const ocultarTimerRef = useRef<number | null>(null);
-
-  /**
-   * MOSTRA os controles e REINICIA a contagem de 5s até o próximo sumiço.
-   * Chamado em toda interação do controle remoto (qualquer tecla) e no OK.
-   */
-  const reiniciarOcultar = useCallback(() => {
-    setControlesVisiveis(true);
-    if (ocultarTimerRef.current !== null) window.clearTimeout(ocultarTimerRef.current);
-    ocultarTimerRef.current = window.setTimeout(() => setControlesVisiveis(false), 5000);
-  }, []);
-  const reiniciarOcultarRef = useRef(reiniciarOcultar);
-  reiniciarOcultarRef.current = reiniciarOcultar;
-
-  /**
-   * FEEDBACK VISUAL IMEDIATO do toggle: um ícone grande (play/pause) no centro
-   * da tela, mostrado no MESMO OK — não espera o provedor publicar o estado.
-   */
-  const [feedback, setFeedback] = useState<'pausar' | 'despausar' | null>(null);
-  const feedbackTimerRef = useRef<number | null>(null);
 
   /**
    * Suspende a GUARDA DE FOCO enquanto uma tecla/toque é injetado no player.
@@ -289,8 +257,6 @@ export function TvPlayerPage({ id: idProp }: { id?: string } = {}) {
    * toque/tecla REAL pela ponte nativa.
    */
   const alternarPlay = useCallback(() => {
-    // O OK REVELA os controles no mesmo toque em que alterna play/pause.
-    reiniciarOcultarRef.current();
     alternandoRef.current = true;
     marcarInjecao();
 
@@ -308,12 +274,7 @@ export function TvPlayerPage({ id: idProp }: { id?: string } = {}) {
     const alvoPausado = recente ? lido.estado !== 'paused' : !pausadoRef.current;
     ultimoOkRef.current = Date.now();
 
-    // FEEDBACK IMEDIATO, no MESMO OK: ícone grande no centro (não espera o
-    // provedor). É o que o usuário vê responder na hora.
     setPausado(alvoPausado);
-    setFeedback(alvoPausado ? 'pausar' : 'despausar');
-    if (feedbackTimerRef.current !== null) window.clearTimeout(feedbackTimerRef.current);
-    feedbackTimerRef.current = window.setTimeout(() => setFeedback(null), 900);
 
     // UM ÚNICO GESTO REAL por OK — e o TOQUE é o gesto que ATRAVESSA até o iframe
     // do provedor (ver controlePlayer.ts). NUNCA emitimos um SEGUNDO gesto "de
@@ -410,9 +371,6 @@ export function TvPlayerPage({ id: idProp }: { id?: string } = {}) {
 
       // A partir daqui é interação REAL do usuário: o autoplay para de tentar.
       usuarioInteragiuRef.current = true;
-      // Qualquer tecla do controle REMOSTRA os controles e reinicia os 5s.
-      reiniciarOcultarRef.current();
-
       e.preventDefault();
       e.stopPropagation();
 
@@ -537,14 +495,14 @@ export function TvPlayerPage({ id: idProp }: { id?: string } = {}) {
     return limpar;
   }, [pronto, recarga]);
 
-  /** O indicador de seek some sozinho depois de um instante. */
+  /** O indicador interno de seek some sozinho depois de um instante. */
   useEffect(() => {
     if (!movimento) return;
     const t = window.setTimeout(() => setMovimento(null), 1200);
     return () => window.clearTimeout(t);
   }, [movimento]);
 
-  /** O aviso de volume some sozinho depois de um instante. */
+  /** O aviso interno de volume some sozinho depois de um instante. */
   useEffect(() => {
     if (!aviso) return;
     const t = window.setTimeout(() => setAviso(null), 1400);
@@ -564,19 +522,6 @@ export function TvPlayerPage({ id: idProp }: { id?: string } = {}) {
     }
   }, [pronto]);
 
-  /**
-   * AUTO-OCULTAR: ao entrar no player os controles aparecem e começam a contar
-   * 5s; sem interação eles somem (fica só o vídeo). Cada tecla/OK reinicia a
-   * contagem via `reiniciarOcultar`. O timer é limpo ao desmontar.
-   */
-  useEffect(() => {
-    if (!pronto) return;
-    reiniciarOcultar();
-    return () => {
-      if (ocultarTimerRef.current !== null) window.clearTimeout(ocultarTimerRef.current);
-      if (feedbackTimerRef.current !== null) window.clearTimeout(feedbackTimerRef.current);
-    };
-  }, [pronto, recarga, reiniciarOcultar]);
 
   /** Foco visual no botão Play/Pause ao abrir (cosmético; as teclas são globais). */
   useEffect(() => {
@@ -739,7 +684,7 @@ export function TvPlayerPage({ id: idProp }: { id?: string } = {}) {
   }
 
   return (
-    <div className={`tv-page tv-page-player${controlesVisiveis ? '' : ' tv-controles-oculto'}`}>
+    <div className="tv-page tv-page-player tv-controles-oculto">
       {/* A MOLDURA do vídeo ocupa a tela inteira. A barra customizada é ANCORADA
           no rodapé DESTA moldura — exatamente onde a barra nativa do provedor
           aparece — de modo que ela a COBRE por completo (ver tv.css). */}
@@ -762,121 +707,21 @@ export function TvPlayerPage({ id: idProp }: { id?: string } = {}) {
             pontes reais (toque/tecla de play/pause + streambetter:seek). */}
         <div className="tv-player-bloqueio" aria-hidden="true" tabIndex={-1} />
 
-        {/* FEEDBACK IMEDIATO do OK: ícone grande (pausa/play) no centro, no
-            MESMO toque. Não depende do provedor — some sozinho em ~0,9s. */}
-        {feedback ? (
-          <div className="tv-player-feedback" aria-hidden="true" data-tv-player-feedback>
-            {feedback === 'pausar' ? (
-              <Pause className="tv-player-feedback-icon" />
-            ) : (
-              <Play className="tv-player-feedback-icon" />
-            )}
-          </div>
-        ) : null}
-
-        {/* ── BARRA CUSTOMIZADA ANCORADA NO RODAPÉ (cobre a barra nativa) ──
-            Contém a ÚNICA exibição de tempo, no formato HH:MM:SS / HH:MM:SS. */}
-        <div className="tv-player-bar-ancora" data-tv-player-controles>
-          <div className="tv-player-controles">
-            <button
-              ref={playPauseRef}
-              type="button"
-              data-tv-focusable
-              tabIndex={0}
-              className="tv-player-ctrl tv-player-ctrl-main"
-              aria-label={pausado ? 'Reproduzir' : 'Pausar'}
-              onClick={alternarPlay}
-            >
-              {pausado ? <Play className="tv-player-ctrl-icon" /> : <Pause className="tv-player-ctrl-icon" />}
-            </button>
-
-            <button
-              type="button"
-              data-tv-focusable
-              tabIndex={0}
-              className="tv-player-ctrl"
-              aria-label="Retroceder 30 segundos"
-              onClick={() => buscar(-PASSO_SEEK)}
-            >
-              <RotateCcw className="tv-player-ctrl-icon" />
-            </button>
-
-            <button
-              type="button"
-              data-tv-focusable
-              tabIndex={0}
-              className="tv-player-ctrl"
-              aria-label="Avançar 30 segundos"
-              onClick={() => buscar(PASSO_SEEK)}
-            >
-              <RotateCw className="tv-player-ctrl-icon" />
-            </button>
-
-            {/* ── A ÚNICA EXIBIÇÃO DE TEMPO ⏪⏩ / HH:MM:SS / HH:MM:SS ── */}
-            <div
-              className="tv-player-barra"
-              role="progressbar"
-              aria-valuemin={0}
-              aria-valuemax={100}
-              aria-valuenow={Math.round(
-                progresso.duracao > 0 ? limitar((progresso.posicao / progresso.duracao) * 100, 0, 100) : 0,
-              )}
-              aria-label="Progresso do vídeo"
-              data-tv-progresso
-            >
-              <span className="tv-player-barra-trilha" data-tv-progresso-trilha>
-                <span
-                  className="tv-player-barra-preenchida"
-                  style={{
-                    width: `${
-                      progresso.duracao > 0 ? limitar((progresso.posicao / progresso.duracao) * 100, 0, 100) : 0
-                    }%`,
-                  }}
-                />
-              </span>
-              {movimento ? (
-                <span className="tv-player-barra-aviso" data-tv-progresso-movimento>
-                  {movimento.sentido === 'frente' ? `⏩ +${movimento.segundos}s` : `⏪ −${movimento.segundos}s`}
-                </span>
-              ) : null}
-              <span className="tv-player-barra-tempo" data-tv-progresso-tempo>
-                {formatar(progresso.posicao)} / {progresso.duracao > 0 ? formatar(progresso.duracao) : '--:--'}
-              </span>
-              {aviso ? (
-                <span className="tv-player-barra-volume" data-tv-volume>
-                  {aviso}
-                </span>
-              ) : null}
-            </div>
-
-            {/* Indicador de volume/mudo (não é uma segunda leitura de tempo). */}
-            {volume !== null ? (
-              <span
-                className="tv-player-volume-icone"
-                aria-hidden="true"
-                title={mudo ? 'Mudo' : `Volume ${volume}%`}
-              >
-                {mudo || volume <= 0 ? (
-                  <VolumeX className="tv-player-ctrl-icon" />
-                ) : (
-                  <Volume2 className="tv-player-ctrl-icon" />
-                )}
-              </span>
-            ) : null}
-          </div>
+        <div className="tv-player-controles-invisiveis" data-tv-player-controles aria-hidden="true">
+          <button
+            ref={playPauseRef}
+            type="button"
+            data-tv-focusable
+            tabIndex={0}
+            className="tv-player-ctrl-hidden-anchor"
+            aria-label={pausado ? 'Reproduzir' : 'Pausar'}
+            onClick={alternarPlay}
+          >
+            {pausado ? <Play className="tv-player-ctrl-icon" /> : <Pause className="tv-player-ctrl-icon" />}
+          </button>
         </div>
       </div>
 
-      {/* TOPO discreto, AUTO-OCULTO: marca + título + dica das teclas. */}
-      <div className="tv-player-top tv-player-top-auto" aria-hidden="false">
-        <span className="tv-player-logo" aria-hidden="true">
-          MovieFlix
-        </span>
-        <span className="tv-player-title">{movie.title}</span>
-        <span className="tv-player-hint tv-player-hint-top">
-          OK pausa/continua · ← retrocede · → avança · ↑↓ volume · Voltar sai
-        </span>
-      </div>
 
     </div>
   );

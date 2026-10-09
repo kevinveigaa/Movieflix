@@ -479,23 +479,6 @@
 
 /* FEEDBACK IMEDIATO do OK (play/pause): ícone grande no centro do vídeo,
    mostrado no MESMO toque — não espera o provedor publicar o estado real. */
-.tv-player-feedback {
-  position: absolute;
-  inset: 0;
-  z-index: 20;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  pointer-events: none;
-  background: radial-gradient(ellipse at center, rgba(0, 0, 0, 0.42) 0%, rgba(0, 0, 0, 0) 62%);
-  animation: tv-player-feedback-fade 0.9s ease-out forwards;
-}
-.tv-player-feedback-icon {
-  width: 12vh;
-  height: 12vh;
-  color: #fff;
-  filter: drop-shadow(0 4px 18px rgba(0, 0, 0, 0.7));
-}
 @keyframes tv-player-feedback-fade {
   0% { opacity: 0; transform: scale(0.86); }
   18% { opacity: 1; transform: scale(1); }
@@ -1442,7 +1425,7 @@
    diz onde o controle está é a própria barra de controles. */
 .tv-player-box.tv-focus,
 .tv-player-box:focus-visible {
-  border-color: rgba(255, 255, 255, 0.06);
+  border-color: transparent;
   box-shadow: none;
 }
 
@@ -1577,14 +1560,13 @@
    iframe do provedor), então o D-pad os alcança e o OK os aciona. ↑/↓ navega
    entre eles; o foco inicial é o Play/Pause. */
 .tv-player-controles {
-  position: relative;
-  z-index: 26;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 1.4vw;
-  padding: 1.4vh 1.6vw 0.6vh;
-  background: linear-gradient(0deg, rgba(0, 0, 0, 0.92) 0%, rgba(0, 0, 0, 0) 100%);
+  display: none;
+}
+
+.tv-player-controles-invisiveis {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
 }
 
 /* ══════════════════════════════════════════════════════════════════════════
@@ -1602,121 +1584,24 @@
    sobreposição TRANSPARENTE na parte de cima (o vídeo aparece) e OPACA embaixo
    (esconde a barra nativa). */
 .tv-player-bar-ancora {
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  z-index: 20;
-  padding-top: 11vh;
-  background: linear-gradient(
-    0deg,
-    rgba(0, 0, 0, 0.96) 0%,
-    rgba(0, 0, 0, 0.9) 40%,
-    rgba(0, 0, 0, 0) 100%
-  );
-}
-
-.tv-player-bar-ancora .tv-player-controles {
-  padding: 1vh 1.6vw 1.4vh;
-  background: transparent;
+  display: none;
 }
 
 /* Indicador de seek (⏩ +30s / ⏪ −30s) DENTRO da barra — não é uma segunda
    exibição de tempo, é o retorno visual do comando. */
-.tv-player-barra-aviso {
-  padding: 0.35vh 0.8vw;
-  border-radius: 999px;
-  font-weight: 800;
-  color: #fff;
-  background: rgba(223, 10, 21, 0.92);
-  animation: tv-progresso-pulso 0.25s ease-out;
-  white-space: nowrap;
-}
-
-/* Aviso de volume (🔊 60% / 🔇 Mudo) — também não é tempo. */
-.tv-player-barra-volume {
-  font-weight: 800;
-  color: #fff;
-  white-space: nowrap;
-}
-
-.tv-player-volume-icone {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  color: #e6e6ee;
-}
-
-/* Barra de progresso focável: mostra o tempo REAL e a posição. */
-.tv-player-barra {
-  display: flex;
-  align-items: center;
-  gap: 1vw;
-  min-width: min(46vw, 720px);
-  padding: 0.8vh 1.2vw;
-  border-radius: 999px;
-  border: 2px solid transparent;
-  background: rgba(255, 255, 255, 0.1);
-  color: #e6e6ee;
-  font-weight: 700;
-  font-size: clamp(10px, 1.3vh, 20px);
-  font-variant-numeric: tabular-nums;
-  outline: none;
-  cursor: pointer;
-  transition: transform 0.14s ease, background 0.14s ease;
-}
-
-.tv-player-barra-focavel.tv-focus,
-.tv-player-barra-focavel:focus-visible {
-  border-color: #fff;
-  background: rgba(255, 255, 255, 0.18);
-  box-shadow: 0 0 0 4px rgba(223, 10, 21, 0.55);
-}
-
-.tv-player-barra-trilha {
-  position: relative;
-  flex: 1 1 auto;
-  height: clamp(6px, 0.9vh, 12px);
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.24);
-  overflow: hidden;
-}
-
-.tv-player-barra-preenchida {
-  display: block;
-  height: 100%;
-  background: var(--mf-grad);
-  transition: width 0.18s linear;
-}
-
-.tv-player-barra-tempo {
-  white-space: nowrap;
-  font-variant-numeric: tabular-nums;
-}
-
-/* Badge do modo "controle do player" (long-press OK). */
-.tv-player-mode-badge {
-  position: absolute;
-  right: 1.4vw;
-  bottom: 2.2vh;
-  z-index: 30;
-  display: inline-flex;
-  align-items: center;
-  gap: 0.5vw;
-  padding: 0.9vh 1vw;
-  border-radius: 999px;
-  background: rgba(10, 10, 15, 0.86);
-  border: 1px solid rgba(255, 255, 255, 0.16);
-  color: #d6d6e0;
-  font-size: clamp(9px, 1.15vh, 18px);
-  font-weight: 700;
-  transition: opacity 0.2s ease;
-}
-
-.tv-player-mode-ativo {
-  background: var(--mf-grad);
-  color: #fff;
-  border-color: transparent;
+.tv-player-barra-aviso,
+.tv-player-barra-volume,
+.tv-player-volume-icone,
+.tv-player-barra,
+.tv-player-mode-badge,
+.tv-player-mode-ativo,
+.tv-player-top,
+.tv-player-top-auto,
+.tv-player-hint,
+.tv-player-hint-top,
+.tv-player-logo,
+.tv-player-title {
+  display: none !important;
 }
 
 /* ══════════════════════════════════════════════════════════════════════════
@@ -1726,10 +1611,6 @@
    somem e fica SÓ o vídeo na tela; ao apertar OK, os controles reaparecem E o
    OK já alterna play/pause no MESMO toque. A classe `tv-controles-oculto` no
    container da página esconde a barra do rodapé e a faixa do topo. */
-.tv-player-bar-ancora,
-.tv-player-top {
-  transition: opacity 0.25s ease, visibility 0.25s ease, transform 0.25s ease;
-}
 .tv-page-player.tv-controles-oculto .tv-player-bar-ancora,
 .tv-page-player.tv-controles-oculto .tv-player-top {
   opacity: 0;
@@ -1756,6 +1637,18 @@
 }
 
 /* ── Acessibilidade / movimento reduzido ──────────────────────────────── */
+
+.tv-player-ctrl-hidden-anchor {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: 0;
+  border: 0;
+  opacity: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
 
 @media (prefers-reduced-motion: reduce) {
   .tv-card,
