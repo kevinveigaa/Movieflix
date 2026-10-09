@@ -144,6 +144,47 @@ export const TV_APK_URL = `/apk/${TV_APP_INFO.apkFileName}`;
 /** URL ABSOLUTA do APK TV (para links diretos / QR code). */
 export const TV_APK_ABSOLUTE_URL = `https://movieflix-bszf.onrender.com${TV_APK_URL}`;
 
+/**
+ * ── MovieFlix para iPhone / iPad (iOS) ──
+ *
+ * O MovieFlix é um app WebView (Capacitor) que SEMPRE carrega o site online
+ * (https://movieflix-bszf.onrender.com). Por isso a versão iOS é LITERALMENTE
+ * IDÊNTICA à versão Android: mesmas telas, mesmo design, mesmo catálogo, mesmo
+ * player, mesma busca, mesmos favoritos, mesmo login/cadastro/perfis/assinaturas
+ * — porque as duas carregam exatamente o mesmo site.
+ *
+ * No iPhone/iPad o iOS NÃO permite instalar APK. A forma oficial de ter o app
+ * na tela inicial é o PWA (Progressive Web App): o usuário abre o site no Safari
+ * e usa "Adicionar à Tela de Início". O resultado é o mesmo app em tela cheia,
+ * sempre atualizado, sem App Store.
+ *
+ * O projeto nativo iOS (Capacitor, pasta `ios/`) já existe no repositório e usa
+ * o MESMO bundle id do Android (com.movieflix.app) e o mesmo `server.url` do
+ * site — ou seja, o build iOS é o mesmo app. A distribuição pela App Store
+ * exige uma conta Apple Developer (paga) e revisão da Apple; por isso a via
+ * pública e imediata é o PWA, com o build iOS pronto para quem tiver a conta.
+ */
+export const IOS_APP_INFO = {
+  name: 'MovieFlix',
+  /** Versão exibida (mesma versão do app/site unificados) */
+  version: '3.4.1',
+  /** Bundle id do projeto nativo iOS (bate com ios/App/App.xcodeproj) */
+  bundleId: 'com.movieflix.app',
+  /** Plataformas suportadas */
+  platforms: ['iPhone', 'iPad'],
+  /** Como instalar no iPhone (PWA via Safari) */
+  installSteps: [
+    'Abra o site movieflix-bszf.onrender.com no Safari do iPhone/iPad.',
+    'Toque no botão Compartilhar (ícone de quadrado com a seta para cima).',
+    'Toque em "Adicionar à Tela de Início".',
+    'Confirme o nome MovieFlix e toque em "Adicionar".',
+    'Pronto: o ícone do MovieFlix aparece na tela inicial e abre em tela cheia.',
+  ],
+  /** Observação honesta sobre a App Store */
+  appStoreNote:
+    'A distribuição pela App Store exige uma conta Apple Developer (paga) e a revisão da Apple. O projeto iOS (Capacitor) já está pronto no repositório; a instalação pública e imediata no iPhone é pelo PWA, com a mesma experiência do app Android.',
+} as const;
+
 /** Chave usada no localStorage para lembrar a última versão vista pelo usuário. */
 const VERSION_KEY = 'mf_last_seen_version';
 

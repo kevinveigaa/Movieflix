@@ -1,14 +1,22 @@
 import { Link } from 'react-router-dom';
 import { QRCodeSVG } from 'qrcode.react';
 import { Smartphone, Download, ShieldCheck, Monitor, RotateCcw, Apple, CheckCircle2 } from 'lucide-react';
-import { APP_INFO, APK_ABSOLUTE_URL, DOWNLOAD_PAGE_URL, APK_SIZE_MB } from '@/lib/appInfo';
+import { APP_INFO, APK_ABSOLUTE_URL, DOWNLOAD_PAGE_URL, APK_SIZE_MB, IOS_APP_INFO } from '@/lib/appInfo';
 
 /**
  * DownloadAppPage — página de download do app oficial MovieFlix.
- *  - 📱 MovieFlix Mobile (celular e tablet)
+ *
+ * Dois botões SEPARADOS e claros, um por sistema:
+ *  - 📱 MOVIEFLIX PARA ANDROID — baixa o APK oficial (mesmo app de sempre).
+ *  - 🍎 MOVIEFLIX PARA iPHONE  — instala o app no iPhone/iPad (PWA via Safari).
+ *
+ * O app é o MESMO nos dois sistemas: o shell (Capacitor) carrega o site online,
+ * então Android e iPhone têm exatamente as mesmas telas, catálogo, player,
+ * busca, favoritos, login/cadastro/perfis/assinaturas.
  */
 export function DownloadAppPage() {
   const apkUrl = APK_ABSOLUTE_URL; // URL absoluta usada pelo botão E pelo QR
+  const siteUrl = 'https://movieflix-bszf.onrender.com';
 
   return (
     <div className="container-app py-10">
@@ -21,38 +29,76 @@ export function DownloadAppPage() {
           Baixe o app <span className="text-brand-400">MovieFlix</span>
         </h1>
         <p className="mx-auto mt-3 max-w-xl text-sm text-ink-400 sm:text-base">
-          O aplicativo oficial do MovieFlix para celular e tablet.
+          Escolha o aplicativo certo para o seu aparelho: <strong className="text-white">Android</strong> ou{' '}
+          <strong className="text-white">iPhone</strong>. É o mesmo MovieFlix nos dois sistemas —
+          mesmas telas, mesmo catálogo, mesmo player, mesma conta.
         </p>
 
-        {/* ──────────────── MOVIEFLIX MOBILE (celular/tablet) ──────────────── */}
-        <div className="mt-10 rounded-2xl border border-white/10 bg-ink-900/60 p-6 text-left">
-          <div className="flex flex-col items-center gap-6 sm:flex-row sm:justify-between">
+        {/* ══════════════ DOIS BOTÕES SEPARADOS: ANDROID e iPHONE ══════════════ */}
+        <div className="mt-10 grid gap-6 text-left sm:grid-cols-2">
+          {/* ─────────────── 📱 MOVIEFLIX PARA ANDROID ─────────────── */}
+          <div className="flex flex-col rounded-2xl border border-white/10 bg-ink-900/60 p-6">
             <div className="flex items-start gap-4">
               <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-brand-600/15 ring-1 ring-brand-500/40">
                 <Smartphone className="h-7 w-7 text-brand-400" />
               </span>
               <div>
-                <h2 className="text-xl font-bold text-white">📱 MovieFlix Mobile</h2>
-                <p className="mt-1 max-w-md text-sm text-ink-400">
-                  Para celular e tablet.
+                <h2 className="text-xl font-bold text-white">📱 MOVIEFLIX PARA ANDROID</h2>
+                <p className="mt-1 text-sm text-ink-400">
+                  Para celular e tablet Android.
                   <br />
                   <span className="text-ink-500">v{APP_INFO.version} • {APK_SIZE_MB} • .apk</span>
                 </p>
               </div>
             </div>
-            <div className="flex flex-col items-center gap-3">
+
+            <div className="mt-5 flex flex-col items-center gap-3">
               <a
                 href={apkUrl}
                 download={APP_INFO.apkFileName}
                 data-tv-focusable
-                className="inline-flex items-center gap-3 rounded-2xl bg-brand-600 px-8 py-4 text-lg font-semibold text-white shadow-lg shadow-brand-600/30 transition hover:bg-brand-500"
+                className="inline-flex w-full items-center justify-center gap-3 rounded-2xl bg-brand-600 px-8 py-4 text-lg font-semibold text-white shadow-lg shadow-brand-600/30 transition hover:bg-brand-500"
               >
                 <Download className="h-6 w-6" />
                 BAIXAR APP
               </a>
               <div className="flex items-center gap-2 rounded-xl border border-white/10 bg-white p-2">
                 <QRCodeSVG value={apkUrl} size={64} level="M" bgColor="#ffffff" fgColor="#0a0a0f" title="MovieFlix APK" />
-                <span className="pr-2 text-[11px] font-semibold text-ink-900">QR para baixar no celular</span>
+                <span className="pr-2 text-[11px] font-semibold text-ink-900">QR para baixar no Android</span>
+              </div>
+            </div>
+          </div>
+
+          {/* ─────────────── 🍎 MOVIEFLIX PARA iPHONE ─────────────── */}
+          <div className="flex flex-col rounded-2xl border border-white/10 bg-ink-900/60 p-6">
+            <div className="flex items-start gap-4">
+              <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-zinc-500/15 ring-1 ring-zinc-400/40">
+                <Apple className="h-7 w-7 text-zinc-200" />
+              </span>
+              <div>
+                <h2 className="text-xl font-bold text-white">🍎 MOVIEFLIX PARA iPHONE</h2>
+                <p className="mt-1 text-sm text-ink-400">
+                  Para iPhone e iPad (iOS).
+                  <br />
+                  <span className="text-ink-500">v{IOS_APP_INFO.version} • PWA • instala pelo Safari</span>
+                </p>
+              </div>
+            </div>
+
+            <div className="mt-5 flex flex-col items-center gap-3">
+              <a
+                href={siteUrl}
+                target="_blank"
+                rel="noreferrer"
+                data-tv-focusable
+                className="inline-flex w-full items-center justify-center gap-3 rounded-2xl bg-zinc-100 px-8 py-4 text-lg font-semibold text-ink-900 shadow-lg shadow-black/30 transition hover:bg-white"
+              >
+                <Apple className="h-6 w-6" />
+                BAIXAR APP
+              </a>
+              <div className="flex items-center gap-2 rounded-xl border border-white/10 bg-white p-2">
+                <QRCodeSVG value={siteUrl} size={64} level="M" bgColor="#ffffff" fgColor="#0a0a0f" title="MovieFlix iPhone" />
+                <span className="pr-2 text-[11px] font-semibold text-ink-900">QR para abrir no iPhone</span>
               </div>
             </div>
           </div>
@@ -64,7 +110,7 @@ export function DownloadAppPage() {
           <strong className="text-brand-300">Android</strong> (celular e tablet),
           o QR inicia o download do APK na hora. No{' '}
           <strong className="text-white">iPhone/iPad (iOS)</strong>, o iOS não permite instalar
-          APK — então o QR abre esta página de download, onde há o passo a passo
+          APK — então o QR abre o site, onde há o passo a passo
           para instalar o MovieFlix como PWA direto do Safari (mesma experiência,
           sempre atualizado).{' '}
           <a
@@ -93,11 +139,28 @@ export function DownloadAppPage() {
           </ul>
         </div>
 
-        {/* iOS */}
+        {/* Como instalar no Android */}
+        <div className="mt-6 rounded-2xl border border-white/10 bg-ink-900/60 p-6 text-left">
+          <h2 className="flex items-center gap-2 font-semibold text-white">
+            <Smartphone className="h-5 w-5 text-brand-400" />
+            Como instalar no Android
+          </h2>
+          <ol className="mt-3 list-decimal space-y-2 pl-5 text-sm text-ink-300">
+            <li>Toque em <strong className="text-white">BAIXAR APP</strong> no cartão do Android acima.</li>
+            <li>
+              Abra o arquivo baixado. Se aparecer o aviso, permita{' '}
+              <strong className="text-white">instalar de fontes desconhecidas</strong>{' '}
+              (Ajustes → Segurança ou nas configurações do seu navegador).
+            </li>
+            <li>Confirme a instalação e pronto — entre com a sua conta MovieFlix.</li>
+          </ol>
+        </div>
+
+        {/* Como instalar no iPhone / iPad (iOS) */}
         <div className="mt-6 rounded-2xl border border-white/10 bg-ink-900/60 p-6 text-left">
           <h2 className="flex items-center gap-2 font-semibold text-white">
             <Apple className="h-5 w-5 text-zinc-300" />
-            iPhone / iPad (iOS)
+            Como instalar no iPhone / iPad (iOS)
           </h2>
           <p className="mt-2 text-sm text-ink-400">
             O MovieFlix é um <strong className="text-white">PWA (Progressive Web App)</strong>:
@@ -105,11 +168,13 @@ export function DownloadAppPage() {
             Android (mesmo catálogo, mesma versão, sempre atualizado).
           </p>
           <ol className="mt-3 list-decimal space-y-1.5 pl-5 text-sm text-ink-300">
-            <li>Abra o site <span className="text-brand-300">movieflix-bszf.onrender.com</span> no Safari.</li>
-            <li>Toque no botão <strong className="text-white">Compartilhar</strong> (ícone de seta para cima).</li>
-            <li>Toque em <strong className="text-white">"Adicionar à Tela de Início"</strong>.</li>
-            <li>Pronto: o ícone do MovieFlix aparece na tela inicial, em tela cheia.</li>
+            {IOS_APP_INFO.installSteps.map((passo) => (
+              <li key={passo}>{passo}</li>
+            ))}
           </ol>
+          <p className="mt-4 rounded-xl border border-white/10 bg-ink-900/40 px-4 py-3 text-xs leading-relaxed text-ink-400">
+            {IOS_APP_INFO.appStoreNote}
+          </p>
         </div>
 
         <div className="mt-12 grid gap-4 text-left sm:grid-cols-3">
@@ -122,9 +187,9 @@ export function DownloadAppPage() {
           </div>
           <div className="rounded-2xl border border-white/10 bg-ink-900/60 p-5">
             <Smartphone className="h-7 w-7 text-brand-400" />
-            <h3 className="mt-3 font-semibold text-white">No celular e tablet</h3>
+            <h3 className="mt-3 font-semibold text-white">Android e iPhone</h3>
             <p className="mt-1 text-sm text-ink-400">
-              MovieFlix para celular e tablet.
+              O mesmo app nos dois sistemas — mesmas telas, mesmo catálogo, mesma conta.
             </p>
           </div>
           <div className="rounded-2xl border border-white/10 bg-ink-900/60 p-5">
@@ -136,18 +201,8 @@ export function DownloadAppPage() {
           </div>
         </div>
 
-        <div className="mt-10 rounded-2xl border border-white/10 bg-ink-900/60 p-6 text-left">
-          <h2 className="font-semibold text-white">Como instalar no Android</h2>
-          <ol className="mt-3 list-decimal space-y-2 pl-5 text-sm text-ink-300">
-            <li>Toque em <strong className="text-white">BAIXAR APP</strong> acima.</li>
-            <li>
-              Abra o arquivo baixado. Se aparecer o aviso, permita{' '}
-              <strong className="text-white">instalar de fontes desconhecidas</strong>{' '}
-              (Ajustes → Segurança ou nas configurações do seu navegador).
-            </li>
-            <li>Confirme a instalação e pronto — entre com a sua conta MovieFlix.</li>
-          </ol>
-          <p className="mt-4 text-xs text-ink-500">
+        <div className="mt-10">
+          <p className="text-xs text-ink-500">
             <Monitor className="mr-1 inline h-3.5 w-3.5" />
             Prefere assistir no computador? Use o site normalmente no navegador.
           </p>
